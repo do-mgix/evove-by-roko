@@ -4,7 +4,7 @@ import time
 import readchar
 
 # importar classe user 
-from src.components.user.user import evove
+from src.components.user.user import user 
 
 # O 'len' aqui é o tamanho do PAYLOAD (o ID que vem depois do prefixo)
 OBJECTS = {
@@ -20,16 +20,16 @@ INTERACTIONS = {
 
 # Comandos de atalho que não seguem a regra de Attr/Action
 SINGLE_COMMANDS = {
-    "1":  {"len": 0, "func": evove.wake},
-    "3":  {"len": 0, "func": evove.sleep},
-    "25": {"len": 2, "func": evove.create_action}, 
-    "28": {"len": 0, "func": evove.create_attribute}, 
+    "1":  {"len": 0, "func": user.wake},
+    "3":  {"len": 0, "func": user.sleep},
+    "25": {"len": 2, "func": user.create_action}, 
+    "28": {"len": 0, "func": user.create_attribute}, 
 
 }
 
 COMMANDS = {        
-    "attr add action": {"func": evove.attribute_add_action},
-    "action act": {"func": evove.act},
+    "attr add action": {"func": user.attribute_add_action},
+    "action act": {"func": user.act},
 }
 
 # --- CONFIGURAÇÕES DE UI ---
@@ -178,20 +178,20 @@ def render(buffer):
     for t in tokens:
         if t == "attr":
             id_val = f"8{payloads[p_idx]}" if p_idx < len(payloads) else "???"
-            nome = evove.attributes.get(id_val, "...")
+            nome = user.attributes.get(id_val, "...")
             if hasattr(nome, 'attr_name'): nome = nome.attr_name # Se for objeto
-            status_parts.append(f"{WHITE}⚪ ({id_val}){CLR}")
+            status_parts.append(f"{WHITE}⚪ ({nome}){CLR}")
             p_idx += 1
         elif t == "add":
             status_parts.append(f"{CYAN}Add{CLR}")
         elif t == "action":
             id_val = f"5{payloads[p_idx]}" if p_idx < len(payloads) else "???"
-            nome = evove.actions.get(id_val, "...")
+            nome = user.actions.get(id_val, "...")
             if hasattr(nome, 'name'): nome = nome.name
-            status_parts.append(f"{MAGENTA}⭐ ({id_val}){CLR}")
+            status_parts.append(f"{MAGENTA}⭐ ({nome}){CLR}")
             p_idx += 1
     
-    process_view = " -> ".join(status_parts) if status_parts else "you can type"
+    process_view = " -> ".join(status_parts) if status_parts else ""
     
     # --- SEÇÃO 2: DISPLAY DO BUFFER ---
     buffer_view = format_visual_buffer(buffer)
@@ -201,10 +201,16 @@ def render(buffer):
     log_view = f"Faltando: {faltando} dígitos | Buffer Raw: {buffer}"
 
     # --- IMPRESSÃO DAS TELAS ---
-    print(f"{MAGENTA}INPUT BUFFER {buffer_view} ")
+    print(f"{MAGENTA}INPUT BUFFER")
+    print(f"{buffer_view}")
     print(f"{process_view}")
 
+
 def dial_start():
+
+    # carrega os dados do usuário antes de começar o programa
+    user.load_user()
+
     try:
 
         buffer = ""

@@ -1,6 +1,6 @@
 
+import json, os
 from datetime import datetime
-
 from src.components.user.attributes.attribute import Attribute
 from src.components.user.actions.repetition_action import RepetitionAction
 from src.components.user.actions.sec_action import SecAction
@@ -18,17 +18,13 @@ ACTION_PROMPT_MAP = {
 
 class User:
     def __init__(self):
-# Mudamos para dicionários para busca rápida por ID: {"801": objeto, "802": objeto}
         self._attributes = {} 
-        self._actions = {}
-        
-        # Contadores começando em 1
+        self._actions = {} 
         self._next_attr_id = 1
         self._next_action_id = 1
-        
-        # Atributos internos para score e valor
         self._score = 0
         self._value = 0
+
     @property
     def score(self):
         return self._score
@@ -54,6 +50,60 @@ class User:
     def log(self, buffer: str):
         print(f"logged")
 
+    def save_user(self):
+        # 1. Descobre o diretório onde este arquivo (user.py) está
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        # 2. Cria o caminho completo para o arquivo user.json no mesmo diretório
+        data_file = os.path.join(base_dir, "user.json")
+
+        data = {
+            "score": self._score,
+            "value": self._value,
+            "next_attr_id": self._next_attr_id,
+            "next_action_id": self._next_action_id,
+            "attributes": {
+                k: v.to_dict() if hasattr(v, 'to_dict') else v for k, v in self._attributes.items()
+            },
+            "actions": {
+                k: v.to_dict() if hasattr(v, 'to_dict') else v for k, v in self._actions.items()
+            }
+        }
+
+        try:
+            with open(data_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=4)
+            print(f"[*] Sucesso: Arquivo salvo em {data_file}")
+        except Exception as e:
+            print(f"[!] Erro ao salvar: {e}")
+
+    def load_user(self):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        data_file = os.path.join(base_dir, "user.json")
+
+        if not os.path.exists(data_file):
+            print("[!] Arquivo não encontrado. Mantendo dados atuais.")
+            return
+
+        with open(data_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        # Atualiza o estado do objeto atual (self)
+        self._score = data.get("score", 0)
+        self._value = data.get("value", 0)
+        self._next_attr_id = data.get("next_attr_id", 1)
+        self._next_action_id = data.get("next_action_id", 1)
+
+        # Reconstrói os atributos no dicionário existente
+        # Importante: limpamos o dicionário antes para não duplicar se carregar duas vezes
+        self._attributes.clear()
+        for attr_id, attr_data in data.get("attributes", {}).items():
+            # Aqui você instancia seu objeto Attribute real
+            new_attr = Attribute(attr_id, attr_data['name'])
+            self._attributes[attr_id] = new_attr
+            
+        print(f"[*] Dados carregados com sucesso. Próximo ID de Atributo: {self._next_attr_id}")
+ 
     def act(self, payloads):
         action_id = f"5{payloads[0]}"  # Resulta em "501"
         action = self._actions.get(action_id)
@@ -91,6 +141,8 @@ class User:
         
         print(f"Atributo '{name}' criado com ID: {new_id}")
         self._next_attr_id += 1
+        
+        self.save_user()
 
     def create_action(self, buffer: str):    
         type_map = {
@@ -120,6 +172,8 @@ class User:
         except Exception as e:
             print(f"Erro ao criar ação: {e}")
 
+        self.save_user()
+
     def attribute_add_action(self, payloads):
         """
          Recebe payloads = ['01', '01']
@@ -137,7 +191,10 @@ class User:
             print(f"\n [ SUCESSO ] '{action.name}' vinculada a '{attribute.attr_name}'")
         else:
             print(f"\n [ ERRO ] IDs não encontrados: Attr:{attr_id}, Action:{action_id}")
+    
+        self.save_user()
 
 
+user = User()
 
-evove = User()
+
