@@ -79,7 +79,8 @@ class Attribute:
             "related_actions": [a.id for a in self.related_actions],
             "children": [a.id for a in self.children],
             "parent": [a.id for a in self.parent],
-            "power": self.power,
+            "total_score": self.total_score,
+
         }
 
     @classmethod

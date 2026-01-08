@@ -1,48 +1,24 @@
 {
     "score": 0,
     "value": 0,
-    "next_attr_id": 5,
-    "next_action_id": 4,
     "attributes": {
         "801": {
             "id": "801",
-            "name": "uno",
+            "name": "soul",
             "related_actions": [],
             "children": [],
             "parent": [],
-            "power": 0
-        },
-        "802": {
-            "id": "802",
-            "name": "11",
-            "related_actions": [],
-            "children": [],
-            "parent": [],
-            "power": 0
-        },
-        "803": {
-            "id": "803",
-            "name": "doz",
-            "related_actions": [],
-            "children": [],
-            "parent": [],
-            "power": 0
-        },
-        "804": {
-            "id": "804",
-            "name": "nove",
-            "related_actions": [],
-            "children": [],
-            "parent": [],
-            "power": 0
+            "total_score": 0.0
         }
     },
     "actions": {
-        "503": {
-            "id": "503",
-            "name": "actio",
+        "501": {
+            "id": "501",
+            "name": "read",
+            "value": 0,
             "diff": 1,
-            "type": "RepetitionAction"
+            "type": "RepetitionAction",
+            "score": 0.0
         }
     }
 }
