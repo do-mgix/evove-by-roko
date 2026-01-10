@@ -4,7 +4,7 @@
     "attributes": {
         "801": {
             "id": "801",
-            "name": "soul",
+            "name": "psych",
             "related_actions": [],
             "children": [],
             "parent": [],
@@ -14,11 +14,19 @@
     "actions": {
         "501": {
             "id": "501",
-            "name": "read",
-            "value": 0,
-            "diff": 1,
-            "type": "RepetitionAction",
-            "score": 0.0
+            "name": "fly",
+            "type": 2,
+            "diff": 4,
+            "value": 22,
+            "score": 118.80000000000001
+        },
+        "502": {
+            "id": "502",
+            "name": "swim",
+            "type": 3,
+            "diff": 3,
+            "value": 7,
+            "score": 1806.0
         }
     }
 }

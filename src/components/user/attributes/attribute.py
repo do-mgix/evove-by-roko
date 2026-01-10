@@ -52,12 +52,12 @@ class Attribute:
     @property
     def total_score(self) -> float: 
         total = 0.0
-        if self._children:                         
-            for child in self._children:
+        if self.children:                         
+            for child in self.children:
                 total += child.total_score
         else: 
             # Como related_actions é uma lista, somamos o score de cada ação nela
-            if self._related_actions:
+            if self.related_actions:
                 total = sum(action.score for action in self._related_actions)
         return total
 

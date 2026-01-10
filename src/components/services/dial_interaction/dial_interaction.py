@@ -222,7 +222,7 @@ def dial_start():
 
                 buffer = "" 
                 import time
-                time.sleep(1) 
+                time.sleep(3) 
 
                 continue 
 
