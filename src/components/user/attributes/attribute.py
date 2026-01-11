@@ -1,7 +1,7 @@
 class Attribute:
     SCORE_POWER_FACTOR = 12
     # construtor do Atributo
-    def __init__(self, attr_id, attr_name):
+    def __init__(self, attr_id, attr_name, related_actions, children, parent):
         self._attr_id = attr_id
         self._attr_name = attr_name
         self._parent = []
@@ -77,14 +77,19 @@ class Attribute:
             "id": self.attr_id,
             "name": self.attr_name,
             "related_actions": [a.id for a in self.related_actions],
-            "children": [a.id for a in self.children],
-            "parent": [a.id for a in self.parent],
+            "children": [c.id for c in self.children],
+            "parent": [p.id for p in self.parent],
             "total_score": self.total_score,
 
         }
 
     @classmethod
     def from_dict(cls, data):
-        attr = cls(data["id"], data["name"])
-        attr._related_action_ids = data["related_actions"]
+        attr = cls(
+            data["id"],
+            data["name"],
+            data.get("related_actions", []),
+            data.get("children", []),
+            data.get("parent", []),
+        )
         return attr

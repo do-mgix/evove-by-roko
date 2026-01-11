@@ -100,10 +100,11 @@ class Action:
 
     @classmethod
     def from_dict(cls, data):
-        return cls(
+        action = cls(
                 data["id"], 
                 data["name"], 
                 data["type"], 
                 data["diff"], 
                 data["value"], 
         )
+        return action

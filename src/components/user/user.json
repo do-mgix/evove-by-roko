@@ -4,7 +4,7 @@
     "attributes": {
         "801": {
             "id": "801",
-            "name": "psych",
+            "name": "arms",
             "related_actions": [],
             "children": [],
             "parent": [],
@@ -14,19 +14,11 @@
     "actions": {
         "501": {
             "id": "501",
-            "name": "fly",
-            "type": 2,
-            "diff": 4,
-            "value": 22,
-            "score": 118.80000000000001
-        },
-        "502": {
-            "id": "502",
-            "name": "swim",
-            "type": 3,
-            "diff": 3,
-            "value": 7,
-            "score": 1806.0
+            "name": "push ups",
+            "type": 1,
+            "diff": 2,
+            "value": 180,
+            "score": 576.0
         }
     }
 }

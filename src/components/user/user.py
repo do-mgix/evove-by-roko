@@ -12,7 +12,7 @@ class User:
         self._value = 0
 
     @property
-    def score(self):
+    def score(self):        
         return self._score
 
     @property
@@ -72,9 +72,11 @@ class User:
             print(f"[!] Erro ao salvar: {e}")
 
     def load_user(self):
+        # dir e nome
         base_dir = os.path.dirname(os.path.abspath(__file__))
         data_file = os.path.join(base_dir, "user.json")
-
+        
+        # se não existir o arquivo, cria
         if not os.path.exists(data_file):
             print(f"[!] {data_file} não encontrado. Criando arquivo padrão...")
             self.save_user() 
@@ -91,20 +93,21 @@ class User:
             print("[!] Erro: O arquivo existe mas não contém um JSON válido. Carregamento cancelado.")
             return
 
+        # valores únicos
         self._score = data.get("score", 0)
         self._value = data.get("value", 0)
         
+        # Cria os atributos do json
         self._attributes.clear()
         for attr_id, attr_data in data.get("attributes", {}).items():
-            new_attr = Attribute(attr_id, attr_data['name'])
+            new_attr = Attribute.from_dict(attr_data)
             self._attributes[attr_id] = new_attr
-
+        
+        # Cria as actions do json - recebe from dict
         self._actions.clear()
         for action_id, action_data in data.get("actions", {}).items():
-
-            new_act = Action(action_id, action_data['name'], action_data['type'], action_data['diff'], action_data['value'])
+            new_act = Action.from_dict(action_data)
             self._actions[action_id] = new_act
-
 
 
     def act(self, payloads):
@@ -121,7 +124,7 @@ class User:
         name = input("nome do atributo: ")
         new_id = f"8{self.next_attr_id:02d}"
         
-        new_attribute = Attribute(new_id, name)
+        new_attribute = Attribute(new_id, name, None, None, None)
         self._attributes[new_id] = new_attribute
         
         print(f"Atributo '{name}' criado com ID: {new_id}")
