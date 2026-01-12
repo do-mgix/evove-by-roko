@@ -70,6 +70,9 @@ class User:
             print(f"[*] Sucesso: Arquivo salvo em {data_file}")
         except Exception as e:
             print(f"[!] Erro ao salvar: {e}")
+    
+
+
 
     def load_user(self):
         # dir e nome
@@ -108,6 +111,11 @@ class User:
         for action_id, action_data in data.get("actions", {}).items():
             new_act = Action.from_dict(action_data)
             self._actions[action_id] = new_act
+        
+        # realaciona as ações realcionadas aos atributos
+        for attr in self._attributes.values():
+            if hasattr(attr, 'resolve_related_actions'):
+                attr.resolve_related_actions(self._actions)
 
 
     def act(self, payloads):

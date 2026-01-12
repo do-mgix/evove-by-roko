@@ -4,21 +4,51 @@
     "attributes": {
         "801": {
             "id": "801",
-            "name": "arms",
-            "related_actions": [],
+            "name": "Test Attribute",
+            "related_actions": [
+                "501",
+                "502"
+            ],
             "children": [],
             "parent": [],
-            "total_score": 0.0
+            "total_score": 1470.0
+        },
+        "802": {
+            "id": "802",
+            "name": "soul",
+            "related_actions": [
+                "502",
+                "503"
+            ],
+            "children": [],
+            "parent": [],
+            "total_score": 924.0
         }
     },
     "actions": {
         "501": {
             "id": "501",
-            "name": "push ups",
+            "name": "Test Action",
             "type": 1,
-            "diff": 2,
-            "value": 180,
-            "score": 576.0
+            "diff": 1,
+            "value": 260.0,
+            "score": 546.0
+        },
+        "502": {
+            "id": "502",
+            "name": "test action 2",
+            "type": 2,
+            "diff": 1,
+            "value": 440,
+            "score": 924.0
+        },
+        "503": {
+            "id": "503",
+            "name": "read",
+            "type": 1,
+            "diff": 1,
+            "value": 0,
+            "score": 0.0
         }
     }
 }

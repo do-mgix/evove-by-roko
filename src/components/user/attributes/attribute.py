@@ -1,12 +1,14 @@
 class Attribute:
     SCORE_POWER_FACTOR = 12
     # construtor do Atributo
-    def __init__(self, attr_id, attr_name, related_actions, children, parent):
+    def __init__(self, attr_id, attr_name, related_actions=None, children=None, parent=None):
         self._attr_id = attr_id
         self._attr_name = attr_name
-        self._parent = []
-        self._children =  []
-        self._related_actions = []        
+        self._parent = parent if parent is not None else []
+        self._children = children if children is not None else []
+        self._related_actions = []
+        # Store incoming related action IDs temporarily; they will be resolved after actions are loaded
+        self._related_action_ids = related_actions if related_actions is not None else []
         self._power = 0
     
 
@@ -65,26 +67,28 @@ class Attribute:
     # tratamento visual de power
     @property
     def power_display(self) -> str:
-        trated_power = ( str( self._power / 1000 ) + "%")
-        return trated_power
+        return f"{self._power / 1000}%"
 
-    def AddRelatedAction(self, action_id):
-        self._related_actions.append(action_id)
+    def AddRelatedAction(self, action):
+        """Add an Action object to the related actions list.
+        The method accepts an Action instance; the caller should ensure the object is valid.
+        """
+        self._related_actions.append(action)
         
     # json things - tranformar em dict
     def to_dict(self):
         return {
             "id": self.attr_id,
             "name": self.attr_name,
-            "related_actions": [a.id for a in self.related_actions],
-            "children": [c.id for c in self.children],
-            "parent": [p.id for p in self.parent],
+            "related_actions": [a.id for a in self._related_actions],
+            "children": [c.id for c in self._children],
+            "parent": [p.id for p in self._parent],
             "total_score": self.total_score,
-
         }
 
     @classmethod
     def from_dict(cls, data):
+        # related_actions from JSON are IDs; they will be resolved later
         attr = cls(
             data["id"],
             data["name"],
@@ -93,3 +97,14 @@ class Attribute:
             data.get("parent", []),
         )
         return attr
+
+    def resolve_related_actions(self, actions_dict: dict):
+        """Resolve stored related action IDs to Action objects.
+        `actions_dict` should map action IDs to Action instances.
+        """
+        for aid in getattr(self, "_related_action_ids", []):
+            action = actions_dict.get(aid)
+            if action:
+                self._related_actions.append(action)
+        if hasattr(self, "_related_action_ids"):
+            del self._related_action_ids
