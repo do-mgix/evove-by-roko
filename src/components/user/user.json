@@ -2,53 +2,47 @@
     "score": 0,
     "value": 0,
     "attributes": {
-        "801": {
-            "id": "801",
-            "name": "Test Attribute",
-            "related_actions": [
-                "501",
-                "502"
-            ],
+        "803": {
+            "id": "803",
+            "name": "at4",
+            "related_actions": [],
             "children": [],
             "parent": [],
-            "total_score": 1470.0
+            "total_score": 0.0
+        },
+        "804": {
+            "id": "804",
+            "name": "at5",
+            "related_actions": [],
+            "children": [],
+            "parent": [],
+            "total_score": 0.0
+        },
+        "801": {
+            "id": "801",
+            "name": "at1",
+            "related_actions": [],
+            "children": [],
+            "parent": [],
+            "total_score": 0.0
         },
         "802": {
             "id": "802",
-            "name": "soul",
-            "related_actions": [
-                "502",
-                "503"
-            ],
+            "name": "at2",
+            "related_actions": [],
             "children": [],
             "parent": [],
-            "total_score": 924.0
+            "total_score": 0.0
         }
     },
     "actions": {
         "501": {
             "id": "501",
-            "name": "Test Action",
-            "type": 1,
-            "diff": 1,
-            "value": 260.0,
-            "score": 546.0
-        },
-        "502": {
-            "id": "502",
-            "name": "test action 2",
+            "name": "ignite",
             "type": 2,
             "diff": 1,
-            "value": 440,
-            "score": 924.0
-        },
-        "503": {
-            "id": "503",
-            "name": "read",
-            "type": 1,
-            "diff": 1,
-            "value": 0,
-            "score": 0.0
+            "value": 20,
+            "score": 42.0
         }
     }
 }

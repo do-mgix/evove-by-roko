@@ -28,16 +28,22 @@ class User:
         return self._actions
 
     @property
-    def next_attr_id(self):
-        attributes = self.attributes
-        next = len(attributes) + 1
-        return next
+    def next_attr_id(self):        
+        if self.attributes:
+            higher = max(self.attributes)
+            higher = higher[1:2]
+            return int(higher) + 1
+        else:
+            return 1
 
     @property
     def next_action_id(self):
-        actions = self.actions
-        next = len(actions) + 1
-        return next
+        if self.actions:
+            higher = max(self.actions)
+            higher = higher[1:2]
+            return int(higher) + 1
+        else:
+            return 1
 
     def sleep(self, buffer: str):
         print(f"sleep at {datetime.now()}")
@@ -71,8 +77,6 @@ class User:
         except Exception as e:
             print(f"[!] Erro ao salvar: {e}")
     
-
-
 
     def load_user(self):
         # dir e nome
@@ -130,7 +134,7 @@ class User:
 
     def create_attribute(self, buffer: str):
         name = input("nome do atributo: ")
-        new_id = f"8{self.next_attr_id:02d}"
+        new_id = f"8{self.next_attr_id}02d"
         
         new_attribute = Attribute(new_id, name, None, None, None)
         self._attributes[new_id] = new_attribute
@@ -140,13 +144,29 @@ class User:
         
         self.save_user()
 
+    def create_attribute_by_id(self, payloads):
+        new_id = f"8{payloads[0]}"        
+
+        if new_id not in self._attributes:
+    
+            name = input("nome do atributo: ")
+            new_attribute = Attribute(new_id, name, None, None, None)
+            self._attributes[new_id] = new_attribute
+        
+            print(f"Atributo '{name}' criado com ID: {new_id}")
+            actions = self.actions
+
+            self.save_user()
+        else:
+            print(f"ID ({new_id}) alread exists. ")
+
     def create_action(self, buffer:str):    
         
         try:
             tipo = int(buffer[0])
             diff = int(buffer[1])
             name = input("Nome da ação: ")
-            new_id = f"5{self.next_action_id:02d}"
+            new_id = f"5{self.next_action_id}02d"
             starter_value = 0
             
             action = Action(new_id, name, tipo, diff, starter_value)
@@ -159,6 +179,52 @@ class User:
 
         except Exception as e:
             print(f"[Error] something went wrong {e}")
+
+    def list_attributes(self, buffer):
+        if self.attributes:
+            print(f"        CURRENT ATTRIBUTES ")
+            for attr in self._attributes.values():
+                print(f"({attr.attr_id}) - {attr.attr_name}")
+        else:
+            print(f"none attribute available. try creating one with 28... ")
+
+    def list_actions(self, nothing):
+        if self.actions:
+            print(f"        CURRENT ACTIONS        ")
+            for action in self._actions.values():
+                print(f"({action.id}) - {action.name}")
+        else:
+            print(f"none action available. try creating one with 25... ")
+
+    def drop_attributes(self, nothing):
+        print(f"drop attributes? type: yes ")
+        if input() == "yes":
+            self._attributes.clear()
+            print(f"attributes deleted")
+            self.save_user()
+        else:
+            print(f"the attributes are safe")
+
+    def drop_actions(self, nothing):
+        print(f"drop actions? type: yes ")
+        if input() == "yes":
+            self._actions.clear()
+            print(f"actions deleted")
+            self.save_user()
+        else:
+            print(f"the actions are safe")
+
+    def delete_attribute(self, payloads):
+        
+        payload_id = f"8{payloads[0]}"   
+        for attr in self._attributes.values():
+            if attr.attr_id == payload_id:
+                self._attributes.pop(payload_id, None)
+                print(f"Attribute {attr.attr_name}({attr.attr_id}) deleted.")
+                self.save_user()
+                return 0        
+
+        print(f"Attribute ID ({payload_id}) not found")
 
     def attribute_add_action(self, payloads):
         attr_id = f"8{payloads[0]}"   

@@ -15,6 +15,7 @@ OBJECTS = {
 INTERACTIONS = {
     "2": {"len": 0, "label": "add"},     # Apenas o dígito '2'
     "1": {"len": 0, "label": "act"},     
+    "0": {"len": 0, "label": "delete"},     
 
 }
 
@@ -24,12 +25,19 @@ SINGLE_COMMANDS = {
     "3":  {"len": 0, "func": user.sleep},
     "25": {"len": 2, "func": user.create_action}, 
     "28": {"len": 0, "func": user.create_attribute}, 
-
+    "98": {"len": 0, "func": user.list_attributes}, 
+    "95": {"len": 0, "func": user.list_attributes}, 
+    "005": {"len": 0, "func": user.drop_actions}, 
+    "008": {"len": 0, "func": user.drop_attributes}, 
+    
 }
 
 COMMANDS = {        
     "attr add action": {"func": user.attribute_add_action},
     "action act": {"func": user.act},
+    "delete attr": {"func": user.delete_attribute},
+    "add add attr": {"func": user.create_attribute_by_id},
+
 }
 
 # --- CONFIGURAÇÕES DE UI ---
@@ -54,13 +62,33 @@ def get_info(char, buffer):
 def get_length(buffer):
     if not buffer: return 1
 
-    # 1. Checa Comandos Simples (Atalhos)
+    # 1. Checa Comandos Simples (Atalhos) - Prefixo ou Completo
+    is_prefix = False
     for cmd, info in SINGLE_COMMANDS.items():
-        if buffer.startswith(cmd):
+        if cmd.startswith(buffer):
+            is_prefix = True
+            if len(buffer) < len(cmd):
+                # Ainda digitando o prefixo do comando (ex: "9" de "98")
+                continue 
+            else:
+                # Comando completo, verifica se precisa de mais dígitos (payload)
+                total_esperado = len(cmd) + info["len"]
+                if len(buffer) < total_esperado:
+                    return total_esperado - len(buffer)
+                return 0
+        elif buffer.startswith(cmd):
+            # Se o buffer já passou do comando (ex: payload sendo digitado)
             total_esperado = len(cmd) + info["len"]
             if len(buffer) < total_esperado:
                 return total_esperado - len(buffer)
             return 0
+
+    if is_prefix:
+        # Se o buffer é prefixo de algum comando mas não o comando completo ainda
+        # Precisamos de pelo menos mais um dígito para ver se forma o comando
+        # Note: Esta lógica assume comandos de comprimento variado.
+        # Se '9' é prefixo de '98', retornamos 1 para esperar o próximo.
+        return 1
 
     # 2. Lógica de Montagem de Frase (8xx 2 5xx)
     ptr = 0
@@ -70,7 +98,7 @@ def get_length(buffer):
         char = buffer[ptr]
         info = OBJECTS.get(char) or INTERACTIONS.get(char)
         
-        if not info: return 0 # Erro: caractere não reconhecido
+        if not info: return 1 # Erro: caractere não reconhecido, continua esperando ou trata como erro
             
         phrase.append(info["label"])
         ptr += 1 # Pula o identificador (8, 5 ou 2)
@@ -222,7 +250,8 @@ def dial_start():
 
                 buffer = "" 
                 import time
-                time.sleep(3) 
+
+                time.sleep(2) 
 
                 continue 
 
