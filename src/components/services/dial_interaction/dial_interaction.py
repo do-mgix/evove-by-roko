@@ -26,7 +26,7 @@ SINGLE_COMMANDS = {
     "25": {"len": 2, "func": user.create_action}, 
     "28": {"len": 0, "func": user.create_attribute}, 
     "98": {"len": 0, "func": user.list_attributes}, 
-    "95": {"len": 0, "func": user.list_attributes}, 
+    "95": {"len": 0, "func": user.list_actions}, 
     "005": {"len": 0, "func": user.drop_actions}, 
     "008": {"len": 0, "func": user.drop_attributes}, 
     
@@ -37,6 +37,7 @@ COMMANDS = {
     "action act": {"func": user.act},
     "delete attr": {"func": user.delete_attribute},
     "add add attr": {"func": user.create_attribute_by_id},
+    "attr add attr": {"func": user.attribute_add_child},
 
 }
 
@@ -194,7 +195,7 @@ def format_visual_buffer(buffer):
     return f"{YELLOW}{joined}{WHITE}_"
 
 def render(buffer):
-    os.system('cls' if os.name == 'nt' else 'clear')
+    # os.system('cls' if os.name == 'nt' else 'clear')
     
     phrase, payloads = parse_buffer(buffer)
     tokens = phrase.split()
@@ -206,16 +207,16 @@ def render(buffer):
     for t in tokens:
         if t == "attr":
             id_val = f"8{payloads[p_idx]}" if p_idx < len(payloads) else "???"
-            nome = user.attributes.get(id_val, "...")
-            if hasattr(nome, 'attr_name'): nome = nome.attr_name # Se for objeto
+            nome = user._attributes.get(id_val, "...")
+            if hasattr(nome, '_name'): nome = nome._name # Se for objeto
             status_parts.append(f"{WHITE}⚪ ({nome}){CLR}")
             p_idx += 1
         elif t == "add":
             status_parts.append(f"{CYAN}Add{CLR}")
         elif t == "action":
             id_val = f"5{payloads[p_idx]}" if p_idx < len(payloads) else "???"
-            nome = user.actions.get(id_val, "...")
-            if hasattr(nome, 'name'): nome = nome.name
+            nome = user._actions.get(id_val, "...")
+            if hasattr(nome, '_name'): nome = nome._name
             status_parts.append(f"{MAGENTA}⭐ ({nome}){CLR}")
             p_idx += 1
     
@@ -229,7 +230,7 @@ def render(buffer):
     log_view = f"Faltando: {faltando} dígitos | Buffer Raw: {buffer}"
 
     # --- IMPRESSÃO DAS TELAS ---
-    print(f"{MAGENTA}INPUT BUFFER")
+    # print(f"{MAGENTA}INPUT BUFFER")
     print(f"{buffer_view}")
     print(f"{process_view}")
 

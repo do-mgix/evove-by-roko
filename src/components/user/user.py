@@ -12,35 +12,19 @@ class User:
         self._value = 0
 
     @property
-    def score(self):        
-        return self._score
-
-    @property
-    def value(self):
-        return self._value
-
-    @property 
-    def attributes(self):
-        return self._attributes
-
-    @property
-    def actions(self):
-        return self._actions
-
-    @property
     def next_attr_id(self):        
-        if self.attributes:
-            higher = max(self.attributes)
-            higher = higher[1:2]
+        if self._attributes:
+            higher = max(self._attributes)
+            higher = higher[1:3]
             return int(higher) + 1
         else:
             return 1
 
     @property
     def next_action_id(self):
-        if self.actions:
-            higher = max(self.actions)
-            higher = higher[1:2]
+        if self._actions:
+            higher = max(self._actions)
+            higher = higher[1:3]
             return int(higher) + 1
         else:
             return 1
@@ -74,9 +58,10 @@ class User:
             with open(data_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=4)
             print(f"[*] Sucesso: Arquivo salvo em {data_file}")
+            self.load_user()
         except Exception as e:
             print(f"[!] Erro ao salvar: {e}")
-    
+         
 
     def load_user(self):
         # dir e nome
@@ -121,26 +106,36 @@ class User:
             if hasattr(attr, 'resolve_related_actions'):
                 attr.resolve_related_actions(self._actions)
 
+        # children fix 
+        for attr in self._attributes.values():
+            if hasattr(attr, 'resolve_children'):
+                attr.resolve_children(self._attributes)
+
+        # parent fix 
+        for attr in self._attributes.values():
+            if hasattr(attr, 'resolve_parent'):
+                attr.resolve_parent(self._attributes)
 
     def act(self, payloads):
         action_id = f"5{payloads[0]}"  
-        action = self.actions.get(action_id)
+        action = self._actions.get(action_id)
         
         if not action:
-                print(f"\n [ ERRO ] ID {action_id} not found")
+            print(f"\n [ ERRO ] ID {action_id} not found")
         else:
             action.execution()
             self.save_user()
 
     def create_attribute(self, buffer: str):
         name = input("nome do atributo: ")
-        new_id = f"8{self.next_attr_id}02d"
-        
+
+        nextid = self.next_attr_id
+        new_id = f"80{nextid}" if nextid < 10 else f"8{nextid}"           
+
         new_attribute = Attribute(new_id, name, None, None, None)
         self._attributes[new_id] = new_attribute
         
         print(f"Atributo '{name}' criado com ID: {new_id}")
-        actions = self.actions
         
         self.save_user()
 
@@ -154,7 +149,6 @@ class User:
             self._attributes[new_id] = new_attribute
         
             print(f"Atributo '{name}' criado com ID: {new_id}")
-            actions = self.actions
 
             self.save_user()
         else:
@@ -166,7 +160,8 @@ class User:
             tipo = int(buffer[0])
             diff = int(buffer[1])
             name = input("Nome da ação: ")
-            new_id = f"5{self.next_action_id}02d"
+            nextid = self.next_action_id
+            new_id = f"50{nextid}" if nextid < 10 else f"5{nextid}"           
             starter_value = 0
             
             action = Action(new_id, name, tipo, diff, starter_value)
@@ -181,18 +176,19 @@ class User:
             print(f"[Error] something went wrong {e}")
 
     def list_attributes(self, buffer):
-        if self.attributes:
-            print(f"        CURRENT ATTRIBUTES ")
+        if self._attributes:
+            print(f"        CURRENT ATTRIBUTES ")        
             for attr in self._attributes.values():
-                print(f"({attr.attr_id}) - {attr.attr_name}")
+                print(f"({attr._id}) - {attr._name}")
+
         else:
             print(f"none attribute available. try creating one with 28... ")
 
     def list_actions(self, nothing):
-        if self.actions:
+        if self._actions:
             print(f"        CURRENT ACTIONS        ")
             for action in self._actions.values():
-                print(f"({action.id}) - {action.name}")
+                print(f"({action._id}) - {action._name}")
         else:
             print(f"none action available. try creating one with 25... ")
 
@@ -218,9 +214,9 @@ class User:
         
         payload_id = f"8{payloads[0]}"   
         for attr in self._attributes.values():
-            if attr.attr_id == payload_id:
+            if attr._id == payload_id:
                 self._attributes.pop(payload_id, None)
-                print(f"Attribute {attr.attr_name}({attr.attr_id}) deleted.")
+                print(f"Attribute {attr._name}({attr._id}) deleted.")
                 self.save_user()
                 return 0        
 
@@ -234,12 +230,28 @@ class User:
         action = self._actions.get(action_id)
     
         if attribute and action:
-            attribute.AddRelatedAction(action)
-            print(f"\n [ SUCESS ] {action.name} -> {attribute.attr_name}")
+            attribute.add_related_action(action)
+            print(f"\n [ SUCESS ] {action._name} -> {attribute._name}")
             self.save_user()
         else:
             print(f"\n [ ERROR ] Some of IDs {attr_id} {action_id} not found.")
+ 
+    def attribute_add_child(self, payloads):
+        attr_id = f"8{payloads[0]}"   
+        child_id = f"8{payloads[1]}"
     
+        attribute = self._attributes.get(attr_id)
+        child = self._attributes.get(child_id)
+
+        if attribute and child:
+            if not attribute == child:
+                attribute.add_child(child)
+                print(f"\n [ SUCESS ] {child._name} -> {attribute._name}")
+                self.save_user()
+            else:        
+                print(f"\n [ ERROR ] {attr_id} {child_id} are the same.")   
+        else:
+            print(f"\n [ ERROR ] Some of IDs {attr_id} {child_id} not found.")   
 
 user = User()
 

@@ -1,88 +1,61 @@
 class Attribute:
     SCORE_POWER_FACTOR = 12
     # construtor do Atributo
-    def __init__(self, attr_id, attr_name, related_actions=None, children=None, parent=None):
-        self._attr_id = attr_id
-        self._attr_name = attr_name
+    def __init__(self, aid, name, related_actions=None, children=None, parent=None):
+        self._id = aid
+        self._name = name
         self._parent = parent if parent is not None else []
         self._children = children if children is not None else []
         self._related_actions = []
-        # Store incoming related action IDs temporarily; they will be resolved after actions are loaded
         self._related_action_ids = related_actions if related_actions is not None else []
+        self._children_ids = children if children is not None else []
+        self._parent_ids = parent if parent is not None else []
         self._power = 0
     
-
-    # Append de child 
-    def add_child(self, child_attribute: 'Attribute'):
-        if child_attribute not in self._children:
-            self._children.append(child_attribute)
-            child_attribute.parent = self # Ensure child also knows its parent
-    
-    @property
-    def attr_name(self):
-        return self._attr_name
-
-    @property
-    def attr_id(self):
-        return self._attr_id
-
-    @property
-    def parent(self):
-        return self._parent
-
-    @property
-    def children(self):
-        return self._children
-
-    @property
-    def related_actions(self):
-        return self._related_actions
-
     @property
     def power(self):
-        return self._power
-
-
-    # certificar que um atributo pai não possui ações relacionadas ( para não contar dobrado )
-    @related_actions.setter
-    def related_actions(self, actions: list):
-        if self._children:
-            raise ValueError("A parent attribute cannot have related actions.")
-        self._related_actions = actions
+        if self._related_actions:
+            return sum(action.score for action in self._related_actions)
+        else:
+            return 0.0
 
     # getter de score = soma dos scores das ações - Verifica casos de parent e child
     @property
     def total_score(self) -> float: 
-        total = 0.0
-        if self.children:                         
-            for child in self.children:
-                total += child.total_score
-        else: 
-            # Como related_actions é uma lista, somamos o score de cada ação nela
-            if self.related_actions:
-                total = sum(action.score for action in self._related_actions)
-        return total
-
+        if self._children:                         
+            return sum(child.power for child in self._children)
+        else:         
+            return self.power
 
     # tratamento visual de power
     @property
     def power_display(self) -> str:
         return f"{self._power / 1000}%"
 
-    def AddRelatedAction(self, action):
-        """Add an Action object to the related actions list.
-        The method accepts an Action instance; the caller should ensure the object is valid.
-        """
+    def add_related_action(self, action):
+        if self._children:
+            raise ValueError("A parent attribute cannot have related actions.")
         self._related_actions.append(action)
-        
+
+    def set_parent(self, parent):
+        if parent not in self._parent:
+            self._parent.append(parent)            
+
+    def add_child(self, child_attribute):
+        if child_attribute not in self._children:
+            print(child_attribute)
+            self._children.append(child_attribute)
+            child_attribute.set_parent(self) # Ensure child also knows its parent       
+
+
     # json things - tranformar em dict
     def to_dict(self):
         return {
-            "id": self.attr_id,
-            "name": self.attr_name,
-            "related_actions": [a.id for a in self._related_actions],
-            "children": [c.id for c in self._children],
-            "parent": [p.id for p in self._parent],
+            "id": self._id,
+            "name": self._name,
+            "related_actions": [a.id for a in self._related_actions],            
+            "children": [c._id for c in self._children],
+            "parent": [p._id for p in self._parent],
             "total_score": self.total_score,
         }
 
@@ -108,3 +81,20 @@ class Attribute:
                 self._related_actions.append(action)
         if hasattr(self, "_related_action_ids"):
             del self._related_action_ids
+
+
+    def resolve_children(self, children_dict: dict):
+        for cid in getattr(self, "_children_ids", []):
+            child = children_dict.get(cid)
+            if child:
+                self._children.append(child)
+        if hasattr(self, "_children_ids"):
+            del self._children_ids
+
+    def resolve_parent(self, parent_dict: dict):
+        for pid in getattr(self, "_parent_ids", []):
+            parent = parent_dict.get(pid)
+            if parent:
+                self._parent.append(parent)
+        if hasattr(self, "_parent_ids"):
+            del self._parent_ids            

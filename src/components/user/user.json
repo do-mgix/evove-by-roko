@@ -2,47 +2,26 @@
     "score": 0,
     "value": 0,
     "attributes": {
-        "803": {
-            "id": "803",
-            "name": "at4",
-            "related_actions": [],
-            "children": [],
-            "parent": [],
-            "total_score": 0.0
-        },
-        "804": {
-            "id": "804",
-            "name": "at5",
-            "related_actions": [],
-            "children": [],
-            "parent": [],
-            "total_score": 0.0
-        },
         "801": {
             "id": "801",
-            "name": "at1",
+            "name": "a",
             "related_actions": [],
-            "children": [],
+            "children": [
+                "802"
+            ],
             "parent": [],
             "total_score": 0.0
         },
         "802": {
             "id": "802",
-            "name": "at2",
+            "name": "",
             "related_actions": [],
             "children": [],
-            "parent": [],
+            "parent": [
+                "801"
+            ],
             "total_score": 0.0
         }
     },
-    "actions": {
-        "501": {
-            "id": "501",
-            "name": "ignite",
-            "type": 2,
-            "diff": 1,
-            "value": 20,
-            "score": 42.0
-        }
-    }
+    "actions": {}
 }
