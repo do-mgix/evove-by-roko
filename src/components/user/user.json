@@ -1,27 +1,44 @@
 {
-    "score": 0,
+    "score": 10.5,
     "value": 0,
     "attributes": {
         "801": {
             "id": "801",
-            "name": "a",
-            "related_actions": [],
-            "children": [
-                "802"
+            "name": "For\u00e7a",
+            "related_actions": [
+                "501"
             ],
+            "children": [],
             "parent": [],
-            "total_score": 0.0
+            "total_score": 21.0
         },
         "802": {
             "id": "802",
-            "name": "",
-            "related_actions": [],
-            "children": [],
-            "parent": [
-                "801"
+            "name": "Velocidade",
+            "related_actions": [
+                "502"
             ],
+            "children": [],
+            "parent": [],
             "total_score": 0.0
         }
     },
-    "actions": {}
+    "actions": {
+        "501": {
+            "id": "501",
+            "name": "Flex\u00f5es",
+            "type": 1,
+            "diff": 1,
+            "value": 10.0,
+            "score": 21.0
+        },
+        "502": {
+            "id": "502",
+            "name": "Correr",
+            "type": 1,
+            "diff": 3,
+            "value": 0,
+            "score": 0.0
+        }
+    }
 }

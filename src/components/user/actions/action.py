@@ -32,6 +32,24 @@ class Action:
         self._diff_multiplier = self._DIFFICULTY_MULTIPLIER_MAP[diff] 
 
     @property
+    def id(self): return self._id
+    
+    @property
+    def name(self): return self._name
+    
+    @property
+    def type(self): return self._tipo
+    
+    @property
+    def diff(self): return self._diff
+    
+    @property
+    def value(self): return self._value
+    
+    @property
+    def diff_multiplier(self): return self._diff_multiplier
+
+    @property
     def score(self) -> float: 
         action = self._TYPE_MAP[self.type] 
         type_factor = action["factor"]

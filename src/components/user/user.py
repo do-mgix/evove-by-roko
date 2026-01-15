@@ -8,7 +8,6 @@ class User:
     def __init__(self):
         self._attributes = {} 
         self._actions = {} 
-        self._score = 0
         self._value = 0
 
     @property
@@ -29,6 +28,14 @@ class User:
         else:
             return 1
 
+    @property
+    def score(self):
+        if self._attributes:
+            total = sum(attr.total_score for attr in self._attributes.values())
+            return total / len(self._attributes)
+        else:
+            return 0.0
+
     def sleep(self, buffer: str):
         print(f"sleep at {datetime.now()}")
 
@@ -44,7 +51,7 @@ class User:
         data_file = os.path.join(base_dir, "user.json")
 
         data = {
-            "score": self._score,
+            "score": self.score,
             "value": self._value,
             "attributes": {
                 k: v.to_dict() if hasattr(v, 'to_dict') else v for k, v in self._attributes.items()
@@ -86,7 +93,7 @@ class User:
             return
 
         # valores únicos
-        self._score = data.get("score", 0)
+        # self.score is now dynamic, so we just load value
         self._value = data.get("value", 0)
         
         # Cria os atributos do json

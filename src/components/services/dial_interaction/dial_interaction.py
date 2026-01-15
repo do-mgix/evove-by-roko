@@ -21,15 +21,14 @@ INTERACTIONS = {
 
 # Comandos de atalho que não seguem a regra de Attr/Action
 SINGLE_COMMANDS = {
-    "1":  {"len": 0, "func": user.wake},
-    "3":  {"len": 0, "func": user.sleep},
-    "25": {"len": 2, "func": user.create_action}, 
-    "28": {"len": 0, "func": user.create_attribute}, 
-    "98": {"len": 0, "func": user.list_attributes}, 
-    "95": {"len": 0, "func": user.list_actions}, 
-    "005": {"len": 0, "func": user.drop_actions}, 
-    "008": {"len": 0, "func": user.drop_attributes}, 
-    
+    "1":  {"len": 0, "func": user.wake, "label": "wake"},
+    "3":  {"len": 0, "func": user.sleep, "label": "sleep"},
+    "25": {"len": 2, "func": user.create_action, "label": "create_action"}, 
+    "28": {"len": 0, "func": user.create_attribute, "label": "create_attr"}, 
+    "98": {"len": 0, "func": user.list_attributes, "label": "list_attr"}, 
+    "95": {"len": 0, "func": user.list_actions, "label": "list_actions"}, 
+    "005": {"len": 0, "func": user.drop_actions, "label": "drop_actions"}, 
+    "008": {"len": 0, "func": user.drop_attributes, "label": "drop_attr"}, 
 }
 
 COMMANDS = {        
@@ -120,6 +119,20 @@ def get_length(buffer):
     return 1 # Se saiu do loop, o comando ainda está incompleto
 
 def parse_buffer(buffer):
+    """
+    Analisa o buffer e retorna (phrase, payloads, is_single_command).
+    """
+    # 1. Tenta encontrar um comando simples (Single Command)
+    for cmd_prefix, info in SINGLE_COMMANDS.items():
+        if buffer.startswith(cmd_prefix):
+            payload_len = info["len"]
+            cmd_len = len(cmd_prefix)
+            payload = buffer[cmd_len : cmd_len + payload_len]
+            # Retorna o label ou nome da função para o "phrase"
+            label = info.get("label", info["func"].__name__)
+            return label, [payload] if payload else [], True
+
+    # 2. Processamento Cascata (Dinâmico)
     ptr = 0
     tokens = []
     payloads = []
@@ -128,35 +141,35 @@ def parse_buffer(buffer):
         char = buffer[ptr]
         info = OBJECTS.get(char) or INTERACTIONS.get(char)
         
-        if not info: break
+        if not info: 
+            # Se não reconhecer o caractere, adiciona como raw e para ou continua
+            break
             
         tokens.append(info["label"])
         ptr += 1
         
         if info["len"] > 0:
-            # Pega os 2 dígitos do ID (ex: '01')
             id_value = buffer[ptr : ptr + info["len"]]
-            payloads.append(id_value)
+            if id_value:
+                payloads.append(id_value)
             ptr += info["len"]
             
-    return " ".join(tokens), payloads
+    return " ".join(tokens), payloads, False
 
 def process(buffer):
     faltando = get_length(buffer)
     
     # Só agimos se o comando estiver completo (faltando == 0)
     if faltando == 0 and len(buffer) > 0:
+        phrase, payloads, is_single = parse_buffer(buffer)
         
-        # 1. Verifica primeiro se é um SINGLE_COMMAND (Atalho)
-        for cmd_prefix, info in SINGLE_COMMANDS.items():
-            if buffer.startswith(cmd_prefix):
-                # Se o comando tem payload (ex: 25 + 0001), passamos o payload
-                payload = buffer[len(cmd_prefix):]
-                info["func"](payload if payload else buffer)
-                return True
-
-        # 2. Se não for atalho, processa como COMANDO DINÂMICO (Cascata)
-        phrase, payloads = parse_buffer(buffer)
+        if is_single:
+            # Encontra qual comando simples bate com o buffer
+            for cmd_prefix, info in SINGLE_COMMANDS.items():
+                if buffer.startswith(cmd_prefix):
+                    payload = payloads[0] if payloads else ""
+                    info["func"](payload if payload else buffer)
+                    return True
         
         if phrase in COMMANDS:
             func = COMMANDS[phrase]["func"]
@@ -174,65 +187,87 @@ def process(buffer):
     return False # Ainda não está completo
 
 def format_visual_buffer(buffer):
-    """Formata o buffer com hífens: 801 - 2 - 50_"""
+    """Formata o buffer dinamicamente: 801 - 2 - 50_"""
     res = []
     ptr = 0
-    # Esta lógica segue sua regra de 3 para objetos e 1 para interação
+    
+    # 1. Tenta formatar como comando simples primeiro se o buffer começar com um
+    for cmd, info in SINGLE_COMMANDS.items():
+        if buffer.startswith(cmd):
+            res.append(cmd)
+            ptr += len(cmd)
+            payload_len = info["len"]
+            payload = buffer[ptr:ptr+payload_len]
+            if payload:
+                res.append(payload)
+                ptr += len(payload)
+            # Adiciona o restante se houver (erro ou payload incompleto)
+            remaining = buffer[ptr:]
+            if remaining:
+                res.append(remaining)
+            joined = " - ".join(res)
+            return f"{YELLOW}{joined}{WHITE}_"
+
+    # 2. Formata como comando dinâmico
     while ptr < len(buffer):
         char = buffer[ptr]
-        if char in ["8", "5"]:
-            chunk = buffer[ptr:ptr+3]
+        info = OBJECTS.get(char) or INTERACTIONS.get(char)
+        
+        if info:
+            chunk_len = 1 + info["len"]
+            chunk = buffer[ptr : ptr + chunk_len]
             res.append(chunk)
-            ptr += 3
-        elif char == "2":
-            res.append("2")
-            ptr += 1
+            ptr += chunk_len
         else:
-            res.append(char)
+            # Caso o caractere não seja reconhecido, avança 1
+            res.append(buffer[ptr])
             ptr += 1
     
     joined = " - ".join(res)
     return f"{YELLOW}{joined}{WHITE}_"
 
 def render(buffer):
-    # os.system('cls' if os.name == 'nt' else 'clear')
+    os.system('cls' if os.name == 'nt' else 'clear')
     
-    phrase, payloads = parse_buffer(buffer)
+    phrase, payloads, is_single = parse_buffer(buffer)
     tokens = phrase.split()
     
-    # --- SEÇÃO 1: STATUS DO PROCESSO ---
-    # ⚪ (801) -> Add -> ⭐ (501)
     status_parts = []
-    p_idx = 0
-    for t in tokens:
-        if t == "attr":
-            id_val = f"8{payloads[p_idx]}" if p_idx < len(payloads) else "???"
-            nome = user._attributes.get(id_val, "...")
-            if hasattr(nome, '_name'): nome = nome._name # Se for objeto
-            status_parts.append(f"{WHITE}⚪ ({nome}){CLR}")
-            p_idx += 1
-        elif t == "add":
-            status_parts.append(f"{CYAN}Add{CLR}")
-        elif t == "action":
-            id_val = f"5{payloads[p_idx]}" if p_idx < len(payloads) else "???"
-            nome = user._actions.get(id_val, "...")
-            if hasattr(nome, '_name'): nome = nome._name
-            status_parts.append(f"{MAGENTA}⭐ ({nome}){CLR}")
-            p_idx += 1
+    if is_single:
+        label = phrase.upper()
+        status_parts.append(f"{CYAN}{label}{CLR}")
+        if payloads and payloads[0]:
+            status_parts.append(f"{WHITE}({payloads[0]}){CLR}")
+    else:
+        p_idx = 0
+        for t in tokens:
+            if t == "attr":
+                id_val = f"8{payloads[p_idx]}" if p_idx < len(payloads) else "???"
+                nome = user._attributes.get(id_val, "...")
+                if hasattr(nome, '_name'): nome = nome._name
+                status_parts.append(f"{WHITE}⚪ ({nome}){CLR}")
+                p_idx += 1
+            elif t == "add":
+                status_parts.append(f"{CYAN}Add{CLR}")
+            elif t == "action":
+                id_val = f"5{payloads[p_idx]}" if p_idx < len(payloads) else "???"
+                nome = user._actions.get(id_val, "...")
+                if hasattr(nome, '_name'): nome = nome._name
+                status_parts.append(f"{MAGENTA}⭐ ({nome}){CLR}")
+                p_idx += 1
+            elif t == "act":
+                status_parts.append(f"{GREEN}Act{CLR}")
+            elif t == "delete":
+                status_parts.append(f"{YELLOW}Delete{CLR}")
     
     process_view = " -> ".join(status_parts) if status_parts else ""
-    
-    # --- SEÇÃO 2: DISPLAY DO BUFFER ---
     buffer_view = format_visual_buffer(buffer)
-
-    # --- SEÇÃO 4: METADADOS / LOG ---
     faltando = get_length(buffer)
     log_view = f"Faltando: {faltando} dígitos | Buffer Raw: {buffer}"
 
-    # --- IMPRESSÃO DAS TELAS ---
-    # print(f"{MAGENTA}INPUT BUFFER")
     print(f"{buffer_view}")
     print(f"{process_view}")
+    # print(f"{log_view}")
 
 
 def dial_start():
@@ -248,12 +283,8 @@ def dial_start():
             render(buffer)
         
             if process(buffer):
-
                 buffer = "" 
-                import time
-
-                time.sleep(2) 
-
+                time.sleep(1) 
                 continue 
 
             key = readchar.readkey()

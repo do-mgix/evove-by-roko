@@ -4,9 +4,11 @@ class Attribute:
     def __init__(self, aid, name, related_actions=None, children=None, parent=None):
         self._id = aid
         self._name = name
-        self._parent = parent if parent is not None else []
-        self._children = children if children is not None else []
+        self._parent = []
+        self._children = []
         self._related_actions = []
+        
+        # Armazena os IDs para resolução posterior (importante para load de JSON)
         self._related_action_ids = related_actions if related_actions is not None else []
         self._children_ids = children if children is not None else []
         self._parent_ids = parent if parent is not None else []
@@ -30,7 +32,7 @@ class Attribute:
     # tratamento visual de power
     @property
     def power_display(self) -> str:
-        return f"{self._power / 1000}%"
+        return f"{self.power / 1000}%"
 
     def add_related_action(self, action):
         if self._children:
