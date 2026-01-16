@@ -5,6 +5,7 @@ import readchar
 
 # importar classe user 
 from src.components.user.user import user 
+from src.components.roko.roko import him
 
 # O 'len' aqui é o tamanho do PAYLOAD (o ID que vem depois do prefixo)
 OBJECTS = {
@@ -23,6 +24,7 @@ INTERACTIONS = {
 SINGLE_COMMANDS = {
     "1":  {"len": 0, "func": user.wake, "label": "wake"},
     "3":  {"len": 0, "func": user.sleep, "label": "sleep"},
+    "4":  {"len": 0, "func": him.cutucar, "label": "cutucar"},
     "25": {"len": 2, "func": user.create_action, "label": "create_action"}, 
     "28": {"len": 0, "func": user.create_attribute, "label": "create_attr"}, 
     "98": {"len": 0, "func": user.list_attributes, "label": "list_attr"}, 
@@ -159,32 +161,26 @@ def parse_buffer(buffer):
 def process(buffer):
     faltando = get_length(buffer)
     
-    # Só agimos se o comando estiver completo (faltando == 0)
     if faltando == 0 and len(buffer) > 0:
         phrase, payloads, is_single = parse_buffer(buffer)
         
         if is_single:
-            # Encontra qual comando simples bate com o buffer
             for cmd_prefix, info in SINGLE_COMMANDS.items():
                 if buffer.startswith(cmd_prefix):
-                    payload = payloads[0] if payloads else ""
-                    info["func"](payload if payload else buffer)
-                    return True
+                    if info["len"] > 0:
+                        payload = payloads[0] if payloads else ""
+                        result = info["func"](payload if payload else buffer)
+                    else:
+                        result = info["func"]()
+                    return True, result
         
         if phrase in COMMANDS:
             func = COMMANDS[phrase]["func"]
-            
-            # EXAME DE PAYLOAD:
-            # Se a frase for "attr add action", payloads será algo como ["01", "05"]
-            # Passamos a lista de IDs extraídos para a função
-            func(payloads) 
-            return True
-
-        # Se o comando for completo mas não existir na gramática (ex: "attr add")
-        # limpamos o buffer retornando True (falha silenciosa ou erro)
-        return True 
-
-    return False # Ainda não está completo
+            result = func(payloads) 
+            return True, result
+        
+        return True, None
+    return False, None
 
 def format_visual_buffer(buffer):
     """Formata o buffer dinamicamente: 801 - 2 - 50_"""
@@ -226,8 +222,30 @@ def format_visual_buffer(buffer):
     joined = " - ".join(res)
     return f"{YELLOW}{joined}{WHITE}_"
 
-def render(buffer):
-    os.system('cls' if os.name == 'nt' else 'clear')
+
+
+def show_messages_animated(messages):
+    """Mostra mensagens uma por uma, cada mensagem sozinha na tela"""
+    for msg in messages:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print(msg)
+        
+        # Calcula tempo de espera baseado no tamanho da mensagem
+        wait_time = len(msg) * 0.05  # 0.05 segundos por caractere
+        time.sleep(wait_time)
+
+def render(buffer, skip_clear=False, show_animated=False):
+    if not skip_clear:
+        os.system('cls' if os.name == 'nt' else 'clear')
+    
+    # Imprime as mensagens acumuladas do user
+    if user.messages:
+        if show_animated:
+            show_messages_animated(user.messages)
+        else:
+            for msg in user.messages:
+                print(msg)
+        print()  # Linha em branco para separar
     
     phrase, payloads, is_single = parse_buffer(buffer)
     tokens = phrase.split()
@@ -262,40 +280,48 @@ def render(buffer):
     
     process_view = " -> ".join(status_parts) if status_parts else ""
     buffer_view = format_visual_buffer(buffer)
-    faltando = get_length(buffer)
-    log_view = f"Faltando: {faltando} dígitos | Buffer Raw: {buffer}"
-
+    
     print(f"{buffer_view}")
     print(f"{process_view}")
-    # print(f"{log_view}")
-
 
 def dial_start():
-
-    # carrega os dados do usuário antes de começar o programa
     user.load_user()
-
     try:
-
         buffer = ""
-
         while True:
             render(buffer)
         
-            if process(buffer):
-                buffer = "" 
-                time.sleep(1) 
+            completed, result = process(buffer)
+            
+            if completed:
+                buffer = ""
+
+                # Se result é um score (de uma action), oferece ao Roko
+                if isinstance(result, (int, float)) and result > 0:
+                    him.offer(result)
+                    
+                    # Mostra mensagens do Roko com animação
+                    if him.messages:
+                        show_messages_animated(him.messages)
+                        him.clear_messages()            
+
+                # Se há mensagens do user, mostra elas com animação
+                if user.messages:
+                    show_messages_animated(user.messages)
+                    user.clear_messages()
+                
+                # Mostra mensagens do Roko com animação
+                if him.messages:
+                    show_messages_animated(him.messages)
+                    him.clear_messages()      
+                
                 continue 
-
+            
             key = readchar.readkey()
-
             if key in (readchar.key.BACKSPACE, '\x7f'):
                 buffer = buffer[:-1]
-
             elif key.isdigit():
                 buffer += key
-
     except KeyboardInterrupt:
-        print(f"bye")
+        print("BYE")
         sys.exit(0)
-
