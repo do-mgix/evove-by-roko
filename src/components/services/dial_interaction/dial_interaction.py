@@ -3,9 +3,9 @@ import sys
 import time 
 import readchar
 
-# importar classe user 
 from src.components.user.user import user 
 from src.components.entitys.entity_manager import EntityManager
+from src.components.services.wizard.wizard import wizard
 him = EntityManager().get_entity()
 
 # O 'len' aqui é o tamanho do PAYLOAD (o ID que vem depois do prefixo)
@@ -18,16 +18,16 @@ INTERACTIONS = {
     "2": {"len": 0, "label": "add"},     # Apenas o dígito '2'
     "1": {"len": 0, "label": "act"},     
     "0": {"len": 0, "label": "delete"},     
+    "4": {"len": 0, "label": "configure"},     
 
 }
 
 # Comandos de atalho que não seguem a regra de Attr/Action
 SINGLE_COMMANDS = {
-    "1":  {"len": 0, "func": user.wake, "label": "wake"},
-    "3":  {"len": 0, "func": user.sleep, "label": "sleep"},
-    "4":  {"len": 0, "func": him.cutucar, "label": ""},
+    "1":  {"len": 0, "func": him.cutucar, "label": ""},
     "25": {"len": 2, "func": user.create_action, "label": "create_action"}, 
     "28": {"len": 0, "func": user.create_attribute, "label": "create_attr"}, 
+    "4":  {"len": 0, "func": wizard.start, "label": "super_create_attr"},
     "98": {"len": 0, "func": user.list_attributes, "label": "list_attr"}, 
     "95": {"len": 0, "func": user.list_actions, "label": "list_actions"}, 
     "005": {"len": 0, "func": user.drop_actions, "label": "drop_actions"}, 
