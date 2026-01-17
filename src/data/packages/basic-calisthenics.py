@@ -1,0 +1,266 @@
+{
+  "name": "Basic Calisthenics",
+  "description": "Complete bodyweight training program covering all major muscle groups",
+  "version": "1.0",
+  "author": "evove.by",
+  "attributes": {
+    "801": {
+      "id": "801",
+      "name": "Constitution",
+      "related_actions": [],
+      "children": ["802", "803", "804"],
+      "parent": [],
+      "total_score": 0.0
+    },
+    "802": {
+      "id": "802",
+      "name": "Upper Body",
+      "related_actions": [],
+      "children": ["805", "806", "807"],
+      "parent": ["801"],
+      "total_score": 0.0
+    },
+    "803": {
+      "id": "803",
+      "name": "Core",
+      "related_actions": [],
+      "children": ["808", "809"],
+      "parent": ["801"],
+      "total_score": 0.0
+    },
+    "804": {
+      "id": "804",
+      "name": "Lower Body",
+      "related_actions": [],
+      "children": ["810", "811", "812"],
+      "parent": ["801"],
+      "total_score": 0.0
+    },
+    "805": {
+      "id": "805",
+      "name": "Chest",
+      "related_actions": ["501", "502", "503"],
+      "children": [],
+      "parent": ["802"],
+      "total_score": 0.0
+    },
+    "806": {
+      "id": "806",
+      "name": "Back",
+      "related_actions": ["504", "505", "506"],
+      "children": [],
+      "parent": ["802"],
+      "total_score": 0.0
+    },
+    "807": {
+      "id": "807",
+      "name": "Arms",
+      "related_actions": ["507", "508", "509"],
+      "children": [],
+      "parent": ["802"],
+      "total_score": 0.0
+    },
+    "808": {
+      "id": "808",
+      "name": "Abs",
+      "related_actions": ["510", "511", "512"],
+      "children": [],
+      "parent": ["803"],
+      "total_score": 0.0
+    },
+    "809": {
+      "id": "809",
+      "name": "Lower Back",
+      "related_actions": ["513", "514"],
+      "children": [],
+      "parent": ["803"],
+      "total_score": 0.0
+    },
+    "810": {
+      "id": "810",
+      "name": "Quads",
+      "related_actions": ["515", "516"],
+      "children": [],
+      "parent": ["804"],
+      "total_score": 0.0
+    },
+    "811": {
+      "id": "811",
+      "name": "Glutes & Hamstrings",
+      "related_actions": ["517", "518"],
+      "children": [],
+      "parent": ["804"],
+      "total_score": 0.0
+    },
+    "812": {
+      "id": "812",
+      "name": "Calves",
+      "related_actions": ["519", "520"],
+      "children": [],
+      "parent": ["804"],
+      "total_score": 0.0
+    }
+  },
+  "actions": {
+    "501": {
+      "id": "501",
+      "name": "Push Ups",
+      "type": 1,
+      "diff": 2,
+      "value": 0,
+      "score": 0.0
+    },
+    "502": {
+      "id": "502",
+      "name": "Diamond Push Ups",
+      "type": 1,
+      "diff": 3,
+      "value": 0,
+      "score": 0.0
+    },
+    "503": {
+      "id": "503",
+      "name": "Wide Push Ups",
+      "type": 1,
+      "diff": 2,
+      "value": 0,
+      "score": 0.0
+    },
+    "504": {
+      "id": "504",
+      "name": "Pull Ups",
+      "type": 1,
+      "diff": 4,
+      "value": 0,
+      "score": 0.0
+    },
+    "505": {
+      "id": "505",
+      "name": "Chin Ups",
+      "type": 1,
+      "diff": 3,
+      "value": 0,
+      "score": 0.0
+    },
+    "506": {
+      "id": "506",
+      "name": "Australian Pull Ups",
+      "type": 1,
+      "diff": 2,
+      "value": 0,
+      "score": 0.0
+    },
+    "507": {
+      "id": "507",
+      "name": "Dips",
+      "type": 1,
+      "diff": 3,
+      "value": 0,
+      "score": 0.0
+    },
+    "508": {
+      "id": "508",
+      "name": "Pike Push Ups",
+      "type": 1,
+      "diff": 3,
+      "value": 0,
+      "score": 0.0
+    },
+    "509": {
+      "id": "509",
+      "name": "Tricep Dips",
+      "type": 1,
+      "diff": 2,
+      "value": 0,
+      "score": 0.0
+    },
+    "510": {
+      "id": "510",
+      "name": "Crunches",
+      "type": 1,
+      "diff": 1,
+      "value": 0,
+      "score": 0.0
+    },
+    "511": {
+      "id": "511",
+      "name": "Leg Raises",
+      "type": 1,
+      "diff": 3,
+      "value": 0,
+      "score": 0.0
+    },
+    "512": {
+      "id": "512",
+      "name": "Plank",
+      "type": 2,
+      "diff": 2,
+      "value": 0,
+      "score": 0.0
+    },
+    "513": {
+      "id": "513",
+      "name": "Superman Hold",
+      "type": 2,
+      "diff": 2,
+      "value": 0,
+      "score": 0.0
+    },
+    "514": {
+      "id": "514",
+      "name": "Hyperextensions",
+      "type": 1,
+      "diff": 2,
+      "value": 0,
+      "score": 0.0
+    },
+    "515": {
+      "id": "515",
+      "name": "Squats",
+      "type": 1,
+      "diff": 1,
+      "value": 0,
+      "score": 0.0
+    },
+    "516": {
+      "id": "516",
+      "name": "Lunges",
+      "type": 1,
+      "diff": 2,
+      "value": 0,
+      "score": 0.0
+    },
+    "517": {
+      "id": "517",
+      "name": "Bulgarian Split Squats",
+      "type": 1,
+      "diff": 3,
+      "value": 0,
+      "score": 0.0
+    },
+    "518": {
+      "id": "518",
+      "name": "Glute Bridges",
+      "type": 1,
+      "diff": 2,
+      "value": 0,
+      "score": 0.0
+    },
+    "519": {
+      "id": "519",
+      "name": "Calf Raises",
+      "type": 1,
+      "diff": 1,
+      "value": 0,
+      "score": 0.0
+    },
+    "520": {
+      "id": "520",
+      "name": "Jump Squats",
+      "type": 1,
+      "diff": 3,
+      "value": 0,
+      "score": 0.0
+    }
+  }
+}

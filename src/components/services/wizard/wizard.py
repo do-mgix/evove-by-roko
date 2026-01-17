@@ -25,7 +25,7 @@ class Wizard:
             print("2 - Study and Focus (Coming Soon)")
             print()
             print("0 - Cancel")
-            print()
+            print(self.packages_dir)
             
             choice = input("Select option: ")
             

@@ -3,5 +3,4 @@ __pycache__/
 *.pyc
 *.pyo
 
-src/data/*
-!src/data/.gitkeep
+src/data/user.json*
