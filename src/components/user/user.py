@@ -1,18 +1,18 @@
 # ==================== USER.PY ====================
 import json, os
 from datetime import datetime
-from src.components.roko.roko import him
+from src.components.entitys.entity_manager import EntityManager
 from src.components.user.attributes.attribute import Attribute
 from src.components.user.actions.action import Action
 
 class User:
     def __init__(self):
-        self.him = him
+        him = EntityManager().get_entity()
         self._attributes = {} 
         self._actions = {} 
         self._value = 0
         self.messages = []  # Buffer de mensagens para o render
-    
+            
     def clear_messages(self):
         """Limpa o buffer de mensagens"""
         self.messages = []
@@ -58,8 +58,14 @@ class User:
     
     def save_user(self):
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        data_file = os.path.join(base_dir, "user.json")
-        
+        # Sobe 2 níveis: user/ -> components/ -> src/
+        src_dir = os.path.dirname(os.path.dirname(base_dir))
+        data_dir = os.path.join(src_dir, "data")    
+        data_file = os.path.join(data_dir, "user.json")
+
+        # Cria o diretório se não existir
+        os.makedirs(data_dir, exist_ok=True)
+            
         data = {
             "score": self.score,
             "value": self._value,
@@ -70,21 +76,24 @@ class User:
                 k: v.to_dict() if hasattr(v, 'to_dict') else v for k, v in self._actions.items()
             }
         }
-        
+    
         try:
             with open(data_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=4)
-            self.add_message(f"file saved.")
+            # self.add_message(f"file saved.")
             self.load_user()
         except Exception as e:
             self.add_message(f"Error saving {e}")
-    
+
     def load_user(self):
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        data_file = os.path.join(base_dir, "user.json")
-        
+        # Sobe 2 níveis: user/ -> components/ -> src/
+        src_dir = os.path.dirname(os.path.dirname(base_dir))
+        data_dir = os.path.join(src_dir, "data")
+        data_file = os.path.join(data_dir, "user.json")
+
         if not os.path.exists(data_file):
-            self.add_message(f"new save file created.")
+            # self.add_message(f"new save file created.")
             self.save_user() 
             return
         

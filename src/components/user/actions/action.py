@@ -81,10 +81,10 @@ class Action:
                 messages.append(f"Invalid enter, insert integer for {label}.")
         
         value_difference = self.value - original_value
-        messages.append(f"{self.name} increase by {value_difference}! {original_value} -> {self.value}")
+        messages.append(f"{self.name} increase by {value_difference:.2f}! {original_value:.2f} -> {self.value:.2f}")
         
         score_difference = self.score - original_score
-        messages.append(f"score plus {score_difference}! {original_score} -> {self.score}")
+        messages.append(f"score plus {score_difference:.2f}! {original_score:.2f} -> {self.score:.2f}")
         
         return score_difference, messages
     

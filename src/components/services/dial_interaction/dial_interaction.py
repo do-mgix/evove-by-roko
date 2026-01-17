@@ -5,7 +5,8 @@ import readchar
 
 # importar classe user 
 from src.components.user.user import user 
-from src.components.roko.roko import him
+from src.components.entitys.entity_manager import EntityManager
+him = EntityManager().get_entity()
 
 # O 'len' aqui é o tamanho do PAYLOAD (o ID que vem depois do prefixo)
 OBJECTS = {
@@ -24,7 +25,7 @@ INTERACTIONS = {
 SINGLE_COMMANDS = {
     "1":  {"len": 0, "func": user.wake, "label": "wake"},
     "3":  {"len": 0, "func": user.sleep, "label": "sleep"},
-    "4":  {"len": 0, "func": him.cutucar, "label": "cutucar"},
+    "4":  {"len": 0, "func": him.cutucar, "label": ""},
     "25": {"len": 2, "func": user.create_action, "label": "create_action"}, 
     "28": {"len": 0, "func": user.create_attribute, "label": "create_attr"}, 
     "98": {"len": 0, "func": user.list_attributes, "label": "list_attr"}, 
@@ -284,6 +285,12 @@ def render(buffer, skip_clear=False, show_animated=False):
     print(f"{buffer_view}")
     print(f"{process_view}")
 
+    debug=""
+    if debug:
+        print(f"DEBUG")
+        print(f"{debug}")
+
+
 def dial_start():
     user.load_user()
     try:
@@ -296,11 +303,16 @@ def dial_start():
             if completed:
                 buffer = ""
 
+                # Mostra mensagens do Roko PRIMEIRO (cutucar, random_message, etc)
+                if him.messages:
+                    show_messages_animated(him.messages)
+                    him.clear_messages()
+
                 # Se result é um score (de uma action), oferece ao Roko
                 if isinstance(result, (int, float)) and result > 0:
                     him.offer(result)
                     
-                    # Mostra mensagens do Roko com animação
+                    # Mostra mensagens do offer
                     if him.messages:
                         show_messages_animated(him.messages)
                         him.clear_messages()            
@@ -309,11 +321,6 @@ def dial_start():
                 if user.messages:
                     show_messages_animated(user.messages)
                     user.clear_messages()
-                
-                # Mostra mensagens do Roko com animação
-                if him.messages:
-                    show_messages_animated(him.messages)
-                    him.clear_messages()      
                 
                 continue 
             

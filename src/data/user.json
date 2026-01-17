@@ -1,8 +1,15 @@
 {
-    "score": 0,
+    "score": 0.0,
     "value": 0,
-    "next_attr_id": 1,
-    "next_action_id": 1,
     "attributes": {},
-    "actions": {}
+    "actions": {
+        "501": {
+            "id": "501",
+            "name": "",
+            "type": 1,
+            "diff": 1,
+            "value": 1140,
+            "score": 2394.0
+        }
+    }
 }
