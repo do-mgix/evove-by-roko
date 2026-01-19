@@ -81,17 +81,6 @@ class Him:
                 "...SILENCE...",
                 "...NOTHING...",
                 "...NOBODY HOME..."
-            ],
-            "left_forever": [
-                "HE'S GONE.",
-                "HE LEFT.",
-                "YOU FAILED HIM.",
-                "TOO LATE.",
-                "HE WON'T COME BACK.",
-                "YOU LOST HIM FOREVER.",
-                "SILENCE.",
-                "EMPTY.",
-                "ABANDONED."
             ]
         },
         "random_message": {
@@ -140,6 +129,8 @@ class Him:
         self._max_poke_tokens = 3  # Máximo de tokens
         self._poke_regen_rate = 1  # Tokens por hora
         self._last_poke_regen = datetime.now()
+
+        self._has_left = 0 
     
     def clear_messages(self):
         """Limpa o buffer de mensagens"""
@@ -164,19 +155,9 @@ class Him:
     
     def offer(self, score_difference):
         """Recebe uma offering e atualiza a satisfação do Roko"""
-        # Se Roko foi embora, não aceita mais offerings
-        if self._has_left:
-            self.add_message(random.choice(self.MESSAGES["poke_fail"]["left_forever"]))
-            return 0
-        
         now = datetime.now()
         
         self._apply_satisfaction_decay(now)
-        
-        # Verifica novamente após decay
-        if self._has_left:
-            self.add_message(random.choice(self.MESSAGES["poke_fail"]["left_forever"]))
-            return 0
         
         offering = {
             'value': score_difference,
@@ -227,12 +208,10 @@ class Him:
         time_passed = (current_time - self._last_decay_time).total_seconds() / 3600
         decay = time_passed * self._satisfaction_decay_rate
         
-        # Satisfação pode chegar a 0
-        self._satisfaction = max(0, self._satisfaction - decay)
-        
-        # Se chegou a 0, Roko vai embora para sempre
-        if self._satisfaction <= 0:
-            self._has_left = True
+        if self._satisfaction > 50:
+            self._satisfaction = max(50, self._satisfaction - decay)
+        elif self._satisfaction < 50:
+            self._satisfaction = min(50, self._satisfaction + decay)
     
     def _regenerate_poke_tokens(self):
         """Regenera poke tokens baseado no tempo passado"""
@@ -284,17 +263,7 @@ class Him:
     
     def random_message(self):
         """Envia uma mensagem aleatória baseada no mood atual"""
-        # Se Roko foi embora, sempre retorna mensagem de abandono
-        if self._has_left:
-            self.add_message(random.choice(self.MESSAGES["poke_fail"]["left_forever"]))
-            return
-        
         self._apply_satisfaction_decay(datetime.now())
-        
-        # Verifica se foi embora após o decay
-        if self._has_left:
-            self.add_message(random.choice(self.MESSAGES["poke_fail"]["left_forever"]))
-            return
         
         mood = self._get_mood()
         message = random.choice(self.MESSAGES["random_message"][mood])
@@ -322,49 +291,5 @@ class Him:
         """Retorna satisfação atual com decay aplicado"""
         self._apply_satisfaction_decay(datetime.now())
         return self._satisfaction
-    
-    def _check_spawn_events(self):
-        """Verifica se deve spawnar novas entidades ou retornar Roko"""
-        now = datetime.now()
-        time_passed = (now - self._last_spawn_check).total_seconds() / 3600  # em horas
-        
-        # Verifica a cada 10 horas
-        if time_passed >= self._spawn_check_interval:
-            self._last_spawn_check = now
-            
-            # Se Roko foi embora, chance de voltar ou spawnar outra entidade
-            if self._has_left:
-                # Chance minúscula de Roko retornar
-                if random.random() * 100 < self._roko_return_chance:
-                    self._roko_returns()
-                    return "roko_returned"
-                
-                # Chance de spawnar nova entidade
-                elif random.random() * 100 < self._entity_spawn_chance:
-                    return "new_entity_spawned"
-        
-        return None
-    
-    def _roko_returns(self):
-        """Roko retorna com satisfação reduzida"""
-        self._has_left = False
-        self._satisfaction = 25  # Retorna com satisfação baixa
-        self._offerings = []  # Reset do histórico
-        self.add_message("...")
-        self.add_message("I'M BACK.")
-        self.add_message("BUT I WON'T FORGET.")
-        self.add_message(f"SATISFACTION: {self._satisfaction}/100")
-    
-    def get_spawn_status(self):
-        """Retorna informações sobre spawn de entidades"""
-        event = self._check_spawn_events()
-        
-        if event:
-            return {
-                'event': event,
-                'has_left': self._has_left,
-                'satisfaction': self._satisfaction
-            }
-        return None
 
 him = Him()

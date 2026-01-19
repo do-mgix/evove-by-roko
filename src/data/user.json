@@ -1,5 +1,5 @@
 {
-    "score": 0.0,
+    "score": 188.8,
     "value": 0,
     "attributes": {
         "801": {
@@ -35,6 +35,178 @@
                 "802"
             ],
             "total_score": 0.0
+        },
+        "804": {
+            "id": "804",
+            "name": "Constitution",
+            "related_actions": [],
+            "children": [
+                "805",
+                "806",
+                "807"
+            ],
+            "parent": [],
+            "total_score": 0.0
+        },
+        "805": {
+            "id": "805",
+            "name": "Upper Body",
+            "related_actions": [],
+            "children": [
+                "808",
+                "809",
+                "810"
+            ],
+            "parent": [
+                "804",
+                "804"
+            ],
+            "total_score": 1416.0
+        },
+        "806": {
+            "id": "806",
+            "name": "Core",
+            "related_actions": [],
+            "children": [
+                "811",
+                "812"
+            ],
+            "parent": [
+                "804",
+                "804"
+            ],
+            "total_score": 0.0
+        },
+        "807": {
+            "id": "807",
+            "name": "Lower Body",
+            "related_actions": [],
+            "children": [
+                "813",
+                "814",
+                "815"
+            ],
+            "parent": [
+                "804",
+                "804"
+            ],
+            "total_score": 0.0
+        },
+        "808": {
+            "id": "808",
+            "name": "Chest",
+            "related_actions": [
+                "502",
+                "503",
+                "504"
+            ],
+            "children": [],
+            "parent": [
+                "805",
+                "805"
+            ],
+            "total_score": 384.0
+        },
+        "809": {
+            "id": "809",
+            "name": "Back",
+            "related_actions": [
+                "505",
+                "506",
+                "507"
+            ],
+            "children": [],
+            "parent": [
+                "805",
+                "805"
+            ],
+            "total_score": 1032.0
+        },
+        "810": {
+            "id": "810",
+            "name": "Arms",
+            "related_actions": [
+                "508",
+                "509",
+                "510"
+            ],
+            "children": [],
+            "parent": [
+                "805",
+                "805"
+            ],
+            "total_score": 0.0
+        },
+        "811": {
+            "id": "811",
+            "name": "Abs",
+            "related_actions": [
+                "511",
+                "512",
+                "513"
+            ],
+            "children": [],
+            "parent": [
+                "806",
+                "806"
+            ],
+            "total_score": 0.0
+        },
+        "812": {
+            "id": "812",
+            "name": "Lower Back",
+            "related_actions": [
+                "514",
+                "515"
+            ],
+            "children": [],
+            "parent": [
+                "806",
+                "806"
+            ],
+            "total_score": 0.0
+        },
+        "813": {
+            "id": "813",
+            "name": "Quads",
+            "related_actions": [
+                "516",
+                "517"
+            ],
+            "children": [],
+            "parent": [
+                "807",
+                "807"
+            ],
+            "total_score": 0.0
+        },
+        "814": {
+            "id": "814",
+            "name": "Glutes & Hamstrings",
+            "related_actions": [
+                "518",
+                "519"
+            ],
+            "children": [],
+            "parent": [
+                "807",
+                "807"
+            ],
+            "total_score": 0.0
+        },
+        "815": {
+            "id": "815",
+            "name": "Calves",
+            "related_actions": [
+                "520",
+                "521"
+            ],
+            "children": [],
+            "parent": [
+                "807",
+                "807"
+            ],
+            "total_score": 0.0
         }
     },
     "actions": {
@@ -43,6 +215,166 @@
             "name": "Push Up",
             "type": 1,
             "diff": 1,
+            "value": 0,
+            "score": 0.0
+        },
+        "502": {
+            "id": "502",
+            "name": "Push Ups",
+            "type": 1,
+            "diff": 2,
+            "value": 120,
+            "score": 384.0
+        },
+        "503": {
+            "id": "503",
+            "name": "Diamond Push Ups",
+            "type": 1,
+            "diff": 3,
+            "value": 0,
+            "score": 0.0
+        },
+        "504": {
+            "id": "504",
+            "name": "Wide Push Ups",
+            "type": 1,
+            "diff": 2,
+            "value": 0,
+            "score": 0.0
+        },
+        "505": {
+            "id": "505",
+            "name": "Pull Ups",
+            "type": 1,
+            "diff": 4,
+            "value": 120,
+            "score": 648.0
+        },
+        "506": {
+            "id": "506",
+            "name": "Chin Ups",
+            "type": 1,
+            "diff": 3,
+            "value": 0,
+            "score": 0.0
+        },
+        "507": {
+            "id": "507",
+            "name": "Australian Pull Ups",
+            "type": 1,
+            "diff": 2,
+            "value": 120,
+            "score": 384.0
+        },
+        "508": {
+            "id": "508",
+            "name": "Dips",
+            "type": 1,
+            "diff": 3,
+            "value": 0,
+            "score": 0.0
+        },
+        "509": {
+            "id": "509",
+            "name": "Pike Push Ups",
+            "type": 1,
+            "diff": 3,
+            "value": 0,
+            "score": 0.0
+        },
+        "510": {
+            "id": "510",
+            "name": "Tricep Dips",
+            "type": 1,
+            "diff": 2,
+            "value": 0,
+            "score": 0.0
+        },
+        "511": {
+            "id": "511",
+            "name": "Crunches",
+            "type": 1,
+            "diff": 1,
+            "value": 0,
+            "score": 0.0
+        },
+        "512": {
+            "id": "512",
+            "name": "Leg Raises",
+            "type": 1,
+            "diff": 3,
+            "value": 0,
+            "score": 0.0
+        },
+        "513": {
+            "id": "513",
+            "name": "Plank",
+            "type": 2,
+            "diff": 2,
+            "value": 0,
+            "score": 0.0
+        },
+        "514": {
+            "id": "514",
+            "name": "Superman Hold",
+            "type": 2,
+            "diff": 2,
+            "value": 0,
+            "score": 0.0
+        },
+        "515": {
+            "id": "515",
+            "name": "Hyperextensions",
+            "type": 1,
+            "diff": 2,
+            "value": 0,
+            "score": 0.0
+        },
+        "516": {
+            "id": "516",
+            "name": "Squats",
+            "type": 1,
+            "diff": 1,
+            "value": 0,
+            "score": 0.0
+        },
+        "517": {
+            "id": "517",
+            "name": "Lunges",
+            "type": 1,
+            "diff": 2,
+            "value": 0,
+            "score": 0.0
+        },
+        "518": {
+            "id": "518",
+            "name": "Bulgarian Split Squats",
+            "type": 1,
+            "diff": 3,
+            "value": 0,
+            "score": 0.0
+        },
+        "519": {
+            "id": "519",
+            "name": "Glute Bridges",
+            "type": 1,
+            "diff": 2,
+            "value": 0,
+            "score": 0.0
+        },
+        "520": {
+            "id": "520",
+            "name": "Calf Raises",
+            "type": 1,
+            "diff": 1,
+            "value": 0,
+            "score": 0.0
+        },
+        "521": {
+            "id": "521",
+            "name": "Jump Squats",
+            "type": 1,
+            "diff": 3,
             "value": 0,
             "score": 0.0
         }

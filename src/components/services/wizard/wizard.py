@@ -9,7 +9,7 @@ class Wizard:
     
     def __init__(self, user_instance):
         self.user = user_instance
-        self.packages_dir = Path(__file__).parent.parent.parent / "data" / "packages"
+        self.packages_dir = Path(__file__).parent.parent.parent.parent / "data" / "packages"
         self.available_templates = self._load_available_templates()
         
     def start(self):
@@ -84,12 +84,13 @@ class Wizard:
                     print("Invalid option. Try again.")
             except ValueError:
                 print("Please enter a number.")
+
     def _load_available_templates(self):
         """Carrega todos os templates disponíveis da pasta packages"""
         if not self.packages_dir.exists():
             self.packages_dir.mkdir(parents=True, exist_ok=True)
             return {}
-        
+    
         templates = {}
         for file in self.packages_dir.glob("*.json"):
             try:
@@ -98,9 +99,10 @@ class Wizard:
                     templates[file.stem] = data
             except Exception as e:
                 print(f"Error loading template {file}: {e}")
-        
-        return templates
     
+        return templates
+
+    def _display_template(self, template_name):  # <-- ADICIONE ESTA LINHA
         """Mostra a árvore de atributos do template"""
         os.system('cls' if os.name == 'nt' else 'clear')
         template = self.available_templates[template_name]
@@ -108,8 +110,8 @@ class Wizard:
         print("=" * 50)
         print(f"        {template.get('name', template_name).upper()}")
         print("=" * 50)
-        print()
-        
+        print()        
+
         # Mostra a estrutura da árvore
         attributes = template.get('attributes', {})
         actions = template.get('actions', {})
@@ -206,11 +208,11 @@ class Wizard:
             
             from src.components.user.attributes.attribute import Attribute
             new_attr = Attribute(
-                attribute_id=new_attr_id,
-                name=attr_data['name'],
-                related_actions=None,
-                children=None,
-                parent=None
+                new_attr_id,
+                attr_data['name'],
+                None,
+                None,
+                None
             )
             self.user._attributes[new_attr_id] = new_attr
             print(f"✓ Attribute imported: {attr_data['name']} ({new_attr_id})")
