@@ -1,0 +1,79 @@
+{
+    "name": "Study and Focus",
+    "description": "Optimize your learning and productivity with deep work and research routines",
+    "version": "1.0",
+    "author": "evove.by",
+    "attributes": {
+        "801": {
+            "id": "801",
+            "name": "Intelligence",
+            "related_actions": [],
+            "children": [
+                "802",
+                "803"
+            ],
+            "parent": [],
+            "total_score": 0.0
+        },
+        "802": {
+            "id": "802",
+            "name": "Focus",
+            "related_actions": [
+                "501",
+                "502"
+            ],
+            "children": [],
+            "parent": [
+                "801"
+            ],
+            "total_score": 0.0
+        },
+        "803": {
+            "id": "803",
+            "name": "Knowledge",
+            "related_actions": [
+                "503",
+                "504"
+            ],
+            "children": [],
+            "parent": [
+                "801"
+            ],
+            "total_score": 0.0
+        }
+    },
+    "actions": {
+        "501": {
+            "id": "501",
+            "name": "Deep Work Session",
+            "type": 4,
+            "diff": 4,
+            "value": 0,
+            "score": 0.0
+        },
+        "502": {
+            "id": "502",
+            "name": "Pomodoro Focus",
+            "type": 3,
+            "diff": 2,
+            "value": 0,
+            "score": 0.0
+        },
+        "503": {
+            "id": "503",
+            "name": "Research / Reading",
+            "type": 3,
+            "diff": 3,
+            "value": 0,
+            "score": 0.0
+        },
+        "504": {
+            "id": "504",
+            "name": "Review Notes",
+            "type": 1,
+            "diff": 2,
+            "value": 0,
+            "score": 0.0
+        }
+    }
+}

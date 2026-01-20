@@ -12,6 +12,7 @@ class User:
         self._actions = {} 
         self._value = 0
         self.messages = []  # Buffer de mensagens para o render
+        self.metadata = {}  # Configurações e estados (ex: wizard)
             
     def clear_messages(self):
         """Limpa o buffer de mensagens"""
@@ -74,7 +75,8 @@ class User:
             },
             "actions": {
                 k: v.to_dict() if hasattr(v, 'to_dict') else v for k, v in self._actions.items()
-            }
+            },
+            "metadata": self.metadata
         }
     
         try:
@@ -109,6 +111,7 @@ class User:
             return
         
         self._value = data.get("value", 0)
+        self.metadata = data.get("metadata", {})
         
         self._attributes.clear()
         for attr_id, attr_data in data.get("attributes", {}).items():
@@ -194,23 +197,23 @@ class User:
     
     def list_attributes(self):
         if self._attributes:
-            self.add_message("        CURRENT ATTRIBUTES        ")
-            for attr in self._attributes.values():
-                self.add_message(f"({attr._id}) - {attr._name}")
+            from src.components.services.UI.interface import ui
+            items = [f"({attr._id}) - {attr._name}" for attr in self._attributes.values()]
+            ui.show_list(items, "CURRENT ATTRIBUTES")
         else:
             self.add_message("none attribute available. try creating one with 28...")
     
     def list_actions(self):
         if self._actions:
-            self.add_message("        CURRENT ACTIONS        ")
-            for action in self._actions.values():
-                self.add_message(f"({action._id}) - {action._name}")
+            from src.components.services.UI.interface import ui
+            items = [f"({action._id}) - {action._name}" for action in self._actions.values()]
+            ui.show_list(items, "CURRENT ACTIONS")
         else:
             self.add_message("none action available. try creating one with 25...")
     
     def drop_attributes(self):
-        self.add_message("drop attributes? type yes to confirm:")
-        if input() == "yes":
+        from src.components.services.UI.interface import ui
+        if ui.ask_confirmation("This will PERMANENTLY DELETE ALL ATTRIBUTES."):
             self._attributes.clear()
             self.add_message("attributes deleted.")
             self.save_user()
@@ -218,8 +221,8 @@ class User:
             self.add_message("the attributes are safe.")
     
     def drop_actions(self):
-        self.add_message("drop actions? type yes to confirm:")
-        if input() == "yes":
+        from src.components.services.UI.interface import ui
+        if ui.ask_confirmation("This will PERMANENTLY DELETE ALL ACTIONS."):
             self._actions.clear()
             self.add_message("actions deleted.")
             self.save_user()
@@ -228,16 +231,32 @@ class User:
     
     def delete_attribute(self, payloads):
         payload_id = f"8{payloads[0]}"   
+        attr = self._attributes.get(payload_id)
         
-        for attr in self._attributes.values():
-            if attr._id == payload_id:
-                self._attributes.pop(payload_id, None)
-                self.add_message(f"Attribute {attr._name}({attr._id}) deleted.")
-                self.save_user()
-                return
-        
-        self.add_message(f"attribute ID ({payload_id}) not found")
-    
+        if not attr:
+            self.add_message(f"Attribute ID ({payload_id}) not found")
+            return
+
+        from src.components.services.UI.interface import ui
+        if ui.ask_confirmation(f"Delete attribute {attr._name} ({attr._id})?"):
+            self._attributes.pop(payload_id, None)
+            self.add_message(f"Attribute {attr._name} ({attr._id}) deleted.")
+            self.save_user()
+
+    def delete_action(self, payloads):
+        payload_id = f"5{payloads[0]}"   
+        action = self._actions.get(payload_id)
+
+        if not action:
+            self.add_message(f"Action ID ({payload_id}) not found")
+            return
+
+        from src.components.services.UI.interface import ui
+        if ui.ask_confirmation(f"Delete action {action._name} ({action._id})?"):
+            self._actions.pop(payload_id, None)
+            self.add_message(f"Action {action._name} ({action._id}) deleted.")
+            self.save_user()
+
     def attribute_add_action(self, payloads):
         attr_id = f"8{payloads[0]}"   
         action_id = f"5{payloads[1]}"
