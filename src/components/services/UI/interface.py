@@ -2,6 +2,8 @@ import os
 import time
 import readchar
 import random
+import sys
+import select
 
 
 class UI:
@@ -118,30 +120,62 @@ class UI:
             time.sleep(wait_time)
 
     def show_list(self, items, title, limit=20):
-        """Show items in two columns and wait for a key to continue"""
-        self.clear_screen()
-        print(f"{self.CYAN}{self.BOLD}{' ' * 8}{title}{self.CLR}\n")
-        
-        display_items = list(items)[:limit]
-        
-        # Calculate column width
-        col_width = 30
-        
-        for i in range(0, len(display_items), 2):
-            col1 = display_items[i]
-            line = f"{self.WHITE}{col1}{self.CLR}".ljust(col_width + 10) # +10 for color codes padding
-            
-            if i + 1 < len(display_items):
-                col2 = display_items[i+1]
-                line += f"{self.WHITE}{col2}{self.CLR}"
-            
-            print(line)
-        
-        if len(items) > limit:
-            print(f"\n{self.YELLOW}... and {len(items) - limit} more items.{self.CLR}")
-            
-        print(f"\n{self.GREEN}[ Press any key to continue ]{self.CLR}")
-        readchar.readkey()
+        """Show items in pages and cycle every 1 second until a key is pressed"""
+        if not items:
+            self.clear_screen()
+            print(f"{self.CYAN}{self.BOLD}{' ' * 8}{title}{self.CLR}\n")
+            print(f"{self.WHITE}No items to display.{self.CLR}")
+            print(f"\n{self.GREEN}[ Press any key to continue ]{self.CLR}")
+            readchar.readkey()
+            return
+
+        # Split items into pages
+        items_list = list(items)
+        pages = [items_list[i:i + limit] for i in range(0, len(items_list), limit)]
+        num_pages = len(pages)
+        page_idx = 0
+
+        try:
+            while True:
+                self.clear_screen()
+                print(f"{self.CYAN}{self.BOLD}{' ' * 8}{title} (Page {page_idx + 1}/{num_pages}){self.CLR}\n")
+                
+                current_page = pages[page_idx]
+                col_width = 30
+                
+                for i in range(0, len(current_page), 2):
+                    col1 = current_page[i]
+                    line = f"{self.WHITE}{col1}{self.CLR}".ljust(col_width + 10)
+                    
+                    if i + 1 < len(current_page):
+                        col2 = current_page[i+1]
+                        line += f"{self.WHITE}{col2}{self.CLR}"
+                    
+                    print(line)
+                
+                if num_pages > 1:
+                    print(f"\n{self.YELLOW}>>> Cycling pages every 1s... Press any key to stop <<<{self.CLR}")
+                else:
+                    print(f"\n{self.GREEN}[ Press any key to continue ]{self.CLR}")
+
+                # Wait 1s or until key press
+                start_time = time.time()
+                while time.time() - start_time < 2.0:
+                    # Non-blocking check for key press on Linux
+                    if select.select([sys.stdin], [], [], 0.05)[0]:
+                        readchar.readkey() # Consume the key
+                        return
+                
+                if num_pages > 1:
+                    page_idx = (page_idx + 1) % num_pages
+                else:
+                    # If only one page, we could either return after 1s or keep showing it.
+                    # Usually for 1 page, waiting for a key is better, but to be consistent:
+                    pass
+        except Exception as e:
+            # Fallback if cycling fails (e.g. terminal issues)
+            print(f"\nError: {e}")
+            readchar.readkey()
 
     def ask_confirmation(self, message):
         """Asks for a 3-digit random code confirmation without enter"""

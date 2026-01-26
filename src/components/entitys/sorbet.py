@@ -169,7 +169,7 @@ class Sorbet(Him):
                 base_gain *= 1.5
         
         # Limites bem baixos - ela simplesmente não se impressiona
-        return max(0.3, min(base_gain, 10))  # Min +0.3, Max +10
+        return base_gain
     
     def spawn_message(self):
         """Mensagem especial de spawn"""

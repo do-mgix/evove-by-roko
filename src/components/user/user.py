@@ -149,11 +149,27 @@ class User:
         # Adiciona mensagens da action
         for msg in action_messages:
             self.add_message(msg)
+
+        # Cálculo de Boost por Satisfação
+        him = EntityManager().get_entity()
+        current_sat = him.satisfaction
+        
+        boost_multiplier = 1.0
+        if current_sat > 40:
+            # Interpolação linear: 40 (0%) -> 100 (50%)
+            boost_factor = min(0.5, (current_sat - 40) / 60 * 0.5)
+            boost_factor = max(0, boost_factor) # Garante que não é negativo
+            boost_multiplier = 1.0 + boost_factor
+            
+            if boost_factor > 0:
+                self.add_message(f"{him.__class__.__name__.upper()} BOOST: +{boost_factor*100:.1f}% score gained!")
+
+        final_score_difference = score_difference * boost_multiplier
     
         self.save_user()
     
-        # Retorna score_difference para o Roko processar depois
-        return score_difference
+        # Retorna o score com o boost aplicado para o Roko processar
+        return final_score_difference
     
 
     def create_attribute(self):

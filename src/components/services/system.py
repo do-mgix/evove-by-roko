@@ -32,7 +32,7 @@ def dial_start():
                     ui.show_messages_animated(him.messages)
                     him.clear_messages()
 
-                if isinstance(result, (int, float)) and result > 0:
+                if isinstance(result, (int, float)) and not isinstance(result, bool) and result > 0:
                     him.offer(result)
                     
                     if him.messages:

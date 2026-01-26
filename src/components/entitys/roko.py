@@ -174,7 +174,6 @@ class Him:
         message = random.choice(self.MESSAGES["offer"][mood])
         
         self.add_message(message)
-        self.add_message(f"SATISFACTION: {self._satisfaction:.1f}/100 (+{satisfaction_gain:.1f})")
         
         self._last_decay_time = now
         
@@ -197,7 +196,7 @@ class Him:
                 base_gain *= bonus_multiplier
         
         # Limita ganho entre 0.5 e 20 por offering
-        return max(0.5, min(base_gain, 20))
+        return base_gain
     
     def _evaluate_offering(self, score_difference):
         """DEPRECATED - Mantido para compatibilidade"""
@@ -208,10 +207,7 @@ class Him:
         time_passed = (current_time - self._last_decay_time).total_seconds() / 3600
         decay = time_passed * self._satisfaction_decay_rate
         
-        if self._satisfaction > 50:
-            self._satisfaction = max(50, self._satisfaction - decay)
-        elif self._satisfaction < 50:
-            self._satisfaction = min(50, self._satisfaction + decay)
+        self._satisfaction = max(0, self._satisfaction - decay)
     
     def _regenerate_poke_tokens(self):
         """Regenera poke tokens baseado no tempo passado"""
@@ -236,8 +232,8 @@ class Him:
         
         # Verifica se tem tokens disponíveis
         if self._poke_tokens <= 0:
-            self.add_message("...NO POKE TOKENS LEFT...")
-            self.add_message(f"WAIT FOR REGENERATION (TOKENS: {self._poke_tokens}/{self._max_poke_tokens})")
+            message = random.choice(self.MESSAGES["poke_fail"]["no_tokens"])
+            self.add_message(message)
             return False
         
         # Consome um token
@@ -249,8 +245,8 @@ class Him:
         presence_chance = 30 + (self._satisfaction * 0.5)
         
         if random.random() * 100 > presence_chance:
-            self.add_message("...NO RESPONSE...")
-            self.add_message(f"POKE TOKENS: {self._poke_tokens}/{self._max_poke_tokens}")
+            message = random.choice(self.MESSAGES["poke_fail"]["no_response"])
+            self.add_message(message)
             return False
         
         # Pega mensagem baseada no mood
@@ -258,7 +254,6 @@ class Him:
         message = random.choice(self.MESSAGES["poke"][mood])
         
         self.add_message(message)
-        self.add_message(f"POKE TOKENS: {self._poke_tokens}/{self._max_poke_tokens}")
         return True
     
     def random_message(self):
