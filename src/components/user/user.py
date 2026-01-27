@@ -15,8 +15,33 @@ class User:
         self.metadata = {
             "mode": "progressive",
             "virtual_agent_active": True,
-            "unlocked_packages": ["basics"]
+            "unlocked_packages": ["basics"],
+            "tokens": 0,
+            "max_tokens": 100,
+            "daily_refill": 50,
+            "last_token_refill": datetime.now().strftime("%Y-%m-%d")
         }
+
+    def add_tokens(self, amount):
+        """Adds tokens up to max_tokens limit"""
+        max_t = self.metadata.get("max_tokens", 100)
+        current = self.metadata.get("tokens", 0)
+        new_total = min(max_t, current + amount)
+        self.metadata["tokens"] = new_total
+        self.add_message(f"Tokens added: {amount}. Current balance: {new_total}/{max_t}")
+        self.save_user()
+
+    def spend_tokens(self, amount):
+        """Spends tokens if possible. Returns True if successful."""
+        current = self.metadata.get("tokens", 0)
+        if current >= amount:
+            self.metadata["tokens"] = current - amount
+            self.add_message(f"Tokens spent: {amount}. Current balance: {self.metadata['tokens']}")
+            self.save_user()
+            return True
+        else:
+            self.add_message(f"Insufficient tokens! Needed: {amount}, Current: {current}")
+            return False
             
     def clear_messages(self):
         """Limpa o buffer de mensagens"""
@@ -139,16 +164,16 @@ class User:
             if hasattr(attr, 'resolve_parent'):
                 attr.resolve_parent(self._attributes)
     
-    def act(self, payloads):
+    def act(self, payloads, value=None):
         """Executa ação e retorna mensagens"""
         action_id = f"5{payloads[0]}"  
         action = self._actions.get(action_id)
-    
+
         if not action:
             self.add_message(f"\n [ ERRO ] ID {action_id} not found")
             return None
-    
-        score_difference, action_messages = action.execution()
+
+        score_difference, action_messages = action.execution(manual_value=value)
     
         # Adiciona mensagens da action
         for msg in action_messages:
@@ -176,13 +201,35 @@ class User:
         return final_score_difference
     
 
-    def create_attribute(self):
+    def open_shop(self):
+        """Displays shop items"""
+        from src.components.services.shop_service import ShopService
+        shop = ShopService(self)
+        shop.show_items()
+
+    def buy_shop_item(self, item_id=None):
+        """Buys a shop item. item_id can be passed from dial or buffer."""
+        from src.components.services.shop_service import ShopService
+        shop = ShopService(self)
+        
+        # If called from list_actions/dial, it might be a list
+        target_id = item_id
+        if isinstance(item_id, list) and item_id:
+            target_id = item_id[0]
+            
+        if shop.buy_item(target_id):
+            self.save_user()
+
+    def create_attribute(self, name=None):
         mode = self.metadata.get("mode", "progressive")
         if mode == "semi-progressive":
             self.add_message("[ MODE ] Manual creation disabled in semi-progressive mode.")
             return
 
-        name = input("attribute name: ")
+        if name is None:
+            from src.components.services.UI.interface import WebInputInterrupt
+            raise WebInputInterrupt("attribute name", type="text")
+
         nextid = self.next_attr_id
         new_id = f"80{nextid}" if nextid < 10 else f"8{nextid}"           
         new_attribute = Attribute(new_id, name, None, None, None)
@@ -191,11 +238,13 @@ class User:
         self.add_message(f"attribute '{name}' created with ID {new_id}")
         self.save_user()
     
-    def create_attribute_by_id(self, payloads):
+    def create_attribute_by_id(self, payloads, name=None):
         new_id = f"8{payloads[0]}"        
         
         if new_id not in self._attributes:
-            name = input("attribute name: ")
+            if name is None:
+                from src.components.services.UI.interface import WebInputInterrupt
+                raise WebInputInterrupt("attribute name", type="text", options={"payloads": payloads})
             new_attribute = Attribute(new_id, name, None, None, None)
             self._attributes[new_id] = new_attribute
             self.add_message(f"attribute '{name}' created with ID {new_attribute._id}")
@@ -203,16 +252,19 @@ class User:
         else:
             self.add_message(f"ID ({new_id}) already exists.")
     
-    def create_action(self, buffer: str):    
+    def create_action(self, buffer: str, name=None):    
         mode = self.metadata.get("mode", "progressive")
         if mode == "semi-progressive":
             self.add_message("[ MODE ] Manual creation disabled in semi-progressive mode.")
             return
 
+        if name is None:
+            from src.components.services.UI.interface import WebInputInterrupt
+            raise WebInputInterrupt("action name", type="text", options={"buffer": buffer})
+
         try:
             tipo = int(buffer[0])
             diff = int(buffer[1])
-            name = input("action name: ")
             nextid = self.next_action_id
             new_id = f"50{nextid}" if nextid < 10 else f"5{nextid}"           
             starter_value = 0
@@ -259,7 +311,7 @@ class User:
         else:
             self.add_message("the actions are safe.")
     
-    def delete_attribute(self, payloads):
+    def delete_attribute(self, payloads, confirmed=None):
         payload_id = f"8{payloads[0]}"   
         attr = self._attributes.get(payload_id)
         
@@ -267,13 +319,23 @@ class User:
             self.add_message(f"Attribute ID ({payload_id}) not found")
             return
 
-        from src.components.services.UI.interface import ui
-        if ui.ask_confirmation(f"Delete attribute {attr._name} ({attr._id})?"):
-            self._attributes.pop(payload_id, None)
-            self.add_message(f"Attribute {attr._name} ({attr._id}) deleted.")
-            self.save_user()
+        from src.components.services.UI.interface import ui, WebInputInterrupt
+        if confirmed is True:
+            pass
+        elif ui.web_mode:
+            import random
+            code = "".join([str(random.randint(0, 9)) for _ in range(3)])
+            self.add_message(f"Delete {attr._name} ({attr._id})?")
+            self.add_message(f"Type the code: {code}")
+            raise WebInputInterrupt(f"Confirm code: {code}", type="confirm", options={"code": code, "payloads": payloads, "action": "delete_attribute"})
+        elif not ui.ask_confirmation(f"Delete attribute {attr._name} ({attr._id})?"):
+            return
 
-    def delete_action(self, payloads):
+        self._attributes.pop(payload_id, None)
+        self.add_message(f"Attribute {attr._name} ({attr._id}) deleted.")
+        self.save_user()
+
+    def delete_action(self, payloads, confirmed=None):
         payload_id = f"5{payloads[0]}"   
         action = self._actions.get(payload_id)
 
@@ -281,11 +343,21 @@ class User:
             self.add_message(f"Action ID ({payload_id}) not found")
             return
 
-        from src.components.services.UI.interface import ui
-        if ui.ask_confirmation(f"Delete action {action._name} ({action._id})?"):
-            self._actions.pop(payload_id, None)
-            self.add_message(f"Action {action._name} ({action._id}) deleted.")
-            self.save_user()
+        from src.components.services.UI.interface import ui, WebInputInterrupt
+        if confirmed is True:
+            pass
+        elif ui.web_mode:
+            import random
+            code = "".join([str(random.randint(0, 9)) for _ in range(3)])
+            self.add_message(f"Delete {action._name} ({action._id})?")
+            self.add_message(f"Type the code: {code}")
+            raise WebInputInterrupt(f"Confirm code: {code}", type="confirm", options={"code": code, "payloads": payloads, "action": "delete_action"})
+        elif not ui.ask_confirmation(f"Delete action {action._name} ({action._id})?"):
+            return
+
+        self._actions.pop(payload_id, None)
+        self.add_message(f"Action {action._name} ({action._id}) deleted.")
+        self.save_user()
 
     def attribute_add_action(self, payloads):
         attr_id = f"8{payloads[0]}"   

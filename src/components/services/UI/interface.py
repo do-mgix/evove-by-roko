@@ -6,6 +6,12 @@ import sys
 import select
 
 
+class WebInputInterrupt(Exception):
+    def __init__(self, prompt, type="text", options=None):
+        self.prompt = prompt
+        self.type = type
+        self.options = options
+
 class UI:
     def __init__(self):
         # Colors (instance properties)
@@ -16,6 +22,28 @@ class UI:
         self.YELLOW = "\033[33m"
         self.WHITE = "\033[37m"
         self.MAGENTA = "\033[35m"
+        
+        self.web_mode = False
+        self.web_buffer = []
+
+        # Import from constants only
+        from src.components.data.constants import (
+            user, 
+            SINGLE_COMMANDS, 
+            OBJECTS, 
+            INTERACTIONS
+        )
+        
+        self.user = user
+        self.SINGLE_COMMANDS = SINGLE_COMMANDS
+        self.OBJECTS = OBJECTS
+        self.INTERACTIONS = INTERACTIONS
+
+    def log_web(self, msg):
+        if self.web_mode:
+            self.web_buffer.append(msg)
+        else:
+            print(msg)
 
         # Import from constants only
         from src.components.data.constants import (
@@ -113,17 +141,24 @@ class UI:
         return " -> ".join(status_parts) if status_parts else ""
     
     def show_messages_animated(self, messages):
-        """Shows messages one by one, each alone on the screen"""
+        """Shows messages one by one"""
+        if self.web_mode:
+            self.web_buffer.extend(messages)
+            return
+
         for msg in messages:
             os.system('cls' if os.name == 'nt' else 'clear')
             print(msg)
-            
-            # Calcula tempo de espera baseado no tamanho da mensagem
-            wait_time = len(msg) * 0.05  # 0.05 segundos por caractere
+            wait_time = len(msg) * 0.05
             time.sleep(wait_time)
 
     def show_list(self, items, title, limit=20):
-        """Show items in pages and cycle every 1 second until a key is pressed"""
+        if self.web_mode:
+            self.web_buffer.append(f"--- {title} ---")
+            for item in items:
+                self.web_buffer.append(item)
+            return
+
         if not items:
             self.clear_screen()
             print(f"{self.CYAN}{self.BOLD}{' ' * 8}{title}{self.CLR}\n")
@@ -177,7 +212,13 @@ class UI:
             readchar.readkey()
 
     def ask_confirmation(self, message):
-        """Asks for a 3-digit random code confirmation without enter"""
+        """Asks for a 3-digit random code confirmation"""
+        if self.web_mode:
+            code = "".join([str(random.randint(0, 9)) for _ in range(3)])
+            self.web_buffer.append(f"{message}")
+            self.web_buffer.append(f"Type the code: {code}")
+            raise WebInputInterrupt(f"Confirm code: {code}", type="confirm", options={"code": code})
+
         self.clear_screen()
         code = "".join([str(random.randint(0, 9)) for _ in range(3)])
         
@@ -233,6 +274,12 @@ class UI:
 
     def show_menu(self, title, options, footer=None):
         """Standardized menu display"""
+        if self.web_mode:
+            self.web_buffer.append(f"--- {title} ---")
+            for k, v in options.items():
+                self.web_buffer.append(f"{k} - {v}")
+            raise WebInputInterrupt(f"Select option for {title}", type="menu", options=options)
+
         self.clear_screen()
         print(f"{self.CYAN}{self.BOLD}{' ' * 8}{title}{self.CLR}\n")
         
@@ -246,6 +293,10 @@ class UI:
         return readchar.readkey()
 
     def render(self, buffer, skip_clear=False, show_animated=False):
+        if self.web_mode:
+             # In web mode, render is handled by the client polling status
+             return
+
         if not skip_clear:
             os.system('cls' if os.name == 'nt' else 'clear')
         

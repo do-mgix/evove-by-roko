@@ -11,6 +11,21 @@ Configurações
 Ativar/Desativar o agente virtual:
 ativa ou desativa as entidades, pausando suas interações: perda de satisfaction, etc.
 
+Prólogo: 
+Tutorial inicial do evove. Bem simples, contendo apenas as opções e um diálogo inicial como roko. Nele será
+selecionado o modo, quantidade de tokens máxima e recarregamento. O user é criado.
+
+Shop:
+Usado para comprar ações que possuem custo de tokens. 
+Coisas que envolvem entretenimento custam tokens.
+Conta com uma variedade de ações de lazer mais comuns do cotidiano. É uma funcionalidade extra do evove, pode
+ser utilizada ou não, fica a depender do usuário, já que isso não afeta nos demais sistemas.
+
+Tokens diários:
+No início o usuário define uma quantidade de tokens que gostaria de receber diarimente. 
+São distribuídos a cada 24 horas. Sempre ás 5:00.
+Existe uma quantidade máxima de tokens, também é definida no início do programa. 
+
 Modos:
 progressivo (padrão): os pacotes do wizard precisam ser adquiridos usando pontos e novos são desbloqueados conforme
 ganha tais pontos. Ativa as interações especiais.

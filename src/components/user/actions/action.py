@@ -60,7 +60,7 @@ class Action:
         score = self.value * type_factor * diff_factor
         return score 
     
-    def execution(self):
+    def execution(self, manual_value=None):
         """Executa a ação e retorna (score_difference, messages)"""
         action_data = self._TYPE_MAP[self.type]
         messages = []
@@ -69,10 +69,12 @@ class Action:
         original_score = self.score
         label = action_data["label"]
         
+        from src.components.services.UI.interface import ui
+        
         # Timer support for time-based actions (2: seconds, 3: minutes, 4: hours)
-        if self.type in [2, 3, 4]:
-            from src.components.services.UI.interface import ui
+        if self.type in [2, 3, 4] and not ui.web_mode:
             import time
+            import readchar
             
             print(f"\n[ TIMER MODE ] Action: {self.name.upper()}")
             print(f"Press any key to START timer, or 'm' for Manual input.")
@@ -84,12 +86,6 @@ class Action:
                 readchar.readkey()
                 duration = time.time() - start_time
                 
-                # Convert duration based on type factor
-                # minutes (3) has factor 60, hours (4) has factor 360
-                # But self._value stores the magnitude in label units?
-                # Actually, self.score uses self.value * factor.
-                # So if label is 'minutes', value should be in minutes.
-                
                 if self.type == 2: # seconds
                     added_value = duration
                 elif self.type == 3: # minutes
@@ -100,9 +96,10 @@ class Action:
                 self._value += added_value
                 messages.append(f"Timer stopped. Total time added: {added_value:.2f} {label}")
             else:
-                self._manual_input(messages, label)
+                self._manual_input(messages, label, value=manual_value)
         else:
-            self._manual_input(messages, label)
+            # On web, we skip the key-press timer and go straight to manual or use passed value
+            self._manual_input(messages, label, value=manual_value)
         
         value_difference = self.value - original_value
         messages.append(f"{self.name} increase by {value_difference:.2f}! {original_value:.2f} -> {self.value:.2f}")
@@ -114,15 +111,20 @@ class Action:
         from src.components.services.challenge_service import ChallengeManager
         cm = ChallengeManager()
         if cm.active_challenge and cm.active_challenge["action_id"] == self.id:
-            # For simplicity, if they did ANY amount during the challenge, we count progress?
-            # README says "se aceitar, deve fazer e confirmar que foi feito"
-            # Here we simplify: if value_difference >= required_value, complete it.
             if value_difference >= cm.active_challenge["required_value"]:
                 cm.complete_challenge()
         
         return score_difference, messages
 
-    def _manual_input(self, messages, label):
+    def _manual_input(self, messages, label, value=None):
+        if value is not None:
+            self._value += value
+            return
+
+        from src.components.services.UI.interface import ui, WebInputInterrupt
+        if ui.web_mode:
+            raise WebInputInterrupt(f"insert {label}", type="numeric", options={"action_id": self.id})
+
         prompt_message = f"insert {label}: "
         while True:
             try:

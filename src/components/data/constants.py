@@ -7,6 +7,7 @@ him = EntityManager().get_entity()
 OBJECTS = {
     "8": {"len": 2, "label": "attr"},    
     "5": {"len": 2, "label": "action"}, 
+    "3": {"len": 1, "label": "shop_item"}, 
 }
 
 INTERACTIONS = {
@@ -19,6 +20,7 @@ INTERACTIONS = {
 
 SINGLE_COMMANDS = {
     "1":  {"len": 0, "func": him.cutucar, "label": ""},
+    "93": {"len": 0, "func": user.open_shop, "label": "list_shop"},
     "25": {"len": 2, "func": user.create_action, "label": "create_action"}, 
     "28": {"len": 0, "func": user.create_attribute, "label": "create_attr"}, 
     "4":  {"len": 0, "func": lambda: __import__("src.components.services.wizard.wizard", fromlist=["wizard"]).wizard.start(), "label": "super_create_attr"},
@@ -36,6 +38,7 @@ COMMANDS = {
     "delete action": {"func": user.delete_action},
     "add add attr": {"func": user.create_attribute_by_id},
     "attr add attr": {"func": user.attribute_add_child},
+    "shop_item act": {"func": user.buy_shop_item},
 
 }
 

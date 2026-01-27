@@ -1,5 +1,5 @@
 {
-    "score": 257.12,
+    "score": 278.06666666666666,
     "value": 0,
     "attributes": {
         "804": {
@@ -27,7 +27,7 @@
                 "804",
                 "804"
             ],
-            "total_score": 1890.0
+            "total_score": 2008.7
         },
         "806": {
             "id": "806",
@@ -71,7 +71,7 @@
                 "805",
                 "805"
             ],
-            "total_score": 806.4000000000001
+            "total_score": 925.1000000000001
         },
         "809": {
             "id": "809",
@@ -183,7 +183,7 @@
                 "818"
             ],
             "parent": [],
-            "total_score": 38.400000000000006
+            "total_score": 76.80000000000001
         },
         "817": {
             "id": "817",
@@ -211,7 +211,7 @@
                 "816",
                 "816"
             ],
-            "total_score": 38.400000000000006
+            "total_score": 76.80000000000001
         }
     },
     "actions": {
@@ -220,16 +220,16 @@
             "name": "Push Ups",
             "type": 1,
             "diff": 2,
-            "value": 252,
-            "score": 806.4000000000001
+            "value": 277,
+            "score": 886.4000000000001
         },
         "503": {
             "id": "503",
             "name": "Diamond Push Ups",
             "type": 1,
             "diff": 3,
-            "value": 0,
-            "score": 0.0
+            "value": 9,
+            "score": 38.699999999999996
         },
         "504": {
             "id": "504",
@@ -404,8 +404,16 @@
             "name": "Review Notes",
             "type": 1,
             "diff": 2,
-            "value": 12,
-            "score": 38.400000000000006
+            "value": 24,
+            "score": 76.80000000000001
+        },
+        "526": {
+            "id": "526",
+            "name": "ManualActTest",
+            "type": 1,
+            "diff": 3,
+            "value": 0,
+            "score": 0.0
         }
     },
     "metadata": {
@@ -414,6 +422,10 @@
         "unlocked_packages": [
             "basics"
         ],
+        "tokens": 0,
+        "max_tokens": 100,
+        "daily_refill": 50,
+        "last_token_refill": "2026-01-27",
         "starter_packs_seen": true
     }
 }

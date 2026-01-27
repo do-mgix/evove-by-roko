@@ -62,6 +62,12 @@ def dial_start():
                     user.add_message(result)
                     buffer = ""
                     ui.render(buffer) # Immediate visual clear
+                elif buffer == "/drop":
+                    from src.components.services.journal_service import journal_service
+                    result = journal_service.drop_last_day()
+                    user.add_message(result)
+                    buffer = ""
+                    ui.render(buffer) # Immediate visual clear
                 else:
                     # If Enter is pressed but it's not a special command, 
                     # we could try to process numeric commands if they don't auto-trigger

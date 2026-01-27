@@ -22,6 +22,8 @@ class ChallengeManager:
 
     def update(self):
         """Checks if a new challenge should start or if an active one expired"""
+        self._check_daily_refill()
+
         if self.active_challenge:
             if time.time() > self.deadline:
                 self._fail_challenge("TIMEOUT")
@@ -31,9 +33,30 @@ class ChallengeManager:
         if not self.em: return
         entity = self.em.get_entity()
         if entity:
-            # Approx 1% chance every minute (if tick is 0.5s, 0.001 is roughly it)
             if random.random() < 0.0005: 
                 self._generate_challenge(entity)
+
+    def _check_daily_refill(self):
+        """Standard refill at 5:00 AM every day"""
+        if not self.user: return
+
+        now = datetime.now()
+        today_refill_mark = now.replace(hour=5, minute=0, second=0, microsecond=0)
+        
+        last_refill_str = self.user.metadata.get("last_token_refill")
+        if not last_refill_str:
+            self.user.metadata["last_token_refill"] = now.strftime("%Y-%m-%d")
+            self.user.save_user()
+            return
+
+        last_refill_date = datetime.strptime(last_refill_str, "%Y-%m-%d")
+        
+        # If it's past 5:00 AM today and we haven't refilled today
+        if now >= today_refill_mark and last_refill_date.date() < now.date():
+            amount = self.user.metadata.get("daily_refill", 50)
+            self.user.add_tokens(amount)
+            self.user.metadata["last_token_refill"] = now.strftime("%Y-%m-%d")
+            self.user.save_user()
 
     def _generate_challenge(self, entity):
         if not self.user or not self.user._actions: return

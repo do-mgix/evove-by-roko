@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evove Terminal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0d0e12;
+            --term-bg: #1a1b26;
+            --accent: #7aa2f7;
+            --text-main: #c0caf5;
+            --text-dim: #565f89;
+            --success: #9ece6a;
+            --warning: #e0af68;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 1rem;
+        }
+
+        /* Top area for live render (CLI Style) */
+        #live-render {
+            padding-bottom: 1rem;
+            border-bottom: 1px dashed var(--text-dim);
+            margin-bottom: 1rem;
+            min-height: 4.5rem;
+        }
+
+        #buffer-view {
+            color: var(--warning);
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        #process-view {
+            color: var(--accent);
+            font-size: 0.9rem;
+        }
+
+        /* History area */
+        #terminal-output {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            scrollbar-width: thin;
+            scrollbar-color: var(--text-dim) transparent;
+        }
+
+        #terminal-output::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        #terminal-output::-webkit-scrollbar-thumb {
+            background: var(--text-dim);
+        }
+
+        .line {
+            animation: fadeIn 0.1s ease-out;
+            white-space: pre-wrap;
+            word-break: break-all;
+            padding: 2px 0;
+        }
+
+        .system {
+            color: var(--accent);
+        }
+
+        .success {
+            color: var(--success);
+        }
+
+        .dim {
+            color: var(--text-dim);
+        }
+
+        /* Input area */
+        .input-area {
+            background: var(--term-bg);
+            padding: 1rem;
+            margin: 0 -1rem -1rem -1rem;
+            display: flex;
+            align-items: center;
+            border-top: 1px solid rgba(122, 162, 247, 0.2);
+        }
+
+        .prompt {
+            color: var(--accent);
+            margin-right: 10px;
+            font-weight: bold;
+        }
+
+        input#command-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #fff;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.1rem;
+            outline: none;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(3px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="live-render">
+        <div id="buffer-view">_</div>
+        <div id="process-view">Ready.</div>
+    </div>
+
+    <div id="terminal-output">
+        <div class="line dim">Evove OS [Version 2.0.0-terminal]</div>
+        <div class="line dim">Type numbers to interact.</div>
+    </div>
+
+    <div class="input-area">
+        <span class="prompt">></span>
+        <input type="text" id="command-input" placeholder="" inputmode="numeric" autocomplete="off" autofocus>
+    </div>
+
+    <script>
+        const output = document.getElementById('terminal-output');
+        const bufferView = document.getElementById('buffer-view');
+        const processView = document.getElementById('process-view');
+        const input = document.getElementById('command-input');
+        let isPending = false;
+
+        function addLine(text, type = '') {
+            const div = document.createElement('div');
+            div.className = `line ${type}`;
+            div.innerText = text;
+            output.appendChild(div);
+            output.scrollTop = output.scrollHeight;
+
+            // Limit log size to emulate "dynamic clearing"
+            if (output.children.length > 50) {
+                output.removeChild(output.firstChild);
+            }
+        }
+
+        async function updateStatus() {
+            try {
+                const res = await fetch('/api/status');
+                if (!res.ok) return;
+                const data = await res.json();
+
+                if (data.messages && data.messages.length > 0) {
+                    data.messages.forEach(msg => addLine(`[system] ${msg}`, 'system'));
+                }
+
+                // Update internal state
+                isPending = !!data.pending;
+
+                // Handle Pending Input
+                if (data.pending) {
+                    input.placeholder = `${data.pending.prompt}...`;
+                    input.inputmode = data.pending.type === 'numeric' ? 'numeric' : 'text';
+                    document.querySelector('.prompt').innerText = '?';
+                    document.querySelector('.prompt').style.color = 'var(--warning)';
+                } else {
+                    const isLog = input.value.startsWith(':');
+                    input.placeholder = isLog ? "Journal log..." : "Dial command...";
+                    input.inputmode = isLog ? "text" : "numeric";
+                    document.querySelector('.prompt').innerText = isLog ? ':' : '>';
+                    document.querySelector('.prompt').style.color = isLog ? 'var(--success)' : 'var(--accent)';
+                }
+            } catch (e) { }
+        }
+
+        input.addEventListener('keydown', async (e) => {
+            if (e.key === 'Enter') {
+                const buffer = e.target.value;
+                if (!buffer) return;
+
+                try {
+                    const res = await fetch('/api/command', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ buffer })
+                    });
+                    const data = await res.json();
+                    if (data.completed) {
+                        if (data.clear) {
+                            input.value = '';
+                            bufferView.innerText = '_';
+                            processView.innerText = "Confirmed.";
+                        }
+                        updateStatus();
+                    }
+                } catch (e) { console.error(e); }
+            }
+        });
+
+        input.addEventListener('input', async (e) => {
+            const buffer = e.target.value;
+            bufferView.innerText = buffer ? buffer + '_' : '_';
+
+            if (!buffer) {
+                processView.innerText = "Ready.";
+                updateStatus(); // Reset UI mode
+                return;
+            }
+
+            if (buffer.startsWith(':')) {
+                updateStatus(); // Instant mode switch
+                return;
+            }
+
+            // --- AUTO-SUBMISSION LOGIC ---
+            // 1. Never auto-trigger if we are responding to a prompt (isPending)
+            if (isPending) return;
+
+            // 2. Only auto-trigger for numeric input (Dial commands)
+            if (input.inputmode !== 'numeric') return;
+
+            try {
+                const res = await fetch('/api/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ buffer })
+                });
+                const data = await res.json();
+
+                if (data.completed) {
+                    addLine(`$ ${buffer}`, 'dim');
+                    if (data.clear) {
+                        input.value = '';
+                        bufferView.innerText = '_';
+                        processView.innerText = "Command executed.";
+                    }
+                    updateStatus();
+                } else {
+                    processView.innerText = "Incomplete command...";
+                }
+            } catch (e) {
+                processView.innerText = "Server error.";
+            }
+        });
+
+        // Polling loop
+        setInterval(updateStatus, 3000);
+
+        // Auto-focus
+        document.addEventListener('click', () => input.focus());
+        updateStatus();
+    </script>
+</body>
+
+</html>
