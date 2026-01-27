@@ -3,11 +3,10 @@ import sys
 
 # Standard shop items
 SHOP_ITEMS = {
-    "1": {"name": "Watch a Movie", "cost": 20},
-    "2": {"name": "Play Video Games (1h)", "cost": 15},
-    "3": {"name": "Social Media (30m)", "cost": 10},
-    "4": {"name": "Read Manga/Book", "cost": 5},
-    "5": {"name": "Snack/Treat", "cost": 15},
+    "1": {"name": "Movie", "cost": 10},
+    "2": {"name": "Video Games", "cost": 30},
+    "3": {"name": "Social Media", "cost": 20},
+    "4": {"name": "Manga/Book", "cost": 5},
 }
 
 class ShopService:
@@ -17,7 +16,7 @@ class ShopService:
     def show_items(self):
         from src.components.services.UI.interface import ui
         tokens = self.user.metadata.get("tokens", 0)
-        max_t = self.user.metadata.get("max_tokens", 100)
+        max_t = self.user.metadata.get("max_tokens", 50)
         
         items = [f"({item_id}) - {info['name']} [{info['cost']}T]" for item_id, info in SHOP_ITEMS.items()]
         

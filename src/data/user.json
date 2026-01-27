@@ -1,271 +1,240 @@
 {
-    "score": 286.6000000000001,
+    "score": 0.0,
     "value": 0,
     "attributes": {
-        "804": {
-            "id": "804",
+        "801": {
+            "id": "801",
             "name": "Constitution",
+            "related_actions": [],
+            "children": [
+                "802",
+                "803",
+                "804"
+            ],
+            "parent": [],
+            "total_score": 0.0
+        },
+        "802": {
+            "id": "802",
+            "name": "Upper Body",
             "related_actions": [],
             "children": [
                 "805",
                 "806",
                 "807"
             ],
-            "parent": [],
+            "parent": [
+                "801",
+                "801"
+            ],
             "total_score": 0.0
         },
-        "805": {
-            "id": "805",
-            "name": "Upper Body",
-            "related_actions": [],
-            "children": [
-                "808",
-                "809",
-                "810"
-            ],
-            "parent": [
-                "804",
-                "804"
-            ],
-            "total_score": 2072.7000000000003
-        },
-        "806": {
-            "id": "806",
+        "803": {
+            "id": "803",
             "name": "Core",
             "related_actions": [],
             "children": [
+                "808",
+                "809"
+            ],
+            "parent": [
+                "801",
+                "801"
+            ],
+            "total_score": 0.0
+        },
+        "804": {
+            "id": "804",
+            "name": "Lower Body",
+            "related_actions": [],
+            "children": [
+                "810",
                 "811",
                 "812"
             ],
             "parent": [
-                "804",
-                "804"
+                "801",
+                "801"
+            ],
+            "total_score": 0.0
+        },
+        "805": {
+            "id": "805",
+            "name": "Chest",
+            "related_actions": [
+                "501",
+                "502",
+                "503"
+            ],
+            "children": [],
+            "parent": [
+                "802",
+                "802"
+            ],
+            "total_score": 0.0
+        },
+        "806": {
+            "id": "806",
+            "name": "Back",
+            "related_actions": [
+                "504",
+                "505",
+                "506"
+            ],
+            "children": [],
+            "parent": [
+                "802",
+                "802"
             ],
             "total_score": 0.0
         },
         "807": {
             "id": "807",
-            "name": "Lower Body",
-            "related_actions": [],
-            "children": [
-                "813",
-                "814",
-                "815"
+            "name": "Arms",
+            "related_actions": [
+                "507",
+                "508",
+                "509"
             ],
+            "children": [],
+            "parent": [
+                "802",
+                "802"
+            ],
+            "total_score": 0.0
+        },
+        "808": {
+            "id": "808",
+            "name": "Abs",
+            "related_actions": [
+                "510",
+                "511",
+                "512"
+            ],
+            "children": [],
+            "parent": [
+                "803",
+                "803"
+            ],
+            "total_score": 0.0
+        },
+        "809": {
+            "id": "809",
+            "name": "Lower Back",
+            "related_actions": [
+                "513",
+                "514"
+            ],
+            "children": [],
+            "parent": [
+                "803",
+                "803"
+            ],
+            "total_score": 0.0
+        },
+        "810": {
+            "id": "810",
+            "name": "Quads",
+            "related_actions": [
+                "515",
+                "516"
+            ],
+            "children": [],
             "parent": [
                 "804",
                 "804"
             ],
             "total_score": 0.0
         },
-        "808": {
-            "id": "808",
-            "name": "Chest",
-            "related_actions": [
-                "502",
-                "503",
-                "504"
-            ],
-            "children": [],
-            "parent": [
-                "805",
-                "805"
-            ],
-            "total_score": 989.1000000000001
-        },
-        "809": {
-            "id": "809",
-            "name": "Back",
-            "related_actions": [
-                "505",
-                "506",
-                "507"
-            ],
-            "children": [],
-            "parent": [
-                "805",
-                "805"
-            ],
-            "total_score": 1032.0
-        },
-        "810": {
-            "id": "810",
-            "name": "Arms",
-            "related_actions": [
-                "508",
-                "509",
-                "510"
-            ],
-            "children": [],
-            "parent": [
-                "805",
-                "805"
-            ],
-            "total_score": 51.599999999999994
-        },
         "811": {
             "id": "811",
-            "name": "Abs",
+            "name": "Glutes & Hamstrings",
             "related_actions": [
-                "511",
-                "512",
-                "513"
+                "517",
+                "518"
             ],
             "children": [],
             "parent": [
-                "806",
-                "806"
+                "804",
+                "804"
             ],
             "total_score": 0.0
         },
         "812": {
             "id": "812",
-            "name": "Lower Back",
-            "related_actions": [
-                "514",
-                "515"
-            ],
-            "children": [],
-            "parent": [
-                "806",
-                "806"
-            ],
-            "total_score": 0.0
-        },
-        "813": {
-            "id": "813",
-            "name": "Quads",
-            "related_actions": [
-                "516",
-                "517"
-            ],
-            "children": [],
-            "parent": [
-                "807",
-                "807"
-            ],
-            "total_score": 0.0
-        },
-        "814": {
-            "id": "814",
-            "name": "Glutes & Hamstrings",
-            "related_actions": [
-                "518",
-                "519"
-            ],
-            "children": [],
-            "parent": [
-                "807",
-                "807"
-            ],
-            "total_score": 0.0
-        },
-        "815": {
-            "id": "815",
             "name": "Calves",
             "related_actions": [
-                "520",
-                "521"
+                "519",
+                "520"
             ],
             "children": [],
             "parent": [
-                "807",
-                "807"
+                "804",
+                "804"
             ],
             "total_score": 0.0
-        },
-        "816": {
-            "id": "816",
-            "name": "Intelligence",
-            "related_actions": [],
-            "children": [
-                "817",
-                "818"
-            ],
-            "parent": [],
-            "total_score": 76.80000000000001
-        },
-        "817": {
-            "id": "817",
-            "name": "Focus",
-            "related_actions": [
-                "522",
-                "523"
-            ],
-            "children": [],
-            "parent": [
-                "816",
-                "816"
-            ],
-            "total_score": 0.0
-        },
-        "818": {
-            "id": "818",
-            "name": "Knowledge",
-            "related_actions": [
-                "524",
-                "525"
-            ],
-            "children": [],
-            "parent": [
-                "816",
-                "816"
-            ],
-            "total_score": 76.80000000000001
         }
     },
     "actions": {
-        "502": {
-            "id": "502",
+        "501": {
+            "id": "501",
             "name": "Push Ups",
             "type": 1,
             "diff": 2,
-            "value": 297,
-            "score": 950.4000000000001
+            "value": 0,
+            "score": 0.0
         },
-        "503": {
-            "id": "503",
+        "502": {
+            "id": "502",
             "name": "Diamond Push Ups",
             "type": 1,
             "diff": 3,
-            "value": 9,
-            "score": 38.699999999999996
+            "value": 0,
+            "score": 0.0
         },
-        "504": {
-            "id": "504",
+        "503": {
+            "id": "503",
             "name": "Wide Push Ups",
             "type": 1,
             "diff": 2,
             "value": 0,
             "score": 0.0
         },
-        "505": {
-            "id": "505",
+        "504": {
+            "id": "504",
             "name": "Pull Ups",
             "type": 1,
             "diff": 4,
-            "value": 120,
-            "score": 648.0
+            "value": 0,
+            "score": 0.0
         },
-        "506": {
-            "id": "506",
+        "505": {
+            "id": "505",
             "name": "Chin Ups",
             "type": 1,
             "diff": 3,
             "value": 0,
             "score": 0.0
         },
-        "507": {
-            "id": "507",
+        "506": {
+            "id": "506",
             "name": "Australian Pull Ups",
             "type": 1,
             "diff": 2,
-            "value": 120,
-            "score": 384.0
+            "value": 0,
+            "score": 0.0
+        },
+        "507": {
+            "id": "507",
+            "name": "Dips",
+            "type": 1,
+            "diff": 3,
+            "value": 0,
+            "score": 0.0
         },
         "508": {
             "id": "508",
-            "name": "Dips",
+            "name": "Pike Push Ups",
             "type": 1,
             "diff": 3,
             "value": 0,
@@ -273,39 +242,39 @@
         },
         "509": {
             "id": "509",
-            "name": "Pike Push Ups",
-            "type": 1,
-            "diff": 3,
-            "value": 12,
-            "score": 51.599999999999994
-        },
-        "510": {
-            "id": "510",
             "name": "Tricep Dips",
             "type": 1,
             "diff": 2,
             "value": 0,
             "score": 0.0
         },
-        "511": {
-            "id": "511",
+        "510": {
+            "id": "510",
             "name": "Crunches",
             "type": 1,
             "diff": 1,
             "value": 0,
             "score": 0.0
         },
-        "512": {
-            "id": "512",
+        "511": {
+            "id": "511",
             "name": "Leg Raises",
             "type": 1,
             "diff": 3,
             "value": 0,
             "score": 0.0
         },
+        "512": {
+            "id": "512",
+            "name": "Plank",
+            "type": 2,
+            "diff": 2,
+            "value": 0,
+            "score": 0.0
+        },
         "513": {
             "id": "513",
-            "name": "Plank",
+            "name": "Superman Hold",
             "type": 2,
             "diff": 2,
             "value": 0,
@@ -313,103 +282,55 @@
         },
         "514": {
             "id": "514",
-            "name": "Superman Hold",
-            "type": 2,
-            "diff": 2,
-            "value": 0,
-            "score": 0.0
-        },
-        "515": {
-            "id": "515",
             "name": "Hyperextensions",
             "type": 1,
             "diff": 2,
             "value": 0,
             "score": 0.0
         },
-        "516": {
-            "id": "516",
+        "515": {
+            "id": "515",
             "name": "Squats",
             "type": 1,
             "diff": 1,
             "value": 0,
             "score": 0.0
         },
-        "517": {
-            "id": "517",
+        "516": {
+            "id": "516",
             "name": "Lunges",
             "type": 1,
             "diff": 2,
             "value": 0,
             "score": 0.0
         },
-        "518": {
-            "id": "518",
+        "517": {
+            "id": "517",
             "name": "Bulgarian Split Squats",
             "type": 1,
             "diff": 3,
             "value": 0,
             "score": 0.0
         },
-        "519": {
-            "id": "519",
+        "518": {
+            "id": "518",
             "name": "Glute Bridges",
             "type": 1,
             "diff": 2,
             "value": 0,
             "score": 0.0
         },
-        "520": {
-            "id": "520",
+        "519": {
+            "id": "519",
             "name": "Calf Raises",
             "type": 1,
             "diff": 1,
             "value": 0,
             "score": 0.0
         },
-        "521": {
-            "id": "521",
+        "520": {
+            "id": "520",
             "name": "Jump Squats",
-            "type": 1,
-            "diff": 3,
-            "value": 0,
-            "score": 0.0
-        },
-        "522": {
-            "id": "522",
-            "name": "Deep Work Session",
-            "type": 4,
-            "diff": 4,
-            "value": 0,
-            "score": 0.0
-        },
-        "523": {
-            "id": "523",
-            "name": "Pomodoro Focus",
-            "type": 3,
-            "diff": 2,
-            "value": 0,
-            "score": 0.0
-        },
-        "524": {
-            "id": "524",
-            "name": "Research / Reading",
-            "type": 3,
-            "diff": 3,
-            "value": 0,
-            "score": 0.0
-        },
-        "525": {
-            "id": "525",
-            "name": "Review Notes",
-            "type": 1,
-            "diff": 2,
-            "value": 24,
-            "score": 76.80000000000001
-        },
-        "526": {
-            "id": "526",
-            "name": "ManualActTest",
             "type": 1,
             "diff": 3,
             "value": 0,
@@ -422,9 +343,9 @@
         "unlocked_packages": [
             "basics"
         ],
-        "tokens": 0,
-        "max_tokens": 100,
-        "daily_refill": 50,
+        "tokens": 20,
+        "max_tokens": 50,
+        "daily_refill": 20,
         "last_token_refill": "2026-01-27",
         "starter_packs_seen": true
     }

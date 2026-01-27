@@ -17,14 +17,14 @@ class User:
             "virtual_agent_active": True,
             "unlocked_packages": ["basics"],
             "tokens": 0,
-            "max_tokens": 100,
-            "daily_refill": 50,
+            "max_tokens": 50,
+            "daily_refill": 20,
             "last_token_refill": datetime.now().strftime("%Y-%m-%d")
         }
 
     def add_tokens(self, amount):
         """Adds tokens up to max_tokens limit"""
-        max_t = self.metadata.get("max_tokens", 100)
+        max_t = self.metadata.get("max_tokens", 50)
         current = self.metadata.get("tokens", 0)
         new_total = min(max_t, current + amount)
         self.metadata["tokens"] = new_total
