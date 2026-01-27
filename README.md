@@ -1,5 +1,217 @@
+EVOVE — Project Conventions & Architecture Guide
+1. Objetivo Geral
+
+Este documento define as convenções obrigatórias para organização, separação de responsabilidades e estrutura de arquivos do projeto Evove.
+
+O objetivo é:
+
+Manter backend e clientes desacoplados
+
+Garantir escalabilidade (AWS, múltiplos clientes)
+
+Evitar acoplamento entre interface e regras de negócio
+
+Permitir evolução futura sem refatorações grandes
+
+2. Separação de Repositórios (Obrigatório)
+
+O projeto deve ser dividido em repositórios independentes, cada um com uma única responsabilidade.
+
+Repositórios oficiais
+
+evove-core
+
+Backend service
+
+Fonte única da verdade
+
+API Flask
+
+Regras de negócio
+
+Persistência de dados
+
+Deploy na AWS
+
+evove-web
+
+Web client
+
+Apenas frontend
+
+Consome a API do backend
+
+evove-android
+
+Android client
+
+WebView ou app nativo
+
+Consome a mesma API do backend
+
+evove-desktop
+
+Desktop client (CLI ou GUI)
+
+Nenhuma lógica de negócio
+
+Consome a API do backend
+
+⚠️ Nenhum client pode conter:
+
+Regras de negócio
+
+Persistência de dados
+
+Acesso direto a arquivos de usuário
+
+3. Convenções de Arquitetura do Backend (evove-core)
+3.1 Princípio fundamental
+
+O backend é dividido em camadas explícitas.
+Cada camada possui responsabilidades bem definidas e não deve ser violada.
+
+4. Estrutura de Diretórios Obrigatória (evove-core)
+evove-core/
+│
+├── app/
+│   ├── __init__.py
+│   │
+│   ├── main.py
+│   │   - Entry point único do backend
+│   │   - Inicializa a aplicação
+│   │
+│   ├── api/
+│   │   ├── __init__.py
+│   │   ├── app.py
+│   │   │   - Criação do Flask app
+│   │   │   - Registro de blueprints
+│   │   │
+│   │   ├── routes/
+│   │   │   - Endpoints HTTP
+│   │   │   - Sem lógica de negócio
+│   │   │
+│   │   └── schemas.py
+│   │       - DTOs / validação de entrada e saída
+│   │
+│   ├── domain/
+│   │   ├── __init__.py
+│   │   ├── user.py
+│   │   ├── package.py
+│   │   └── entities.py
+│   │   - Entidades do domínio
+│   │   - Nenhuma dependência de Flask
+│   │
+│   ├── services/
+│   │   ├── __init__.py
+│   │   ├── user_service.py
+│   │   ├── package_service.py
+│   │   └── install_service.py
+│   │   - Casos de uso
+│   │   - Orquestram domínio + infraestrutura
+│   │
+│   ├── infrastructure/
+│   │   ├── __init__.py
+│   │   ├── storage/
+│   │   │   ├── json_store.py
+│   │   │   └── paths.py
+│   │   └── config.py
+│   │   - Persistência e IO
+│   │   - JSON é tratado como banco de dados
+│   │
+│   └── cli/
+│       ├── __init__.py
+│       └── main.py
+│       - Interface CLI do backend (opcional)
+│
+├── data/
+│   - Dados locais de desenvolvimento
+│   - Nunca acessados diretamente por clients
+│
+├── tests/
+│
+├── requirements.txt
+├── README.md
+└── .env
+
+5. Mapeamento da Estrutura Atual → Estrutura Convencional
+Estrutura antiga → Nova localização
+
+components/
+→ app/domain/
+
+services/
+→ app/services/
+
+web_service/
+→ app/api/
+
+run_web.py
+→ REMOVER
+
+Lógica deve ser absorvida por app/api/app.py
+
+Execução centralizada em app/main.py
+
+6. Convenções de Código (Obrigatórias)
+Backend
+
+Nenhuma rota Flask pode conter lógica de negócio
+
+Nenhuma entidade pode importar Flask
+
+Nenhum service pode acessar JSON diretamente
+
+Persistência deve passar por infrastructure
+
+Clients
+
+Clients só se comunicam via HTTP
+
+Clients não compartilham código entre si
+
+Clients não conhecem estrutura interna do backend
+
+7. Execução do Backend
+Entry point único
+from app.api.app import create_app
+
+app = create_app()
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
 
 
+Não devem existir múltiplos scripts de execução.
+
+8. Persistência (Regra Transitória)
+
+JSON é permitido apenas enquanto estiver isolado
+
+Nenhuma regra de negócio pode depender do formato JSON
+
+A troca por banco real deve ser possível sem refatorar services
+
+9. Regra de Ouro
+
+Tudo que é regra vive no backend.
+Tudo que é interface vive nos clients.
+Tudo que é dado passa por infraestrutura.
+
+10. Status do Plano
+
+Arquitetura: ✅ correta
+
+Separação de responsabilidades: ✅ correta
+
+Aderência a padrões reais: ✅ correta
+
+Pronto para AWS e múltiplos clients: ✅
+
+
+
+
+=======================================================================================
 
 Implementar
 

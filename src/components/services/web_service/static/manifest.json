@@ -1,0 +1,10 @@
+{
+    "name": "Evove Terminal",
+    "short_name": "Evove",
+    "description": "Gamified OS Terminal for Habit Tracking",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#0d0e12",
+    "theme_color": "#7aa2f7",
+    "icons": []
+}

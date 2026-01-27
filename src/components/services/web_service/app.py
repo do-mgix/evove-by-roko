@@ -9,9 +9,17 @@ from src.components.data.constants import user
 from src.components.entitys.entity_manager import EntityManager
 from src.components.services.UI.interface import ui, WebInputInterrupt
 from src.components.services.dial_interaction.dial_digest import dial
-from flask import request
+from flask import request, send_from_directory
 
 app = Flask(__name__)
+
+@app.route('/manifest.json')
+def serve_manifest():
+    return send_from_directory('static', 'manifest.json')
+
+@app.route('/sw.js')
+def serve_sw():
+    return send_from_directory('static', 'sw.js')
 em = EntityManager()
 ui.web_mode = True
 
@@ -173,4 +181,4 @@ def command():
     return jsonify({"completed": False, "clear": False})
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, host="0.0.0.0", port=5000)
