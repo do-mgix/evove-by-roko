@@ -8,7 +8,7 @@ import select
 
 class UI:
     def __init__(self):
-        # Cores (propriedades da instância)
+        # Colors (instance properties)
         self.CLR = "\033[0m"
         self.BOLD = "\033[1m"
         self.CYAN = "\033[36m"
@@ -17,7 +17,7 @@ class UI:
         self.WHITE = "\033[37m"
         self.MAGENTA = "\033[35m"
 
-        # Importa apenas das constantes
+        # Import from constants only
         from src.components.data.constants import (
             user, 
             SINGLE_COMMANDS, 
@@ -32,7 +32,10 @@ class UI:
 
     
     def format_visual_buffer(self, buffer):
-        """Formata o buffer dinamicamente: 801 - 2 - 50_"""
+        """Formats the buffer dynamically: 801 - 2 - 50_"""
+        if buffer.startswith(':') or buffer.startswith('/'):
+            return f"{self.YELLOW}{buffer}{self.WHITE}_"
+
         res = []
         ptr = 0
         
@@ -64,7 +67,7 @@ class UI:
                 res.append(chunk)
                 ptr += chunk_len
             else:
-                # Caso o caractere não seja reconhecido, avança 1
+                # If the character is not recognized, advance 1
                 res.append(buffer[ptr])
                 ptr += 1
         
@@ -110,7 +113,7 @@ class UI:
         return " -> ".join(status_parts) if status_parts else ""
     
     def show_messages_animated(self, messages):
-        """Mostra mensagens uma por uma, cada mensagem sozinha na tela"""
+        """Shows messages one by one, each alone on the screen"""
         for msg in messages:
             os.system('cls' if os.name == 'nt' else 'clear')
             print(msg)
@@ -158,13 +161,9 @@ class UI:
                 else:
                     print(f"\n{self.GREEN}[ Press any key to continue ]{self.CLR}")
 
-                # Wait 1s or until key press
-                start_time = time.time()
-                while time.time() - start_time < 2.0:
-                    # Non-blocking check for key press on Linux
-                    if select.select([sys.stdin], [], [], 0.05)[0]:
-                        readchar.readkey() # Consume the key
-                        return
+                # Wait for key press to continue or return
+                readchar.readkey()
+                return
                 
                 if num_pages > 1:
                     page_idx = (page_idx + 1) % num_pages
@@ -256,10 +255,17 @@ class UI:
         print(f"{buffer_view}")
         print(f"{process_view_result}")
         
+        from src.components.services.challenge_service import ChallengeManager
+        cm = ChallengeManager()
+        if cm.active_challenge:
+            rem = cm.get_remaining_time()
+            print(f"\n{self.YELLOW}{self.BOLD}[ CHALLENGE: {rem}s ]{self.CLR}")
+            print(f"{self.WHITE}DO: {cm.active_challenge['required_value']} {cm.active_challenge['name'].upper()}{self.CLR}")
+
         debug = ""
         if debug:
             print(f"DEBUG")
             print(f"{debug}")
 
-# Instância global
+# Global instance
 ui = UI()

@@ -6,7 +6,7 @@ from src.components.user.user import user
 
 
 class Wizard:
-    """Wizard para configuração e setup do sistema - templates, configs, etc."""
+    """Wizard for system configuration and setup - templates, configs, etc."""
     
     def __init__(self, user_instance):
         self.user = user_instance
@@ -14,11 +14,11 @@ class Wizard:
         self.available_templates = self._load_available_templates()
         
     def add_message(self, msg):
-        """Encaminha mensagem para o buffer do usuário"""
+        """Forwards message to user's buffer"""
         self.user.add_message(msg)
         
     def start(self):
-        """Inicia o menu principal do wizard"""
+        """Starts the main wizard menu"""
         from src.components.services.UI.interface import ui
         while True:
             # Check for "new!" status
@@ -53,7 +53,7 @@ class Wizard:
                 input("Press ENTER to continue...")
     
     def attribute_templates(self):
-        """Gerencia templates de atributos"""
+        """Manages attribute templates"""
         from src.components.services.UI.interface import ui
         while True:
             if not self.available_templates:
@@ -97,7 +97,7 @@ class Wizard:
         return all(name in user_attr_names for name in root_names)
 
     def _load_available_templates(self):
-        """Carrega todos os templates disponíveis da pasta packages"""
+        """Loads all available templates from the packages folder"""
         from src.components.services.UI.interface import ui
         if not self.packages_dir.exists():
             self.packages_dir.mkdir(parents=True, exist_ok=True)
@@ -115,7 +115,7 @@ class Wizard:
         return templates
 
     def _display_template(self, template_name):
-        """Mostra a árvore de atributos do template"""
+        """Shows the attribute tree for the template"""
         from src.components.services.UI.interface import ui
         template = self.available_templates[template_name]
         
@@ -178,7 +178,7 @@ class Wizard:
         return (label, children)
     
     def _get_action_type_label(self, type_num):
-        """Retorna label do tipo de ação"""
+        """Returns action type label"""
         types = {
             1: "reps",
             2: "secs",
@@ -189,7 +189,7 @@ class Wizard:
         return types.get(type_num, "unknown")
     
     def _import_template(self, template):
-        """Importa o template para o usuário"""
+        """Imports the template for the user"""
         from src.components.services.UI.interface import ui
         ui.clear_screen()
         self.add_message(f"Importing {template.get('name')}...")
@@ -270,12 +270,12 @@ class Wizard:
         input("Press ENTER to continue...")
     
     def _get_next_attr_id(self):
-        """Gera próximo ID de atributo"""
+        """Generates next attribute ID"""
         next_id = self.user.next_attr_id
         return f"80{next_id}" if next_id < 10 else f"8{next_id}"
     
     def _get_next_action_id(self):
-        """Gera próximo ID de ação"""
+        """Generates next action ID"""
         next_id = self.user.next_action_id
         return f"50{next_id}" if next_id < 10 else f"5{next_id}"
 

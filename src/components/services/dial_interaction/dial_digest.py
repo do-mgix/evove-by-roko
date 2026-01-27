@@ -5,14 +5,14 @@ import readchar
 
 class DialDigest:
     def __init__(self):
-        # Importa e atribui às instâncias
+        # Import and assign to instances
         from src.components.data.constants import (
             user, 
             him,
             SINGLE_COMMANDS, 
             OBJECTS, 
             INTERACTIONS,
-            COMMANDS  # Adicionado para evitar erro de NameError
+            COMMANDS  # Added to avoid NameError
         )
         
         self.user = user
@@ -23,7 +23,7 @@ class DialDigest:
     
 
     def get_info(self, char, buffer):
-        """Retorna o tipo e os dados do caractere, se existir."""
+        """Returns the type and data of the character, if it exists."""
         if char in self.INTERACTIONS:
             return "INTERACTION", self.INTERACTIONS[char]
         if char in self.OBJECTS:
@@ -111,7 +111,7 @@ class DialDigest:
         return " ".join(tokens), payloads, False
 
     def process(self, buffer):
-        # Chama o método interno usando self
+        # Call internal method using self
         faltando = self.get_length(buffer)
         
         if faltando == 0 and len(buffer) > 0:

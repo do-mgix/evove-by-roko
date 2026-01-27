@@ -4,19 +4,16 @@ import random
 
 from src.components.entitys.roko import Him
 
-# ==================== CLASSE BASE (Him/Roko) ====================
-# (Já implementada no artifact anterior)
-
-# ==================== NOVA ENTIDADE - SORBET ====================
+# ==================== NEW ENTITY - SORBET ====================
 class Sorbet(Him):
     """
-    Sorbet - Uma adolescente entediada que não se impressiona com nada.
-    Sempre de mal humor, usa abreviações e minúsculas.
+    Sorbet - A bored teenager who isn't impressed by anything.
+    Always in a bad mood, uses abbreviations and lowercase.
     """
     
     MESSAGES = {
         "offer": {
-            "ecstatic": [  # 90-100 (mas ainda é bem apática)
+            "ecstatic": [  # 90-100 (but still very apathetic)
                 "hmm ok i guess",
                 "sure whatever",
                 "thats fine ig",
@@ -143,35 +140,35 @@ class Sorbet(Him):
     def __init__(self):
         super().__init__()
         
-        # Sorbet tem stats bem diferentes
-        self._satisfaction = 30  # Começa entediada/insatisfeita
-        self._satisfaction_decay_rate = 0.4  # Decai um pouco mais rápido
-        self._max_poke_tokens = 4  # Menos paciência
+        # Sorbet has very different stats
+        self._satisfaction = 30  # Starts bored/dissatisfied
+        self._satisfaction_decay_rate = 0.4  # Decays a bit faster
+        self._max_poke_tokens = 4  # Less patience
         self._poke_tokens = 4
-        self._poke_regen_rate = 1.0  # Regenera lento
+        self._poke_regen_rate = 1.0  # Regenerates slowly
         
-        # Sorbet também pode sumir
-        self._entity_spawn_chance = 0.8  # 0.8% de chance de spawnar outro
-        self._roko_return_chance = 0.001  # Mesma chance de Roko voltar
+        # Sorbet can also disappear
+        self._entity_spawn_chance = 0.8  # 0.8% chance to spawn another
+        self._roko_return_chance = 0.001  # Same chance for Roko to return
         
     def _calculate_satisfaction_gain(self, score_difference):
-        """Sorbet é MUITO difícil de impressionar"""
-        # Ganho base muito reduzido
-        base_gain = score_difference * 0.08  # Apenas 8% do score
+        """Sorbet is VERY hard to impress"""
+        # Very reduced base gain
+        base_gain = score_difference * 0.08  # Only 8% of score
         
-        # Se superar a média, ganha um boost mínimo
+        # If it beats the average, gets a minimal boost
         if len(self._offerings) >= 2:
             recent_offerings = self._offerings[-11:-1]
             recent_values = [o['value'] for o in recent_offerings]
             avg_offering = statistics.mean(recent_values)
             
-            if score_difference > avg_offering * 1.5:  # Precisa ser 50% maior
+            if score_difference > avg_offering * 1.5:  # Needs to be 50% higher
                 base_gain *= 1.5
         
-        # Limites bem baixos - ela simplesmente não se impressiona
+        # Very low limits - she simply isn't impressed
         return base_gain
     
     def spawn_message(self):
-        """Mensagem especial de spawn"""
+        """Special spawn message"""
         for msg in self.MESSAGES["spawn"]:
             self.add_message(msg)

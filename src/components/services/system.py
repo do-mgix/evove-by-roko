@@ -5,10 +5,11 @@ import readchar
 
 from src.components.services.UI.interface import ui
 from src.components.services.dial_interaction.dial_digest import dial
+from src.components.entitys.entity_manager import EntityManager
+from src.components.services.challenge_service import ChallengeManager
 
 from src.components.data.constants import (
     user,
-    him,
     OBJECTS,
     INTERACTIONS,
     SINGLE_COMMANDS,
@@ -17,39 +18,91 @@ from src.components.data.constants import (
 
 def dial_start():
     user.load_user()
+    em = EntityManager()
+    cm = ChallengeManager(user, em)
+    
     try:
         buffer = ""
         while True:
+            # Process any existing messages from entities BEFORE waiting for input
+            current_him = em.get_entity()
+            if current_him and current_him.messages:
+                ui.show_messages_animated(current_him.messages)
+                current_him.clear_messages()
             
+            if user.messages:
+                ui.show_messages_animated(user.messages)
+                user.clear_messages()
+
+            # Render interface
             ui.render(buffer)
-        
-            completed, result = dial.process(buffer)
             
-            if completed:
-                buffer = ""
+            # Background checks (will run after each user interaction)
+            em.check_and_spawn()
+            cm.update()
 
-                if him.messages:
-                    ui.show_messages_animated(him.messages)
-                    him.clear_messages()
-
-                if isinstance(result, (int, float)) and not isinstance(result, bool) and result > 0:
-                    him.offer(result)
-                    
-                    if him.messages:
-                        ui.show_messages_animated(him.messages)
-                        him.clear_messages()            
-
-                if user.messages:
-                    ui.show_messages_animated(user.messages)
-                    user.clear_messages()
-                
-                continue 
-            
+            # Blocking key read - much better for performance
             key = readchar.readkey()
-            if key in (readchar.key.BACKSPACE, '\x7f'):
+            
+            if key in (readchar.key.BACKSPACE, '\x7f', '\x08'):
                 buffer = buffer[:-1]
-            elif key.isdigit():
-                buffer += key
+            elif key == readchar.key.ENTER or key == '\r' or key == '\n':
+                # Handle Special Commands
+                if buffer.startswith(':'):
+                    from src.components.services.journal_service import journal_service
+                    msg = buffer[1:].strip()
+                    if msg:
+                        journal_service.add_log(msg)
+                        user.add_message(f"Log buffered: {msg}")
+                    buffer = ""
+                    ui.render(buffer) # Immediate visual clear
+                elif buffer == "/cloud":
+                    from src.components.services.journal_service import journal_service
+                    result = journal_service.sync_to_cloud()
+                    user.add_message(result)
+                    buffer = ""
+                    ui.render(buffer) # Immediate visual clear
+                else:
+                    # If Enter is pressed but it's not a special command, 
+                    # we could try to process numeric commands if they don't auto-trigger
+                    completed, result = dial.process(buffer)
+                    if completed:
+                        buffer = ""
+                        _handle_result(result, em, ui)
+            else:
+                # Add character to buffer (supporting letters and symbols now)
+                # Only if it's a printable character
+                if len(key) == 1 and (key.isalnum() or key in " :/._-+=()*&^%$#@!?,<>{}[]|\\~`'\""):
+                    buffer += key
+            
+            # Process the buffer interaction (for automatic numeric commands)
+            # We only do this if it's NOT a log mode or special command starting
+            if not buffer.startswith(':') and not buffer.startswith('/'):
+                completed, result = dial.process(buffer)
+                
+                if completed:
+                    buffer = ""
+                    _handle_result(result, em, ui)
+                
     except KeyboardInterrupt:
-        print("BYE")
+        print("\nBYE")
         sys.exit(0)
+
+def _handle_result(result, em, ui):
+    from src.components.data.constants import user
+    # Handle result and messages immediately after command completion
+    current_him = em.get_entity()
+    if current_him and current_him.messages:
+        ui.show_messages_animated(current_him.messages)
+        current_him.clear_messages()
+
+    if isinstance(result, (int, float)) and not isinstance(result, bool) and result > 0:
+        if current_him:
+            current_him.offer(result)
+            if current_him.messages:
+                ui.show_messages_animated(current_him.messages)
+                current_him.clear_messages()            
+
+    if user.messages:
+        ui.show_messages_animated(user.messages)
+        user.clear_messages()

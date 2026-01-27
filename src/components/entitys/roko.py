@@ -3,7 +3,7 @@ import statistics
 import random
 
 class Him:
-    # Dicionário centralizado de mensagens por tipo e mood
+    # Centralized dictionary of messages by type and mood
     MESSAGES = {
         "offer": {
             "ecstatic": [  # 90-100
@@ -117,16 +117,25 @@ class Him:
         }
     }
     
-    def __init__(self):
+    def __init__(self, appearance_count=1):
+        self._appearance_count = appearance_count
         self._satisfaction = 50
         self._offerings = []
-        self._satisfaction_decay_rate = 0.5
+        
+        # Roko completo (2nd appearance) is easier to maintain
+        if appearance_count >= 2:
+            self._satisfaction_decay_rate = 0.2 # 0.2 per hour instead of 0.5
+            self._max_poke_tokens = 5
+            self._poke_tokens = 5
+        else:
+            self._satisfaction_decay_rate = 0.5
+            self._max_poke_tokens = 3
+            self._poke_tokens = 3
+
         self._last_decay_time = datetime.now()
         self.messages = []  # Buffer de mensagens para o render
         
         # Sistema de poke tokens
-        self._poke_tokens = 3  # Tokens iniciais
-        self._max_poke_tokens = 3  # Máximo de tokens
         self._poke_regen_rate = 1  # Tokens por hora
         self._last_poke_regen = datetime.now()
 
@@ -141,7 +150,7 @@ class Him:
         self.messages.append(msg)
     
     def _get_mood(self):
-        """Retorna o mood baseado na satisfação atual"""
+        """Returns the mood based on current satisfaction"""
         if self._satisfaction >= 90:
             return "ecstatic"
         elif self._satisfaction >= 70:
@@ -154,7 +163,7 @@ class Him:
             return "angry"
     
     def offer(self, score_difference):
-        """Recebe uma offering e atualiza a satisfação do Roko"""
+        """Receives an offering and updates Roko's satisfaction"""
         now = datetime.now()
         
         self._apply_satisfaction_decay(now)
@@ -169,7 +178,7 @@ class Him:
         satisfaction_gain = self._calculate_satisfaction_gain(score_difference)
         self._satisfaction = min(100, self._satisfaction + satisfaction_gain)
         
-        # Pega mensagem baseada no mood e adiciona ao buffer
+        # Get message based on mood and add to buffer
         mood = self._get_mood()
         message = random.choice(self.MESSAGES["offer"][mood])
         
@@ -180,39 +189,43 @@ class Him:
         return satisfaction_gain
     
     def _calculate_satisfaction_gain(self, score_difference):
-        """Calcula quanto de satisfação ganhar baseado no score"""
-        # Ganho base é proporcional ao score
-        base_gain = score_difference * 0.1  # 10% do score vira satisfação
+        """Calculates how much satisfaction to gain based on score"""
+        # Base gain is proportional to score
+        base_gain = score_difference * 0.1  # 10% of score becomes satisfaction
         
-        # Se houver histórico, compara com a média para bônus
+        # If there's history, compare with average for bonus
         if len(self._offerings) >= 2:
             recent_offerings = self._offerings[-11:-1]
             recent_values = [o['value'] for o in recent_offerings]
             avg_offering = statistics.mean(recent_values)
             
-            # Se superar a média, ganha bônus
+            # If it beats the average, gain bonus
             if score_difference > avg_offering:
                 bonus_multiplier = min((score_difference / max(avg_offering, 1)), 3.0)
                 base_gain *= bonus_multiplier
         
-        # Limita ganho entre 0.5 e 20 por offering
+        # Limit gain between 0.5 and 20 per offering
         return base_gain
     
     def _evaluate_offering(self, score_difference):
-        """DEPRECATED - Mantido para compatibilidade"""
+        """DEPRECATED - kept for compatibility"""
         return self._calculate_satisfaction_gain(score_difference)
     
     def _apply_satisfaction_decay(self, current_time):
-        """Reduz satisfação baseado no tempo desde última oferta"""
+        """Reduces satisfaction based on time since last offering"""
+        from src.components.data.constants import user
+        if not user.metadata.get("virtual_agent_active", True):
+            return
+
         time_passed = (current_time - self._last_decay_time).total_seconds() / 3600
         decay = time_passed * self._satisfaction_decay_rate
         
         self._satisfaction = max(0, self._satisfaction - decay)
     
     def _regenerate_poke_tokens(self):
-        """Regenera poke tokens baseado no tempo passado"""
+        """Regenerates poke tokens based on passed time"""
         now = datetime.now()
-        time_passed = (now - self._last_poke_regen).total_seconds() / 3600  # em horas
+        time_passed = (now - self._last_poke_regen).total_seconds() / 3600  # in hours
         
         tokens_to_add = int(time_passed * self._poke_regen_rate)
         
@@ -222,26 +235,26 @@ class Him:
     
     @property
     def poke_tokens(self):
-        """Retorna tokens disponíveis após regeneração"""
+        """Returns available tokens after regeneration"""
         self._regenerate_poke_tokens()
         return self._poke_tokens
     
     def cutucar(self):
-        """Tenta chamar a atenção do Roko - ele pode ou não responder"""
+        """Tries to call Roko's attention - he may or may not respond"""
         self._regenerate_poke_tokens()
         
-        # Verifica se tem tokens disponíveis
+        # Check if there are tokens available
         if self._poke_tokens <= 0:
             message = random.choice(self.MESSAGES["poke_fail"]["no_tokens"])
             self.add_message(message)
             return False
         
-        # Consome um token
+        # Consume a token
         self._poke_tokens -= 1
         
         self._apply_satisfaction_decay(datetime.now())
         
-        # Chance de presença baseada na satisfação
+        # Presence chance based on satisfaction
         presence_chance = 30 + (self._satisfaction * 0.5)
         
         if random.random() * 100 > presence_chance:
@@ -249,7 +262,7 @@ class Him:
             self.add_message(message)
             return False
         
-        # Pega mensagem baseada no mood
+        # Get message based on mood
         mood = self._get_mood()
         message = random.choice(self.MESSAGES["poke"][mood])
         
@@ -257,7 +270,7 @@ class Him:
         return True
     
     def random_message(self):
-        """Envia uma mensagem aleatória baseada no mood atual"""
+        """Sends a random message based on current mood"""
         self._apply_satisfaction_decay(datetime.now())
         
         mood = self._get_mood()
@@ -266,7 +279,7 @@ class Him:
         self.add_message(message)
     
     def get_stats(self):
-        """Retorna estatísticas das offerings"""
+        """Returns offerings statistics"""
         if not self._offerings:
             return "NO OFFERINGS YET."
         
@@ -283,8 +296,13 @@ class Him:
     
     @property
     def satisfaction(self):
-        """Retorna satisfação atual com decay aplicado"""
+        """Returns current satisfaction with decay applied"""
         self._apply_satisfaction_decay(datetime.now())
         return self._satisfaction
+
+    def get_spawn_status(self):
+        """Returns dummy spawn status for Roko. Special logic can be added here."""
+        # For now, Roko doesn't spontaneously leave unless satisfaction is 0
+        return None
 
 him = Him()

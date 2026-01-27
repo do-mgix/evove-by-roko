@@ -12,7 +12,11 @@ class User:
         self._actions = {} 
         self._value = 0
         self.messages = []  # Buffer de mensagens para o render
-        self.metadata = {}  # Configurações e estados (ex: wizard)
+        self.metadata = {
+            "mode": "progressive",
+            "virtual_agent_active": True,
+            "unlocked_packages": ["basics"]
+        }
             
     def clear_messages(self):
         """Limpa o buffer de mensagens"""
@@ -111,7 +115,7 @@ class User:
             return
         
         self._value = data.get("value", 0)
-        self.metadata = data.get("metadata", {})
+        self.metadata.update(data.get("metadata", {}))
         
         self._attributes.clear()
         for attr_id, attr_data in data.get("attributes", {}).items():
@@ -168,12 +172,17 @@ class User:
     
         self.save_user()
     
-        # Retorna o score com o boost aplicado para o Roko processar
+        # Returns the score with the applied boost for Roko to process
         return final_score_difference
     
 
     def create_attribute(self):
-        name = input("nome do atributo: ")
+        mode = self.metadata.get("mode", "progressive")
+        if mode == "semi-progressive":
+            self.add_message("[ MODE ] Manual creation disabled in semi-progressive mode.")
+            return
+
+        name = input("attribute name: ")
         nextid = self.next_attr_id
         new_id = f"80{nextid}" if nextid < 10 else f"8{nextid}"           
         new_attribute = Attribute(new_id, name, None, None, None)
@@ -186,15 +195,20 @@ class User:
         new_id = f"8{payloads[0]}"        
         
         if new_id not in self._attributes:
-            name = input("nome do atributo: ")
+            name = input("attribute name: ")
             new_attribute = Attribute(new_id, name, None, None, None)
             self._attributes[new_id] = new_attribute
-            self.add_message(f"attribute '{name}' created with ID {new_id}")
+            self.add_message(f"attribute '{name}' created with ID {new_attribute._id}")
             self.save_user()
         else:
-            self.add_message(f"ID ({new_id}) alread exists.")
+            self.add_message(f"ID ({new_id}) already exists.")
     
     def create_action(self, buffer: str):    
+        mode = self.metadata.get("mode", "progressive")
+        if mode == "semi-progressive":
+            self.add_message("[ MODE ] Manual creation disabled in semi-progressive mode.")
+            return
+
         try:
             tipo = int(buffer[0])
             diff = int(buffer[1])
@@ -217,7 +231,7 @@ class User:
             items = [f"({attr._id}) - {attr._name}" for attr in self._attributes.values()]
             ui.show_list(items, "CURRENT ATTRIBUTES")
         else:
-            self.add_message("none attribute available. try creating one with 28...")
+            self.add_message("no attributes available. try creating one with 28...")
     
     def list_actions(self):
         if self._actions:
@@ -225,7 +239,7 @@ class User:
             items = [f"({action._id}) - {action._name}" for action in self._actions.values()]
             ui.show_list(items, "CURRENT ACTIONS")
         else:
-            self.add_message("none action available. try creating one with 25...")
+            self.add_message("no actions available. try creating one with 25...")
     
     def drop_attributes(self):
         from src.components.services.UI.interface import ui
