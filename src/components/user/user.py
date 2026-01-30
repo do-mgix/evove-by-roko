@@ -1,6 +1,6 @@
 # ==================== USER.PY ====================
 import json, os
-from datetime import datetime
+from datetime import datetime, timedelta
 from src.components.entitys.entity_manager import EntityManager
 from src.components.user.attributes.attribute import Attribute
 from src.components.user.actions.action import Action
@@ -19,9 +19,24 @@ class User:
             "tokens": 0,
             "max_tokens": 50,
             "daily_refill": 20,
-            "last_token_refill": datetime.now().strftime("%Y-%m-%d")
+            "refill_cooldown": 12,
+            "last_token_refill": datetime.now().isoformat()
         }
 
+    def regenerate_tokens(self):
+        """Regenerates poke tokens based on passed time"""
+        now = datetime.now()
+
+        last = datetime.fromisoformat(self.metadata["last_token_refill"])
+        time_passed = (now - last).total_seconds() / 3600
+
+        tokens_to_add = int(time_passed/self.metadata["refill_cooldown"] * self.metadata["daily_refill"])
+        
+        if tokens_to_add > 0:
+            self.metadata["tokens"] = min(self.metadata["max_tokens"], self.metadata["tokens"] + tokens_to_add)
+            self.metadata["last_token_refill"] = now
+    
+    
     def add_tokens(self, amount):
         """Adds tokens up to max_tokens limit"""
         max_t = self.metadata.get("max_tokens", 50)
@@ -33,7 +48,7 @@ class User:
 
     def spend_tokens(self, amount):
         """Spends tokens if possible. Returns True if successful."""
-        current = self.metadata.get("tokens", 0)
+        current = self.metadata.get("tokens", 0)                       
         if current >= amount:
             self.metadata["tokens"] = current - amount
             self.add_message(f"Tokens spent: {amount}. Current balance: {self.metadata['tokens']}")
@@ -47,8 +62,8 @@ class User:
         """Limpa o buffer de mensagens"""
         self.messages = []
     
-    def add_message(self, msg):
-        """Adiciona mensagem ao buffer"""
+    def add_message(self, msg): 
+        """Adiciona mensagem ao buffer""" 
         self.messages.append(msg)
     
     @property
@@ -204,12 +219,14 @@ class User:
     def open_shop(self):
         """Displays shop items"""
         from src.components.services.shop_service import ShopService
+        
         shop = ShopService(self)
         shop.show_items()
 
     def buy_shop_item(self, item_id=None):
         """Buys a shop item. item_id can be passed from dial or buffer."""
         from src.components.services.shop_service import ShopService
+        
         shop = ShopService(self)
         
         # If called from list_actions/dial, it might be a list

@@ -7,6 +7,7 @@ SHOP_ITEMS = {
     "2": {"name": "Video Games", "cost": 30},
     "3": {"name": "Social Media", "cost": 20},
     "4": {"name": "Manga/Book", "cost": 5},
+    "5": {"name": "Music", "cost": 5},
 }
 
 class ShopService:
