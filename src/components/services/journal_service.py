@@ -1,177 +1,350 @@
 import os
 import json
 import subprocess
-from datetime import datetime
+from datetime import datetime, timedelta
+from src.components.services.sleep_service import sleep_service
+from src.components.services.sequence_service import sequence_service
 
 class JournalService:
     def __init__(self):
-        self.buffer = []
-        # Relative to project root: src/data/logs.json
+        # Paths
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        self.logs_json_path = os.path.join(base_dir, "data", "logs.json")
-        self.journal_path = os.path.expanduser("~/journal/evove26")
+        self.logs_data_path = os.path.join(base_dir, "data", "logs.json")
+        
+        # User journal directory (Git Repo)
         self.journal_dir = os.path.expanduser("~/journal")
-        self.load_buffer()
+        self.journal_file = os.path.join(self.journal_dir, "evove26")
+        
+        self.logs = []
+        self._load_logs_data()
 
-    def load_buffer(self):
-        """Loads logs from JSON file if it exists."""
-        if os.path.exists(self.logs_json_path):
+    def _load_logs_data(self):
+        """Loads structured log data."""
+        if os.path.exists(self.logs_data_path):
             try:
-                with open(self.logs_json_path, 'r', encoding='utf-8') as f:
-                    self.buffer = json.load(f)
+                with open(self.logs_data_path, 'r', encoding='utf-8') as f:
+                    self.logs = json.load(f)
             except (json.JSONDecodeError, IOError):
-                self.buffer = []
+                self.logs = []
+        else:
+            self.logs = []
 
-    def save_buffer(self):
-        """Saves current buffer to JSON file."""
+    def _save_logs_data(self):
+        """Saves structured log data."""
         try:
-            os.makedirs(os.path.dirname(self.logs_json_path), exist_ok=True)
-            with open(self.logs_json_path, 'w', encoding='utf-8') as f:
-                json.dump(self.buffer, f, indent=4)
+            os.makedirs(os.path.dirname(self.logs_data_path), exist_ok=True)
+            with open(self.logs_data_path, 'w', encoding='utf-8') as f:
+                json.dump(self.logs, f, indent=4)
         except IOError as e:
-            print(f"Error saving log buffer: {e}")
+            print(f"Error saving logs data: {e}")
 
-    def add_log(self, text):
-        """Adds text to the log buffer and persists it."""
-        if text.strip():
-            self.buffer.append(text.strip())
-            self.save_buffer()
-            return True
-        return False
-
-    def _robust_git_sync(self, commit_msg):
-        """Unified Git sync logic: fetch, reset to origin, apply changes, and push."""
+    def _get_last_file_date_header(self):
+        """Reads the journal file backwards to find the last date header."""
+        if not os.path.exists(self.journal_file):
+            return None
+        
         try:
-            # Detect branch
-            branch = "main"
+            with open(self.journal_file, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+                for line in reversed(lines):
+                    line = line.strip()
+                    # Check for date format "[dd/mm/yyyy]"
+                    # Basic check: starts with [ and ends with ] and has 10 chars inside
+                    if line.startswith("[") and line.endswith("]") and len(line) == 12:
+                         try:
+                             datetime.strptime(line, "[%d/%m/%Y]")
+                             return line
+                         except ValueError:
+                             continue
+        except Exception:
+            return None
+        return None
+
+    def add_log(self, text, manual_date=None, auto_confirm=False, custom_status=None):
+        """Adds a log entry to both evove26 and logs.json."""
+        if not text.strip():
+            return False
+
+        now = datetime.now()
+        
+        # Date Logic
+        target_date = now
+        
+        if manual_date:
+             try:
+                target_date = now.replace(day=int(manual_date))
+             except ValueError:
+                target_date = now
+        elif not auto_confirm and self.logs:
+             # Logic matching (simplified)
+             pass
+
+        # Formats
+        # New Header Format: [dd/mm/yyyy]
+        current_date_header = target_date.strftime("[%d/%m/%Y]")
+        timestamp_str = target_date.strftime("%d %m %Y : %H:%M:%S")
+        
+        status = custom_status if custom_status else "[IN WAIT]"
+        
+        # 1. Append to evove26 (Skip if it's a "TO PROCESS" system log)
+        if status != "[SYSTEM - TO PROCESS]":
             try:
-                res = subprocess.run(
-                    ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                    cwd=self.journal_dir, capture_output=True, text=True, check=True
-                )
-                detected = res.stdout.strip()
-                if detected and detected != "HEAD":
-                    branch = detected
-            except:
+                os.makedirs(self.journal_dir, exist_ok=True)
+                
+                # Check if we need to write the date header
+                last_header = self._get_last_file_date_header()
+                
+                with open(self.journal_file, "a", encoding="utf-8") as f:
+                    if last_header != current_date_header:
+                        f.write(f"\n{current_date_header}\n")
+                    
+                    f.write(f"{text.strip()}\n")
+            except IOError as e:
+                return f"Error writing to file: {e}"
+
+        # 2. Add to logs.json
+        entry = {
+            "timestamp": timestamp_str,
+            "content": text.strip(),
+            "status": status
+        }
+        self.logs.append(entry)
+        self._save_logs_data()
+        
+        return True
+
+    def process_daily_logs(self):
+        """Aggregates [SYSTEM - TO PROCESS] logs into [SYSTEM - IN WAIT] entries."""
+        if not self.logs:
+            return "No logs to process."
+
+        to_process_indices = [i for i, log in enumerate(self.logs) if log.get("status") == "[SYSTEM - TO PROCESS]"]
+        
+        if not to_process_indices:
+            return "No pending system logs."
+
+        # Aggregation buckets
+        actions_agg = {}   # "ACTION NAME": value
+        purchases_agg = {} # "SHOP ITEM": qtd
+        
+        # Helper to parse log content
+        # Expected formats: "value ACTION" or "qtd x ITEM"
+        for idx in to_process_indices:
+            content = self.logs[idx]["content"]
+            try:
+                if " x " in content:
+                    # Purchase: "2 x VIDEOGAMES"
+                    parts = content.split(" x ", 1)
+                    qtd = int(parts[0])
+                    name = parts[1].strip()
+                    purchases_agg[name] = purchases_agg.get(name, 0) + qtd
+                else:
+                    # Action: "50 PUSHUPS"
+                    parts = content.split(" ", 1)
+                    val = int(parts[0])
+                    name = parts[1].strip()
+                    actions_agg[name] = actions_agg.get(name, 0) + val
+            except (ValueError, IndexError):
+                # Fallback: Just mark as processed but don't aggregate if format is weird? 
+                # Or maybe just leave it? Let's assume strict format from User/Shop.
                 pass
 
-            # 1. CLEAN STATE: Abort any pending rebase/merge and fetch
-            subprocess.run(["git", "rebase", "--abort"], cwd=self.journal_dir, capture_output=True)
-            subprocess.run(["git", "merge", "--abort"], cwd=self.journal_dir, capture_output=True)
-            subprocess.run(["git", "fetch", "origin", branch], cwd=self.journal_dir, check=True)
+        # Create new aggregated logs
+        for name, value in actions_agg.items():
+            self.add_log(f"{value} {name}", auto_confirm=True, custom_status="[SYSTEM - IN WAIT]")
             
-            # 2. SYNC WITH REMOTE: Reset local to match remote exactly
-            subprocess.run(["git", "reset", "--hard", f"origin/{branch}"], cwd=self.journal_dir, check=True)
+        for name, qtd in purchases_agg.items():
+            self.add_log(f"{qtd} x {name}", auto_confirm=True, custom_status="[SYSTEM - IN WAIT]")
 
-            # 3. YIELD TO CALLER FOR FILE MODIFICATION
-            # The caller handles the actual 'with open... write' logic after this point.
-            return True, branch
-        except Exception as e:
-            return False, str(e)
+        # Mark originals as PROCESSED
+        for idx in to_process_indices:
+            self.logs[idx]["status"] = "[SYSTEM - PROCESSED]"
+            
+        self._save_logs_data()
+        return f"Processed {len(to_process_indices)} entries."
 
-    def sync_to_cloud(self):
-        """Syncs buffered logs to the journal file and pushes to GitHub."""
-        if not self.buffer:
-            return "Buffer is empty. Nothing to sync."
-
-        success, result = self._robust_git_sync("Syncing...")
-        if not success:
-            return f"Git Error during sync: {result}"
+    def list_logs(self):
+        """Returns last 15 active logs formatted."""
+        if not self.logs:
+            return ["No logs available."]
         
-        branch = result
-        now = datetime.now()
-        date_header = now.strftime("%Y-%m-%d %H:%M:%S")
-        commit_date = now.strftime("%d/%m/%Y")
+        # Filter active logs only (ignore DELETED and PROCESSED)
+        active_logs = [log for log in self.logs if log.get("status") not in ["[DELETED]", "[SYSTEM - PROCESSED]"]]
         
-        log_content = f"\n--- {date_header} ---\n"
-        log_content += "\n".join(self.buffer) + "\n"
+        if not active_logs:
+            return ["No active logs available."]
 
+        recent = active_logs[-15:]
+        formatted = []
+        for log in recent:
+            # Format: [dd mm yy : hh:mm:ss ] log 1 [STATUS]
+            line = f"[{log['timestamp']} ] {log['content']} {log['status']}"
+            formatted.append(line)
+        return formatted
+    
+    def list_days(self):
+        """Reads the content of evove26 file (Command 997)."""
+        if not os.path.exists(self.journal_file):
+            return ["Journal file 'evove26' not found."]
+        
         try:
-            # 3. APPEND NEW LOGS (After reset)
-            os.makedirs(self.journal_dir, exist_ok=True)
-            with open(self.journal_path, "a", encoding="utf-8") as f:
-                f.write(log_content)
-            
-            # 4. COMMIT AND PUSH
-            commands = [
-                ["git", "add", "evove26"],
-                ["git", "commit", "-m", f"[evove ({commit_date})]"],
-                ["git", "push", "origin", branch]
-            ]
-            
-            for cmd in commands:
-                subprocess.run(cmd, cwd=self.journal_dir, check=True, capture_output=True)
-            
-            self.buffer = [] # Clear memory buffer
-            self.save_buffer() # Clear file buffer
-            return f"Successfully synced to cloud and pushed to GitHub with commit [evove ({commit_date})]."
-        except Exception as e:
-            return f"Error applying changes: {str(e)}"
-
-    def drop_last_day(self, confirmed=False):
-        """Removes the last entry block from the journal file with confirmation and sync."""
-        if not os.path.exists(self.journal_path):
-            return "Journal file not found."
-
-        try:
-            # 1. READ LOCAL TO GET HEADER INFO (For confirmation)
-            with open(self.journal_path, "r", encoding="utf-8") as f:
+            with open(self.journal_file, "r", encoding="utf-8") as f:
                 content = f.read()
+            # Split by lines for display
+            return content.splitlines()
+        except Exception as e:
+            return [f"Error reading file: {e}"]
 
-            marker = "\n--- "
-            last_index = content.rfind(marker)
-            if last_index == -1 and content.startswith("--- "): last_index = 0
+    def drop_last_buffer_entry(self):
+        """Smart delete: marks as [DELETED], removes from file, pushes if [CLOUD]."""
+        if not self.logs:
+            return "Log list is empty."
             
-            if last_index == -1: return "No entry markers found in journal."
-
-            header_end = content.find(" ---\n", last_index)
-            if header_end == -1: header_end = content.find("\n", last_index + len(marker))
-            header_info = content[last_index:header_end].strip("- \n")
-
-            if not confirmed:
-                from src.components.services.UI.interface import ui, WebInputInterrupt
-                if ui.web_mode:
-                    import random
-                    code = "".join([str(random.randint(0, 9)) for _ in range(3)])
-                    from src.components.data.constants import user
-                    user.add_message(f"Drop entry: {header_info}?")
-                    user.add_message(f"Type the code: {code}")
-                    raise WebInputInterrupt(f"Confirm code: {code}?", type="confirm", options={"code": code, "action": "journal_drop"})
-                else:
-                    if not ui.ask_confirmation(f"Drop entry: {header_info}?"):
-                        return "Drop cancelled."
-                    confirmed = True
-
-            # 2. SYNC WITH REMOTE FIRST (To avoid Divergence)
-            success, result = self._robust_git_sync("Dropping...")
-            if not success: return f"Sync Error: {result}"
-            branch = result
-
-            # 3. RE-APPLY TRUNCATION ON THE SYNCED CONTENT
-            with open(self.journal_path, "r", encoding="utf-8") as f:
-                synced_content = f.read()
+        # Find last non-deleted log
+        target_index = -1
+        for i in range(len(self.logs) - 1, -1, -1):
+            if self.logs[i]["status"] != "[DELETED]":
+                target_index = i
+                break
+        
+        if target_index == -1:
+            return "No active logs to delete."
             
-            # Find index in synced content
-            new_last_index = synced_content.rfind(marker)
-            if new_last_index == -1 and synced_content.startswith("--- "): new_last_index = 0
-            
-            if new_last_index != -1:
-                truncated_content = synced_content[:new_last_index]
-                with open(self.journal_path, "w", encoding="utf-8") as f:
-                    f.write(truncated_content)
-
-                # 4. COMMIT AND PUSH
-                commit_date = datetime.now().strftime("%d/%m/%Y")
-                subprocess.run(["git", "add", "evove26"], cwd=self.journal_dir, check=True)
-                subprocess.run(["git", "commit", "-m", f"[evove (DROP {commit_date})]"], cwd=self.journal_dir, check=True)
-                subprocess.run(["git", "push", "origin", branch], cwd=self.journal_dir, check=True)
+        target_log = self.logs[target_index]
+        original_status = target_log["status"]
+        content_to_match = target_log["content"]
+        
+        # 1. Update status
+        self.logs[target_index]["status"] = "[DELETED]"
+        self._save_logs_data()
+        
+        # 2. Remove from evove26
+        file_msg = ""
+        try:
+            if os.path.exists(self.journal_file):
+                with open(self.journal_file, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
                 
-                return f"Successfully dropped and synced: {header_info}"
-            else:
-                return "Could not find entry to drop after sync."
+                # Find index of last matching line
+                idx_to_remove = -1
+                for i in range(len(lines) -1, -1, -1):
+                    line = lines[i].strip()
+                    if not line: continue
+                    # Skip headers
+                    if line.startswith("[") and line.endswith("]") and len(line) == 12:
+                        continue
+                    
+                    if line == content_to_match:
+                        idx_to_remove = i
+                        break
+                
+                if idx_to_remove != -1:
+                    lines.pop(idx_to_remove)
+                    file_msg = "Removed from file."
+                    
+                    with open(self.journal_file, "w", encoding="utf-8") as f:
+                        f.writelines(lines)
+                else:
+                     file_msg = "Log not found in file (desync?)."
 
         except Exception as e:
-            if "WebInputInterrupt" in str(type(e)): raise e
-            return f"Error during drop: {str(e)}"
+            file_msg = f"File error: {e}"
+
+        # 3. Auto-push if [CLOUD] (or [SYSTEM - CLOUD])
+        git_msg = ""
+        if "CLOUD" in original_status and "DELETED" not in original_status:
+             res = self._git_push()
+             if res is True:
+                 git_msg = " | Cloud sync (DELETE) success."
+             else:
+                 git_msg = f" | Cloud sync failed: {res}"
+        
+        return f"Smart Delete: '{content_to_match}' -> [DELETED]. {file_msg}{git_msg}"
+
+    def drop_last_day(self):
+        """Alias for 007 - Drops last, same as 07 in this new single-file context."""
+        return self.drop_last_buffer_entry()
+
+    def _git_push(self):
+        """Commits and pushes changes to Git with enhanced error handling."""
+        if not os.path.exists(self.journal_dir):
+            return "Journal directory not found (subprocess)."
+            
+        try:
+            # Check if it's a git repo
+            if not os.path.exists(os.path.join(self.journal_dir, ".git")):
+                return "Not a git repository."
+
+            def run_git_cmd(args):
+                result = subprocess.run(
+                    args, 
+                    cwd=self.journal_dir, 
+                    capture_output=True, 
+                    text=True, 
+                    check=False # We handle return code manually
+                )
+                if result.returncode != 0:
+                    return False, result.stderr.strip() or result.stdout.strip()
+                return True, result.stdout.strip()
+
+            # 0. Pull (to avoid conflicts)
+            ok, msg = run_git_cmd(["git", "pull", "--no-rebase"])
+            if not ok: 
+                return f"Git Pull Error: {msg}"
+
+            # 1. Add
+            ok, msg = run_git_cmd(["git", "add", "."])
+            if not ok: return f"Git Add Error: {msg}"
+
+            # 2. Commit
+            # Format: [evove dd/mm/yyyy - hh:mm:ss ]
+            timestamp = datetime.now().strftime("%d/%m/%Y - %H:%M:%S")
+            commit_msg = f"[evove {timestamp} ]"
+            ok, msg = run_git_cmd(["git", "commit", "-m", commit_msg])
+            
+            # Allow "nothing to commit" as success
+            if not ok:
+                if "nothing to commit" in msg or "clean" in msg:
+                    pass 
+                else:
+                    return f"Git Commit Error: {msg}"
+            
+            # 3. Push
+            ok, msg = run_git_cmd(["git", "push"])
+            if not ok:
+                return f"Git Push Error: {msg}"
+            
+            return True
+        except Exception as e:
+            return f"Git Exception: {str(e)}"
+
+    def sleep(self):
+        """Sleeps, pushes to git, updates status."""
+        # 1. Push to Git
+        git_res = self._git_push()
+        
+        msg = ""
+        if git_res is True:
+            msg = "Git push successful."
+            # Update [IN WAIT] to [CLOUD]
+            updated_count = 0
+            for log in self.logs:
+                if log["status"] == "[IN WAIT]":
+                    log["status"] = "[CLOUD]"
+                    updated_count += 1
+            self._save_logs_data()
+            if updated_count > 0:
+                msg += f" Marked {updated_count} logs as [CLOUD]."
+        else:
+            msg = f"Git failed: {git_res}"
+            
+        # 2. Log sleep time (service)
+        sleep_time = sleep_service.log_sleep()
+        
+        return f"Sleep at {sleep_time.strftime('%H:%M:%S')}. {msg}"
+
+    def wake(self):
+        wake_time, duration = sleep_service.log_wake()
+        return f"Woke up at {wake_time.strftime('%H:%M:%S')}. Sleep duration: {duration}."
 
 journal_service = JournalService()

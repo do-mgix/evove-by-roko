@@ -82,7 +82,8 @@ def status():
             "active": current_entity is not None
         },
         "messages": messages,
-        "pending": session.pending_input
+        "pending": session.pending_input,
+        "is_sleeping": user.metadata.get("is_sleeping", False)
     }
     return jsonify(resp)
 
@@ -103,14 +104,33 @@ def command():
 
         # 1. Attribute/Action Creation
         if p == "attribute name":
-            if "payloads" in pi.get("options", {}): # Note: options might contain context
+            if "payloads" in pi.get("options", {}):
                 user.create_attribute_by_id(pi["options"]["payloads"], name=buffer)
             else:
                 user.create_attribute(name=buffer)
         
         elif p == "action name":
             user.create_action(pi.get("options", {}).get("buffer", ""), name=buffer)
-            
+        
+        elif p == "log message":
+            user.log(buffer)
+
+        elif p == "sequence label":
+            # This is first step of new_sequence
+            session.pending_input = {
+                "prompt": "start value (integer)",
+                "type": "numeric",
+                "options": {"label": buffer}
+            }
+            return jsonify({"completed": True, "clear": True})
+
+        elif p == "start value (integer)":
+            label = pi.get("options", {}).get("label")
+            user.new_sequence(label, buffer)
+        
+        elif p == "sequence index to delete":
+            user.delete_sequence(buffer)
+
         # 2. General Confirmation
         elif t == "confirm":
              if buffer == pi.get("options", {}).get("code"):
@@ -123,17 +143,32 @@ def command():
                      user.delete_action(payloads, confirmed=True)
                  elif action_type == "journal_drop":
                      from src.components.services.journal_service import journal_service
-                     result = journal_service.drop_last_day(confirmed=True)
+                     result = journal_service.drop_last_day()
                      user.add_message(result)
                  else:
                      user.add_message("Confirmed.")
              else:
                  user.add_message("Cancelled.")
         
+        elif t == "confirm_day":
+            log_text = pi.get("options", {}).get("text")
+            from src.components.services.journal_service import journal_service
+            if buffer == "1":
+                journal_service.add_log(log_text, auto_confirm=True)
+            else:
+                # If 0, we could prompt for custom day, but let's simplify or handle it
+                # For now, if not 1, assume current day or handle as custom day input if it was a number > 1
+                try:
+                    if int(buffer) > 1:
+                        journal_service.add_log(log_text, manual_date=buffer)
+                    else:
+                        journal_service.add_log(log_text, auto_confirm=True)
+                except:
+                    journal_service.add_log(log_text, auto_confirm=True)
+
         elif t == "numeric" and "action_id" in pi.get("options", {}):
             try:
                 val = int(buffer)
-                # action_id is like '526', payloads expects ['26']
                 action_id = pi["options"]["action_id"]
                 payloads = [action_id[1:]]
                 result = user.act(payloads, value=val)
@@ -146,28 +181,7 @@ def command():
 
     # Process Command
     try:
-        # 1. Handle Special Commands (Special prefix / or :)
-        if buffer.startswith(':'):
-            from src.components.services.journal_service import journal_service
-            msg = buffer[1:].strip()
-            if msg:
-                journal_service.add_log(msg)
-                user.add_message(f"Log buffered: {msg}")
-            return jsonify({"completed": True, "clear": True})
-
-        elif buffer == "/cloud":
-            from src.components.services.journal_service import journal_service
-            result = journal_service.sync_to_cloud()
-            user.add_message(result)
-            return jsonify({"completed": True, "clear": True})
-
-        elif buffer == "/drop":
-            from src.components.services.journal_service import journal_service
-            result = journal_service.drop_last_day()
-            user.add_message(result)
-            return jsonify({"completed": True, "clear": True})
-
-        # 2. Standard Dial Processing
+        # Standard Dial Processing (Prefixes like : or / are no longer special-cased here)
         completed, result = dial.process(buffer)
         if completed:
             _handle_result(result)
@@ -178,7 +192,98 @@ def command():
         session.pending_input = {"prompt": e.prompt, "type": e.type, "options": e.options, "context": {"buffer": buffer}}
         return jsonify({"completed": True, "clear": True})
     
+    except Exception as e:
+        print(f"Server Error: {e}")
+        user.add_message(f"[ SERVER ERROR ] {str(e)}")
+        return jsonify({"completed": True, "clear": True})
+    
     return jsonify({"completed": False, "clear": False})
 
+
+@app.route('/api/preview', methods=['GET'])
+def preview():
+    """
+    Retorna estado do parsing em tempo real sem executar.
+    Frontend chama a cada keystroke: GET /api/preview?buffer=501
+    Retorna:  { "preview": "⭐ (Push Ups) -> Add -> _", "remaining": 1, "complete": false }
+    """
+    buffer = request.args.get('buffer', '').strip()
+
+    if not buffer:
+        return jsonify({ "preview": "", "remaining": 0, "complete": False })
+
+    try:
+        user.load_user()
+        remaining = dial.get_length(buffer)
+        phrase, payloads, is_single = dial.parse_buffer(buffer)
+
+        tokens = []
+
+        if is_single:
+            # ── SINGLE_COMMAND (ex: :log, 71, 72…) ──
+            for cmd_prefix, info in dial.SINGLE_COMMANDS.items():
+                if buffer.startswith(cmd_prefix):
+                    tokens.append(info.get("label", cmd_prefix))
+                    # se tem payload parcial, mostra
+                    payload_len = info["len"]
+                    if payload_len > 0:
+                        payload = buffer[len(cmd_prefix):]
+                        if payload:
+                            tokens.append(payload)
+                    break
+        else:
+            # ── OBJECT + INTERACTION (ex: 5 01 2 …) ──
+            ptr = 0
+            while ptr < len(buffer):
+                char = buffer[ptr]
+                info = dial.OBJECTS.get(char) or dial.INTERACTIONS.get(char)
+                if not info:
+                    break
+
+                ptr += 1
+                label = info["label"]
+
+                # resolve payload → nome da entidade
+                if info["len"] > 0:
+                    id_slice = buffer[ptr : ptr + info["len"]]
+                    ptr += info["len"]
+                    if id_slice:
+                        name = _resolve_name(char, id_slice)
+                        label = f"{label} ({name})" if name else f"{label} ({id_slice})"
+
+                tokens.append(label)
+
+        # monta string com arrows
+        preview_str = " -> ".join(tokens)
+
+        # cursor no final se ainda falta caracteres
+        if remaining > 0:
+            preview_str += " -> _"
+
+        return jsonify({
+            "preview": preview_str,
+            "remaining": remaining,
+            "complete": (remaining == 0 and len(buffer) > 0)
+        })
+
+    except Exception as e:
+        return jsonify({ "preview": f"[err] {e}", "remaining": -1, "complete": False })
+
+
+def _resolve_name(prefix_char, id_value):
+    """Tenta mapear um ID extraído para o nome da entidade correspondente."""
+    try:
+        # Action  → prefixo 5
+        action_id = f"5{id_value}"
+        if action_id in user._actions:
+            return user._actions[action_id]._name
+
+        # Attribute → prefixo 8
+        attr_id = f"8{id_value}"
+        if attr_id in user._attributes:
+            return user._attributes[attr_id]._name
+    except:
+        pass
+    return None
 if __name__ == '__main__':
     app.run(debug=True, host="0.0.0.0", port=5000)

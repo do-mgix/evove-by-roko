@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from src.components.entitys.entity_manager import EntityManager
 from src.components.user.attributes.attribute import Attribute
 from src.components.user.actions.action import Action
+from src.components.services.journal_service import journal_service
 
 class User:
     def __init__(self):
@@ -20,8 +21,10 @@ class User:
             "max_tokens": 50,
             "daily_refill": 20,
             "refill_cooldown": 12,
+            "refill_cooldown": 12,
             "last_token_refill": datetime.now().isoformat()
         }
+        self.load_user()
 
     def regenerate_tokens(self):
         """Regenerates poke tokens based on passed time"""
@@ -93,13 +96,165 @@ class User:
             return 0.0
     
     def sleep(self):
-        self.add_message(f"sleep at {datetime.now()}")
-    
+        if self._check_sleep():
+            return
+
+        # 1. Process Daily Logs (TO PROCESS -> IN WAIT)
+        # Aggregates granular logs into daily summary logs in evove26
+        process_msg = journal_service.process_daily_logs()
+        self.add_message(process_msg)
+
+        # 2. Proceed to Sleep (Git Sync)
+        result = journal_service.sleep()
+        self.metadata["is_sleeping"] = True
+        self.add_message(result)
+        self.save_user()
+
     def wake(self):
-        self.add_message(f"woke at {datetime.now()}")
+        result = journal_service.wake()
+        self.metadata["is_sleeping"] = False
+        self.add_message(result)
+        self.save_user()
     
-    def log(self):
-        self.add_message("logged")
+    def _check_sleep(self):
+        if self.metadata.get("is_sleeping"):
+            self.add_message("You are sleeping! Remember to wake up (71) before any operation.")
+            return True
+        return False
+
+    def act(self, payloads, value=None):
+        if self._check_sleep():
+            return
+
+        # Original Action Logic
+        action_id = "".join(payloads)
+        
+        # Actions in _actions are stored with a '5' prefix (e.g., '501', '526')
+        if not action_id.startswith('5'):
+            action_id = f"5{action_id}"
+        
+        action = self._actions.get(action_id)
+        if not action:
+            self.add_message(f"\n [ ERROR ] Action ID {action_id} not found. (Loaded Actions: {len(self._actions)})")
+            return None
+
+        score_difference, action_messages = action.execution(manual_value=value)
+        
+        # Daily Aggregation Logic -> Immediate Log (TO PROCESS)
+        action_name = action.name
+        executed_value = value if value else 1
+        
+        try:
+            val_int = int(executed_value)
+        except:
+            val_int = 1 
+            
+        # Log to logs.json only (TO PROCESS)
+        journal_service.add_log(f"{val_int} {action_name.upper()}", auto_confirm=True, custom_status="[SYSTEM - TO PROCESS]")
+
+        # Adiciona mensagens da action
+        for msg in action_messages:
+            self.add_message(msg)
+
+        # Cálculo de Boost por Satisfação
+        him = EntityManager().get_entity()
+        current_sat = him.satisfaction
+        
+        boost_multiplier = 1.0
+        if current_sat > 40:
+            boost_factor = min(0.5, (current_sat - 40) / 60 * 0.5)
+            boost_factor = max(0, boost_factor)
+            boost_multiplier = 1.0 + boost_factor
+            
+            if boost_factor > 0:
+                self.add_message(f"{him.__class__.__name__.upper()} BOOST: +{boost_factor*100:.1f}% score gained!")
+
+        final_score_difference = score_difference * boost_multiplier
+        self.save_user()
+        return final_score_difference
+
+    def log(self, text):
+        if journal_service.add_log(text):
+            self.add_message(f"Log buffered: {text}")
+        self.save_user()
+
+    def add_log_entry(self, text=None):
+        if self._check_sleep():
+            return
+        if text is None:
+            from src.components.services.UI.interface import WebInputInterrupt
+            raise WebInputInterrupt("log message", type="text")
+        self.log(text)
+
+    def list_logs(self):
+        if self._check_sleep():
+            return
+        logs = journal_service.list_logs()
+        from src.components.services.UI.interface import ui
+        ui.show_list(logs, "CURRENT LOG BUFFER")
+
+    def drop_last_log_buffer(self):
+        if self._check_sleep():
+            return
+        result = journal_service.drop_last_buffer_entry()
+        self.add_message(result)
+        self.save_user()
+
+    def drop_last_day(self):
+        if self._check_sleep():
+            return
+        result = journal_service.drop_last_day()
+        self.add_message(result)
+        self.save_user()
+
+    def list_sequences(self):
+        if self._check_sleep():
+            return
+        from src.components.services.sequence_service import sequence_service
+        info = sequence_service.get_current_sequences_str()
+        self.add_message(f"Sequences: {info}")
+
+    def list_days(self):
+        if self._check_sleep():
+            return
+        logs = journal_service.list_days()
+        from src.components.services.UI.interface import ui
+        # Using show_list to display the file content
+        ui.show_list(logs, "EVOVE26 FILE CONTENT")
+
+    def delete_sequence(self, index=None):
+        if self._check_sleep():
+            return
+        if index is None:
+            from src.components.services.UI.interface import WebInputInterrupt
+            raise WebInputInterrupt("sequence index to delete", type="numeric")
+        try:
+            from src.components.services.sequence_service import sequence_service
+            msg = sequence_service.delete_sequence(int(index))
+            self.add_message(msg)
+            self.save_user()
+        except ValueError:
+            self.add_message("Invalid index.")
+
+    def new_sequence(self, label=None, start_value=None):
+        if self._check_sleep():
+            return
+        if label is None:
+            from src.components.services.UI.interface import WebInputInterrupt
+            raise WebInputInterrupt("sequence label", type="text")
+        
+        if start_value is None:
+            from src.components.services.UI.interface import WebInputInterrupt
+            raise WebInputInterrupt("start value (integer)", type="numeric", options={"label": label})
+
+        try:
+            val = int(start_value)
+            from src.components.services.sequence_service import sequence_service
+            msg = sequence_service.create_sequence(label, val)
+            self.add_message(msg)
+            self.save_user()
+        except ValueError:
+            self.add_message("Invalid start value. Must be an integer.")
     
     def save_user(self):
         base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -179,41 +334,6 @@ class User:
             if hasattr(attr, 'resolve_parent'):
                 attr.resolve_parent(self._attributes)
     
-    def act(self, payloads, value=None):
-        """Executa ação e retorna mensagens"""
-        action_id = f"5{payloads[0]}"  
-        action = self._actions.get(action_id)
-
-        if not action:
-            self.add_message(f"\n [ ERRO ] ID {action_id} not found")
-            return None
-
-        score_difference, action_messages = action.execution(manual_value=value)
-    
-        # Adiciona mensagens da action
-        for msg in action_messages:
-            self.add_message(msg)
-
-        # Cálculo de Boost por Satisfação
-        him = EntityManager().get_entity()
-        current_sat = him.satisfaction
-        
-        boost_multiplier = 1.0
-        if current_sat > 40:
-            # Interpolação linear: 40 (0%) -> 100 (50%)
-            boost_factor = min(0.5, (current_sat - 40) / 60 * 0.5)
-            boost_factor = max(0, boost_factor) # Garante que não é negativo
-            boost_multiplier = 1.0 + boost_factor
-            
-            if boost_factor > 0:
-                self.add_message(f"{him.__class__.__name__.upper()} BOOST: +{boost_factor*100:.1f}% score gained!")
-
-        final_score_difference = score_difference * boost_multiplier
-    
-        self.save_user()
-    
-        # Returns the score with the applied boost for Roko to process
-        return final_score_difference
     
 
     def open_shop(self):

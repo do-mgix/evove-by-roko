@@ -272,4 +272,16 @@ para aceitar ou recusar. Geralmente ele pede algo relacionado a uma ação que r
 reduzida. Ex: se fizer muitas flexões, ele pode desafiar a fazer 30, se aceitar, deve fazer e confirmar que
 foi feito (dando a opção de aceitar e falhar, o que deixa eles mais insatisfeitos).
 
-Ações timer: Algumas ações funcionam bem com timers. 
+Ações timer: Algumas ações funcionam bem com timers.
+
+
+
+
+Lógica de logs e sequences:
+em roko_evoveby, implemente uma nova lógica de log. 
+
+Agora não terá mais a necessidade de cloud. O usuário pode fazer seus logs ao longo do dia e, ao usar o comando sleep, o evove salva um horário para dados de sleep time e os buffers são salvos para o repositório, agora apenas com a data em que foram feitos, isso é bom pois: um log a meia noite significa que os dados são referentes ao dia 2, mas podem ser do dia 1 logados com atraso. Caso o usuário logue dessa maneira, faça uma confirmação, journal referente ao dia 2? se responde 1 (sim), loga com a data 2, se não,  um input de data (dia) personalizado. Ele sempre pergunta seguindo um dia a frente.
+
+Use modelo de data d m y, conte os dias numericamente a partir de um dado daysequence1, pode ser diferente de zero, personalizado pelo usuário (podendo ser seu número total de dias de vida, dias de trabalho ou dias junto com o evove) Crtérios podem ser criados e labels podem ser aderidas. Criar sequência é feito a partir do comando newsequence. Ele dá a opção de número inteiro e label relacional. Esses dados são adicionados em sequence data, junto de data e sequências, adicionadas ao repositório automaticamente (atualizadas durante sleeps)
+
+O sleep data salva os logs de sleep e wake e calcula suas diferenças, fornecendo dados de sono do usuário. 

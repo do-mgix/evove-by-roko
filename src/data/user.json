@@ -1,5 +1,5 @@
 {
-    "score": 0.0,
+    "score": 33.6,
     "value": 0,
     "attributes": {
         "801": {
@@ -27,7 +27,7 @@
                 "801",
                 "801"
             ],
-            "total_score": 0.0
+            "total_score": 201.60000000000002
         },
         "803": {
             "id": "803",
@@ -71,7 +71,7 @@
                 "802",
                 "802"
             ],
-            "total_score": 0.0
+            "total_score": 201.60000000000002
         },
         "806": {
             "id": "806",
@@ -181,8 +181,8 @@
             "name": "Push Ups",
             "type": 1,
             "diff": 2,
-            "value": 0,
-            "score": 0.0
+            "value": 63,
+            "score": 201.60000000000002
         },
         "502": {
             "id": "502",
@@ -343,11 +343,14 @@
         "unlocked_packages": [
             "basics"
         ],
-        "tokens": 20,
+        "tokens": 40,
         "max_tokens": 50,
         "daily_refill": 20,
         "refill_cooldown": 12,
-        "last_token_refill": "2026-01-30",
-        "starter_packs_seen": true
+        "last_token_refill": "2026-02-03",
+        "daily_actions": {},
+        "daily_purchases": {},
+        "starter_packs_seen": true,
+        "is_sleeping": false
     }
 }

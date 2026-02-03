@@ -58,6 +58,37 @@
         #process-view {
             color: var(--accent);
             font-size: 0.9rem;
+            min-height: 1.1rem;                /* não colapsa quando vazio */
+            transition: opacity 0.2s ease;
+        }
+
+        /* ── preview token styles ── */
+        .preview-token {
+            color: var(--text-main);
+            font-weight: 700;
+        }
+        .preview-token .token-name {
+            color: var(--warning);             /* nome da entidade: laranja */
+        }
+        .preview-token .token-label {
+            color: var(--success);             /* label do tipo: verde */
+        }
+        .preview-arrow {
+            color: var(--text-dim);
+            margin: 0 6px;
+            font-weight: 400;
+        }
+        .preview-cursor {
+            color: var(--warning);
+            animation: blink 1s step-end infinite;
+        }
+        .preview-incomplete {
+            color: var(--text-dim);
+            font-style: italic;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: 0; }
         }
 
         /* History area */
@@ -86,6 +117,14 @@
             padding: 2px 0;
         }
 
+        .line-right {
+            animation: fadeIn 0.1s ease-out;
+            white-space: pre-wrap;
+            word-break: break-all;
+            padding: 2px 0;
+            margin-left: 10rem;
+        }
+
         .system {
             color: var(--accent);
         }
@@ -98,23 +137,96 @@
             color: var(--text-dim);
         }
 
-        /* Input area */
-        .input-area {
+        .container-esp {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            width: 100%;
+            gap: 15px;
+        }
+
+        /* ─── Input bar ─── */
+        .input-bar {
+            display: flex;
+            gap: 1px;
             background: var(--term-bg);
-            padding: 1rem;
+            border-top: 1px solid rgba(122, 162, 247, 0.2);
             margin: 0 -1rem -1rem -1rem;
+        }
+
+        /* ─── cada campo ─── */
+        .input-area {
+            flex: 1;
             display: flex;
             align-items: center;
-            border-top: 1px solid rgba(122, 162, 247, 0.2);
+            padding: 1rem;
+            min-width: 0;
+            position: relative;
+            background: var(--term-bg);
+            transition: background 0.4s ease, opacity 0.35s ease;
         }
 
+        .input-area + .input-area {
+            border-left: 1px solid rgba(122, 162, 247, 0.15);
+        }
+
+        /* ── INATIVO: escurece + apaga ── */
+        .input-area:not(.active) {
+            background: color-mix(in srgb, var(--term-bg) 88%, #000 12%);
+            opacity: 0.45;
+        }
+
+        /* ── ATIVO: volta à base ── */
+        .input-area.active {
+            background: var(--term-bg);
+            opacity: 1;
+        }
+
+        /* ── scan-line na borda inferior
+           pseudo-elemento que desliza da esquerda para a direita ao ativar ── */
+        .input-area::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 2px;
+            width: 100%;
+            transform: scaleX(0);
+            transform-origin: left center;
+            transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+                        background 0.3s ease,
+                        box-shadow 0.3s ease;
+        }
+
+        .input-area.active::after {
+            transform: scaleX(1);
+        }
+
+        /* cores da scan-line por campo */
+        .input-area[data-field="text"]::after {
+            background: var(--accent);
+            box-shadow: 0 0 7px 2px var(--accent);
+        }
+        .input-area[data-field="dial"]::after {
+            background: var(--success);
+            box-shadow: 0 0 7px 2px var(--success);
+        }
+
+        /* ── prompt ── */
         .prompt {
-            color: var(--accent);
             margin-right: 10px;
             font-weight: bold;
+            flex-shrink: 0;
+            user-select: none;
+            color: var(--text-dim);
+            transition: color 0.35s ease, text-shadow 0.35s ease;
         }
 
-        input#command-input {
+        .input-area[data-field="text"].active .prompt  { color: var(--accent);  text-shadow: 0 0 8px var(--accent); }
+        .input-area[data-field="dial"].active .prompt   { color: var(--success); text-shadow: 0 0 8px var(--success); }
+
+        /* ── input ── */
+        .input-area input {
             flex: 1;
             background: transparent;
             border: none;
@@ -122,7 +234,35 @@
             font-family: 'JetBrains Mono', monospace;
             font-size: 1.1rem;
             outline: none;
+            min-width: 0;
+            transition: color 0.3s ease;
         }
+
+        .input-area:not(.active) input       { color: var(--text-dim); }
+        .input-area input::placeholder       { color: var(--text-dim); transition: color 0.3s ease; }
+        .input-area.active input::placeholder { color: rgba(196,202,245,0.38); }
+
+        /* ── label ── */
+        .input-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .input-label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 2px;
+            padding-left: 2px;
+            color: var(--text-dim);
+            opacity: 0.55;
+            transition: color 0.35s ease, opacity 0.35s ease, text-shadow 0.35s ease;
+        }
+
+        .input-area[data-field="text"].active .input-label { color: var(--accent);  opacity: 1; text-shadow: 0 0 6px var(--accent); }
+        .input-area[data-field="dial"].active .input-label  { color: var(--success); opacity: 1; text-shadow: 0 0 6px var(--success); }
 
         @keyframes fadeIn {
             from {
@@ -145,112 +285,263 @@
     </div>
 
     <div id="terminal-output">
-        <div class="line dim">Evove OS [Version 2.0.0-terminal]</div>
+        <div class="container-esp">
+            <div class="line dim">evove</div>
+            <div class="line dim">by roko</div>
+        </div>
+        <div class="line dim">v0.1.0</div>
         <div class="line dim">Type numbers to interact.</div>
     </div>
 
-    <div class="input-area">
-        <span class="prompt">></span>
-        <input type="text" id="command-input" placeholder="" inputmode="text" autocomplete="off" autofocus>
+    <div class="input-bar">
+        <div class="input-area active" data-field="text">
+            <span class="prompt">&gt;</span>
+            <div class="input-wrapper">
+                <span class="input-label">texting</span>
+                <input type="text" id="text-input" placeholder="type a message…" inputmode="text" autocomplete="off">
+            </div>
+        </div>
+        <div class="input-area" data-field="dial">
+            <span class="prompt">&gt;</span>
+            <div class="input-wrapper">
+                <span class="input-label">dialing</span>
+                <input type="text" id="dial-input" placeholder="dial a number…" inputmode="numeric" autocomplete="off">
+            </div>
+        </div>
     </div>
 
     <script>
-        const output = document.getElementById('terminal-output');
-        const bufferView = document.getElementById('buffer-view');
-        const processView = document.getElementById('process-view');
-        const input = document.getElementById('command-input');
-        let isPending = false;
+        // ─── refs ───
+        const output       = document.getElementById('terminal-output');
+        const bufferView   = document.getElementById('buffer-view');
+        const processView  = document.getElementById('process-view');
+        const textInput    = document.getElementById('text-input');
+        const dialInput    = document.getElementById('dial-input');
+        const textArea     = document.querySelector('[data-field="text"]');
+        const dialArea     = document.querySelector('[data-field="dial"]');
 
+        // ─── estado ───
+        let isPending      = false;
+        let pendingType    = null;   // "text" | "numeric" | "confirm" | null
+
+        // ────────────────────────────────────────────
+        // FOCO CENTRALIZADO
+        // Regras de prioridade:
+        //   1. pending do servidor → foca conforme o tipo pedido
+        //   2. sem pending          → foca no dial (modo padrão)
+        // Chamado após cada updateStatus() e após cada submit bem-sucedido.
+        // ────────────────────────────────────────────
+        function focusCorrectInput(pending) {
+            let target; // "text" | "dial"
+
+            if (pending) {
+                // servidor pediu input — decide pelo tipo
+                target = (pending.type === 'numeric') ? 'dial' : 'text';
+
+                // atualiza placeholder do campo que vai receber o foco
+                const el = (target === 'text') ? textInput : dialInput;
+                el.placeholder = pending.prompt + '…';
+            } else {
+                // modo livre → dial é o padrão
+                target = 'dial';
+                textInput.placeholder  = 'type a message…';
+                dialInput.placeholder  = 'dial a number…';
+            }
+
+            // aplica classe .active e foco
+            textArea.classList.toggle('active', target === 'text');
+            dialArea.classList.toggle('active', target === 'dial');
+
+            const focused = (target === 'text') ? textInput : dialInput;
+            focused.focus();
+        }
+
+        // ─── click manual em qualquer input → marca como ativo ───
+        [textInput, dialInput].forEach(input => {
+            input.addEventListener('focus', () => {
+                const isText = (input === textInput);
+                textArea.classList.toggle('active',  isText);
+                dialArea.classList.toggle('active', !isText);
+            });
+        });
+
+        // click fora dos inputs → volta ao padrão
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('input')) focusCorrectInput(null);
+        });
+
+        // ─── utilitários ───
         function addLine(text, type = '') {
             const div = document.createElement('div');
             div.className = `line ${type}`;
             div.innerText = text;
             output.appendChild(div);
             output.scrollTop = output.scrollHeight;
-
-            // Limit log size to emulate "dynamic clearing"
-            if (output.children.length > 50) {
-                output.removeChild(output.firstChild);
-            }
+            if (output.children.length > 50) output.removeChild(output.firstChild);
         }
 
+        function resetAfterSubmit(label) {
+            textInput.value   = '';
+            dialInput.value   = '';
+            bufferView.innerText = '_';
+            // mostra o label de status com a cor do accent
+            processView.innerHTML = `<span style="color:var(--accent)">${label}</span>`;
+            // após submit, busca novo estado do servidor → vai reajustar foco
+            updateStatus();
+        }
+
+        // ─── polling / status ───
         async function updateStatus() {
             try {
-                const res = await fetch('/api/status');
+                const res  = await fetch('/api/status');
                 if (!res.ok) return;
                 const data = await res.json();
 
-                if (data.messages && data.messages.length > 0) {
-                    data.messages.forEach(msg => addLine(`[system] ${msg}`, 'system'));
-                }
+                // mensagens do servidor
+                if (data.messages && data.messages.length > 0)
+                    data.messages.forEach(msg => addLine(` ${msg}`, 'system'));
 
-                // Update internal state
-                isPending = !!data.pending;
+                // atualiza estado de pending
+                isPending   = !!data.pending;
+                pendingType = data.pending ? data.pending.type : null;
 
-                // Handle Pending Input
-                if (data.pending) {
-                    input.placeholder = `${data.pending.prompt}...`;
-                    input.inputmode = data.pending.type === 'numeric' ? 'numeric' : 'text';
-                    document.querySelector('.prompt').innerText = '?';
-                    document.querySelector('.prompt').style.color = 'var(--warning)';
-                } else {
-                    const isLog = input.value.startsWith(':');
-                    input.placeholder = isLog ? "Journal log..." : "Dial command...";
-                    input.inputmode = isLog ? "text" : "numeric";
-                    document.querySelector('.prompt').innerText = isLog ? ':' : '>';
-                    document.querySelector('.prompt').style.color = isLog ? 'var(--success)' : 'var(--accent)';
-                }
-            } catch (e) { }
+                // ← ponto central: reajusta foco
+                focusCorrectInput(data.pending);
+
+            } catch (e) { /* sem servidor */ }
         }
 
-        input.addEventListener('keydown', async (e) => {
-            if (e.key === 'Enter') {
-                const buffer = e.target.value;
-                if (!buffer) return;
+        // ─── buffer view (espelho do que o usuário digita) ───
+        function mirrorBuffer(value) {
+            bufferView.innerText = value ? value + '_' : '_';
+        }
 
-                try {
-                    const res = await fetch('/api/command', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ buffer })
-                    });
-                    const data = await res.json();
-                    if (data.completed) {
-                        if (data.clear) {
-                            input.value = '';
-                            bufferView.innerText = '_';
-                            processView.innerText = "Confirmed.";
-                        }
-                        updateStatus();
+        // ─────────────────────────────────────────────
+        // PREVIEW LIVE — espelha o parsing do dial
+        // Chama GET /api/preview?buffer=X a cada keystroke.
+        // Monta HTML formatado no #process-view:
+        //   ⭐ (Push Ups) -> Add -> _
+        // Se o servidor não estiver disponível, faz parsing
+        // local básico (só mostra buffer + cursor).
+        // ─────────────────────────────────────────────
+        async function fetchPreview(buffer) {
+            if (!buffer) {
+                processView.innerHTML = '<span style="color:var(--accent)">Ready.</span>';
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/preview?buffer=${encodeURIComponent(buffer)}`);
+                if (!res.ok) throw new Error('no server');
+                const data = await res.json();
+                renderPreview(data.preview, data.remaining, data.complete);
+            } catch (e) {
+                // fallback offline: mostra apenas o buffer + cursor
+                renderPreview(buffer, 1, false);
+            }
+        }
+
+        /**
+         * Recebe a string "Label (Name) -> Label2 -> _"
+         * e monta HTML com cores por parte.
+         */
+        function renderPreview(raw, remaining, complete) {
+            if (!raw) {
+                processView.innerHTML = '<span style="color:var(--accent)">Ready.</span>';
+                return;
+            }
+
+            // split por " -> " para ter cada segmento
+            const parts = raw.split(' -> ');
+            let html = '';
+
+            parts.forEach((part, i) => {
+                if (i > 0) {
+                    html += '<span class="preview-arrow">→</span>';
+                }
+
+                const trimmed = part.trim();
+
+                if (trimmed === '_') {
+                    // cursor piscante no final
+                    html += '<span class="preview-cursor">_</span>';
+
+                } else {
+                    // tenta extrair "Label (Name)"
+                    const match = trimmed.match(/^(.+?)\s*\((.+)\)$/);
+                    if (match) {
+                        const label = match[1].trim();
+                        const name  = match[2].trim();
+                        html += `<span class="preview-token">`
+                              + `<span class="token-label">${label}</span>`
+                              + ` <span class="token-name">(${name})</span>`
+                              + `</span>`;
+                    } else {
+                        // sem parênteses → é um label simples ou payload bruto
+                        html += `<span class="preview-token">`
+                              + `<span class="token-label">${trimmed}</span>`
+                              + `</span>`;
                     }
-                } catch (e) { console.error(e); }
+                }
+            });
+
+            // se completo, adiciona um ✔ discreto
+            if (complete) {
+                html += ' <span style="color:var(--success);font-size:0.75rem">✓</span>';
+            }
+
+            processView.innerHTML = html;
+        }
+
+        // ═══════════════════════════════════════════
+        // INPUT DE TEXTO  (submit com Enter)
+        // ═══════════════════════════════════════════
+        textInput.addEventListener('input', (e) => {
+            mirrorBuffer(e.target.value);
+        });
+
+        textInput.addEventListener('keydown', async (e) => {
+            if (e.key !== 'Enter') return;
+            const buffer = textInput.value.trim();
+            if (!buffer) return;
+
+            try {
+                const res  = await fetch('/api/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ buffer })
+                });
+                const data = await res.json();
+                if (data.completed) {
+                    addLine(`> ${buffer}`, 'dim');
+                    resetAfterSubmit('Sent.');
+                }
+            } catch (e) {
+                addLine(`> ${buffer}`, 'dim');
+                resetAfterSubmit('Sent (offline).');
             }
         });
 
-        input.addEventListener('input', async (e) => {
-            const buffer = e.target.value;
-            bufferView.innerText = buffer ? buffer + '_' : '_';
+        // ═══════════════════════════════════════════
+        // INPUT NUMÉRICO (dial)
+        //   • se isPending  → sem auto-submit, espera Enter
+        //   • se livre      → auto-submit a cada dígito (comportamento original)
+        // ═══════════════════════════════════════════
+        dialInput.addEventListener('input', async (e) => {
+            const buffer = dialInput.value;
+            mirrorBuffer(buffer);
 
-            if (!buffer) {
-                processView.innerText = "Ready.";
-                updateStatus(); // Reset UI mode
-                return;
-            }
+            // ── preview live sempre atualiza ──
+            fetchPreview(buffer);
 
-            if (buffer.startsWith(':')) {
-                updateStatus(); // Instant mode switch
-                return;
-            }
+            if (!buffer) return;
 
-            // --- AUTO-SUBMISSION LOGIC ---
-            // 1. Never auto-trigger if we are responding to a prompt (isPending)
+            // quando há pending numérico, o usuário digita e pressiona Enter
             if (isPending) return;
 
-            // 2. Only auto-trigger for numeric input (Dial commands)
-            if (input.inputmode !== 'numeric') return;
-
+            // auto-submit livre
             try {
-                const res = await fetch('/api/command', {
+                const res  = await fetch('/api/command', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ buffer })
@@ -259,32 +550,49 @@
 
                 if (data.completed) {
                     addLine(`$ ${buffer}`, 'dim');
-                    if (data.clear) {
-                        input.value = '';
-                        bufferView.innerText = '_';
-                        processView.innerText = "Command executed.";
-                    }
-                    updateStatus();
-                } else {
-                    processView.innerText = "Incomplete command...";
+                    resetAfterSubmit('Command executed.');
                 }
+                // se não completou, fetchPreview já mostrou o estado correto
             } catch (e) {
-                processView.innerText = "Server error.";
+                addLine(`$ ${buffer}`, 'dim');
+                resetAfterSubmit('Dialed (offline).');
             }
         });
 
-        // Polling loop
+        // Enter no dial → necessário quando isPending (confirma resposta)
+        dialInput.addEventListener('keydown', async (e) => {
+            if (e.key !== 'Enter') return;
+            if (!isPending) return;           // sem pending, auto-submit já resolveu
+
+            const buffer = dialInput.value.trim();
+            if (!buffer) return;
+
+            try {
+                const res  = await fetch('/api/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ buffer })
+                });
+                const data = await res.json();
+                if (data.completed) {
+                    addLine(`? ${buffer}`, 'dim');
+                    resetAfterSubmit('Confirmed.');
+                }
+            } catch (e) {
+                addLine(`? ${buffer}`, 'dim');
+                resetAfterSubmit('Confirmed (offline).');
+            }
+        });
+
+        // ─── init ───
         setInterval(updateStatus, 3000);
+        updateStatus();                          // primeira chamada → define foco inicial
 
-        // Auto-focus
-        document.addEventListener('click', () => input.focus());
-        updateStatus();
-
-        // Register Service Worker
+        // Service Worker
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
-                    .then(reg => console.log('SW Registered'))
+                    .then(() => console.log('SW Registered'))
                     .catch(err => console.log('SW Failed', err));
             });
         }

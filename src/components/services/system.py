@@ -47,48 +47,76 @@ def dial_start():
             if key in (readchar.key.BACKSPACE, '\x7f', '\x08'):
                 buffer = buffer[:-1]
             elif key == readchar.key.ENTER or key == '\r' or key == '\n':
-                # Handle Special Commands
-                if buffer.startswith(':'):
-                    from src.components.services.journal_service import journal_service
-                    msg = buffer[1:].strip()
-                    if msg:
-                        journal_service.add_log(msg)
-                        user.add_message(f"Log buffered: {msg}")
-                    buffer = ""
-                    ui.render(buffer) # Immediate visual clear
-                elif buffer == "/cloud":
-                    from src.components.services.journal_service import journal_service
-                    result = journal_service.sync_to_cloud()
-                    user.add_message(result)
-                    buffer = ""
-                    ui.render(buffer) # Immediate visual clear
-                elif buffer == "/drop":
-                    from src.components.services.journal_service import journal_service
-                    result = journal_service.drop_last_day()
-                    user.add_message(result)
-                    buffer = ""
-                    ui.render(buffer) # Immediate visual clear
-                else:
-                    # If Enter is pressed but it's not a special command, 
-                    # we could try to process numeric commands if they don't auto-trigger
+                # If Enter is pressed, process buffer
+                try:
                     completed, result = dial.process(buffer)
                     if completed:
                         buffer = ""
                         _handle_result(result, em, ui)
+                except Exception as e:
+                    # In case of WebInputInterrupt, we need to import it inside to avoid circular imports if possible
+                    # or assume it's the one. Common pattern: check class name or import.
+                    from src.components.services.UI.interface import WebInputInterrupt
+                    if isinstance(e, WebInputInterrupt):
+                        print(f"\n[ INPUT REQUIRED ] {e.prompt} ({e.type})")
+                        ui.render(buffer, force_print=True) # Ensure render doesn't wipe immediately
+                        
+                        # For CLI, we use simple input()
+                        cli_input = input(f"> ")
+                        
+
+                        if e.prompt == "log message":
+                             user.add_log_entry(cli_input)
+                             buffer = ""
+                        elif e.prompt == "sequence label":
+
+                             print("Complex input incomplete. (Not fully supported in CLI for multi-step yet)")
+                             buffer = ""
+                        elif e.prompt == "sequence start value (integer)":
+                             # This implies label was somehow passed? unlikely via dial.
+                             pass
+                        elif "value" in e.prompt:
+                             # action value
+                             action_id = e.options.get("action_id")
+                             if action_id:
+                                 user.act(list(action_id), cli_input) # Approximate reconstruction
+                                 buffer = ""
+                             
+                    else:
+                        raise e
+
             else:
                 # Add character to buffer (supporting letters and symbols now)
-                # Only if it's a printable character
                 if len(key) == 1 and (key.isalnum() or key in " :/._-+=()*&^%$#@!?,<>{}[]|\\~`'\""):
                     buffer += key
             
-            # Process the buffer interaction (for automatic numeric commands)
-            # We only do this if it's NOT a log mode or special command starting
+
             if not buffer.startswith(':') and not buffer.startswith('/'):
-                completed, result = dial.process(buffer)
-                
-                if completed:
-                    buffer = ""
-                    _handle_result(result, em, ui)
+                try:
+                    completed, result = dial.process(buffer)
+                    
+                    if completed:
+                        buffer = ""
+                        _handle_result(result, em, ui)
+                except Exception as e:
+                     from src.components.services.UI.interface import WebInputInterrupt
+                     if isinstance(e, WebInputInterrupt):
+                        # CLI Interrupt Handling duplicated logic
+                        print(f"\n[ INPUT REQUIRED ] {e.prompt}")
+                        cli_input = input(f"> ")
+                        
+                        if e.prompt == "log message":
+                             user.add_log_entry(cli_input)
+                             buffer = ""
+                        elif "numeric value" in e.prompt or "value" in e.prompt:
+                             action_id = e.options.get("action_id")
+                             if action_id:
+
+                                 user.act(list(action_id), cli_input)
+                                 buffer = ""
+                        elif e.prompt == "sequence index to delete":
+                            user.delete_sequence(cli_input)
+                            buffer = ""
                 
     except KeyboardInterrupt:
         print("\nBYE")
