@@ -93,8 +93,15 @@ class User:
             total = sum(attr.total_score for attr in self._attributes.values())
             return total / len(self._attributes)
         else:
-            return 0.0
-    
+            return 0
+ 
+    @property
+    def total_points(self):
+        """Soma total de pontos de todas as actions."""
+        if self._actions:
+            return sum(action.score for action in self._actions.values())
+        return 0
+
     def sleep(self):
         if self._check_sleep():
             return
@@ -160,14 +167,11 @@ class User:
         him = EntityManager().get_entity()
         current_sat = him.satisfaction
         
-        boost_multiplier = 1.0
+        boost_multiplier = 1
         if current_sat > 40:
             boost_factor = min(0.5, (current_sat - 40) / 60 * 0.5)
             boost_factor = max(0, boost_factor)
-            boost_multiplier = 1.0 + boost_factor
-            
-            if boost_factor > 0:
-                self.add_message(f"{him.__class__.__name__.upper()} BOOST: +{boost_factor*100:.1f}% score gained!")
+            boost_multiplier = 1 + boost_factor
 
         final_score_difference = score_difference * boost_multiplier
         self.save_user()

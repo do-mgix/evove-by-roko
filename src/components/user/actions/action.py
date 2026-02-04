@@ -2,11 +2,13 @@
 from abc import ABC, abstractmethod
 
 class Action:
+    # Progressão linear: 2.1 + (diff - 1) * 1.1
     _DIFFICULTY_MULTIPLIER_MAP = {
-        4: 5.4,
-        3: 4.3,
-        2: 3.2,
-        1: 2.1,
+        1: 100,
+        2: 300,
+        3: 600,
+        4: 1000,
+        5: 2500,        
     }
     _TYPE_MAP = {
         1: {"label": "repetitions", "factor": 1},
@@ -17,8 +19,8 @@ class Action:
     }
     
     def __init__(self, action_id, name: str, tipo: int, diff: int, value: float):
-        if not (1 <= diff <= 4):
-            raise ValueError("Difficulty 'diff' must be an integer between 1 and 4.")
+        if not (1 <= diff <= 8):
+            raise ValueError("Difficulty 'diff' must be an integer between 1 and 6.")
         if tipo not in self._TYPE_MAP:
             raise ValueError(f"Invalid action type: {tipo}")
         self._id = action_id

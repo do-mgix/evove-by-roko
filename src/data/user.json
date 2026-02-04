@@ -1,5 +1,5 @@
 {
-    "score": 33.6,
+    "score": 3200.0,
     "value": 0,
     "attributes": {
         "801": {
@@ -12,7 +12,7 @@
                 "804"
             ],
             "parent": [],
-            "total_score": 0.0
+            "total_score": 0
         },
         "802": {
             "id": "802",
@@ -27,7 +27,7 @@
                 "801",
                 "801"
             ],
-            "total_score": 201.60000000000002
+            "total_score": 18900
         },
         "803": {
             "id": "803",
@@ -41,7 +41,7 @@
                 "801",
                 "801"
             ],
-            "total_score": 0.0
+            "total_score": 300
         },
         "804": {
             "id": "804",
@@ -56,7 +56,7 @@
                 "801",
                 "801"
             ],
-            "total_score": 0.0
+            "total_score": 0
         },
         "805": {
             "id": "805",
@@ -71,7 +71,7 @@
                 "802",
                 "802"
             ],
-            "total_score": 201.60000000000002
+            "total_score": 18900
         },
         "806": {
             "id": "806",
@@ -86,7 +86,7 @@
                 "802",
                 "802"
             ],
-            "total_score": 0.0
+            "total_score": 0
         },
         "807": {
             "id": "807",
@@ -101,7 +101,7 @@
                 "802",
                 "802"
             ],
-            "total_score": 0.0
+            "total_score": 0
         },
         "808": {
             "id": "808",
@@ -116,7 +116,7 @@
                 "803",
                 "803"
             ],
-            "total_score": 0.0
+            "total_score": 300
         },
         "809": {
             "id": "809",
@@ -130,7 +130,7 @@
                 "803",
                 "803"
             ],
-            "total_score": 0.0
+            "total_score": 0
         },
         "810": {
             "id": "810",
@@ -144,7 +144,7 @@
                 "804",
                 "804"
             ],
-            "total_score": 0.0
+            "total_score": 0
         },
         "811": {
             "id": "811",
@@ -158,7 +158,7 @@
                 "804",
                 "804"
             ],
-            "total_score": 0.0
+            "total_score": 0
         },
         "812": {
             "id": "812",
@@ -172,7 +172,7 @@
                 "804",
                 "804"
             ],
-            "total_score": 0.0
+            "total_score": 0
         }
     },
     "actions": {
@@ -182,7 +182,7 @@
             "type": 1,
             "diff": 2,
             "value": 63,
-            "score": 201.60000000000002
+            "score": 18900
         },
         "502": {
             "id": "502",
@@ -190,7 +190,7 @@
             "type": 1,
             "diff": 3,
             "value": 0,
-            "score": 0.0
+            "score": 0
         },
         "503": {
             "id": "503",
@@ -198,7 +198,7 @@
             "type": 1,
             "diff": 2,
             "value": 0,
-            "score": 0.0
+            "score": 0
         },
         "504": {
             "id": "504",
@@ -206,7 +206,7 @@
             "type": 1,
             "diff": 4,
             "value": 0,
-            "score": 0.0
+            "score": 0
         },
         "505": {
             "id": "505",
@@ -214,7 +214,7 @@
             "type": 1,
             "diff": 3,
             "value": 0,
-            "score": 0.0
+            "score": 0
         },
         "506": {
             "id": "506",
@@ -222,7 +222,7 @@
             "type": 1,
             "diff": 2,
             "value": 0,
-            "score": 0.0
+            "score": 0
         },
         "507": {
             "id": "507",
@@ -230,7 +230,7 @@
             "type": 1,
             "diff": 3,
             "value": 0,
-            "score": 0.0
+            "score": 0
         },
         "508": {
             "id": "508",
@@ -238,7 +238,7 @@
             "type": 1,
             "diff": 3,
             "value": 0,
-            "score": 0.0
+            "score": 0
         },
         "509": {
             "id": "509",
@@ -246,7 +246,7 @@
             "type": 1,
             "diff": 2,
             "value": 0,
-            "score": 0.0
+            "score": 0
         },
         "510": {
             "id": "510",
@@ -254,7 +254,7 @@
             "type": 1,
             "diff": 1,
             "value": 0,
-            "score": 0.0
+            "score": 0
         },
         "511": {
             "id": "511",
@@ -262,15 +262,15 @@
             "type": 1,
             "diff": 3,
             "value": 0,
-            "score": 0.0
+            "score": 0
         },
         "512": {
             "id": "512",
             "name": "Plank",
             "type": 2,
             "diff": 2,
-            "value": 0,
-            "score": 0.0
+            "value": 1,
+            "score": 300
         },
         "513": {
             "id": "513",
@@ -278,7 +278,7 @@
             "type": 2,
             "diff": 2,
             "value": 0,
-            "score": 0.0
+            "score": 0
         },
         "514": {
             "id": "514",
@@ -286,7 +286,7 @@
             "type": 1,
             "diff": 2,
             "value": 0,
-            "score": 0.0
+            "score": 0
         },
         "515": {
             "id": "515",
@@ -294,7 +294,7 @@
             "type": 1,
             "diff": 1,
             "value": 0,
-            "score": 0.0
+            "score": 0
         },
         "516": {
             "id": "516",
@@ -302,7 +302,7 @@
             "type": 1,
             "diff": 2,
             "value": 0,
-            "score": 0.0
+            "score": 0
         },
         "517": {
             "id": "517",
@@ -310,7 +310,7 @@
             "type": 1,
             "diff": 3,
             "value": 0,
-            "score": 0.0
+            "score": 0
         },
         "518": {
             "id": "518",
@@ -318,7 +318,7 @@
             "type": 1,
             "diff": 2,
             "value": 0,
-            "score": 0.0
+            "score": 0
         },
         "519": {
             "id": "519",
@@ -326,7 +326,7 @@
             "type": 1,
             "diff": 1,
             "value": 0,
-            "score": 0.0
+            "score": 0
         },
         "520": {
             "id": "520",
@@ -334,7 +334,71 @@
             "type": 1,
             "diff": 3,
             "value": 0,
-            "score": 0.0
+            "score": 0
+        },
+        "521": {
+            "id": "521",
+            "name": "Clean Up Dog Mess",
+            "type": 1,
+            "diff": 2,
+            "value": 2,
+            "score": 600
+        },
+        "522": {
+            "id": "522",
+            "name": "Cook",
+            "type": 1,
+            "diff": 3,
+            "value": 2,
+            "score": 1200
+        },
+        "523": {
+            "id": "523",
+            "name": "Dishes",
+            "type": 1,
+            "diff": 2,
+            "value": 2,
+            "score": 600
+        },
+        "524": {
+            "id": "524",
+            "name": "Programming",
+            "type": 4,
+            "diff": 4,
+            "value": 5,
+            "score": 1800000
+        },
+        "525": {
+            "id": "525",
+            "name": "Read Manga",
+            "type": 3,
+            "diff": 1,
+            "value": 8,
+            "score": 48000
+        },
+        "526": {
+            "id": "526",
+            "name": "Listen To Music",
+            "type": 3,
+            "diff": 1,
+            "value": 150,
+            "score": 900000
+        },
+        "527": {
+            "id": "527",
+            "name": "Take A Picture",
+            "type": 1,
+            "diff": 1,
+            "value": 1,
+            "score": 100
+        },
+        "528": {
+            "id": "528",
+            "name": "Run Street",
+            "type": 1,
+            "diff": 4,
+            "value": 14,
+            "score": 14000
         }
     },
     "metadata": {
@@ -343,7 +407,7 @@
         "unlocked_packages": [
             "basics"
         ],
-        "tokens": 40,
+        "tokens": 30,
         "max_tokens": 50,
         "daily_refill": 20,
         "refill_cooldown": 12,

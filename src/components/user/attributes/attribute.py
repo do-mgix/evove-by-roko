@@ -19,7 +19,7 @@ class Attribute:
         if self._related_actions:
             return sum(action.score for action in self._related_actions)
         else:
-            return 0.0
+            return 0
 
     # getter de score = soma dos scores das ações - Verifica casos de parent e child
     @property

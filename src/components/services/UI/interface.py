@@ -300,6 +300,13 @@ class UI:
         if not skip_clear:
             os.system('cls' if os.name == 'nt' else 'clear')
         
+        # ═══════════════════════════════════════════════════════════
+        # EXIBIÇÃO DE TOTAL POINTS
+        # Usa self.user que já está disponível na instância UI
+        # ═══════════════════════════════════════════════════════════
+        points_str = f"P: {self.WHITE}{self.BOLD}{self.user.total_points}{self.CLR}"
+        print(points_str)
+        
         buffer_view = self.format_visual_buffer(buffer)
         process_view_result = self.process_view(buffer)
         

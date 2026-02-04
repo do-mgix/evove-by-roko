@@ -72,6 +72,7 @@ def status():
         "user": {
             "score": user.score,
             "value": user._value,
+            "total_points": user.total_points,  # ← ADICIONADO
             "attributes": {k: {"name": v._name, "score": v.total_score} for k, v in user._attributes.items()},
             "actions": {k: {"name": v._name} for k, v in user._actions.items()},
             "metadata": user.metadata

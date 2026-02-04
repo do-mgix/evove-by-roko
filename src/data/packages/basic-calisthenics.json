@@ -10,7 +10,7 @@
       "related_actions": [],
       "children": ["802", "803", "804"],
       "parent": [],
-      "total_score": 0.0
+      "total_score": 0
     },
     "802": {
       "id": "802",
@@ -18,7 +18,7 @@
       "related_actions": [],
       "children": ["805", "806", "807"],
       "parent": ["801"],
-      "total_score": 0.0
+      "total_score": 0
     },
     "803": {
       "id": "803",
@@ -26,7 +26,7 @@
       "related_actions": [],
       "children": ["808", "809"],
       "parent": ["801"],
-      "total_score": 0.0
+      "total_score": 0
     },
     "804": {
       "id": "804",
@@ -34,7 +34,7 @@
       "related_actions": [],
       "children": ["810", "811", "812"],
       "parent": ["801"],
-      "total_score": 0.0
+      "total_score": 0
     },
     "805": {
       "id": "805",
@@ -42,7 +42,7 @@
       "related_actions": ["501", "502", "503"],
       "children": [],
       "parent": ["802"],
-      "total_score": 0.0
+      "total_score": 0
     },
     "806": {
       "id": "806",
@@ -50,7 +50,7 @@
       "related_actions": ["504", "505", "506"],
       "children": [],
       "parent": ["802"],
-      "total_score": 0.0
+      "total_score": 0
     },
     "807": {
       "id": "807",
@@ -58,7 +58,7 @@
       "related_actions": ["507", "508", "509"],
       "children": [],
       "parent": ["802"],
-      "total_score": 0.0
+      "total_score": 0
     },
     "808": {
       "id": "808",
@@ -66,7 +66,7 @@
       "related_actions": ["510", "511", "512"],
       "children": [],
       "parent": ["803"],
-      "total_score": 0.0
+      "total_score": 0
     },
     "809": {
       "id": "809",
@@ -74,7 +74,7 @@
       "related_actions": ["513", "514"],
       "children": [],
       "parent": ["803"],
-      "total_score": 0.0
+      "total_score": 0
     },
     "810": {
       "id": "810",
@@ -82,7 +82,7 @@
       "related_actions": ["515", "516"],
       "children": [],
       "parent": ["804"],
-      "total_score": 0.0
+      "total_score": 0
     },
     "811": {
       "id": "811",
@@ -90,7 +90,7 @@
       "related_actions": ["517", "518"],
       "children": [],
       "parent": ["804"],
-      "total_score": 0.0
+      "total_score": 0
     },
     "812": {
       "id": "812",
@@ -98,7 +98,7 @@
       "related_actions": ["519", "520"],
       "children": [],
       "parent": ["804"],
-      "total_score": 0.0
+      "total_score": 0
     }
   },
   "actions": {
@@ -108,7 +108,7 @@
       "type": 1,
       "diff": 2,
       "value": 0,
-      "score": 0.0
+      "score": 0
     },
     "502": {
       "id": "502",
@@ -116,7 +116,7 @@
       "type": 1,
       "diff": 3,
       "value": 0,
-      "score": 0.0
+      "score": 0
     },
     "503": {
       "id": "503",
@@ -124,7 +124,7 @@
       "type": 1,
       "diff": 2,
       "value": 0,
-      "score": 0.0
+      "score": 0
     },
     "504": {
       "id": "504",
@@ -132,7 +132,7 @@
       "type": 1,
       "diff": 4,
       "value": 0,
-      "score": 0.0
+      "score": 0
     },
     "505": {
       "id": "505",
@@ -140,7 +140,7 @@
       "type": 1,
       "diff": 3,
       "value": 0,
-      "score": 0.0
+      "score": 0
     },
     "506": {
       "id": "506",
@@ -148,7 +148,7 @@
       "type": 1,
       "diff": 2,
       "value": 0,
-      "score": 0.0
+      "score": 0
     },
     "507": {
       "id": "507",
@@ -156,7 +156,7 @@
       "type": 1,
       "diff": 3,
       "value": 0,
-      "score": 0.0
+      "score": 0
     },
     "508": {
       "id": "508",
@@ -164,7 +164,7 @@
       "type": 1,
       "diff": 3,
       "value": 0,
-      "score": 0.0
+      "score": 0
     },
     "509": {
       "id": "509",
@@ -172,7 +172,7 @@
       "type": 1,
       "diff": 2,
       "value": 0,
-      "score": 0.0
+      "score": 0
     },
     "510": {
       "id": "510",
@@ -180,7 +180,7 @@
       "type": 1,
       "diff": 1,
       "value": 0,
-      "score": 0.0
+      "score": 0
     },
     "511": {
       "id": "511",
@@ -188,7 +188,7 @@
       "type": 1,
       "diff": 3,
       "value": 0,
-      "score": 0.0
+      "score": 0
     },
     "512": {
       "id": "512",
@@ -196,7 +196,7 @@
       "type": 2,
       "diff": 2,
       "value": 0,
-      "score": 0.0
+      "score": 0
     },
     "513": {
       "id": "513",
@@ -204,7 +204,7 @@
       "type": 2,
       "diff": 2,
       "value": 0,
-      "score": 0.0
+      "score": 0
     },
     "514": {
       "id": "514",
@@ -212,7 +212,7 @@
       "type": 1,
       "diff": 2,
       "value": 0,
-      "score": 0.0
+      "score": 0
     },
     "515": {
       "id": "515",
@@ -220,7 +220,7 @@
       "type": 1,
       "diff": 1,
       "value": 0,
-      "score": 0.0
+      "score": 0
     },
     "516": {
       "id": "516",
@@ -228,7 +228,7 @@
       "type": 1,
       "diff": 2,
       "value": 0,
-      "score": 0.0
+      "score": 0
     },
     "517": {
       "id": "517",
@@ -236,7 +236,7 @@
       "type": 1,
       "diff": 3,
       "value": 0,
-      "score": 0.0
+      "score": 0
     },
     "518": {
       "id": "518",
@@ -244,7 +244,7 @@
       "type": 1,
       "diff": 2,
       "value": 0,
-      "score": 0.0
+      "score": 0
     },
     "519": {
       "id": "519",
@@ -252,7 +252,7 @@
       "type": 1,
       "diff": 1,
       "value": 0,
-      "score": 0.0
+      "score": 0
     },
     "520": {
       "id": "520",
@@ -260,7 +260,7 @@
       "type": 1,
       "diff": 3,
       "value": 0,
-      "score": 0.0
+      "score": 0
     }
   }
 }

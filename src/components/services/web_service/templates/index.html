@@ -55,6 +55,16 @@
             margin-bottom: 4px;
         }
 
+        #points-view {
+            color: #fff;
+            font-family: 'Courier New', 'Courier', monospace;
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+            letter-spacing: 0.1em;
+            text-shadow: none;
+        }
+
         #process-view {
             color: var(--accent);
             font-size: 0.9rem;
@@ -280,6 +290,7 @@
 
 <body>
     <div id="live-render">
+        <div id="points-view">0.0</div>
         <div id="buffer-view">_</div>
         <div id="process-view">Ready.</div>
     </div>
@@ -314,6 +325,7 @@
         // ─── refs ───
         const output       = document.getElementById('terminal-output');
         const bufferView   = document.getElementById('buffer-view');
+        const pointsView   = document.getElementById('points-view');
         const processView  = document.getElementById('process-view');
         const textInput    = document.getElementById('text-input');
         const dialInput    = document.getElementById('dial-input');
@@ -390,12 +402,16 @@
             updateStatus();
         }
 
-        // ─── polling / status ───
         async function updateStatus() {
             try {
                 const res  = await fetch('/api/status');
                 if (!res.ok) return;
                 const data = await res.json();
+
+                // atualiza pontos totais
+                if (data.user && typeof data.user.total_points === 'number') {
+                    pointsView.innerText = data.user.total_points;
+                }
 
                 // mensagens do servidor
                 if (data.messages && data.messages.length > 0)
@@ -411,19 +427,11 @@
             } catch (e) { /* sem servidor */ }
         }
 
-        // ─── buffer view (espelho do que o usuário digita) ───
         function mirrorBuffer(value) {
             bufferView.innerText = value ? value + '_' : '_';
         }
 
-        // ─────────────────────────────────────────────
-        // PREVIEW LIVE — espelha o parsing do dial
-        // Chama GET /api/preview?buffer=X a cada keystroke.
-        // Monta HTML formatado no #process-view:
-        //   ⭐ (Push Ups) -> Add -> _
-        // Se o servidor não estiver disponível, faz parsing
-        // local básico (só mostra buffer + cursor).
-        // ─────────────────────────────────────────────
+
         async function fetchPreview(buffer) {
             if (!buffer) {
                 processView.innerHTML = '<span style="color:var(--accent)">Ready.</span>';

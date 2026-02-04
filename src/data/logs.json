@@ -27,11 +27,141 @@
     {
         "timestamp": "03 02 2026 : 12:11:01",
         "content": "1 PUSH UPS",
-        "status": "[SYSTEM - TO PROCESS]"
+        "status": "[SYSTEM - PROCESSED]"
     },
     {
         "timestamp": "03 02 2026 : 12:53:24",
         "content": "Evove",
-        "status": "[IN WAIT]"
+        "status": "[CLOUD]"
+    },
+    {
+        "timestamp": "03 02 2026 : 15:09:01",
+        "content": "1 x MANGA/BOOK",
+        "status": "[SYSTEM - PROCESSED]"
+    },
+    {
+        "timestamp": "03 02 2026 : 15:09:30",
+        "content": "Banho",
+        "status": "[CLOUD]"
+    },
+    {
+        "timestamp": "03 02 2026 : 18:13:11",
+        "content": "Adaptador Chip Fail",
+        "status": "[CLOUD]"
+    },
+    {
+        "timestamp": "03 02 2026 : 18:48:36",
+        "content": "1 x MUSIC",
+        "status": "[SYSTEM - PROCESSED]"
+    },
+    {
+        "timestamp": "03 02 2026 : 21:37:58",
+        "content": "Feij\u00e3o",
+        "status": "[CLOUD]"
+    },
+    {
+        "timestamp": "03 02 2026 : 21:46:10",
+        "content": "1 PLANK",
+        "status": "[DELETED]"
+    },
+    {
+        "timestamp": "03 02 2026 : 21:47:35",
+        "content": "Evove Extra",
+        "status": "[CLOUD]"
+    },
+    {
+        "timestamp": "03 02 2026 : 22:03:19",
+        "content": "2 CLEAN UP DOG MESS",
+        "status": "[SYSTEM - PROCESSED]"
+    },
+    {
+        "timestamp": "03 02 2026 : 22:04:33",
+        "content": "2 COOK",
+        "status": "[SYSTEM - PROCESSED]"
+    },
+    {
+        "timestamp": "03 02 2026 : 22:05:07",
+        "content": "2 DISHES",
+        "status": "[SYSTEM - PROCESSED]"
+    },
+    {
+        "timestamp": "03 02 2026 : 22:07:43",
+        "content": "5 PROGRAMMING",
+        "status": "[SYSTEM - PROCESSED]"
+    },
+    {
+        "timestamp": "03 02 2026 : 22:09:24",
+        "content": "8 READ MANGA",
+        "status": "[SYSTEM - PROCESSED]"
+    },
+    {
+        "timestamp": "03 02 2026 : 22:12:16",
+        "content": "30 LISTEN TO MUSIC",
+        "status": "[SYSTEM - PROCESSED]"
+    },
+    {
+        "timestamp": "03 02 2026 : 22:14:28",
+        "content": "1 TAKE A PICTURE",
+        "status": "[SYSTEM - PROCESSED]"
+    },
+    {
+        "timestamp": "03 02 2026 : 22:16:26",
+        "content": "1 PUSH UPS",
+        "status": "[SYSTEM - IN WAIT]"
+    },
+    {
+        "timestamp": "03 02 2026 : 22:16:26",
+        "content": "2 CLEAN UP DOG MESS",
+        "status": "[SYSTEM - IN WAIT]"
+    },
+    {
+        "timestamp": "03 02 2026 : 22:16:26",
+        "content": "2 COOK",
+        "status": "[SYSTEM - IN WAIT]"
+    },
+    {
+        "timestamp": "03 02 2026 : 22:16:26",
+        "content": "2 DISHES",
+        "status": "[SYSTEM - IN WAIT]"
+    },
+    {
+        "timestamp": "03 02 2026 : 22:16:26",
+        "content": "5 PROGRAMMING",
+        "status": "[SYSTEM - IN WAIT]"
+    },
+    {
+        "timestamp": "03 02 2026 : 22:16:26",
+        "content": "8 READ MANGA",
+        "status": "[SYSTEM - IN WAIT]"
+    },
+    {
+        "timestamp": "03 02 2026 : 22:16:26",
+        "content": "30 LISTEN TO MUSIC",
+        "status": "[SYSTEM - IN WAIT]"
+    },
+    {
+        "timestamp": "03 02 2026 : 22:16:26",
+        "content": "1 TAKE A PICTURE",
+        "status": "[SYSTEM - IN WAIT]"
+    },
+    {
+        "timestamp": "03 02 2026 : 22:16:26",
+        "content": "1 x MANGA/BOOK",
+        "status": "[SYSTEM - IN WAIT]"
+    },
+    {
+        "timestamp": "03 02 2026 : 22:16:26",
+        "content": "1 x MUSIC",
+        "status": "[SYSTEM - IN WAIT]"
+    },
+    {
+        "timestamp": "04 02 2026 : 06:38:53",
+        "content": "14 RUN STREET",
+        "status": "[SYSTEM - TO PROCESS]"
+    },
+    {
+        "timestamp": "04 02 2026 : 06:39:45",
+        "content": "120 LISTEN TO MUSIC",
+        "status": "[SYSTEM - TO PROCESS]"
     }
 ]

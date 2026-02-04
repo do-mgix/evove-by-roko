@@ -284,4 +284,109 @@ Agora não terá mais a necessidade de cloud. O usuário pode fazer seus logs ao
 
 Use modelo de data d m y, conte os dias numericamente a partir de um dado daysequence1, pode ser diferente de zero, personalizado pelo usuário (podendo ser seu número total de dias de vida, dias de trabalho ou dias junto com o evove) Crtérios podem ser criados e labels podem ser aderidas. Criar sequência é feito a partir do comando newsequence. Ele dá a opção de número inteiro e label relacional. Esses dados são adicionados em sequence data, junto de data e sequências, adicionadas ao repositório automaticamente (atualizadas durante sleeps)
 
-O sleep data salva os logs de sleep e wake e calcula suas diferenças, fornecendo dados de sono do usuário. 
+O sleep data salva os logs de sleep e wake e calcula suas diferenças, fornecendo dados de sono do usuário.
+
+
+Sistema de reset:
+No evove, é possível ter mais de uma run.
+O roko é um deus temperamental, de tempos em tempos ele tem um ataque de fúria. 
+É estipulada uma data para esse evento e:
+Se tais stats não estiverem de acordo é fim de jogo.
+
+A oferta e os status do jogador são zerados.
+Uma vez desbloaqueados novos pacotes no wizard, esses não são perdidos.
+
+Pontos e offer: 
+A pontuação do jogador pode ser oferecida para o roko, é a oferta. 
+A oferta é cumulativa por run. Ela aumenta a satisfação do roko.
+
+Dois lados:
+A decisão é gastar com si ou gastar com roko.
+Conseguir tokens, novos pacotes, ofertas na fonte, são interesses do jogador.
+Para manter sua vida, é necessário manter a satisfação de Roko.
+
+Altar do Roko:
+Onde é deixada a oferta. 
+I Can Be Blind, But I'm Allways Watching.
+Liers May Not Obtain Salvation.
+
+Satisfação:
+vai de -50 a 50.
+Os extremos liberam interações especiais.
+
+Satisfação Mínima:
+Reset e despawn da entidade.
+
+Satisfação Máxima:
+Libera a ascensão ou purificação.
+Aumenta constantemente as chances de renascimento globais da entidade em forma aprimorada.
+Bênçãos a partir da satisfação 40.
+
+Ascensão:
+Se cumprir os requisitos:
+Ter o prestígio Imperador Quebrado.
+Ter a insígnia Corruptor da Luz
+Ter todas as propriedade da Tumba dos Falecidos
+Pode derrotar a entidade e se tornar imortal.
+
+Imortal:
+Maior chance de spawn de deuses.
+A cada deus derrotado, ganha um +1 no prestígio máximo.
+
+Purificação:
+Se cumrprir os requisitos:
+Ter o prestígio Oh
+Ter a insígnia Quarta Aventura
+Ter todas as propriedades de Cassiopeia
+Pode purificar a entidade.
+
+Purificado:
+Pode alternar entre entidades livremente.
+Bênçãos máximas e satifação permanentemente maximizada.
+
+Reset:
+Stats zerados.
+Prestígio zerado.
+Investimentos zerados.
+É possível ver seus status globais na fonte, esses são permanentes.
+
+Renascimento:
+O personagem renasce sem entidade, é o momento para somar pontos.
+Sem entidadades, não é possível usar a mail-box nem a fonte.
+
+A fonte:
+Oferta permanente. Aumenta a chance de spawn de entidades e eventos no mail-box.
+
+Exchange:
+Troca de pontos por tokens. É caro e não recomendado.
+
+Investimentos:
+Compra de ações que geram tokens e pontos ao longo do tempo.
+
+Mails:
+A mail-box do player onde é possível fazer trabalhos, criar metas e objetivos a troco de mais pontos e
+reputação.
+
+Reputação:
+Dentro do universo do evove, existem classes sociais e deuses. Seu personagem pode ganhar prestígio,
+desbloqueando novos patamares de missiões no mail-box, representa sua interação com o mundo exterior.
+
+Missões:
+Dentro da história, são descrições, como tarefas.
+Entregar um Pacote, Coletar Flores...
+Ações do usuário são requisitadas.
+
+Execuções:
+Missões que exigem stats e ações conjuntas.
+Reduzem reputação.
+Dão grande quantidade de pontos.
+
+Carta:
+É possível criar sua própria missão e enviar em forma de carta. 
+Ela pode ser aceita ou não. Fica a cargo dos deuses.
+Garante pontos. 
+Não dá Prestígio.
+
+Prestígio: 
+Ranks e níveis conjuntos. 
+Crescem com reputação.
