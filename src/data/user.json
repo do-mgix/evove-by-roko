@@ -349,16 +349,16 @@
             "name": "Cook",
             "type": 1,
             "diff": 3,
-            "value": 4,
-            "score": 1200
+            "value": 5,
+            "score": 1500
         },
         "523": {
             "id": "523",
             "name": "Dishes",
             "type": 1,
             "diff": 2,
-            "value": 2,
-            "score": 200
+            "value": 3,
+            "score": 300
         },
         "524": {
             "id": "524",
