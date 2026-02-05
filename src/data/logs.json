@@ -157,11 +157,126 @@
     {
         "timestamp": "04 02 2026 : 06:38:53",
         "content": "14 RUN STREET",
-        "status": "[SYSTEM - TO PROCESS]"
+        "status": "[SYSTEM - PROCESSED]"
     },
     {
         "timestamp": "04 02 2026 : 06:39:45",
         "content": "120 LISTEN TO MUSIC",
+        "status": "[SYSTEM - PROCESSED]"
+    },
+    {
+        "timestamp": "04 02 2026 : 10:27:56",
+        "content": "1 BATH",
+        "status": "[SYSTEM - PROCESSED]"
+    },
+    {
+        "timestamp": "04 02 2026 : 10:28:12",
+        "content": "Dormir",
+        "status": "[CLOUD]"
+    },
+    {
+        "timestamp": "04 02 2026 : 11:08:19",
+        "content": "1 x VIDEO GAMES",
+        "status": "[SYSTEM - PROCESSED]"
+    },
+    {
+        "timestamp": "04 02 2026 : 11:39:13",
+        "content": "1 COOK",
+        "status": "[SYSTEM - PROCESSED]"
+    },
+    {
+        "timestamp": "04 02 2026 : 21:02:56",
+        "content": "GTA 4",
+        "status": "[CLOUD]"
+    },
+    {
+        "timestamp": "04 02 2026 : 21:03:15",
+        "content": "1 COOK",
+        "status": "[SYSTEM - PROCESSED]"
+    },
+    {
+        "timestamp": "04 02 2026 : 21:03:50",
+        "content": "2 CLEAN UP DOG MESS",
+        "status": "[SYSTEM - PROCESSED]"
+    },
+    {
+        "timestamp": "04 02 2026 : 21:19:36",
+        "content": "1 CLEAN UP THE FLOOR",
+        "status": "[DELETED]"
+    },
+    {
+        "timestamp": "04 02 2026 : 21:21:12",
+        "content": "1 MOP THE FLOOR",
+        "status": "[SYSTEM - PROCESSED]"
+    },
+    {
+        "timestamp": "04 02 2026 : 21:22:12",
+        "content": "1 TAKE OUT THE TRASH",
+        "status": "[SYSTEM - PROCESSED]"
+    },
+    {
+        "timestamp": "04 02 2026 : 21:23:14",
+        "content": "1 TAKE A PICTURE",
+        "status": "[SYSTEM - PROCESSED]"
+    },
+    {
+        "timestamp": "04 02 2026 : 21:47:01",
+        "content": "14 RUN STREET",
+        "status": "[SYSTEM - IN WAIT]"
+    },
+    {
+        "timestamp": "04 02 2026 : 21:47:01",
+        "content": "120 LISTEN TO MUSIC",
+        "status": "[SYSTEM - IN WAIT]"
+    },
+    {
+        "timestamp": "04 02 2026 : 21:47:01",
+        "content": "1 BATH",
+        "status": "[SYSTEM - IN WAIT]"
+    },
+    {
+        "timestamp": "04 02 2026 : 21:47:01",
+        "content": "2 COOK",
+        "status": "[SYSTEM - IN WAIT]"
+    },
+    {
+        "timestamp": "04 02 2026 : 21:47:01",
+        "content": "2 CLEAN UP DOG MESS",
+        "status": "[SYSTEM - IN WAIT]"
+    },
+    {
+        "timestamp": "04 02 2026 : 21:47:01",
+        "content": "1 MOP THE FLOOR",
+        "status": "[SYSTEM - IN WAIT]"
+    },
+    {
+        "timestamp": "04 02 2026 : 21:47:01",
+        "content": "1 TAKE OUT THE TRASH",
+        "status": "[SYSTEM - IN WAIT]"
+    },
+    {
+        "timestamp": "04 02 2026 : 21:47:01",
+        "content": "1 TAKE A PICTURE",
+        "status": "[SYSTEM - IN WAIT]"
+    },
+    {
+        "timestamp": "04 02 2026 : 21:47:01",
+        "content": "1 x VIDEO GAMES",
+        "status": "[SYSTEM - IN WAIT]"
+    },
+    {
+        "timestamp": "05 02 2026 : 00:06:43",
+        "content": "Bolo M\u00e3e",
+        "status": "[CLOUD]"
+    },
+    {
+        "timestamp": "05 02 2026 : 15:37:34",
+        "content": "1 x SOCIAL MEDIA",
+        "status": "[SYSTEM - TO PROCESS]"
+    },
+    {
+        "timestamp": "05 02 2026 : 18:22:20",
+        "content": "1 x MUSIC",
         "status": "[SYSTEM - TO PROCESS]"
     }
 ]

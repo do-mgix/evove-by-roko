@@ -1,5 +1,5 @@
 {
-    "score": 3200.0,
+    "score": 1066.6666666666667,
     "value": 0,
     "attributes": {
         "801": {
@@ -27,7 +27,7 @@
                 "801",
                 "801"
             ],
-            "total_score": 18900
+            "total_score": 6300
         },
         "803": {
             "id": "803",
@@ -41,7 +41,7 @@
                 "801",
                 "801"
             ],
-            "total_score": 300
+            "total_score": 100
         },
         "804": {
             "id": "804",
@@ -71,7 +71,7 @@
                 "802",
                 "802"
             ],
-            "total_score": 18900
+            "total_score": 6300
         },
         "806": {
             "id": "806",
@@ -116,7 +116,7 @@
                 "803",
                 "803"
             ],
-            "total_score": 300
+            "total_score": 100
         },
         "809": {
             "id": "809",
@@ -182,7 +182,7 @@
             "type": 1,
             "diff": 2,
             "value": 63,
-            "score": 18900
+            "score": 6300
         },
         "502": {
             "id": "502",
@@ -270,7 +270,7 @@
             "type": 2,
             "diff": 2,
             "value": 1,
-            "score": 300
+            "score": 100
         },
         "513": {
             "id": "513",
@@ -341,15 +341,15 @@
             "name": "Clean Up Dog Mess",
             "type": 1,
             "diff": 2,
-            "value": 2,
-            "score": 600
+            "value": 4,
+            "score": 400
         },
         "522": {
             "id": "522",
             "name": "Cook",
             "type": 1,
             "diff": 3,
-            "value": 2,
+            "value": 4,
             "score": 1200
         },
         "523": {
@@ -358,7 +358,7 @@
             "type": 1,
             "diff": 2,
             "value": 2,
-            "score": 600
+            "score": 200
         },
         "524": {
             "id": "524",
@@ -366,7 +366,7 @@
             "type": 4,
             "diff": 4,
             "value": 5,
-            "score": 1800000
+            "score": 9000
         },
         "525": {
             "id": "525",
@@ -374,23 +374,23 @@
             "type": 3,
             "diff": 1,
             "value": 8,
-            "score": 48000
+            "score": 400
         },
         "526": {
             "id": "526",
             "name": "Listen To Music",
             "type": 3,
-            "diff": 1,
+            "diff": 0,
             "value": 150,
-            "score": 900000
+            "score": 300
         },
         "527": {
             "id": "527",
             "name": "Take A Picture",
             "type": 1,
-            "diff": 1,
-            "value": 1,
-            "score": 100
+            "diff": 0,
+            "value": 2,
+            "score": 2
         },
         "528": {
             "id": "528",
@@ -398,7 +398,39 @@
             "type": 1,
             "diff": 4,
             "value": 14,
-            "score": 14000
+            "score": 8400
+        },
+        "529": {
+            "id": "529",
+            "name": "Bath",
+            "type": 1,
+            "diff": 0,
+            "value": 1,
+            "score": 1
+        },
+        "530": {
+            "id": "530",
+            "name": "Clean Up The Floor",
+            "type": 1,
+            "diff": 4,
+            "value": 0,
+            "score": 0
+        },
+        "531": {
+            "id": "531",
+            "name": "Mop The Floor",
+            "type": 1,
+            "diff": 2,
+            "value": 1,
+            "score": 100
+        },
+        "532": {
+            "id": "532",
+            "name": "Take Out The Trash",
+            "type": 1,
+            "diff": 1,
+            "value": 1,
+            "score": 25
         }
     },
     "metadata": {
@@ -407,11 +439,11 @@
         "unlocked_packages": [
             "basics"
         ],
-        "tokens": 30,
+        "tokens": 45,
         "max_tokens": 50,
         "daily_refill": 20,
         "refill_cooldown": 12,
-        "last_token_refill": "2026-02-03",
+        "last_token_refill": "2026-02-05",
         "daily_actions": {},
         "daily_purchases": {},
         "starter_packs_seen": true,

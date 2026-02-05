@@ -390,3 +390,10 @@ Não dá Prestígio.
 Prestígio: 
 Ranks e níveis conjuntos. 
 Crescem com reputação.
+
+
+FIX:
+Ações de minutos e horas com bonus muito alto
+Dificuldade 1 possui bônus muito alto
+Adicionar dificuldade 0
+Registro de sono durante o dia (sem log)

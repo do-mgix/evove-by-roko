@@ -4,23 +4,25 @@ from abc import ABC, abstractmethod
 class Action:
     # Progressão linear: 2.1 + (diff - 1) * 1.1
     _DIFFICULTY_MULTIPLIER_MAP = {
-        1: 100,
-        2: 300,
-        3: 600,
-        4: 1000,
-        5: 2500,        
+        0: 1,
+        1: 25,
+        2: 100,
+        3: 300,
+        4: 600,
+        5: 1200,        
     }
     _TYPE_MAP = {
         1: {"label": "repetitions", "factor": 1},
         2: {"label": "seconds", "factor": 1}, 
-        3: {"label": "minutes", "factor": 60}, 
-        4: {"label": "hours", "factor": 360}, 
+        3: {"label": "minutes", "factor": 2}, 
+        4: {"label": "hours", "factor": 3}, 
         5: {"label": "letters", "factor": 1}, 
+        6: {"label": "lines", "factor": 2}, 
     }
     
     def __init__(self, action_id, name: str, tipo: int, diff: int, value: float):
-        if not (1 <= diff <= 8):
-            raise ValueError("Difficulty 'diff' must be an integer between 1 and 6.")
+        if not (0 <= diff <= 5):
+            raise ValueError("Difficulty 'diff' must be an integer between 0 and 5.")
         if tipo not in self._TYPE_MAP:
             raise ValueError(f"Invalid action type: {tipo}")
         self._id = action_id

@@ -24,22 +24,57 @@ class User:
             "refill_cooldown": 12,
             "last_token_refill": datetime.now().isoformat()
         }
-        self.load_user()
-
+        self.load_user()    
     def regenerate_tokens(self):
-        """Regenerates poke tokens based on passed time"""
+        """Regenerates poke tokens based on passed time.
+        
+        Calcula quantos tokens devem ser adicionados com base no tempo passado
+        desde o último refill. Usa a fórmula:
+            tokens = (horas_passadas / refill_cooldown) * daily_refill
+        
+        Exemplo: 
+            - refill_cooldown: 12h
+            - daily_refill: 20 tokens
+            - Se passaram 24h → ganha 40 tokens (2 ciclos completos)
+        """
         now = datetime.now()
-
-        last = datetime.fromisoformat(self.metadata["last_token_refill"])
-        time_passed = (now - last).total_seconds() / 3600
-
-        tokens_to_add = int(time_passed/self.metadata["refill_cooldown"] * self.metadata["daily_refill"])
+        
+        last_str = self.metadata.get("last_token_refill")
+        if not last_str:
+            # Se nunca foi definido, inicializa agora
+            self.metadata["last_token_refill"] = now.strftime("%Y-%m-%d")
+            self.save_user()
+            return
+        
+        # Garante que last é datetime (suporta ambos formatos para retrocompatibilidade)
+        try:
+            if isinstance(last_str, str):
+                last = datetime.fromisoformat(last_str)
+            else:
+                last = last_str
+        except (ValueError, TypeError):
+            # Se formato inválido, reinicializa
+            self.metadata["last_token_refill"] = now.strftime("%Y-%m-%d")
+            self.save_user()
+            return
+        
+        time_passed = (now - last).total_seconds() / 3600  # horas
+        refill_cooldown = self.metadata.get("refill_cooldown", 12)
+        daily_refill = self.metadata.get("daily_refill", 20)
+        
+        tokens_to_add = int(time_passed / refill_cooldown * daily_refill)
         
         if tokens_to_add > 0:
-            self.metadata["tokens"] = min(self.metadata["max_tokens"], self.metadata["tokens"] + tokens_to_add)
-            self.metadata["last_token_refill"] = now
-    
-    
+            # Usa add_tokens() que já faz:
+            #   - limite ao max_tokens
+            #   - adiciona mensagem ao buffer
+            #   - chama save_user()
+            self.add_tokens(tokens_to_add)
+            
+            # Atualiza last_token_refill com formato consistente (string YYYY-MM-DD)
+            self.metadata["last_token_refill"] = now.strftime("%Y-%m-%d")
+            self.save_user()  
+
     def add_tokens(self, amount):
         """Adds tokens up to max_tokens limit"""
         max_t = self.metadata.get("max_tokens", 50)

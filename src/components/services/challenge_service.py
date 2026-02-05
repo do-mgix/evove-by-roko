@@ -37,25 +37,26 @@ class ChallengeManager:
                 self._generate_challenge(entity)
 
     def _check_daily_refill(self):
-        """Standard refill at 5:00 AM every day"""
-        if not self.user: return
-
+        """Refill once per day when date changes"""
+        if not self.user: 
+            return
+        
         now = datetime.now()
-        today_refill_mark = now.replace(hour=5, minute=0, second=0, microsecond=0)
+        today_str = now.strftime("%Y-%m-%d")
         
         last_refill_str = self.user.metadata.get("last_token_refill")
+        
+        # Se nunca foi definido, inicializa com hoje (sem recarregar)
         if not last_refill_str:
-            self.user.metadata["last_token_refill"] = now.strftime("%Y-%m-%d")
+            self.user.metadata["last_token_refill"] = today_str
             self.user.save_user()
             return
-
-        last_refill_date = datetime.strptime(last_refill_str, "%Y-%m-%d")
         
-        # If it's past 5:00 AM today and we haven't refilled today
-        if now >= today_refill_mark and last_refill_date.date() < now.date():
-            amount = self.user.metadata.get("daily_refill", 50)
+        # Se a data mudou desde o último refill, recarrega
+        if last_refill_str != today_str:
+            amount = self.user.metadata.get("daily_refill", 20)
             self.user.add_tokens(amount)
-            self.user.metadata["last_token_refill"] = now.strftime("%Y-%m-%d")
+            self.user.metadata["last_token_refill"] = today_str
             self.user.save_user()
 
     def _generate_challenge(self, entity):
