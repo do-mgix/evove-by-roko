@@ -1,0 +1,23 @@
+{
+    "agenda": [
+        {
+            "label": "Run On Run Street",
+            "type": "everyday",
+            "related_action": "Run Street",
+            "start_date": "05:00:00",
+            "end_date": "06:10:00",
+            "firt_execution_date": "04 02 2026 : 21:47:01",
+            "last_execution_date": "04 02 2026 : 21:47:01",
+            "max_value": 1,
+            "current_value": 0
+        },
+        {
+            "label": "Visit",
+            "type": "single time",
+            "related_action": 0,
+            "start_date": "04 02 2026 : 21:47:01",
+            "end_date": "04 02 2026 : 22:47:01",
+            "value": 0
+        }
+    ]
+}
