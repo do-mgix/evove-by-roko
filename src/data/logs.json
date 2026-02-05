@@ -7,7 +7,7 @@
     {
         "timestamp": "03 02 2026 : 11:31:34",
         "content": "1 PUSH UPS",
-        "status": "[SYSTEM - PROCESSED]"
+        "status": "[PROCESSED]"
     },
     {
         "timestamp": "03 02 2026 : 11:32:29",
@@ -27,7 +27,7 @@
     {
         "timestamp": "03 02 2026 : 12:11:01",
         "content": "1 PUSH UPS",
-        "status": "[SYSTEM - PROCESSED]"
+        "status": "[PROCESSED]"
     },
     {
         "timestamp": "03 02 2026 : 12:53:24",
@@ -37,7 +37,7 @@
     {
         "timestamp": "03 02 2026 : 15:09:01",
         "content": "1 x MANGA/BOOK",
-        "status": "[SYSTEM - PROCESSED]"
+        "status": "[PROCESSED]"
     },
     {
         "timestamp": "03 02 2026 : 15:09:30",
@@ -52,7 +52,7 @@
     {
         "timestamp": "03 02 2026 : 18:48:36",
         "content": "1 x MUSIC",
-        "status": "[SYSTEM - PROCESSED]"
+        "status": "[PROCESSED]"
     },
     {
         "timestamp": "03 02 2026 : 21:37:58",
@@ -72,102 +72,102 @@
     {
         "timestamp": "03 02 2026 : 22:03:19",
         "content": "2 CLEAN UP DOG MESS",
-        "status": "[SYSTEM - PROCESSED]"
+        "status": "[PROCESSED]"
     },
     {
         "timestamp": "03 02 2026 : 22:04:33",
         "content": "2 COOK",
-        "status": "[SYSTEM - PROCESSED]"
+        "status": "[PROCESSED]"
     },
     {
         "timestamp": "03 02 2026 : 22:05:07",
         "content": "2 DISHES",
-        "status": "[SYSTEM - PROCESSED]"
+        "status": "[PROCESSED]"
     },
     {
         "timestamp": "03 02 2026 : 22:07:43",
         "content": "5 PROGRAMMING",
-        "status": "[SYSTEM - PROCESSED]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "03 02 2026 : 22:09:24",
         "content": "8 READ MANGA",
-        "status": "[SYSTEM - PROCESSED]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "03 02 2026 : 22:12:16",
         "content": "30 LISTEN TO MUSIC",
-        "status": "[SYSTEM - PROCESSED]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "03 02 2026 : 22:14:28",
         "content": "1 TAKE A PICTURE",
-        "status": "[SYSTEM - PROCESSED]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "03 02 2026 : 22:16:26",
         "content": "1 PUSH UPS",
-        "status": "[SYSTEM - IN WAIT]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "03 02 2026 : 22:16:26",
         "content": "2 CLEAN UP DOG MESS",
-        "status": "[SYSTEM - IN WAIT]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "03 02 2026 : 22:16:26",
         "content": "2 COOK",
-        "status": "[SYSTEM - IN WAIT]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "03 02 2026 : 22:16:26",
         "content": "2 DISHES",
-        "status": "[SYSTEM - IN WAIT]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "03 02 2026 : 22:16:26",
         "content": "5 PROGRAMMING",
-        "status": "[SYSTEM - IN WAIT]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "03 02 2026 : 22:16:26",
         "content": "8 READ MANGA",
-        "status": "[SYSTEM - IN WAIT]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "03 02 2026 : 22:16:26",
         "content": "30 LISTEN TO MUSIC",
-        "status": "[SYSTEM - IN WAIT]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "03 02 2026 : 22:16:26",
         "content": "1 TAKE A PICTURE",
-        "status": "[SYSTEM - IN WAIT]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "03 02 2026 : 22:16:26",
         "content": "1 x MANGA/BOOK",
-        "status": "[SYSTEM - IN WAIT]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "03 02 2026 : 22:16:26",
         "content": "1 x MUSIC",
-        "status": "[SYSTEM - IN WAIT]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "04 02 2026 : 06:38:53",
         "content": "14 RUN STREET",
-        "status": "[SYSTEM - PROCESSED]"
+        "status": "[PROCESSED]"
     },
     {
         "timestamp": "04 02 2026 : 06:39:45",
         "content": "120 LISTEN TO MUSIC",
-        "status": "[SYSTEM - PROCESSED]"
+        "status": "[PROCESSED]"
     },
     {
         "timestamp": "04 02 2026 : 10:27:56",
         "content": "1 BATH",
-        "status": "[SYSTEM - PROCESSED]"
+        "status": "[PROCESSED]"
     },
     {
         "timestamp": "04 02 2026 : 10:28:12",
@@ -177,12 +177,12 @@
     {
         "timestamp": "04 02 2026 : 11:08:19",
         "content": "1 x VIDEO GAMES",
-        "status": "[SYSTEM - PROCESSED]"
+        "status": "[PROCESSED]"
     },
     {
         "timestamp": "04 02 2026 : 11:39:13",
         "content": "1 COOK",
-        "status": "[SYSTEM - PROCESSED]"
+        "status": "[PROCESSED]"
     },
     {
         "timestamp": "04 02 2026 : 21:02:56",
@@ -192,12 +192,12 @@
     {
         "timestamp": "04 02 2026 : 21:03:15",
         "content": "1 COOK",
-        "status": "[SYSTEM - PROCESSED]"
+        "status": "[PROCESSED]"
     },
     {
         "timestamp": "04 02 2026 : 21:03:50",
         "content": "2 CLEAN UP DOG MESS",
-        "status": "[SYSTEM - PROCESSED]"
+        "status": "[PROCESSED]"
     },
     {
         "timestamp": "04 02 2026 : 21:19:36",
@@ -207,62 +207,62 @@
     {
         "timestamp": "04 02 2026 : 21:21:12",
         "content": "1 MOP THE FLOOR",
-        "status": "[SYSTEM - PROCESSED]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "04 02 2026 : 21:22:12",
         "content": "1 TAKE OUT THE TRASH",
-        "status": "[SYSTEM - PROCESSED]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "04 02 2026 : 21:23:14",
         "content": "1 TAKE A PICTURE",
-        "status": "[SYSTEM - PROCESSED]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "04 02 2026 : 21:47:01",
         "content": "14 RUN STREET",
-        "status": "[SYSTEM - IN WAIT]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "04 02 2026 : 21:47:01",
         "content": "120 LISTEN TO MUSIC",
-        "status": "[SYSTEM - IN WAIT]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "04 02 2026 : 21:47:01",
         "content": "1 BATH",
-        "status": "[SYSTEM - IN WAIT]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "04 02 2026 : 21:47:01",
         "content": "2 COOK",
-        "status": "[SYSTEM - IN WAIT]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "04 02 2026 : 21:47:01",
         "content": "2 CLEAN UP DOG MESS",
-        "status": "[SYSTEM - IN WAIT]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "04 02 2026 : 21:47:01",
         "content": "1 MOP THE FLOOR",
-        "status": "[SYSTEM - IN WAIT]"
+        "status": "[CLOUD]" 
     },
     {
         "timestamp": "04 02 2026 : 21:47:01",
         "content": "1 TAKE OUT THE TRASH",
-        "status": "[SYSTEM - IN WAIT]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "04 02 2026 : 21:47:01",
         "content": "1 TAKE A PICTURE",
-        "status": "[SYSTEM - IN WAIT]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "04 02 2026 : 21:47:01",
         "content": "1 x VIDEO GAMES",
-        "status": "[SYSTEM - IN WAIT]"
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "05 02 2026 : 00:06:43",
@@ -272,11 +272,11 @@
     {
         "timestamp": "05 02 2026 : 15:37:34",
         "content": "1 x SOCIAL MEDIA",
-        "status": "[SYSTEM - TO PROCESS]"
+        "status": "[TO PROCESS]"
     },
     {
         "timestamp": "05 02 2026 : 18:22:20",
         "content": "1 x MUSIC",
-        "status": "[SYSTEM - TO PROCESS]"
+        "status": "[TO PROCESS]"
     }
 ]

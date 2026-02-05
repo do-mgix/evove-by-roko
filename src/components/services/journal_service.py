@@ -87,7 +87,7 @@ class JournalService:
         status = custom_status if custom_status else "[IN WAIT]"
         
         # 1. Append to evove26 (Skip if it's a "TO PROCESS" system log)
-        if status != "[SYSTEM - TO PROCESS]":
+        if status != "[TO PROCESS]":
             try:
                 os.makedirs(self.journal_dir, exist_ok=True)
                 
@@ -114,11 +114,11 @@ class JournalService:
         return True
 
     def process_daily_logs(self):
-        """Aggregates [SYSTEM - TO PROCESS] logs into [SYSTEM - IN WAIT] entries."""
+        """Aggregates [TO PROCESS] logs into [IN WAIT] entries."""
         if not self.logs:
             return "No logs to process."
 
-        to_process_indices = [i for i, log in enumerate(self.logs) if log.get("status") == "[SYSTEM - TO PROCESS]"]
+        to_process_indices = [i for i, log in enumerate(self.logs) if log.get("status") == "[TO PROCESS]"]
         
         if not to_process_indices:
             return "No pending system logs."
@@ -151,14 +151,14 @@ class JournalService:
 
         # Create new aggregated logs
         for name, value in actions_agg.items():
-            self.add_log(f"{value} {name}", auto_confirm=True, custom_status="[SYSTEM - IN WAIT]")
+            self.add_log(f"{value} {name}", auto_confirm=True, custom_status="[IN WAIT]")
             
         for name, qtd in purchases_agg.items():
-            self.add_log(f"{qtd} x {name}", auto_confirm=True, custom_status="[SYSTEM - IN WAIT]")
+            self.add_log(f"{qtd} x {name}", auto_confirm=True, custom_status="[IN WAIT]")
 
         # Mark originals as PROCESSED
         for idx in to_process_indices:
-            self.logs[idx]["status"] = "[SYSTEM - PROCESSED]"
+            self.logs[idx]["status"] = "[PROCESSED]"
             
         self._save_logs_data()
         return f"Processed {len(to_process_indices)} entries."
@@ -169,7 +169,7 @@ class JournalService:
             return ["No logs available."]
         
         # Filter active logs only (ignore DELETED and PROCESSED)
-        active_logs = [log for log in self.logs if log.get("status") not in ["[DELETED]", "[SYSTEM - PROCESSED]"]]
+        active_logs = [log for log in self.logs if log.get("status") not in ["[DELETED]", "[PROCESSED]"]]
         
         if not active_logs:
             return ["No active logs available."]
