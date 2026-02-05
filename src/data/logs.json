@@ -247,7 +247,7 @@
     {
         "timestamp": "04 02 2026 : 21:47:01",
         "content": "1 MOP THE FLOOR",
-        "status": "[CLOUD]" 
+        "status": "[CLOUD]"
     },
     {
         "timestamp": "04 02 2026 : 21:47:01",
@@ -272,11 +272,26 @@
     {
         "timestamp": "05 02 2026 : 15:37:34",
         "content": "1 x SOCIAL MEDIA",
-        "status": "[TO PROCESS]"
+        "status": "[PROCESSED]"
     },
     {
         "timestamp": "05 02 2026 : 18:22:20",
         "content": "1 x MUSIC",
-        "status": "[TO PROCESS]"
+        "status": "[PROCESSED]"
+    },
+    {
+        "timestamp": "05 02 2026 : 19:27:23",
+        "content": "1 x SOCIAL MEDIA",
+        "status": "[CLOUD]"
+    },
+    {
+        "timestamp": "05 02 2026 : 19:27:23",
+        "content": "1 x MUSIC",
+        "status": "[CLOUD]"
+    },
+    {
+        "timestamp": "05 02 2026 : 19:32:33",
+        "content": "NAP",
+        "status": "[IN WAIT]"
     }
 ]

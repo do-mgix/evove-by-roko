@@ -343,6 +343,12 @@ class JournalService:
         
         return f"Sleep at {sleep_time.strftime('%H:%M:%S')}. {msg}"
 
+    def nap(self):                   
+        # 2. Log sleep time (service)
+        sleep_time = sleep_service.log_sleep()
+        
+        return f"Nap at {sleep_time.strftime('%H:%M:%S')}"
+
     def wake(self):
         wake_time, duration = sleep_service.log_wake()
         return f"Woke up at {wake_time.strftime('%H:%M:%S')}. Sleep duration: {duration}."

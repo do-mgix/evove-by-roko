@@ -152,6 +152,17 @@ class User:
         self.add_message(result)
         self.save_user()
 
+    def nap(self):
+        if self._check_sleep():
+            return
+
+        #Sleep without git sync
+        result = journal_service.nap()
+        self.metadata["is_sleeping"] = True
+        self.add_message(result)
+        self.log("NAP")
+        self.save_user()
+
     def wake(self):
         result = journal_service.wake()
         self.metadata["is_sleeping"] = False

@@ -36,6 +36,7 @@ SINGLE_COMMANDS = {
     "007": {"len": 0, "func": user.drop_last_day, "label": "drop_day"},
     "71": {"len": 0, "func": user.wake, "label": "wake"},
     "70": {"len": 0, "func": user.sleep, "label": "sleep"},
+    "770": {"len": 0, "func": user.nap, "label": "nap"},
     "247": {"len": 0, "func": user.new_sequence, "label": "new_sequence"},
     "947": {"len": 0, "func": user.list_sequences, "label": "list_sequences"},
     "047": {"len": 0, "func": user.delete_sequence, "label": "drop_sequence"},
