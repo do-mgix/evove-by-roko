@@ -5,6 +5,7 @@ from src.components.entitys.entity_manager import EntityManager
 from src.components.user.attributes.attribute import Attribute
 from src.components.user.actions.action import Action
 from src.components.services.journal_service import journal_service
+from src.components.services.agenda_service import agenda_service
 
 class User:
     def __init__(self):
@@ -229,6 +230,19 @@ class User:
         self.save_user()
 
     def add_log_entry(self, text=None):
+        if self._check_sleep():
+            return
+        if text is None:
+            from src.components.services.UI.interface import WebInputInterrupt
+            raise WebInputInterrupt("log message", type="text")
+        self.log(text)
+
+    def agenda_item(self, text):
+        if journal_service.add_log(text):
+            self.add_message(f"Log buffered: {text}")
+        self.save_user()
+
+    def add_agenda_item(self, text=None):
         if self._check_sleep():
             return
         if text is None:
