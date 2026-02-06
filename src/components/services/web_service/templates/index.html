@@ -335,6 +335,7 @@
         // ─── estado ───
         let isPending      = false;
         let pendingType    = null;   // "text" | "numeric" | "confirm" | null
+        let lastGuidePrompt = null;
 
         // ────────────────────────────────────────────
         // FOCO CENTRALIZADO
@@ -351,8 +352,13 @@
                 target = (pending.type === 'numeric') ? 'dial' : 'text';
 
                 // atualiza placeholder do campo que vai receber o foco
+                const prompt = (pending.prompt || '').toLowerCase();
+                const genericPlaceholder = prompt.includes('label')
+                    ? 'label'
+                    : (prompt.includes('type') ? 'type' : 'type');
+
                 const el = (target === 'text') ? textInput : dialInput;
-                el.placeholder = pending.prompt + '…';
+                el.placeholder = genericPlaceholder;
             } else {
                 // modo livre → dial é o padrão
                 target = 'dial';
@@ -416,6 +422,16 @@
                 // mensagens do servidor
                 if (data.messages && data.messages.length > 0)
                     data.messages.forEach(msg => addLine(` ${msg}`, 'system'));
+
+                // guia de input: imprime só quando mudar
+                if (data.pending && data.pending.prompt) {
+                    if (data.pending.prompt !== lastGuidePrompt) {
+                        addLine(` ${data.pending.prompt}`, 'system');
+                        lastGuidePrompt = data.pending.prompt;
+                    }
+                } else {
+                    lastGuidePrompt = null;
+                }
 
                 // atualiza estado de pending
                 isPending   = !!data.pending;

@@ -116,6 +116,14 @@ def command():
         elif p == "log message":
             user.log(buffer)
 
+        elif p.startswith("agenda ") or "agenda_step" in pi.get("options", {}):
+            step = pi.get("options", {}).get("agenda_step")
+            data = pi.get("options", {}).get("agenda_data", {})
+            next_step = user.agenda_wizard_next(step, data, buffer)
+            if next_step:
+                session.pending_input = next_step
+                return jsonify({"completed": True, "clear": True})
+
         elif p == "sequence label":
             # This is first step of new_sequence
             session.pending_input = {

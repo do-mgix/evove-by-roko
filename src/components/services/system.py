@@ -16,6 +16,13 @@ from src.components.data.constants import (
     COMMANDS
 )
 
+def _prompt_cli_input(message):
+    ui.clear_screen()
+    print(message)
+    value = input("> ")
+    ui.clear_screen()
+    return value
+
 def dial_start():
     user.load_user()
     em = EntityManager()
@@ -58,15 +65,26 @@ def dial_start():
                     # or assume it's the one. Common pattern: check class name or import.
                     from src.components.services.UI.interface import WebInputInterrupt
                     if isinstance(e, WebInputInterrupt):
-                        print(f"\n[ INPUT REQUIRED ] {e.prompt} ({e.type})")
                         ui.render(buffer, force_print=True) # Ensure render doesn't wipe immediately
-                        
-                        # For CLI, we use simple input()
-                        cli_input = input(f"> ")
+                        guide = f"[ INPUT REQUIRED ] {e.prompt}"
+                        if e.type:
+                            guide += f" ({e.type})"
+                        cli_input = _prompt_cli_input(guide)
                         
 
                         if e.prompt == "log message":
                              user.add_log_entry(cli_input)
+                             buffer = ""
+                        elif e.prompt.startswith("agenda "):
+                             step = e.options.get("agenda_step") if e.options else None
+                             data = e.options.get("agenda_data") if e.options else {}
+                             next_step = user.agenda_wizard_next(step, data, cli_input)
+                             while next_step:
+                                 prompt = next_step["prompt"]
+                                 cli_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}")
+                                 step = next_step.get("options", {}).get("agenda_step")
+                                 data = next_step.get("options", {}).get("agenda_data", {})
+                                 next_step = user.agenda_wizard_next(step, data, cli_input)
                              buffer = ""
                         elif e.prompt == "sequence label":
 
@@ -102,11 +120,24 @@ def dial_start():
                      from src.components.services.UI.interface import WebInputInterrupt
                      if isinstance(e, WebInputInterrupt):
                         # CLI Interrupt Handling duplicated logic
-                        print(f"\n[ INPUT REQUIRED ] {e.prompt}")
-                        cli_input = input(f"> ")
+                        guide = f"[ INPUT REQUIRED ] {e.prompt}"
+                        if e.type:
+                            guide += f" ({e.type})"
+                        cli_input = _prompt_cli_input(guide)
                         
                         if e.prompt == "log message":
                              user.add_log_entry(cli_input)
+                             buffer = ""
+                        elif e.prompt.startswith("agenda "):
+                             step = e.options.get("agenda_step") if e.options else None
+                             data = e.options.get("agenda_data") if e.options else {}
+                             next_step = user.agenda_wizard_next(step, data, cli_input)
+                             while next_step:
+                                 prompt = next_step["prompt"]
+                                 cli_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}")
+                                 step = next_step.get("options", {}).get("agenda_step")
+                                 data = next_step.get("options", {}).get("agenda_data", {})
+                                 next_step = user.agenda_wizard_next(step, data, cli_input)
                              buffer = ""
                         elif "numeric value" in e.prompt or "value" in e.prompt:
                              action_id = e.options.get("action_id")

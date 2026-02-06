@@ -30,6 +30,7 @@ SINGLE_COMMANDS = {
     "98": {"len": 0, "func": user.list_attributes, "label": "list_attr"}, 
     "95": {"len": 0, "func": user.list_actions, "label": "list_actions"}, 
     "27": {"len": 0, "func": user.add_log_entry, "label": "add_log"},
+    "26": {"len": 0, "func": user.add_agenda_item, "label": "add_agenda"},
     "97": {"len": 0, "func": user.list_logs, "label": "list_logs"},
     "997": {"len": 0, "func": user.list_days, "label": "list_days"},
     "07": {"len": 0, "func": user.drop_last_log_buffer, "label": "drop_log"},

@@ -238,17 +238,160 @@ class User:
         self.log(text)
 
     def agenda_item(self, text):
-        if journal_service.add_log(text):
-            self.add_message(f"Log buffered: {text}")
+        return self.add_agenda_item(text)
+
+    def _add_agenda_payload(self, payload):
+        if not isinstance(payload, dict):
+            self.add_message("Agenda payload must be a JSON object.")
+            return
+
+        label = payload.get("label")
+        item_type = payload.get("type") or payload.get("item_type")
+        related_action = payload.get("related_action")
+        schedule = payload.get("schedule")
+        max_value = payload.get("max_value", 1)
+        current_value = payload.get("current_value", 0)
+        first_date = payload.get("first_date")
+        last_execution = payload.get("last_execution")
+
+        result = agenda_service.add_item(
+            label=label,
+            item_type=item_type,
+            related_action=related_action,
+            schedule=schedule,
+            max_value=max_value,
+            current_value=current_value,
+            first_date=first_date,
+            last_execution=last_execution,
+        )
+
+        if isinstance(result, dict):
+            self.add_message(f"Agenda item added: {result.get('label')}")
+        else:
+            self.add_message(f"Agenda error: {result}")
         self.save_user()
+
+    def agenda_wizard_next(self, step, data, value):
+        data = dict(data or {})
+        val = (value or "").strip()
+
+        if step == "label":
+            if not val:
+                self.add_message("Label is required.")
+                return {"prompt": "agenda label", "type": "text", "options": {"agenda_step": "label", "agenda_data": data}}
+            data["label"] = val
+            return {"prompt": "agenda type (1- Daily, 2- Weekly)", "type": "numeric", "options": {"agenda_step": "type", "agenda_data": data}}
+
+        if step == "type":
+            normalized = val.lower()
+            if normalized == "everyday":
+                normalized = "daily"
+            if normalized == "1":
+                normalized = "daily"
+            if normalized == "2":
+                normalized = "weekly"
+            if normalized not in {"daily", "weekly"}:
+                self.add_message("Type must be 1 (Daily) or 2 (Weekly).")
+                return {"prompt": "agenda type (1- Daily, 2- Weekly)", "type": "numeric", "options": {"agenda_step": "type", "agenda_data": data}}
+            data["type"] = normalized
+            if normalized == "daily":
+                return {"prompt": "agenda start time (HH:MM)", "type": "text", "options": {"agenda_step": "daily_start", "agenda_data": data}}
+            return {"prompt": "agenda occurrences (1-6)", "type": "numeric", "options": {"agenda_step": "weekly_count", "agenda_data": data}}
+
+        if step == "daily_start":
+            if not val:
+                self.add_message("Start time is required.")
+                return {"prompt": "agenda start time (HH:MM)", "type": "text", "options": {"agenda_step": "daily_start", "agenda_data": data}}
+            data["start_time"] = val
+            return {"prompt": "agenda end time (HH:MM)", "type": "text", "options": {"agenda_step": "daily_end", "agenda_data": data}}
+
+        if step == "daily_end":
+            if not val:
+                self.add_message("End time is required.")
+                return {"prompt": "agenda end time (HH:MM)", "type": "text", "options": {"agenda_step": "daily_end", "agenda_data": data}}
+            data["end_time"] = val
+            return {"prompt": "agenda day (optional, monday-friday)", "type": "text", "options": {"agenda_step": "daily_day", "agenda_data": data}}
+
+        if step == "daily_day":
+            schedule = {
+                "start_time": data.get("start_time"),
+                "end_time": data.get("end_time"),
+            }
+            if val:
+                schedule["day"] = val.lower()
+            payload = {
+                "label": data.get("label"),
+                "type": data.get("type"),
+                "schedule": schedule,
+            }
+            self._add_agenda_payload(payload)
+            return None
+
+        if step == "weekly_count":
+            try:
+                count = int(val)
+            except Exception:
+                count = 0
+            if count < 1 or count > 6:
+                self.add_message("Weekly occurrences must be between 1 and 6.")
+                return {"prompt": "agenda occurrences (1-6)", "type": "numeric", "options": {"agenda_step": "weekly_count", "agenda_data": data}}
+            data["week_count"] = count
+            data["week_index"] = 1
+            data["week_entries"] = []
+            return {"prompt": "agenda day 1", "type": "text", "options": {"agenda_step": "weekly_day", "agenda_data": data}}
+
+        if step == "weekly_day":
+            if not val:
+                self.add_message("Day is required.")
+                return {"prompt": f"agenda day {data.get('week_index', 1)}", "type": "text", "options": {"agenda_step": "weekly_day", "agenda_data": data}}
+            data["week_current"] = {"day": val.lower()}
+            return {"prompt": f"agenda start time {data.get('week_index', 1)} (HH:MM)", "type": "text", "options": {"agenda_step": "weekly_start", "agenda_data": data}}
+
+        if step == "weekly_start":
+            if not val:
+                self.add_message("Start time is required.")
+                return {"prompt": f"agenda start time {data.get('week_index', 1)} (HH:MM)", "type": "text", "options": {"agenda_step": "weekly_start", "agenda_data": data}}
+            data["week_current"]["start_time"] = val
+            return {"prompt": f"agenda end time {data.get('week_index', 1)} (HH:MM)", "type": "text", "options": {"agenda_step": "weekly_end", "agenda_data": data}}
+
+        if step == "weekly_end":
+            if not val:
+                self.add_message("End time is required.")
+                return {"prompt": f"agenda end time {data.get('week_index', 1)} (HH:MM)", "type": "text", "options": {"agenda_step": "weekly_end", "agenda_data": data}}
+            data["week_current"]["end_time"] = val
+            data["week_entries"].append(data["week_current"])
+            data["week_current"] = {}
+            if data["week_index"] < data["week_count"]:
+                data["week_index"] += 1
+                idx = data["week_index"]
+                return {"prompt": f"agenda day {idx}", "type": "text", "options": {"agenda_step": "weekly_day", "agenda_data": data}}
+
+            payload = {
+                "label": data.get("label"),
+                "type": data.get("type"),
+                "schedule": data.get("week_entries", []),
+            }
+            self._add_agenda_payload(payload)
+            return None
+
+        self.add_message("Agenda wizard error: invalid step.")
+        return None
 
     def add_agenda_item(self, text=None):
         if self._check_sleep():
             return
         if text is None:
             from src.components.services.UI.interface import WebInputInterrupt
-            raise WebInputInterrupt("log message", type="text")
-        self.log(text)
+            raise WebInputInterrupt("agenda label", type="text", options={"agenda_step": "label", "agenda_data": {}})
+
+        try:
+            payload = json.loads(text)
+        except Exception:
+            self.add_message("Invalid agenda payload. Provide JSON.")
+            self.add_message("Example: {\"label\":\"Study\",\"type\":\"daily\",\"schedule\":{\"start_time\":\"09:00\",\"end_time\":\"10:00\"}}")
+            return
+
+        self._add_agenda_payload(payload)
 
     def list_logs(self):
         if self._check_sleep():
