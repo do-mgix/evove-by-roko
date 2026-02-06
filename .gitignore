@@ -10,3 +10,5 @@ src/data/sequences.json*
 src/data/sleep_data.json*
 src/data/agenda.json*
 
+src/data/tests*
+
