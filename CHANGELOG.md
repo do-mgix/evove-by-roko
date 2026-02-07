@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.0.0-alpha] - 07-02-2026 
+## [1.0.1-alpha] - 07-02-2026 
 ### Added
 - New web view interface 
 - Backup service 
