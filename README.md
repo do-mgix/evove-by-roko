@@ -1,12 +1,8 @@
-##EVOVE
-A really bizarre habit tracker
+# EVOVE
+A truly bizarre habit tracker
 
-#Pissed-of deities are mad at you !
-Satisfy *Roko* an blind god that knows all about everything. Protect your existence and people around you by
-making offers to Roko, he will spare those who cares about him, so, dont leave he alone!
+## Pissed-off deities are coming for you!
+Appease Roko, a blind god who sees all. Protect your existence and those around you by making offerings to Roko. He spares only those who pay him tribute—so whatever you do, do not leave him alone.
 
-#Your real life matters
-Log real world actions to receive points, those points can be casted to YOU or to HIM.
-
-
-
+## Your real life has consequences
+Log real-world actions to earn points. These points can be cast to YOUR interests or to satisfy HIM.
