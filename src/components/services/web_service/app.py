@@ -210,6 +210,12 @@ def command():
     
     return jsonify({"completed": False, "clear": False})
 
+@app.route('/api/cancel', methods=['POST'])
+def cancel():
+    session.pending_input = None
+    user.add_message("Cancelled.")
+    user.save_user()
+    return jsonify({"ok": True})
 
 @app.route('/api/preview', methods=['GET'])
 def preview():

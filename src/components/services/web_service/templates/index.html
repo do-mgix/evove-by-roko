@@ -162,6 +162,7 @@
             background: var(--term-bg);
             border-top: 1px solid rgba(122, 162, 247, 0.2);
             margin: 0 -1rem -1rem -1rem;
+            position: relative;
         }
 
         /* ─── cada campo ─── */
@@ -274,6 +275,46 @@
         .input-area[data-field="text"].active .input-label { color: var(--accent);  opacity: 1; text-shadow: 0 0 6px var(--accent); }
         .input-area[data-field="dial"].active .input-label  { color: var(--success); opacity: 1; text-shadow: 0 0 6px var(--success); }
 
+        /* ── cancel button ── */
+        #cancel-btn {
+            position: absolute;
+            right: calc(12px + env(safe-area-inset-right, 0px));
+            bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: #8b8b8b;
+            color: #1b1b1b;
+            font-size: 1.4rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+            opacity: 0;
+            transform: translateY(16px);
+            pointer-events: none;
+            transition: transform 0.22s ease, background 0.2s ease, opacity 0.2s ease;
+            z-index: 20;
+        }
+
+        #cancel-btn.show {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        #cancel-btn:hover {
+            background: #9c9c9c;
+            transform: translateY(-2px);
+        }
+
+        #cancel-btn:active {
+            transform: translateY(0) scale(0.98);
+        }
+
         @keyframes fadeIn {
             from {
                 opacity: 0;
@@ -319,6 +360,7 @@
                 <input type="text" id="dial-input" placeholder="dial a number…" inputmode="numeric" autocomplete="off">
             </div>
         </div>
+        <button id="cancel-btn" aria-label="Cancel operation" title="Cancel">×</button>
     </div>
 
     <script>
@@ -331,6 +373,7 @@
         const dialInput    = document.getElementById('dial-input');
         const textArea     = document.querySelector('[data-field="text"]');
         const dialArea     = document.querySelector('[data-field="dial"]');
+        const cancelBtn    = document.getElementById('cancel-btn');
 
         // ─── estado ───
         let isPending      = false;
@@ -408,6 +451,16 @@
             updateStatus();
         }
 
+        function shouldShowCancel(pending) {
+            // Show for any special/pending system input
+            return !!pending;
+        }
+
+        function updateCancelButton(pending) {
+            const show = shouldShowCancel(pending);
+            cancelBtn.classList.toggle('show', show);
+        }
+
         async function updateStatus() {
             try {
                 const res  = await fetch('/api/status');
@@ -436,6 +489,7 @@
                 // atualiza estado de pending
                 isPending   = !!data.pending;
                 pendingType = data.pending ? data.pending.type : null;
+                updateCancelButton(data.pending);
 
                 // ← ponto central: reajusta foco
                 focusCorrectInput(data.pending);
@@ -605,6 +659,20 @@
             } catch (e) {
                 addLine(`? ${buffer}`, 'dim');
                 resetAfterSubmit('Confirmed (offline).');
+            }
+        });
+
+        // Cancel pending operations (agenda/action creation/action value)
+        cancelBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            try {
+                const res = await fetch('/api/cancel', { method: 'POST' });
+                if (res.ok) {
+                    resetAfterSubmit('Cancelled.');
+                }
+            } catch (e) {
+                resetAfterSubmit('Cancelled (offline).');
             }
         });
 
