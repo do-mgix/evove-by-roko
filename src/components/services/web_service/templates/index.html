@@ -1,694 +1,525 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Evove Terminal</title>
-    <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#7aa2f7">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Evove Phone</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #0d0e12;
-            --term-bg: #1a1b26;
-            --accent: #7aa2f7;
-            --text-main: #c0caf5;
-            --text-dim: #565f89;
-            --success: #9ece6a;
-            --warning: #e0af68;
+            --bg: #000;
+            --fg: #fff;
+            --dim: #666;
+            --green: #0f0;
         }
 
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
         }
 
         body {
             font-family: 'JetBrains Mono', monospace;
-            background-color: var(--bg-color);
-            color: var(--text-main);
+            background: var(--bg);
+            color: var(--fg);
             height: 100vh;
+            height: 100dvh;
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            padding: 1rem;
-        }
-
-        /* Top area for live render (CLI Style) */
-        #live-render {
-            padding-bottom: 1rem;
-            border-bottom: 1px dashed var(--text-dim);
-            margin-bottom: 1rem;
-            min-height: 4.5rem;
-        }
-
-        #buffer-view {
-            color: var(--warning);
-            font-size: 1.2rem;
-            font-weight: bold;
-            margin-bottom: 4px;
-        }
-
-        #points-view {
-            color: #fff;
-            font-family: 'Courier New', 'Courier', monospace;
-            font-size: 1.4rem;
-            font-weight: 700;
-            margin-bottom: 6px;
-            letter-spacing: 0.1em;
-            text-shadow: none;
-        }
-
-        #process-view {
-            color: var(--accent);
-            font-size: 0.9rem;
-            min-height: 1.1rem;                /* não colapsa quando vazio */
-            transition: opacity 0.2s ease;
-        }
-
-        /* ── preview token styles ── */
-        .preview-token {
-            color: var(--text-main);
-            font-weight: 700;
-        }
-        .preview-token .token-name {
-            color: var(--warning);             /* nome da entidade: laranja */
-        }
-        .preview-token .token-label {
-            color: var(--success);             /* label do tipo: verde */
-        }
-        .preview-arrow {
-            color: var(--text-dim);
-            margin: 0 6px;
-            font-weight: 400;
-        }
-        .preview-cursor {
-            color: var(--warning);
-            animation: blink 1s step-end infinite;
-        }
-        .preview-incomplete {
-            color: var(--text-dim);
-            font-style: italic;
-        }
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50%      { opacity: 0; }
-        }
-
-        /* History area */
-        #terminal-output {
-            flex: 1;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            scrollbar-width: thin;
-            scrollbar-color: var(--text-dim) transparent;
-        }
-
-        #terminal-output::-webkit-scrollbar {
-            width: 4px;
-        }
-
-        #terminal-output::-webkit-scrollbar-thumb {
-            background: var(--text-dim);
-        }
-
-        .line {
-            animation: fadeIn 0.1s ease-out;
-            white-space: pre-wrap;
-            word-break: break-all;
-            padding: 2px 0;
-        }
-
-        .line-right {
-            animation: fadeIn 0.1s ease-out;
-            white-space: pre-wrap;
-            word-break: break-all;
-            padding: 2px 0;
-            margin-left: 10rem;
-        }
-
-        .system {
-            color: var(--accent);
-        }
-
-        .success {
-            color: var(--success);
-        }
-
-        .dim {
-            color: var(--text-dim);
-        }
-
-        .container-esp {
-            display: flex;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            width: 100%;
-            gap: 15px;
-        }
-
-        /* ─── Input bar ─── */
-        .input-bar {
-            display: flex;
-            gap: 1px;
-            background: var(--term-bg);
-            border-top: 1px solid rgba(122, 162, 247, 0.2);
-            margin: 0 -1rem -1rem -1rem;
-            position: relative;
-        }
-
-        /* ─── cada campo ─── */
-        .input-area {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            padding: 1rem;
-            min-width: 0;
-            position: relative;
-            background: var(--term-bg);
-            transition: background 0.4s ease, opacity 0.35s ease;
-        }
-
-        .input-area + .input-area {
-            border-left: 1px solid rgba(122, 162, 247, 0.15);
-        }
-
-        /* ── INATIVO: escurece + apaga ── */
-        .input-area:not(.active) {
-            background: color-mix(in srgb, var(--term-bg) 88%, #000 12%);
-            opacity: 0.45;
-        }
-
-        /* ── ATIVO: volta à base ── */
-        .input-area.active {
-            background: var(--term-bg);
-            opacity: 1;
-        }
-
-        /* ── scan-line na borda inferior
-           pseudo-elemento que desliza da esquerda para a direita ao ativar ── */
-        .input-area::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            height: 2px;
-            width: 100%;
-            transform: scaleX(0);
-            transform-origin: left center;
-            transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
-                        background 0.3s ease,
-                        box-shadow 0.3s ease;
-        }
-
-        .input-area.active::after {
-            transform: scaleX(1);
-        }
-
-        /* cores da scan-line por campo */
-        .input-area[data-field="text"]::after {
-            background: var(--accent);
-            box-shadow: 0 0 7px 2px var(--accent);
-        }
-        .input-area[data-field="dial"]::after {
-            background: var(--success);
-            box-shadow: 0 0 7px 2px var(--success);
-        }
-
-        /* ── prompt ── */
-        .prompt {
-            margin-right: 10px;
-            font-weight: bold;
-            flex-shrink: 0;
+            touch-action: manipulation;
             user-select: none;
-            color: var(--text-dim);
-            transition: color 0.35s ease, text-shadow 0.35s ease;
+            -webkit-user-select: none;
         }
 
-        .input-area[data-field="text"].active .prompt  { color: var(--accent);  text-shadow: 0 0 8px var(--accent); }
-        .input-area[data-field="dial"].active .prompt   { color: var(--success); text-shadow: 0 0 8px var(--success); }
-
-        /* ── input ── */
-        .input-area input {
-            flex: 1;
-            background: transparent;
-            border: none;
-            color: #fff;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 1.1rem;
-            outline: none;
-            min-width: 0;
-            transition: color 0.3s ease;
+        /* DISPLAY */
+        #display-row {
+            flex: 0 0 auto;
+            background: var(--bg);
+            padding: 2.6rem 1.5rem 0.5rem 1.5rem;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            user-select: text;
+            -webkit-user-select: text;
         }
 
-        .input-area:not(.active) input       { color: var(--text-dim); }
-        .input-area input::placeholder       { color: var(--text-dim); transition: color 0.3s ease; }
-        .input-area.active input::placeholder { color: rgba(196,202,245,0.38); }
-
-        /* ── label ── */
-        .input-wrapper {
+        #phone-display {
             flex: 1;
             display: flex;
             flex-direction: column;
-            min-width: 0;
+            gap: 0.5rem;
+            align-items: center;
         }
 
-        .input-label {
-            font-size: 0.65rem;
-            text-transform: uppercase;
+        #display-points {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--fg);
+            letter-spacing: 0.1em;
+            text-align: center;
+            opacity: 0.5;
+        }
+
+        #display-number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--fg);
+            text-align: center;
             letter-spacing: 0.08em;
-            margin-bottom: 2px;
-            padding-left: 2px;
-            color: var(--text-dim);
-            opacity: 0.55;
-            transition: color 0.35s ease, opacity 0.35s ease, text-shadow 0.35s ease;
+            min-height: 3rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
-        .input-area[data-field="text"].active .input-label { color: var(--accent);  opacity: 1; text-shadow: 0 0 6px var(--accent); }
-        .input-area[data-field="dial"].active .input-label  { color: var(--success); opacity: 1; text-shadow: 0 0 6px var(--success); }
+        #display-number.empty {
+            color: var(--dim);
+            font-size: 1.8rem;
+        }
 
-        /* ── cancel button ── */
-        #cancel-btn {
-            position: absolute;
-            right: calc(12px + env(safe-area-inset-right, 0px));
-            bottom: calc(84px + env(safe-area-inset-bottom, 0px));
-            width: 42px;
-            height: 42px;
-            border-radius: 50%;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            background: #8b8b8b;
-            color: #1b1b1b;
-            font-size: 1.4rem;
-            font-weight: bold;
+        #display-label {
+            font-size: 0.8rem;
+            color: var(--dim);
+            text-align: center;
+            min-height: 1rem;
+        }
+
+        #delete-btn {
+            align-self: flex-start;
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: transparent;
+            color: var(--fg);
+            font-size: 1.0rem;
+            font-weight: 700;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
-            opacity: 0;
-            transform: translateY(16px);
-            pointer-events: none;
-            transition: transform 0.22s ease, background 0.2s ease, opacity 0.2s ease;
-            z-index: 20;
+            opacity: 0.75;
+            transition: opacity 0.2s ease, background 0.2s ease, transform 0.15s ease;
         }
 
-        #cancel-btn.show {
+        #delete-btn:hover {
             opacity: 1;
-            transform: translateY(0);
-            pointer-events: auto;
+            background: rgba(255, 255, 255, 0.08);
         }
 
-        #cancel-btn:hover {
-            background: #9c9c9c;
-            transform: translateY(-2px);
+        #delete-btn:active {
+            transform: scale(0.96);
         }
 
-        #cancel-btn:active {
-            transform: translateY(0) scale(0.98);
+        /* KEYPAD - botões fixos centralizados */
+        #phone-keypad {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg);
+            padding: 2rem;
+            user-select: none;
+            -webkit-user-select: none;
         }
 
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(3px);
-            }
+        .keypad-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 88px);
+            grid-template-rows: repeat(4, 88px);
+            gap: 14px;
+        }
 
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        .key {
+            background: transparent;
+            border: 1px solid var(--fg);
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'JetBrains Mono', monospace;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            user-select: none;
+            -webkit-user-select: none;
+            width: 88px;
+            height: 88px;
+        }
+
+        .key:active {
+            transform: scale(0.92);
+            background: var(--fg);
+        }
+
+        .key:active .key-number,
+        .key:active .key-letters,
+        .key:active .key-icon {
+            color: var(--bg);
+        }
+
+        .key-number {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--fg);
+            line-height: 1;
+            transition: color 0.15s ease;
+        }
+
+        .key-letters {
+            font-size: 0.6rem;
+            color: var(--dim);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-top: 2px;
+            transition: color 0.15s ease;
+        }
+
+        .key-icon {
+            font-size: 1.6rem;
+            color: var(--fg);
+            font-weight: 700;
+            transition: color 0.15s ease;
+        }
+
+        .key-icon.mode {
+            color: var(--green);
+        }
+
+        /* ACTION BAR */
+        #action-bar {
+            flex: 0 0 auto;
+            display: flex;
+            justify-content: center;
+            padding: 1rem 1.5rem;
+            padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+            background: var(--bg);
+        }
+
+        .action-btn {
+            padding: 1rem 3rem;
+            border: 2px solid var(--fg);
+            border-radius: 2rem;
+            background: transparent;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--fg);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .action-btn:active {
+            transform: scale(0.95);
+            background: var(--fg);
+            color: var(--bg);
+        }
+
+        /* TOAST */
+        #toast {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            background: var(--fg);
+            color: var(--bg);
+            padding: 1rem 2rem;
+            border-radius: 1rem;
+            font-size: 1rem;
+            font-weight: 700;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        #toast.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .key.pressed {
+            animation: pulse 0.3s ease;
         }
     </style>
 </head>
-
 <body>
-    <div id="live-render">
-        <div id="points-view">0.0</div>
-        <div id="buffer-view">_</div>
-        <div id="process-view">Ready.</div>
+    <!-- DISPLAY -->
+    <div id="display-row">
+        <div id="phone-display">
+            <div id="display-points">0.0</div>
+            <div id="display-number" class="empty">dial</div>
+            <div id="display-label">Ready.</div>
+        </div>
+        <button id="delete-btn" aria-label="Delete last character" title="Delete">⌫</button>
     </div>
 
-    <div id="terminal-output">
-        <div class="container-esp">
-            <div class="line dim">evove</div>
-            <div class="line dim">by roko</div>
+    <!-- KEYPAD -->
+    <div id="phone-keypad">
+        <div class="keypad-grid">
+            <!-- Row 1 -->
+            <button class="key" data-num="1">
+                <span class="key-number">1</span>
+                <span class="key-letters"></span>
+            </button>
+            <button class="key" data-num="2">
+                <span class="key-number">2</span>
+                <span class="key-letters">ABC</span>
+            </button>
+            <button class="key" data-num="3">
+                <span class="key-number">3</span>
+                <span class="key-letters">DEF</span>
+            </button>
+
+            <!-- Row 2 -->
+            <button class="key" data-num="4">
+                <span class="key-number">4</span>
+                <span class="key-letters">GHI</span>
+            </button>
+            <button class="key" data-num="5">
+                <span class="key-number">5</span>
+                <span class="key-letters">JKL</span>
+            </button>
+            <button class="key" data-num="6">
+                <span class="key-number">6</span>
+                <span class="key-letters">MNO</span>
+            </button>
+
+            <!-- Row 3 -->
+            <button class="key" data-num="7">
+                <span class="key-number">7</span>
+                <span class="key-letters">PQRS</span>
+            </button>
+            <button class="key" data-num="8">
+                <span class="key-number">8</span>
+                <span class="key-letters">TUV</span>
+            </button>
+            <button class="key" data-num="9">
+                <span class="key-number">9</span>
+                <span class="key-letters">WXYZ</span>
+            </button>
+
+            <!-- Row 4 - classic layout -->
+            <button class="key" data-num="*">
+                <span class="key-number">*</span>
+                <span class="key-letters"></span>
+            </button>
+            <button class="key" data-num="0">
+                <span class="key-number">0</span>
+                <span class="key-letters">+</span>
+            </button>
+            <button class="key" data-num="#">
+                <span class="key-number">#</span>
+                <span class="key-letters"></span>
+            </button>
         </div>
-        <div class="line dim">v0.1.0</div>
-        <div class="line dim">Type numbers to interact.</div>
     </div>
 
-    <div class="input-bar">
-        <div class="input-area active" data-field="text">
-            <span class="prompt">&gt;</span>
-            <div class="input-wrapper">
-                <span class="input-label">texting</span>
-                <input type="text" id="text-input" placeholder="type a message…" inputmode="text" autocomplete="off">
-            </div>
-        </div>
-        <div class="input-area" data-field="dial">
-            <span class="prompt">&gt;</span>
-            <div class="input-wrapper">
-                <span class="input-label">dialing</span>
-                <input type="text" id="dial-input" placeholder="dial a number…" inputmode="numeric" autocomplete="off">
-            </div>
-        </div>
-        <button id="cancel-btn" aria-label="Cancel operation" title="Cancel">×</button>
-    </div>
+
+
+    <!-- TOAST -->
+    <div id="toast"></div>
 
     <script>
-        // ─── refs ───
-        const output       = document.getElementById('terminal-output');
-        const bufferView   = document.getElementById('buffer-view');
-        const pointsView   = document.getElementById('points-view');
-        const processView  = document.getElementById('process-view');
-        const textInput    = document.getElementById('text-input');
-        const dialInput    = document.getElementById('dial-input');
-        const textArea     = document.querySelector('[data-field="text"]');
-        const dialArea     = document.querySelector('[data-field="dial"]');
-        const cancelBtn    = document.getElementById('cancel-btn');
+        // REFS
+        const displayPoints = document.getElementById('display-points');
+        const displayNumber = document.getElementById('display-number');
+        const displayLabel  = document.getElementById('display-label');
+        const deleteBtn     = document.getElementById('delete-btn');
+        const callBtn       = document.getElementById('call-btn');
+        const toast         = document.getElementById('toast');
+        const keys          = document.querySelectorAll('.key');
 
-        // ─── estado ───
-        let isPending      = false;
-        let pendingType    = null;   // "text" | "numeric" | "confirm" | null
-        let lastGuidePrompt = null;
+        // STATE
+        let buffer = '';
 
-        // ────────────────────────────────────────────
-        // FOCO CENTRALIZADO
-        // Regras de prioridade:
-        //   1. pending do servidor → foca conforme o tipo pedido
-        //   2. sem pending          → foca no dial (modo padrão)
-        // Chamado após cada updateStatus() e após cada submit bem-sucedido.
-        // ────────────────────────────────────────────
-        function focusCorrectInput(pending) {
-            let target; // "text" | "dial"
-
-            if (pending) {
-                // servidor pediu input — decide pelo tipo
-                target = (pending.type === 'numeric') ? 'dial' : 'text';
-
-                // atualiza placeholder do campo que vai receber o foco
-                const prompt = (pending.prompt || '').toLowerCase();
-                const genericPlaceholder = prompt.includes('label')
-                    ? 'label'
-                    : (prompt.includes('type') ? 'type' : 'type');
-
-                const el = (target === 'text') ? textInput : dialInput;
-                el.placeholder = genericPlaceholder;
+        // HELPERS
+        function updateDisplay() {
+            if (buffer) {
+                displayNumber.textContent = buffer;
+                displayNumber.classList.remove('empty');
             } else {
-                // modo livre → dial é o padrão
-                target = 'dial';
-                textInput.placeholder  = 'type a message…';
-                dialInput.placeholder  = 'dial a number…';
+                displayNumber.textContent = 'dial';
+                displayNumber.classList.add('empty');
+            }
+        }
+
+        function showToast(msg) {
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2000);
+        }
+
+        async function fetchPreview(buf) {
+            if (!buf) {
+                displayLabel.textContent = 'Ready.';
+                return;
             }
 
-            // aplica classe .active e foco
-            textArea.classList.toggle('active', target === 'text');
-            dialArea.classList.toggle('active', target === 'dial');
-
-            const focused = (target === 'text') ? textInput : dialInput;
-            focused.focus();
-        }
-
-        // ─── click manual em qualquer input → marca como ativo ───
-        [textInput, dialInput].forEach(input => {
-            input.addEventListener('focus', () => {
-                const isText = (input === textInput);
-                textArea.classList.toggle('active',  isText);
-                dialArea.classList.toggle('active', !isText);
-            });
-        });
-
-        // click fora dos inputs → volta ao padrão
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('input')) focusCorrectInput(null);
-        });
-
-        // ─── utilitários ───
-        function addLine(text, type = '') {
-            const div = document.createElement('div');
-            div.className = `line ${type}`;
-            div.innerText = text;
-            output.appendChild(div);
-            output.scrollTop = output.scrollHeight;
-            if (output.children.length > 50) output.removeChild(output.firstChild);
-        }
-
-        function resetAfterSubmit(label) {
-            textInput.value   = '';
-            dialInput.value   = '';
-            bufferView.innerText = '_';
-            // mostra o label de status com a cor do accent
-            processView.innerHTML = `<span style="color:var(--accent)">${label}</span>`;
-            // após submit, busca novo estado do servidor → vai reajustar foco
-            updateStatus();
-        }
-
-        function shouldShowCancel(pending) {
-            // Show for any special/pending system input
-            return !!pending;
-        }
-
-        function updateCancelButton(pending) {
-            const show = shouldShowCancel(pending);
-            cancelBtn.classList.toggle('show', show);
+            try {
+                const res = await fetch(`/api/preview?buffer=${encodeURIComponent(buf)}`);
+                if (!res.ok) throw new Error('offline');
+                const data = await res.json();
+                
+                let preview = data.preview
+                    .replace(/ -> /g, ' › ')
+                    .replace(/_/g, '')
+                    .trim();
+                
+                displayLabel.textContent = preview || 'Processing...';
+            } catch (e) {
+                displayLabel.textContent = buf;
+            }
         }
 
         async function updateStatus() {
             try {
-                const res  = await fetch('/api/status');
+                const res = await fetch('/api/status');
                 if (!res.ok) return;
                 const data = await res.json();
 
-                // atualiza pontos totais
                 if (data.user && typeof data.user.total_points === 'number') {
-                    pointsView.innerText = data.user.total_points;
+                    displayPoints.textContent = data.user.total_points.toFixed(1);
                 }
 
-                // mensagens do servidor
-                if (data.messages && data.messages.length > 0)
-                    data.messages.forEach(msg => addLine(` ${msg}`, 'system'));
-
-                // guia de input: imprime só quando mudar
-                if (data.pending && data.pending.prompt) {
-                    if (data.pending.prompt !== lastGuidePrompt) {
-                        addLine(` ${data.pending.prompt}`, 'system');
-                        lastGuidePrompt = data.pending.prompt;
-                    }
-                } else {
-                    lastGuidePrompt = null;
+                if (data.messages && data.messages.length > 0) {
+                    showToast(data.messages[data.messages.length - 1]);
                 }
-
-                // atualiza estado de pending
-                isPending   = !!data.pending;
-                pendingType = data.pending ? data.pending.type : null;
-                updateCancelButton(data.pending);
-
-                // ← ponto central: reajusta foco
-                focusCorrectInput(data.pending);
-
-            } catch (e) { /* sem servidor */ }
+            } catch (e) { /* offline */ }
         }
 
-        function mirrorBuffer(value) {
-            bufferView.innerText = value ? value + '_' : '_';
-        }
-
-
-        async function fetchPreview(buffer) {
-            if (!buffer) {
-                processView.innerHTML = '<span style="color:var(--accent)">Ready.</span>';
-                return;
-            }
-
+        async function executeCommand(buf) {
             try {
-                const res = await fetch(`/api/preview?buffer=${encodeURIComponent(buffer)}`);
-                if (!res.ok) throw new Error('no server');
-                const data = await res.json();
-                renderPreview(data.preview, data.remaining, data.complete);
-            } catch (e) {
-                // fallback offline: mostra apenas o buffer + cursor
-                renderPreview(buffer, 1, false);
-            }
-        }
-
-        /**
-         * Recebe a string "Label (Name) -> Label2 -> _"
-         * e monta HTML com cores por parte.
-         */
-        function renderPreview(raw, remaining, complete) {
-            if (!raw) {
-                processView.innerHTML = '<span style="color:var(--accent)">Ready.</span>';
-                return;
-            }
-
-            // split por " -> " para ter cada segmento
-            const parts = raw.split(' -> ');
-            let html = '';
-
-            parts.forEach((part, i) => {
-                if (i > 0) {
-                    html += '<span class="preview-arrow">→</span>';
-                }
-
-                const trimmed = part.trim();
-
-                if (trimmed === '_') {
-                    // cursor piscante no final
-                    html += '<span class="preview-cursor">_</span>';
-
-                } else {
-                    // tenta extrair "Label (Name)"
-                    const match = trimmed.match(/^(.+?)\s*\((.+)\)$/);
-                    if (match) {
-                        const label = match[1].trim();
-                        const name  = match[2].trim();
-                        html += `<span class="preview-token">`
-                              + `<span class="token-label">${label}</span>`
-                              + ` <span class="token-name">(${name})</span>`
-                              + `</span>`;
-                    } else {
-                        // sem parênteses → é um label simples ou payload bruto
-                        html += `<span class="preview-token">`
-                              + `<span class="token-label">${trimmed}</span>`
-                              + `</span>`;
-                    }
-                }
-            });
-
-            // se completo, adiciona um ✔ discreto
-            if (complete) {
-                html += ' <span style="color:var(--success);font-size:0.75rem">✓</span>';
-            }
-
-            processView.innerHTML = html;
-        }
-
-        // ═══════════════════════════════════════════
-        // INPUT DE TEXTO  (submit com Enter)
-        // ═══════════════════════════════════════════
-        textInput.addEventListener('input', (e) => {
-            mirrorBuffer(e.target.value);
-        });
-
-        textInput.addEventListener('keydown', async (e) => {
-            if (e.key !== 'Enter') return;
-            const buffer = textInput.value.trim();
-            if (!buffer) return;
-
-            try {
-                const res  = await fetch('/api/command', {
+                const res = await fetch('/api/command', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ buffer })
+                    body: JSON.stringify({ buffer: buf })
                 });
+                
                 const data = await res.json();
+                
                 if (data.completed) {
-                    addLine(`> ${buffer}`, 'dim');
-                    resetAfterSubmit('Sent.');
+                    showToast('Command executed');
+                    buffer = '';
+                    updateDisplay();
+                    displayLabel.textContent = 'Ready.';
+                    updateStatus();
                 }
             } catch (e) {
-                addLine(`> ${buffer}`, 'dim');
-                resetAfterSubmit('Sent (offline).');
+                showToast('Offline');
             }
+        }
+
+        // DTMF TONES
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        const dtmfFreqs = {
+            '1': [697, 1209], '2': [697, 1336], '3': [697, 1477],
+            '4': [770, 1209], '5': [770, 1336], '6': [770, 1477],
+            '7': [852, 1209], '8': [852, 1336], '9': [852, 1477],
+            '0': [941, 1336], '*': [941, 1209], '#': [941, 1477]
+        };
+        
+        function playDTMF(digit, duration = 100) {
+            if (!dtmfFreqs[digit]) return;
+            
+            const [freq1, freq2] = dtmfFreqs[digit];
+            const osc1 = audioCtx.createOscillator();
+            const osc2 = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc1.frequency.value = freq1;
+            osc2.frequency.value = freq2;
+            osc1.type = 'sine';
+            osc2.type = 'sine';
+            gain.gain.value = 0.1;
+            
+            osc1.connect(gain);
+            osc2.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            const now = audioCtx.currentTime;
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.linearRampToValueAtTime(0.1, now + 0.01);
+            gain.gain.linearRampToValueAtTime(0, now + duration / 1000);
+            
+            osc1.start(now);
+            osc2.start(now);
+            osc1.stop(now + duration / 1000);
+            osc2.stop(now + duration / 1000);
+        }
+
+        // KEY PRESS
+        keys.forEach(key => {
+            key.addEventListener('click', () => {
+                const num = key.dataset.num;
+                if (num) {
+                    playDTMF(num);
+                    buffer += num;
+                    updateDisplay();
+                    fetchPreview(buffer);
+                    
+                    if (navigator.vibrate) navigator.vibrate(10);
+                    
+                    key.classList.add('pressed');
+                    setTimeout(() => key.classList.remove('pressed'), 300);
+                }
+            });
         });
 
-        // ═══════════════════════════════════════════
-        // INPUT NUMÉRICO (dial)
-        //   • se isPending  → sem auto-submit, espera Enter
-        //   • se livre      → auto-submit a cada dígito (comportamento original)
-        // ═══════════════════════════════════════════
-        dialInput.addEventListener('input', async (e) => {
-            const buffer = dialInput.value;
-            mirrorBuffer(buffer);
+        // Long press on 0 = delete last char
+        let longPressTimer;
+        const zeroKey = document.querySelector('[data-num="0"]');
+        
+        zeroKey.addEventListener('touchstart', (e) => {
+            longPressTimer = setTimeout(() => {
+                if (buffer.length > 0) {
+                    buffer = buffer.slice(0, -1);
+                    updateDisplay();
+                    fetchPreview(buffer);
+                    if (navigator.vibrate) navigator.vibrate([15, 5, 15]);
+                }
+            }, 500);
+        });
+        
+        zeroKey.addEventListener('touchend', () => {
+            clearTimeout(longPressTimer);
+        });
 
-            // ── preview live sempre atualiza ──
+        deleteBtn.addEventListener('click', () => {
+            if (buffer.length === 0) return;
+            buffer = buffer.slice(0, -1);
+            updateDisplay();
             fetchPreview(buffer);
-
-            if (!buffer) return;
-
-            // quando há pending numérico, o usuário digita e pressiona Enter
-            if (isPending) return;
-
-            // auto-submit livre
-            try {
-                const res  = await fetch('/api/command', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ buffer })
-                });
-                const data = await res.json();
-
-                if (data.completed) {
-                    addLine(`$ ${buffer}`, 'dim');
-                    resetAfterSubmit('Command executed.');
-                }
-                // se não completou, fetchPreview já mostrou o estado correto
-            } catch (e) {
-                addLine(`$ ${buffer}`, 'dim');
-                resetAfterSubmit('Dialed (offline).');
-            }
         });
 
-        // Enter no dial → necessário quando isPending (confirma resposta)
-        dialInput.addEventListener('keydown', async (e) => {
-            if (e.key !== 'Enter') return;
-            if (!isPending) return;           // sem pending, auto-submit já resolveu
-
-            const buffer = dialInput.value.trim();
-            if (!buffer) return;
-
-            try {
-                const res  = await fetch('/api/command', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ buffer })
-                });
-                const data = await res.json();
-                if (data.completed) {
-                    addLine(`? ${buffer}`, 'dim');
-                    resetAfterSubmit('Confirmed.');
-                }
-            } catch (e) {
-                addLine(`? ${buffer}`, 'dim');
-                resetAfterSubmit('Confirmed (offline).');
+        // CALL (execute)
+        callBtn.addEventListener('click', () => {
+            if (!buffer) {
+                showToast('Enter a number');
+                return;
             }
+            executeCommand(buffer);
         });
 
-        // Cancel pending operations (agenda/action creation/action value)
-        cancelBtn.addEventListener('click', async (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            try {
-                const res = await fetch('/api/cancel', { method: 'POST' });
-                if (res.ok) {
-                    resetAfterSubmit('Cancelled.');
-                }
-            } catch (e) {
-                resetAfterSubmit('Cancelled (offline).');
-            }
-        });
-
-        // ─── init ───
+        // INIT
+        updateStatus();
         setInterval(updateStatus, 3000);
-        updateStatus();                          // primeira chamada → define foco inicial
-
-        // Service Worker
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
-                    .then(() => console.log('SW Registered'))
-                    .catch(err => console.log('SW Failed', err));
-            });
-        }
     </script>
 </body>
-
 </html>
