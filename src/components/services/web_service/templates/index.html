@@ -39,23 +39,25 @@
 
         /* DISPLAY */
         #display-row {
-            flex: 0 0 auto;
-            background: var(--bg);
-            padding: 2.6rem 1.5rem 0.5rem 1.5rem;
+            flex: 0 0 45vh;
+            background: #0b120e;
+            padding: 1.6rem 1.2rem;
             display: flex;
-            align-items: flex-start;
+            flex-direction: column;
+            align-items: stretch;
             justify-content: space-between;
-            gap: 12px;
+            gap: 16px;
             user-select: text;
             -webkit-user-select: text;
         }
 
         #phone-display {
-            flex: 1;
+            flex: 0 0 auto;
             display: flex;
             flex-direction: column;
             gap: 0.5rem;
             align-items: center;
+            justify-content: center;
         }
 
         #display-points {
@@ -88,35 +90,47 @@
         #display-label {
             font-size: 0.8rem;
             color: var(--dim);
-            text-align: center;
+            text-align: right;
             min-height: 1rem;
         }
 
-        #delete-btn {
-            align-self: flex-start;
-            width: 28px;
-            height: 28px;
-            border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            background: transparent;
-            color: var(--fg);
-            font-size: 1.0rem;
-            font-weight: 700;
+        #display-messages-panel {
+            flex: 0 0 22vh;
             display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            opacity: 0.75;
-            transition: opacity 0.2s ease, background 0.2s ease, transform 0.15s ease;
+            flex-direction: column;
+            gap: 0.6rem;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 12px;
+            padding: 0.75rem;
+            background: rgba(0, 0, 0, 0.35);
         }
 
-        #delete-btn:hover {
-            opacity: 1;
-            background: rgba(255, 255, 255, 0.08);
+        #display-messages-title {
+            font-size: 0.7rem;
+            color: var(--dim);
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
         }
 
-        #delete-btn:active {
-            transform: scale(0.96);
+        #display-messages {
+            flex: 1;
+            font-size: 0.75rem;
+            color: var(--fg);
+            opacity: 0.85;
+            line-height: 1.35;
+            white-space: pre-wrap;
+            text-align: left;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        #display-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #display-messages::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.18);
+            border-radius: 6px;
         }
 
         /* KEYPAD - botões fixos centralizados */
@@ -126,16 +140,32 @@
             align-items: center;
             justify-content: center;
             background: var(--bg);
-            padding: 2rem;
+            padding: 1rem;
             user-select: none;
             -webkit-user-select: none;
         }
 
         .keypad-grid {
             display: grid;
-            grid-template-columns: repeat(3, 88px);
-            grid-template-rows: repeat(4, 88px);
-            gap: 14px;
+            --key-size: min(18vw, 74px);
+            --gap-size: min(2.8vw, 11px);
+            grid-template-columns: repeat(3, var(--key-size));
+            grid-template-rows: repeat(4, var(--key-size));
+            gap: var(--gap-size);
+        }
+
+        .keypad-qwerty {
+            display: none;
+            flex-direction: column;
+            --q-key-size: min(9.2vw, 40px);
+            --q-gap-size: min(2.0vw, 8px);
+            gap: var(--q-gap-size);
+        }
+
+        .q-row {
+            display: flex;
+            gap: var(--q-gap-size);
+            justify-content: center;
         }
 
         .key {
@@ -151,8 +181,14 @@
             transition: all 0.15s ease;
             user-select: none;
             -webkit-user-select: none;
-            width: 88px;
-            height: 88px;
+            width: var(--key-size);
+            height: var(--key-size);
+        }
+
+        .key.letter {
+            width: var(--q-key-size);
+            height: var(--q-key-size);
+            border-radius: 12px;
         }
 
         .key:active {
@@ -192,6 +228,32 @@
 
         .key-icon.mode {
             color: var(--green);
+        }
+
+        .key.confirm {
+            border-color: var(--green);
+            color: var(--green);
+        }
+
+        .key.confirm .key-number {
+            color: var(--green);
+        }
+
+        .key.confirm:active {
+            background: var(--green);
+            border-color: var(--green);
+        }
+
+        .key.confirm:active .key-number {
+            color: var(--bg);
+        }
+
+        .keypad-mode-text .keypad-grid {
+            display: none;
+        }
+
+        .keypad-mode-text .keypad-qwerty {
+            display: flex;
         }
 
         /* ACTION BAR */
@@ -261,12 +323,15 @@
 <body>
     <!-- DISPLAY -->
     <div id="display-row">
-        <div id="phone-display">
         <div id="display-points">0</div>
+        <div id="display-messages-panel">
+            <div id="display-messages-title">SYSTEM</div>
+            <div id="display-messages"></div>
+        </div>
+        <div id="phone-display">
             <div id="display-number" class="empty">dial</div>
             <div id="display-label">Ready.</div>
         </div>
-        <button id="delete-btn" aria-label="Delete last character" title="Delete">⌫</button>
     </div>
 
     <!-- KEYPAD -->
@@ -315,18 +380,53 @@
             </button>
 
             <!-- Row 4 - classic layout -->
-            <button class="key" data-num="*">
-                <span class="key-number">*</span>
+            <button class="key" data-delete="1">
+                <span class="key-number">⌫</span>
                 <span class="key-letters"></span>
             </button>
             <button class="key" data-num="0">
                 <span class="key-number">0</span>
                 <span class="key-letters">+</span>
             </button>
-            <button class="key" data-num="#">
-                <span class="key-number">#</span>
+            <button class="key confirm" data-confirm="1">
+                <span class="key-number">OK</span>
                 <span class="key-letters"></span>
             </button>
+        </div>
+        <div class="keypad-qwerty" aria-label="QWERTY keyboard">
+            <div class="q-row">
+                <button class="key letter" data-char="Q"><span class="key-number">Q</span></button>
+                <button class="key letter" data-char="W"><span class="key-number">W</span></button>
+                <button class="key letter" data-char="E"><span class="key-number">E</span></button>
+                <button class="key letter" data-char="R"><span class="key-number">R</span></button>
+                <button class="key letter" data-char="T"><span class="key-number">T</span></button>
+                <button class="key letter" data-char="Y"><span class="key-number">Y</span></button>
+                <button class="key letter" data-char="U"><span class="key-number">U</span></button>
+                <button class="key letter" data-char="I"><span class="key-number">I</span></button>
+                <button class="key letter" data-char="O"><span class="key-number">O</span></button>
+                <button class="key letter" data-char="P"><span class="key-number">P</span></button>
+            </div>
+            <div class="q-row">
+                <button class="key letter" data-char="A"><span class="key-number">A</span></button>
+                <button class="key letter" data-char="S"><span class="key-number">S</span></button>
+                <button class="key letter" data-char="D"><span class="key-number">D</span></button>
+                <button class="key letter" data-char="F"><span class="key-number">F</span></button>
+                <button class="key letter" data-char="G"><span class="key-number">G</span></button>
+                <button class="key letter" data-char="H"><span class="key-number">H</span></button>
+                <button class="key letter" data-char="J"><span class="key-number">J</span></button>
+                <button class="key letter" data-char="K"><span class="key-number">K</span></button>
+                <button class="key letter" data-char="L"><span class="key-number">L</span></button>
+            </div>
+            <div class="q-row">
+                <button class="key letter" data-char="Z"><span class="key-number">Z</span></button>
+                <button class="key letter" data-char="X"><span class="key-number">X</span></button>
+                <button class="key letter" data-char="C"><span class="key-number">C</span></button>
+                <button class="key letter" data-char="V"><span class="key-number">V</span></button>
+                <button class="key letter" data-char="B"><span class="key-number">B</span></button>
+                <button class="key letter" data-char="N"><span class="key-number">N</span></button>
+                <button class="key letter" data-char="M"><span class="key-number">M</span></button>
+                <button class="key confirm" data-confirm="1"><span class="key-number">OK</span></button>
+            </div>
         </div>
     </div>
 
@@ -340,21 +440,27 @@
         const displayPoints = document.getElementById('display-points');
         const displayNumber = document.getElementById('display-number');
         const displayLabel  = document.getElementById('display-label');
-        const deleteBtn     = document.getElementById('delete-btn');
-        const callBtn       = document.getElementById('call-btn');
+        const displayMessages = document.getElementById('display-messages');
         const toast         = document.getElementById('toast');
         const keys          = document.querySelectorAll('.key');
+        const keypad        = document.getElementById('phone-keypad');
 
         // STATE
         let buffer = '';
+        let inputMode = 'dial';
+        let pendingPrompt = '';
+        let executing = false;
+        let pendingType = '';
+        const messageHistory = [];
 
         // HELPERS
         function updateDisplay() {
+            const emptyLabel = inputMode === 'text' ? 'type' : 'dial';
             if (buffer) {
                 displayNumber.textContent = buffer;
                 displayNumber.classList.remove('empty');
             } else {
-                displayNumber.textContent = 'dial';
+                displayNumber.textContent = emptyLabel;
                 displayNumber.classList.add('empty');
             }
         }
@@ -366,6 +472,12 @@
         }
 
         async function fetchPreview(buf) {
+            if (inputMode === 'text') {
+                if (pendingPrompt) {
+                    displayLabel.textContent = `Input: ${pendingPrompt}`;
+                }
+                return;
+            }
             if (!buf) {
                 displayLabel.textContent = 'Ready.';
                 return;
@@ -382,6 +494,13 @@
                     .trim();
                 
                 displayLabel.textContent = preview || 'Processing...';
+
+                if (data.complete && !executing && buf === buffer) {
+                    executing = true;
+                    executeCommand(buf).finally(() => {
+                        executing = false;
+                    });
+                }
             } catch (e) {
                 displayLabel.textContent = buf;
             }
@@ -393,11 +512,52 @@
                 if (!res.ok) return;
                 const data = await res.json();
 
-                if (data.user && typeof data.user.total_points === 'number') {
-                    displayPoints.textContent = Math.round(data.user.total_points).toString();
+                if (data.user) {
+                    const metaScore = data.user.metadata && typeof data.user.metadata.score === 'number'
+                        ? data.user.metadata.score
+                        : null;
+                    const scoreVal = (metaScore !== null)
+                        ? metaScore
+                        : (typeof data.user.score === 'number' ? data.user.score : null);
+                    if (scoreVal !== null) {
+                        displayPoints.textContent = Math.round(scoreVal).toString();
+                    }
+                }
+
+                if (data.pending) {
+                    pendingPrompt = data.pending.prompt || 'required';
+                    pendingType = data.pending.type || '';
+                    if (data.pending.type === 'text') {
+                        inputMode = 'text';
+                        keypad.classList.add('keypad-mode-text');
+                        displayLabel.textContent = `Input: ${pendingPrompt}`;
+                    } else {
+                        inputMode = 'dial';
+                        keypad.classList.remove('keypad-mode-text');
+                    }
+                    updateDisplay();
+                } else {
+                    pendingPrompt = '';
+                    pendingType = '';
+                    if (inputMode !== 'dial') {
+                        inputMode = 'dial';
+                        keypad.classList.remove('keypad-mode-text');
+                        updateDisplay();
+                    }
                 }
 
                 if (data.messages && data.messages.length > 0) {
+                    data.messages.forEach(m => {
+                        const line = Array.isArray(m) ? m.join(' ') : String(m);
+                        if (line.trim().length > 0) {
+                            messageHistory.push(line);
+                        }
+                    });
+                    if (messageHistory.length > 300) {
+                        messageHistory.splice(0, messageHistory.length - 300);
+                    }
+                    displayMessages.textContent = messageHistory.join('\n');
+                    displayMessages.scrollTop = displayMessages.scrollHeight;
                     showToast(data.messages[data.messages.length - 1]);
                 }
             } catch (e) { /* offline */ }
@@ -468,7 +628,18 @@
         keys.forEach(key => {
             key.addEventListener('click', () => {
                 const num = key.dataset.num;
+                const char = key.dataset.char;
+                const confirm = key.dataset.confirm;
+                const del = key.dataset.delete;
                 if (num) {
+                    if (pendingType === 'menu') {
+                        playDTMF(num);
+                        if (navigator.vibrate) navigator.vibrate(10);
+                        key.classList.add('pressed');
+                        setTimeout(() => key.classList.remove('pressed'), 300);
+                        executeCommand(num);
+                        return;
+                    }
                     playDTMF(num);
                     buffer += num;
                     updateDisplay();
@@ -478,6 +649,26 @@
                     
                     key.classList.add('pressed');
                     setTimeout(() => key.classList.remove('pressed'), 300);
+                } else if (char) {
+                    buffer += char;
+                    updateDisplay();
+                    fetchPreview(buffer);
+
+                    if (navigator.vibrate) navigator.vibrate(10);
+
+                    key.classList.add('pressed');
+                    setTimeout(() => key.classList.remove('pressed'), 300);
+                } else if (del) {
+                    if (buffer.length === 0) return;
+                    buffer = buffer.slice(0, -1);
+                    updateDisplay();
+                    fetchPreview(buffer);
+                } else if (confirm) {
+                    if (!buffer) {
+                        showToast('Enter text');
+                        return;
+                    }
+                    executeCommand(buffer);
                 }
             });
         });
@@ -500,26 +691,39 @@
         zeroKey.addEventListener('touchend', () => {
             clearTimeout(longPressTimer);
         });
-
-        deleteBtn.addEventListener('click', () => {
-            if (buffer.length === 0) return;
-            buffer = buffer.slice(0, -1);
-            updateDisplay();
-            fetchPreview(buffer);
-        });
-
-        // CALL (execute)
-        callBtn.addEventListener('click', () => {
-            if (!buffer) {
-                showToast('Enter a number');
-                return;
-            }
-            executeCommand(buffer);
-        });
+        
+        // Long press delete key = clear all
+        let deleteAllTimer;
+        const deleteKey = document.querySelector('[data-delete="1"]');
+        if (deleteKey) {
+            deleteKey.addEventListener('touchstart', () => {
+                deleteAllTimer = setTimeout(() => {
+                    if (buffer.length === 0) return;
+                    buffer = '';
+                    updateDisplay();
+                    fetchPreview(buffer);
+                    if (navigator.vibrate) navigator.vibrate([15, 5, 15]);
+                }, 550);
+            });
+            deleteKey.addEventListener('touchend', () => {
+                clearTimeout(deleteAllTimer);
+            });
+        }
 
         // INIT
-        updateStatus();
-        setInterval(updateStatus, 3000);
+        async function init() {
+            keypad.classList.remove('keypad-mode-text');
+            inputMode = 'dial';
+            pendingPrompt = '';
+            updateDisplay();
+            try {
+                await fetch('/api/cancel', { method: 'POST' });
+            } catch (e) { /* ignore */ }
+            updateStatus();
+            setInterval(updateStatus, 3000);
+        }
+
+        init();
     </script>
 </body>
 </html>

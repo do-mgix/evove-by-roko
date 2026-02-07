@@ -525,6 +525,9 @@ class User:
 
         # Cria o diretório se não existir
         os.makedirs(data_dir, exist_ok=True)
+
+        # Keep score mirrored in metadata for UI consumers
+        self.metadata["score"] = self.score
             
         data = {
             "score": self.score,
