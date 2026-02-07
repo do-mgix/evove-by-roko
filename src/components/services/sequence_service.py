@@ -22,6 +22,8 @@ class SequenceService:
             os.makedirs(os.path.dirname(self.data_path), exist_ok=True)
             with open(self.data_path, 'w', encoding='utf-8') as f:
                 json.dump(self.sequences, f, indent=4)
+            from src.components.services.backup_service import backup_json
+            backup_json(self.data_path)
         except IOError as e:
             print(f"Error saving sequences: {e}")
 

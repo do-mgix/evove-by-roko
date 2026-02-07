@@ -544,6 +544,8 @@ class User:
         try:
             with open(data_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=4)
+            from src.components.services.backup_service import backup_json
+            backup_json(data_file)
             # self.add_message(f"file saved.")
             self.load_user()
         except Exception as e:

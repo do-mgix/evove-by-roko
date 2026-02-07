@@ -35,6 +35,8 @@ class JournalService:
             os.makedirs(os.path.dirname(self.logs_data_path), exist_ok=True)
             with open(self.logs_data_path, 'w', encoding='utf-8') as f:
                 json.dump(self.logs, f, indent=4)
+            from src.components.services.backup_service import backup_json
+            backup_json(self.logs_data_path)
         except IOError as e:
             print(f"Error saving logs data: {e}")
 

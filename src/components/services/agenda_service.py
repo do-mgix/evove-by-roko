@@ -23,6 +23,8 @@ class AgendaService:
             os.makedirs(os.path.dirname(self.data_path), exist_ok=True)
             with open(self.data_path, "w", encoding="utf-8") as f:
                 json.dump(self.agenda, f, indent=4)
+            from src.components.services.backup_service import backup_json
+            backup_json(self.data_path)
         except IOError as exc:
             print(f"Error saving agenda: {exc}")
 
@@ -162,4 +164,3 @@ class AgendaService:
 
 
 agenda_service = AgendaService()
-

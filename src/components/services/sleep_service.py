@@ -22,6 +22,8 @@ class SleepService:
             os.makedirs(os.path.dirname(self.data_path), exist_ok=True)
             with open(self.data_path, 'w', encoding='utf-8') as f:
                 json.dump(self.data, f, indent=4)
+            from src.components.services.backup_service import backup_json
+            backup_json(self.data_path)
         except IOError as e:
             print(f"Error saving sleep data: {e}")
 
