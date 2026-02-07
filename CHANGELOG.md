@@ -19,5 +19,4 @@
 - Gitignore fix to igonre local development tests folder
 - Added lock to user.json to avoid token conflicts at multi-client system
 
-### Removed 
--
+
