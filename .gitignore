@@ -4,12 +4,13 @@ __pycache__/
 *.pyo
 
 
-src/data/user.json*
-src/data/logs.json*
-src/data/sequences.json*
-src/data/sleep_data.json*
-src/data/agenda.json*
-src/data/user.json.lock*
-implement.md*
+src/data/user.json
+src/data/logs.json
+src/data/sequences.json
+src/data/sleep_data.json
+src/data/agenda.json
+src/data/user.json.lock
+implement.md
+node_modules/
 
 tests/
