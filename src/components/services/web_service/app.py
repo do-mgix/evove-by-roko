@@ -60,6 +60,8 @@ def index():
 @app.route('/api/status')
 def status():
     user.load_user()
+    # Ensure daily refill also applies in web view
+    user.refill_daily_tokens()
     current_entity = em.get_entity()
     
     # Add web buffer messages

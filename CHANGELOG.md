@@ -8,7 +8,8 @@
 - 
 
 ### Fixed
-- Gitignore fixes to ignore local user json files 
+- Gitignore fixes to ignore local user json files
+- Gitignore fix to igonre local development tests folder
 
 ### Removed 
 -

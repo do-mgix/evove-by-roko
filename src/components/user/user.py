@@ -1,5 +1,5 @@
 # ==================== USER.PY ====================
-import json, os
+import json, os, time
 from datetime import datetime, timedelta
 from src.components.entitys.entity_manager import EntityManager
 from src.components.user.attributes.attribute import Attribute
@@ -20,24 +20,77 @@ class User:
             "unlocked_packages": ["basics"],
             "tokens": 0,
             "max_tokens": 50,
-            "daily_refill": 20,
+            "daily_refill": 10,
             "refill_cooldown": 12,
             "refill_cooldown": 12,
-            "last_token_refill": datetime.now().isoformat()
+            "last_token_refill": datetime.now().strftime("%Y-%m-%d")
         }
         self.load_user()    
+
+    def refill_daily_tokens(self, now=None):
+        """Refill once per day based on date (ignores time)."""
+        # Always reload to reduce duplicate refills across processes
+        self.load_user()
+
+        if now is None:
+            now = datetime.now()
+
+        # Try to acquire a simple inter-process lock (best-effort)
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        src_dir = os.path.dirname(os.path.dirname(base_dir))
+        data_dir = os.path.join(src_dir, "data")
+        os.makedirs(data_dir, exist_ok=True)
+        lock_path = os.path.join(data_dir, "user.json.lock")
+
+        lock_fd = None
+        start = time.time()
+        while lock_fd is None and (time.time() - start) < 2.0:
+            try:
+                lock_fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            except FileExistsError:
+                time.sleep(0.05)
+
+        if lock_fd is None:
+            # Another process is updating; avoid duplicate refill
+            return False
+
+        try:
+            today_str = now.strftime("%Y-%m-%d")
+            last_str = self.metadata.get("last_token_refill")
+
+            if not last_str:
+                self.metadata["last_token_refill"] = today_str
+                self.save_user()
+                return False
+
+            # Accept both date-only and full ISO strings
+            try:
+                last_date = datetime.fromisoformat(last_str).strftime("%Y-%m-%d")
+            except (ValueError, TypeError):
+                self.metadata["last_token_refill"] = today_str
+                self.save_user()
+                return False
+
+            if last_date == today_str:
+                return False
+
+            amount = self.metadata.get("daily_refill", self.metadata["daily_refill"])
+            # Set date first so add_tokens save includes it
+            self.metadata["last_token_refill"] = today_str
+            self.add_tokens(amount)
+            return True
+        finally:
+            try:
+                if lock_fd is not None:
+                    os.close(lock_fd)
+                if os.path.exists(lock_path):
+                    os.remove(lock_path)
+            except Exception:
+                # If cleanup fails, avoid crashing caller
+                pass
+
     def regenerate_tokens(self):
-        """Regenerates poke tokens based on passed time.
-        
-        Calcula quantos tokens devem ser adicionados com base no tempo passado
-        desde o último refill. Usa a fórmula:
-            tokens = (horas_passadas / refill_cooldown) * daily_refill
-        
-        Exemplo: 
-            - refill_cooldown: 12h
-            - daily_refill: 20 tokens
-            - Se passaram 24h → ganha 40 tokens (2 ciclos completos)
-        """
+
         now = datetime.now()
         
         last_str = self.metadata.get("last_token_refill")
