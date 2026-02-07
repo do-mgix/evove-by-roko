@@ -262,7 +262,7 @@
     <!-- DISPLAY -->
     <div id="display-row">
         <div id="phone-display">
-            <div id="display-points">0.0</div>
+        <div id="display-points">0</div>
             <div id="display-number" class="empty">dial</div>
             <div id="display-label">Ready.</div>
         </div>
@@ -394,7 +394,7 @@
                 const data = await res.json();
 
                 if (data.user && typeof data.user.total_points === 'number') {
-                    displayPoints.textContent = data.user.total_points.toFixed(1);
+                    displayPoints.textContent = Math.round(data.user.total_points).toString();
                 }
 
                 if (data.messages && data.messages.length > 0) {
