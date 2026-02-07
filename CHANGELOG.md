@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.0.0-alpha] - 07-02-2026 
+### Added
+- New web view interface 
+- Backup service 
+
+
 ## [1.0.0-alpha] - 05-02-2026 
 ### Added
 - Base structure of user agenda service
