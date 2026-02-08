@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file. See [standa
 
 ### Features
 
-* added mode cycle button with and a menu navigation mode ([ab1c170](https://github.com/do-mgix/evove-by-roko/commit/ab1c170d533d3408328b08c8ef211b52b61b307c))
+* added mode cycle button and a menu navigation mode ([ab1c170](https://github.com/do-mgix/evove-by-roko/commit/ab1c170d533d3408328b08c8ef211b52b61b307c))
 
 ## [1.1.0-alpha.3](https://github.com/do-mgix/evove-by-roko/compare/v1.1.0-alpha.2...v1.1.0-alpha.3) (2026-02-08)
 
