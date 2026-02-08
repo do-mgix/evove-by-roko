@@ -37,6 +37,16 @@
             -webkit-user-select: none;
         }
 
+        #system-input {
+            position: absolute;
+            opacity: 0;
+            width: 1px;
+            height: 1px;
+            border: 0;
+            padding: 0;
+            margin: 0;
+        }
+
         /* DISPLAY */
         #display-row {
             flex: 0 0 45vh;
@@ -147,6 +157,8 @@
             padding: 1rem;
             user-select: none;
             -webkit-user-select: none;
+            opacity: 1;
+            pointer-events: auto;
         }
 
         .keypad-grid {
@@ -164,6 +176,8 @@
             --q-key-size: min(9.2vw, 40px);
             --q-gap-size: min(2.0vw, 8px);
             gap: var(--q-gap-size);
+            opacity: 0;
+            pointer-events: none;
         }
 
         .q-row {
@@ -326,9 +340,9 @@
 </head>
 <body>
     <!-- DISPLAY -->
-    <div id="display-row">
+        <div id="display-row">
         <div id="display-points">0</div>
-        <div id="display-messages-panel">
+            <div id="display-messages-panel">
             <div id="display-messages-title">SYSTEM</div>
             <div id="display-messages"></div>
         </div>
@@ -337,6 +351,7 @@
             <div id="display-label">Ready.</div>
         </div>
     </div>
+    <input id="system-input" autocomplete="off" autocapitalize="characters" spellcheck="false" />
 
     <!-- KEYPAD -->
     <div id="phone-keypad">
@@ -445,9 +460,11 @@
         const displayNumber = document.getElementById('display-number');
         const displayLabel  = document.getElementById('display-label');
         const displayMessages = document.getElementById('display-messages');
+        const systemInput   = document.getElementById('system-input');
         const toast         = document.getElementById('toast');
         const keys          = document.querySelectorAll('.key');
         const keypad        = document.getElementById('phone-keypad');
+        const displayRow    = document.getElementById('display-row');
 
         // STATE
         let buffer = '';
@@ -470,6 +487,13 @@
                 displayNumber.textContent = emptyLabel;
                 displayNumber.classList.add('empty');
             }
+        }
+
+        function focusSystemInput() {
+            if (!systemInput) return;
+            if (pendingType !== 'text') return;
+            systemInput.setAttribute('inputmode', 'text');
+            systemInput.focus({ preventScroll: true });
         }
 
         function showToast(msg) {
@@ -542,6 +566,9 @@
                         inputMode = 'dial';
                         keypad.classList.remove('keypad-mode-text');
                     }
+                    if (data.pending.type === 'text') {
+                        focusSystemInput();
+                    }
                     updateDisplay();
                 } else {
                     pendingPrompt = '';
@@ -585,6 +612,7 @@
                     buffer = '';
                     pendingPrompt = '';
                     pendingType = '';
+                    if (systemInput) systemInput.value = '';
                     updateDisplay();
                     displayLabel.textContent = 'Ready.';
                     updateStatus();
@@ -651,6 +679,7 @@
                     }
                     playDTMF(num);
                     buffer += num;
+                    if (systemInput) systemInput.value = buffer;
                     updateDisplay();
                     fetchPreview(buffer);
                     
@@ -660,6 +689,7 @@
                     setTimeout(() => key.classList.remove('pressed'), 300);
                 } else if (char) {
                     buffer += char;
+                    if (systemInput) systemInput.value = buffer;
                     updateDisplay();
                     fetchPreview(buffer);
 
@@ -670,6 +700,7 @@
                 } else if (del) {
                     if (buffer.length === 0) return;
                     buffer = buffer.slice(0, -1);
+                    if (systemInput) systemInput.value = buffer;
                     updateDisplay();
                     fetchPreview(buffer);
                 } else if (confirm) {
@@ -709,6 +740,7 @@
                 deleteAllTimer = setTimeout(() => {
                     if (buffer.length === 0) return;
                     buffer = '';
+                    if (systemInput) systemInput.value = '';
                     updateDisplay();
                     fetchPreview(buffer);
                     if (navigator.vibrate) navigator.vibrate([15, 5, 15]);
@@ -734,6 +766,39 @@
         }
 
         init();
+
+        if (systemInput) {
+            systemInput.addEventListener('input', () => {
+                let val = systemInput.value || '';
+                if (pendingType === 'text') {
+                    val = val.toUpperCase();
+                } else {
+                    val = val.replace(/[^0-9]/g, '');
+                }
+                if (val !== systemInput.value) {
+                    systemInput.value = val;
+                }
+                buffer = val;
+                updateDisplay();
+                if (!pendingType) {
+                    fetchPreview(buffer);
+                }
+            });
+            systemInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    if (!buffer) return;
+                    executeCommand(buffer);
+                }
+            });
+        }
+
+        if (displayRow) {
+            displayRow.addEventListener('click', () => {
+                if (pendingType === 'text') {
+                    focusSystemInput();
+                }
+            });
+        }
     </script>
 </body>
 </html>
