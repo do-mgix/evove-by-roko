@@ -1,7 +1,4 @@
 {
-  "devDependencies": {
-    "semantic-release": "^24.2.9"
-  },
   "name": "roko_evoveby",
   "version": null,
   "description": "A truly bizarre habit tracker",
@@ -164,6 +161,7 @@
     "require-directory": "^2.1.1",
     "resolve-from": "^5.0.0",
     "safe-buffer": "^5.1.2",
+    "semantic-release": "^24.2.9",
     "semver": "^7.7.4",
     "semver-diff": "^5.0.0",
     "semver-regex": "^4.0.5",
@@ -218,6 +216,7 @@
     "yargs-parser": "^21.1.1",
     "yoctocolors": "^2.1.2"
   },
+  "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
