@@ -182,7 +182,7 @@ class User:
             total = sum(attr.total_score for attr in self._attributes.values())
             return total / len(self._attributes)
         else:
-            return 0
+            return self.metadata.get("score", 0)
  
     @property
     def total_points(self):
@@ -274,6 +274,9 @@ class User:
             boost_multiplier = 1 + boost_factor
 
         final_score_difference = score_difference * boost_multiplier
+        if not self._attributes:
+            current_score = self.metadata.get("score", 0) or 0
+            self.metadata["score"] = current_score + action.score
         self.save_user()
         return final_score_difference
 

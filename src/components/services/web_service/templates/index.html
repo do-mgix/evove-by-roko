@@ -216,21 +216,83 @@
         }
 
         #phone-keypad.mode-nav .key {
-            border-color: #333;
-            color: #333;
+            border-color: var(--fg);
+            color: var(--fg);
         }
 
         #phone-keypad.mode-nav .key-number {
-            color: #333;
+            color: var(--fg);
         }
 
         #phone-keypad.mode-nav .key.nav-active {
-            border-color: var(--green);
-            color: var(--green);
+            border-color: var(--fg);
+            color: var(--fg);
         }
 
         #phone-keypad.mode-nav .key.nav-active .key-number {
-            color: var(--green);
+            color: var(--fg);
+        }
+
+        .fountain-wrap {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            background-image: url("https://img1.picmix.com/output/stamp/normal/1/9/0/0/2480091_90ce2.gif");
+            background-size: 140% 140%;
+            background-position: center;
+            background-repeat: no-repeat;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .fountain-count {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            font-size: 2.4rem;
+            letter-spacing: 0.16em;
+            color: var(--fg);
+            transform: translate(-50%, -50%);
+            animation: floaty 2.6s ease-in-out infinite;
+            text-shadow: 0 2px 6px rgba(0,0,0,0.6);
+            z-index: 1;
+        }
+
+        .fountain-count.pop {
+            animation: pop 0.18s ease;
+        }
+
+        .fountain-count.throw {
+            animation: throw 0.8s ease;
+        }
+
+        .fountain-wrap::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.35);
+            z-index: 0;
+        }
+
+        @keyframes floaty {
+            0%, 100% { transform: translate(-50%, -50%) translateY(0px); }
+            50% { transform: translate(-50%, -50%) translateY(-6px); }
+        }
+
+        @keyframes pop {
+            0% { transform: translate(-50%, -50%) scale(1); }
+            60% { transform: translate(-50%, -50%) scale(1.18); }
+            100% { transform: translate(-50%, -50%) scale(1); }
+        }
+
+        @keyframes throw {
+            0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            50% { transform: translate(-50%, -70%) scale(0.7); opacity: 0.9; }
+            100% { transform: translate(-50%, -40%) scale(0.4); opacity: 0.6; }
         }
 
         #phone-keypad.mode-classic .key {
@@ -590,6 +652,16 @@
         let menuSelection = 0;
         let settingsData = null;
         let packagesData = null;
+        let subScreen = 'list';
+        let fountainValue = 0;
+        let lastFountainValue = 0;
+        let currentScore = 0;
+        let holdTimer = null;
+        let holdDir = 0;
+        let holdStart = 0;
+        let holdDelayTimer = null;
+        let holdActive = false;
+        let holdUsed = false;
         const messageHistory = [];
 
         // HELPERS
@@ -641,6 +713,10 @@
             updateNavKeys();
             if (mode === 'nav') {
                 setRootMenu();
+                subScreen = 'list';
+                if (fountainValue === 0 && currentScore > 0) {
+                    fountainValue = currentScore;
+                }
             }
             renderMenu();
         }
@@ -661,6 +737,7 @@
         function renderMenu() {
             if (uiMode !== 'nav') {
                 displayMessages.classList.remove('menu');
+                displayMessages.style.overflowY = 'auto';
                 if (messageHistory.length > 0) {
                     displayMessages.textContent = messageHistory.join('\n');
                     displayMessages.scrollTop = displayMessages.scrollHeight;
@@ -669,7 +746,12 @@
                 }
                 return;
             }
+            if (subScreen === 'fountain') {
+                renderFountain();
+                return;
+            }
             displayMessages.classList.add('menu');
+            displayMessages.style.overflowY = 'auto';
             const menu = currentMenu();
             if (!menu) {
                 displayMessages.innerHTML = '';
@@ -681,6 +763,66 @@
                 return `<div class="${cls}">${item.label}</div>`;
             });
             displayMessages.innerHTML = items.join('');
+        }
+
+        function renderFountain() {
+            displayMessages.classList.remove('menu');
+            displayMessages.style.overflowY = 'hidden';
+            const num = String(Math.max(0, Math.floor(fountainValue))).padStart(8, '0');
+            displayMessages.innerHTML = `
+                <div class="fountain-wrap">
+                    <div class="fountain-count">${num}</div>
+                </div>
+            `;
+            if (fountainValue > lastFountainValue) {
+                const countEl = displayMessages.querySelector('.fountain-count');
+                if (countEl) {
+                    countEl.classList.remove('pop');
+                    void countEl.offsetWidth;
+                    countEl.classList.add('pop');
+                }
+            }
+            lastFountainValue = fountainValue;
+        }
+
+        function setSubScreen(name) {
+            subScreen = name;
+            renderMenu();
+        }
+
+        function updateFountainValue(delta) {
+            const maxVal = Math.max(0, Math.floor(currentScore));
+            fountainValue = Math.max(0, Math.min(maxVal, fountainValue + delta));
+            renderFountain();
+        }
+
+        function startHold(dir) {
+            if (holdTimer || holdDelayTimer) return;
+            holdDir = dir;
+            holdDelayTimer = setTimeout(() => {
+                holdActive = true;
+                holdUsed = true;
+                holdStart = Date.now();
+                holdTimer = setInterval(() => {
+                    const elapsed = Date.now() - holdStart;
+                    const accel = Math.min(40, 1 + Math.floor(elapsed / 150));
+                    updateFountainValue(holdDir * accel);
+                }, 70);
+                holdDelayTimer = null;
+            }, 200);
+        }
+
+        function stopHold() {
+            if (holdDelayTimer) {
+                clearTimeout(holdDelayTimer);
+                holdDelayTimer = null;
+            }
+            if (holdTimer) {
+                clearInterval(holdTimer);
+                holdTimer = null;
+            }
+            holdActive = false;
+            holdDir = 0;
         }
 
         function currentMenu() {
@@ -839,6 +981,39 @@
             } catch (e) { /* ignore */ }
         }
 
+        async function offerFountain() {
+            const amount = Math.max(0, Math.floor(fountainValue));
+            if (amount <= 0) return;
+            const maxVal = Math.max(0, Math.floor(currentScore));
+            const offerVal = Math.min(amount, maxVal);
+            if (offerVal <= 0) return;
+            try {
+                const res = await fetch('/api/fountain/offer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ value: offerVal })
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+                const total = typeof data.total === 'number' ? data.total : offerVal;
+                const remaining = typeof data.remaining === 'number' ? data.remaining : Math.max(0, maxVal - offerVal);
+                const countEl = displayMessages.querySelector('.fountain-count');
+                if (countEl) {
+                    countEl.classList.remove('throw');
+                    void countEl.offsetWidth;
+                    countEl.classList.add('throw');
+                }
+                setTimeout(() => {
+                    fountainValue = total;
+                    renderFountain();
+                    setTimeout(() => {
+                        fountainValue = remaining;
+                        renderFountain();
+                    }, 700);
+                }, 650);
+            } catch (e) { /* ignore */ }
+        }
+
         async function fetchLogSuggestions() {
             try {
                 const res = await fetch('/api/log_suggestions');
@@ -951,6 +1126,13 @@
                         : (typeof data.user.score === 'number' ? data.user.score : null);
                     if (scoreVal !== null) {
                         displayPoints.textContent = Math.round(scoreVal).toString();
+                        currentScore = Math.round(scoreVal);
+                        if (fountainValue > currentScore) {
+                            fountainValue = currentScore;
+                            if (uiMode === 'nav' && subScreen === 'fountain') {
+                                renderFountain();
+                            }
+                        }
                     }
                 }
 
@@ -1086,14 +1268,28 @@
                             menuSelection = (menuSelection - 1 + menu.items.length) % menu.items.length;
                             renderMenu();
                         } else if (num === '8') {
-                            menuSelection = (menuSelection + 1) % menu.items.length;
-                            renderMenu();
+                            if (subScreen === 'fountain') {
+                                if (holdUsed) {
+                                    holdUsed = false;
+                                }
+                            } else {
+                                menuSelection = (menuSelection + 1) % menu.items.length;
+                                renderMenu();
+                            }
+                        } else if (num === '1') {
+                            setSubScreen('list');
+                        } else if (num === '3') {
+                            setSubScreen('fountain');
                         } else if (num === '4') {
                             popMenu();
                         } else if (num === '6' || num === '5') {
-                            const item = menu.items[menuSelection];
-                            if (menu.onSelect) {
-                                menu.onSelect(item);
+                            if (subScreen === 'fountain' && num === '5') {
+                                offerFountain();
+                            } else {
+                                const item = menu.items[menuSelection];
+                                if (menu.onSelect) {
+                                    menu.onSelect(item);
+                                }
                             }
                         } else if (num === '9') {
                             popMenu();
@@ -1241,6 +1437,39 @@
             deleteKey.addEventListener('touchend', () => {
                 clearTimeout(deleteAllTimer);
             });
+        }
+
+        const twoKey = document.querySelector('[data-num="2"]');
+        const eightKey = document.querySelector('[data-num="8"]');
+        if (twoKey) {
+            twoKey.addEventListener('touchstart', () => {
+                if (uiMode === 'nav' && subScreen === 'fountain' && !pendingType) {
+                    startHold(1);
+                }
+            });
+            twoKey.addEventListener('touchend', () => stopHold());
+            twoKey.addEventListener('mousedown', () => {
+                if (uiMode === 'nav' && subScreen === 'fountain' && !pendingType) {
+                    startHold(1);
+                }
+            });
+            twoKey.addEventListener('mouseup', () => stopHold());
+            twoKey.addEventListener('mouseleave', () => stopHold());
+        }
+        if (eightKey) {
+            eightKey.addEventListener('touchstart', () => {
+                if (uiMode === 'nav' && subScreen === 'fountain' && !pendingType) {
+                    startHold(-1);
+                }
+            });
+            eightKey.addEventListener('touchend', () => stopHold());
+            eightKey.addEventListener('mousedown', () => {
+                if (uiMode === 'nav' && subScreen === 'fountain' && !pendingType) {
+                    startHold(-1);
+                }
+            });
+            eightKey.addEventListener('mouseup', () => stopHold());
+            eightKey.addEventListener('mouseleave', () => stopHold());
         }
 
         // INIT

@@ -17,6 +17,7 @@ from src.components.services.web_service.web_menu_service import (
     list_packages,
     import_package,
 )
+from src.components.services.fountain_service import fountain_service
 from flask import request, send_from_directory
 
 app = Flask(__name__)
@@ -28,6 +29,11 @@ def serve_manifest():
 @app.route('/sw.js')
 def serve_sw():
     return send_from_directory('static', 'sw.js')
+
+@app.route('/media/<path:filename>')
+def serve_media(filename):
+    media_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../media"))
+    return send_from_directory(media_dir, filename)
 em = EntityManager()
 ui.web_mode = True
 
@@ -371,5 +377,16 @@ def menu_packages_import():
     data = request.json or {}
     key = data.get("key")
     return jsonify(import_package(key))
+
+@app.route('/api/fountain/offer', methods=['POST'])
+def fountain_offer():
+    data = request.json or {}
+    try:
+        value = int(data.get("value", 0))
+    except Exception:
+        value = 0
+    spent = fountain_service.offer(value)
+    remaining = user.metadata.get("score", 0) if not user._attributes else user.score
+    return jsonify({ "spent": spent, "total": fountain_service.total_offer, "remaining": remaining })
 if __name__ == '__main__':
     app.run(debug=True, host="0.0.0.0", port=5000)
