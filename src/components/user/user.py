@@ -273,9 +273,12 @@ class User:
         if not self._check_shop_access(action_id):
             return None
 
+        original_value = action.value
         score_difference, action_messages = action.execution(manual_value=value)
+        value_difference = action.value - original_value
 
-        self._apply_param_action_effects(action_id)
+        if value_difference:
+            self._apply_param_action_effects(action, value_difference)
         
         # Daily Aggregation Logic -> Immediate Log (TO PROCESS)
         action_name = action.name
@@ -1044,22 +1047,27 @@ class User:
         self.add_message(f"Shop item {shop_item_id} linked to Action {action_id}.")
         self.save_user()
 
-    def _apply_param_action_effects(self, action_id):
-        links = self._param_action_links.get(action_id, [])
+    def _apply_param_action_effects(self, action, value_difference):
+        links = self._param_action_links.get(action.id, [])
         if not links:
             return
-        factor_map_pct = {1: 1.0, 2: 2.0, 3: 3.0}
-        factor_map_mark = {1: 0.25, 2: 0.5, 3: 1.0}
+        unit_map = {
+            1: 1.0,  # repetitions
+            2: 0.1,  # seconds
+            3: 0.5,  # minutes
+            4: 3.0,  # hours
+            5: 1.0,  # letters
+            6: 1.0,  # lines
+        }
+        unit_factor = unit_map.get(action.type, 1.0)
         for link in links:
             param = self._parameters.get(link.get("param_id"))
             if not param:
                 continue
             effect_type = link.get("effect_type")
             factor = link.get("factor")
-            if param._value_type == 1:
-                delta = factor_map_mark.get(factor, 0)
-            else:
-                delta = factor_map_pct.get(factor, 0)
+            base_value = 1.5 if param._value_type == 1 else 5.0
+            delta = value_difference * unit_factor * factor * base_value
             if effect_type == 2:
                 delta = -delta
             param.set_value(param._value + delta)
@@ -1126,7 +1134,14 @@ class User:
                 if param.update_value():
                     self._update_statuses_for_param(param)
             items = [
-                f"({param._id}) - {param._name} [{Parameter.VALUE_TYPES.get(param._value_type)} / {Parameter.LOGIC_TYPES.get(param._logic_type)}] = {param._value:.2f}"
+                (
+                    f"({param._id}) - {param._name} "
+                    f"[{Parameter.VALUE_TYPES.get(param._value_type)} / {Parameter.LOGIC_TYPES.get(param._logic_type)}] = "
+                    f"{int(round(param._value))}%" if param._value_type == 2 else
+                    f"({param._id}) - {param._name} "
+                    f"[{Parameter.VALUE_TYPES.get(param._value_type)} / {Parameter.LOGIC_TYPES.get(param._logic_type)}] = "
+                    f"{int(round(param._value))}"
+                )
                 for param in self._parameters.values()
             ]
             ui.show_list(items, "CURRENT PARAMETERS")
