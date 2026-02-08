@@ -9,6 +9,7 @@ from src.components.data.constants import user
 from src.components.entitys.entity_manager import EntityManager
 from src.components.services.UI.interface import ui, WebInputInterrupt
 from src.components.services.dial_interaction.dial_digest import dial
+from src.components.services.journal_service import journal_service
 from flask import request, send_from_directory
 
 app = Flask(__name__)
@@ -302,5 +303,44 @@ def _resolve_name(prefix_char, id_value):
     except:
         pass
     return None
+
+@app.route('/api/log_suggestions', methods=['GET'])
+def log_suggestions():
+    """Return recent log contents for autocomplete."""
+    try:
+        journal_service._load_logs_data()
+        suggestions = []
+        base = ""
+        today = None
+        try:
+            from datetime import datetime
+            today = datetime.now().strftime("%d %m %Y")
+        except Exception:
+            today = None
+
+        if today:
+            for entry in journal_service.logs:
+                if not isinstance(entry, dict):
+                    continue
+                ts = entry.get("timestamp", "")
+                content = entry.get("content")
+                if not ts or not content:
+                    continue
+                if ts.startswith(today):
+                    base = str(content).strip()
+                    break
+
+        for entry in reversed(journal_service.logs):
+            content = entry.get("content") if isinstance(entry, dict) else None
+            if not content:
+                continue
+            content = str(content).strip()
+            if content and content not in suggestions:
+                suggestions.append(content)
+            if len(suggestions) >= 60:
+                break
+        return jsonify({ "suggestions": suggestions, "base": base })
+    except Exception:
+        return jsonify({ "suggestions": [], "base": "" })
 if __name__ == '__main__':
     app.run(debug=True, host="0.0.0.0", port=5000)

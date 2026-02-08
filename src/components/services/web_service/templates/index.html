@@ -93,6 +93,11 @@
             white-space: nowrap;
         }
 
+        #display-number .ghost {
+            color: var(--dim);
+            opacity: 0.6;
+        }
+
         #display-number.empty {
             color: var(--dim);
             font-size: 1.8rem;
@@ -485,6 +490,11 @@
             '8': 'tuv',
             '9': 'wxyz'
         };
+        let logSuggestions = [];
+        let activeSuggestion = '';
+        let activeSuggestionDisplay = '';
+        let baseSuggestion = '';
+        let suggestionActive = false;
         const messageHistory = [];
 
         // HELPERS
@@ -494,7 +504,20 @@
                 emptyLabel = pendingPrompt;
             }
             if (buffer) {
-                displayNumber.textContent = buffer;
+                if (suggestionActive && activeSuggestionDisplay && pendingPrompt === 'log message') {
+                    const b = buffer;
+                    const s = activeSuggestionDisplay;
+                    const sLower = s.toLowerCase();
+                    const bLower = b.toLowerCase();
+                    if (sLower.startsWith(bLower) && s.length >= b.length) {
+                        const tail = s.slice(b.length);
+                        displayNumber.innerHTML = `${b}<span class="ghost">${tail}</span>`;
+                    } else {
+                        displayNumber.textContent = buffer;
+                    }
+                } else {
+                    displayNumber.textContent = buffer;
+                }
                 displayNumber.classList.remove('empty');
             } else {
                 displayNumber.textContent = emptyLabel;
@@ -506,6 +529,53 @@
             lastTapKey = null;
             lastTapIndex = 0;
             lastTapTime = 0;
+        }
+
+        async function fetchLogSuggestions() {
+            try {
+                const res = await fetch('/api/log_suggestions');
+                if (!res.ok) return;
+                const data = await res.json();
+                if (Array.isArray(data.suggestions)) {
+                    logSuggestions = data.suggestions;
+                }
+                if (typeof data.base === 'string') {
+                    baseSuggestion = data.base;
+                }
+            } catch (e) { /* ignore */ }
+        }
+
+        function updateLogSuggestion() {
+            if (pendingType !== 'text' || pendingPrompt !== 'log message') {
+                activeSuggestion = '';
+                activeSuggestionDisplay = '';
+                suggestionActive = false;
+                return;
+            }
+            const needle = buffer.trim().toLowerCase();
+            let suggestion = '';
+            let suggestionDisplay = '';
+            if (!needle && baseSuggestion) {
+                const baseLower = String(baseSuggestion).toLowerCase();
+                suggestion = baseLower;
+                suggestionDisplay = baseLower;
+            }
+            for (const s of logSuggestions) {
+                const sLower = String(s).toLowerCase();
+                if (!needle || sLower.startsWith(needle)) {
+                    if (sLower !== needle) {
+                        suggestion = sLower;
+                        suggestionDisplay = sLower;
+                        break;
+                    }
+                }
+            }
+            activeSuggestion = suggestion;
+            activeSuggestionDisplay = suggestionDisplay;
+            suggestionActive = !!suggestion;
+            if (suggestionActive) {
+                displayLabel.textContent = `Suggest: ${activeSuggestionDisplay}`;
+            }
         }
 
         function toTitleCase(str) {
@@ -583,6 +653,9 @@
                         inputMode = 'text';
                         displayLabel.textContent = `Input: ${pendingPrompt}`;
                         keypad.classList.add('text-input-active');
+                        if (pendingPrompt === 'log message' && logSuggestions.length === 0) {
+                            fetchLogSuggestions().then(updateLogSuggestion);
+                        }
                     } else {
                         inputMode = 'dial';
                         keypad.classList.remove('text-input-active');
@@ -591,6 +664,7 @@
                     if (data.pending.type !== 'text') {
                         resetMultiTap();
                     }
+                    updateLogSuggestion();
                     updateDisplay();
                 } else {
                     pendingPrompt = '';
@@ -600,6 +674,7 @@
                     }
                     keypad.classList.remove('text-input-active');
                     resetMultiTap();
+                    updateLogSuggestion();
                     updateDisplay();
                 }
 
@@ -637,6 +712,7 @@
                     pendingType = '';
                     keypad.classList.remove('text-input-active');
                     resetMultiTap();
+                    updateLogSuggestion();
                     updateDisplay();
                     displayLabel.textContent = 'Ready.';
                     updateStatus();
@@ -726,6 +802,7 @@
                             }
                             lastTapTime = now;
                             updateDisplay();
+                            updateLogSuggestion();
                         }
                     } else {
                         playDTMF(num);
@@ -754,8 +831,18 @@
                         resetMultiTap();
                     }
                     updateDisplay();
+                    updateLogSuggestion();
                     fetchPreview(buffer);
                 } else if (confirm) {
+                    if (suggestionActive && activeSuggestion) {
+                        buffer = activeSuggestion;
+                        suggestionActive = false;
+                        activeSuggestion = '';
+                        activeSuggestionDisplay = '';
+                        updateDisplay();
+                        updateLogSuggestion();
+                        return;
+                    }
                     if (!buffer) {
                         showToast('Enter text');
                         return;
@@ -818,6 +905,7 @@
             pendingPrompt = '';
             pendingType = '';
             resetMultiTap();
+            updateLogSuggestion();
             updateDisplay();
             updateStatus();
             setInterval(updateStatus, 3000);
