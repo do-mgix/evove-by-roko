@@ -266,13 +266,7 @@
             color: var(--bg);
         }
 
-        .keypad-mode-text .keypad-grid {
-            display: none;
-        }
-
-        .keypad-mode-text .keypad-qwerty {
-            display: flex;
-        }
+        /* QWERTY stays hidden; numeric keypad always visible */
 
         /* ACTION BAR */
         #action-bar {
@@ -340,7 +334,7 @@
 </head>
 <body>
     <!-- DISPLAY -->
-        <div id="display-row">
+    <div id="display-row">
         <div id="display-points">0</div>
             <div id="display-messages-panel">
             <div id="display-messages-title">SYSTEM</div>
@@ -448,8 +442,6 @@
             </div>
         </div>
     </div>
-
-
 
     <!-- TOAST -->
     <div id="toast"></div>
@@ -560,12 +552,11 @@
                     pendingType = data.pending.type || '';
                     if (data.pending.type === 'text') {
                         inputMode = 'text';
-                        keypad.classList.add('keypad-mode-text');
                         displayLabel.textContent = `Input: ${pendingPrompt}`;
                     } else {
                         inputMode = 'dial';
-                        keypad.classList.remove('keypad-mode-text');
                     }
+                    // cancel button removed; handled via long-press delete
                     if (data.pending.type === 'text') {
                         focusSystemInput();
                     }
@@ -575,7 +566,6 @@
                     pendingType = '';
                     if (inputMode !== 'dial') {
                         inputMode = 'dial';
-                        keypad.classList.remove('keypad-mode-text');
                     }
                     updateDisplay();
                 }
@@ -732,12 +722,17 @@
             clearTimeout(longPressTimer);
         });
         
-        // Long press delete key = clear all
+        // Long press delete key = cancel pending (if any), else clear all
         let deleteAllTimer;
         const deleteKey = document.querySelector('[data-delete="1"]');
         if (deleteKey) {
             deleteKey.addEventListener('touchstart', () => {
                 deleteAllTimer = setTimeout(() => {
+                    if (pendingType) {
+                        cancelPending();
+                        if (navigator.vibrate) navigator.vibrate([15, 5, 15]);
+                        return;
+                    }
                     if (buffer.length === 0) return;
                     buffer = '';
                     if (systemInput) systemInput.value = '';
@@ -753,7 +748,6 @@
 
         // INIT
         async function init() {
-            keypad.classList.remove('keypad-mode-text');
             inputMode = 'dial';
             pendingPrompt = '';
             pendingType = '';
@@ -795,6 +789,19 @@
                     focusSystemInput();
                 }
             });
+        }
+
+        async function cancelPending() {
+            try {
+                await fetch('/api/cancel', { method: 'POST' });
+            } catch (e) { /* ignore */ }
+            buffer = '';
+            pendingPrompt = '';
+            pendingType = '';
+            if (systemInput) systemInput.value = '';
+            updateDisplay();
+            displayLabel.textContent = 'Ready.';
+            updateStatus();
         }
     </script>
 </body>
