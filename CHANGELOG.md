@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-alpha.6](https://github.com/do-mgix/evove-by-roko/compare/v1.1.0-alpha.5...v1.1.0-alpha.6) (2026-02-08)
+
+
+### Features
+
+* added loadscreen ([da1e8a6](https://github.com/do-mgix/evove-by-roko/commit/da1e8a6955ae054b6298e2aaac15edab6840fa33))
+
+
+### Bug Fixes
+
+* bug of offline status in attribute creation ([4d4820c](https://github.com/do-mgix/evove-by-roko/commit/4d4820cd1627788a00d9834a6a9461ef01467f32))
+* bug that blocks 4 or 6 inputs in classic mode ([f19afc0](https://github.com/do-mgix/evove-by-roko/commit/f19afc041c97811207af2050200fd6ce0eb449f8))
+
 ## [1.1.0-alpha.5](https://github.com/do-mgix/evove-by-roko/compare/v1.1.0-alpha.4...v1.1.0-alpha.5) (2026-02-08)
 
 
