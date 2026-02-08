@@ -231,7 +231,7 @@
         .key-letters {
             font-size: 0.6rem;
             color: var(--dim);
-            text-transform: uppercase;
+            text-transform: lowercase;
             letter-spacing: 0.1em;
             margin-top: 2px;
             transition: color 0.15s ease;
@@ -264,6 +264,15 @@
 
         .key.confirm:active .key-number {
             color: var(--bg);
+        }
+
+        #phone-keypad.text-input-active .key-letters {
+            color: var(--green);
+            opacity: 1;
+        }
+
+        #phone-keypad.text-input-active .key-number {
+            opacity: 0.7;
         }
 
         /* QWERTY stays hidden; numeric keypad always visible */
@@ -345,7 +354,6 @@
             <div id="display-label">Ready.</div>
         </div>
     </div>
-    <input id="system-input" autocomplete="off" autocapitalize="characters" spellcheck="false" />
 
     <!-- KEYPAD -->
     <div id="phone-keypad">
@@ -452,7 +460,6 @@
         const displayNumber = document.getElementById('display-number');
         const displayLabel  = document.getElementById('display-label');
         const displayMessages = document.getElementById('display-messages');
-        const systemInput   = document.getElementById('system-input');
         const toast         = document.getElementById('toast');
         const keys          = document.querySelectorAll('.key');
         const keypad        = document.getElementById('phone-keypad');
@@ -464,6 +471,20 @@
         let pendingPrompt = '';
         let executing = false;
         let pendingType = '';
+        let lastTapKey = null;
+        let lastTapIndex = 0;
+        let lastTapTime = 0;
+        const multiTapTimeout = 800;
+        const textMap = {
+            '2': 'abc',
+            '3': 'def',
+            '4': 'ghi',
+            '5': 'jkl',
+            '6': 'mno',
+            '7': 'pqrs',
+            '8': 'tuv',
+            '9': 'wxyz'
+        };
         const messageHistory = [];
 
         // HELPERS
@@ -481,11 +502,19 @@
             }
         }
 
-        function focusSystemInput() {
-            if (!systemInput) return;
-            if (pendingType !== 'text') return;
-            systemInput.setAttribute('inputmode', 'text');
-            systemInput.focus({ preventScroll: true });
+        function resetMultiTap() {
+            lastTapKey = null;
+            lastTapIndex = 0;
+            lastTapTime = 0;
+        }
+
+        function toTitleCase(str) {
+            return String(str || '')
+                .trim()
+                .split(/\s+/)
+                .filter(Boolean)
+                .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+                .join(' ');
         }
 
         function showToast(msg) {
@@ -553,12 +582,14 @@
                     if (data.pending.type === 'text') {
                         inputMode = 'text';
                         displayLabel.textContent = `Input: ${pendingPrompt}`;
+                        keypad.classList.add('text-input-active');
                     } else {
                         inputMode = 'dial';
+                        keypad.classList.remove('text-input-active');
                     }
                     // cancel button removed; handled via long-press delete
-                    if (data.pending.type === 'text') {
-                        focusSystemInput();
+                    if (data.pending.type !== 'text') {
+                        resetMultiTap();
                     }
                     updateDisplay();
                 } else {
@@ -567,6 +598,8 @@
                     if (inputMode !== 'dial') {
                         inputMode = 'dial';
                     }
+                    keypad.classList.remove('text-input-active');
+                    resetMultiTap();
                     updateDisplay();
                 }
 
@@ -602,7 +635,8 @@
                     buffer = '';
                     pendingPrompt = '';
                     pendingType = '';
-                    if (systemInput) systemInput.value = '';
+                    keypad.classList.remove('text-input-active');
+                    resetMultiTap();
                     updateDisplay();
                     displayLabel.textContent = 'Ready.';
                     updateStatus();
@@ -667,11 +701,38 @@
                         executeCommand(num);
                         return;
                     }
-                    playDTMF(num);
-                    buffer += num;
-                    if (systemInput) systemInput.value = buffer;
-                    updateDisplay();
-                    fetchPreview(buffer);
+                    if (pendingType === 'text') {
+                        if (num === '0') {
+                            if (buffer && !buffer.endsWith(' ')) {
+                                buffer += ' ';
+                                resetMultiTap();
+                                updateDisplay();
+                            } else if (!buffer) {
+                                buffer = ' ';
+                                resetMultiTap();
+                                updateDisplay();
+                            }
+                        }
+                        const letters = textMap[num];
+                        if (letters) {
+                            const now = Date.now();
+                            if (lastTapKey === num && (now - lastTapTime) < multiTapTimeout && buffer.length > 0) {
+                                lastTapIndex = (lastTapIndex + 1) % letters.length;
+                                buffer = buffer.slice(0, -1) + letters[lastTapIndex];
+                            } else {
+                                lastTapKey = num;
+                                lastTapIndex = 0;
+                                buffer += letters[0];
+                            }
+                            lastTapTime = now;
+                            updateDisplay();
+                        }
+                    } else {
+                        playDTMF(num);
+                        buffer += num;
+                        updateDisplay();
+                        fetchPreview(buffer);
+                    }
                     
                     if (navigator.vibrate) navigator.vibrate(10);
                     
@@ -679,7 +740,6 @@
                     setTimeout(() => key.classList.remove('pressed'), 300);
                 } else if (char) {
                     buffer += char;
-                    if (systemInput) systemInput.value = buffer;
                     updateDisplay();
                     fetchPreview(buffer);
 
@@ -690,7 +750,9 @@
                 } else if (del) {
                     if (buffer.length === 0) return;
                     buffer = buffer.slice(0, -1);
-                    if (systemInput) systemInput.value = buffer;
+                    if (pendingType === 'text' && buffer.length === 0) {
+                        resetMultiTap();
+                    }
                     updateDisplay();
                     fetchPreview(buffer);
                 } else if (confirm) {
@@ -698,7 +760,11 @@
                         showToast('Enter text');
                         return;
                     }
-                    executeCommand(buffer);
+                    if (pendingType === 'text') {
+                        executeCommand(toTitleCase(buffer));
+                    } else {
+                        executeCommand(buffer);
+                    }
                 }
             });
         });
@@ -735,7 +801,7 @@
                     }
                     if (buffer.length === 0) return;
                     buffer = '';
-                    if (systemInput) systemInput.value = '';
+                    resetMultiTap();
                     updateDisplay();
                     fetchPreview(buffer);
                     if (navigator.vibrate) navigator.vibrate([15, 5, 15]);
@@ -751,45 +817,13 @@
             inputMode = 'dial';
             pendingPrompt = '';
             pendingType = '';
+            resetMultiTap();
             updateDisplay();
             updateStatus();
             setInterval(updateStatus, 3000);
         }
 
         init();
-
-        if (systemInput) {
-            systemInput.addEventListener('input', () => {
-                let val = systemInput.value || '';
-                if (pendingType === 'text') {
-                    val = val.toUpperCase();
-                } else {
-                    val = val.replace(/[^0-9]/g, '');
-                }
-                if (val !== systemInput.value) {
-                    systemInput.value = val;
-                }
-                buffer = val;
-                updateDisplay();
-                if (!pendingType) {
-                    fetchPreview(buffer);
-                }
-            });
-            systemInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    if (!buffer) return;
-                    executeCommand(buffer);
-                }
-            });
-        }
-
-        if (displayRow) {
-            displayRow.addEventListener('click', () => {
-                if (pendingType === 'text') {
-                    focusSystemInput();
-                }
-            });
-        }
 
         async function cancelPending() {
             try {
@@ -798,7 +832,7 @@
             buffer = '';
             pendingPrompt = '';
             pendingType = '';
-            if (systemInput) systemInput.value = '';
+            resetMultiTap();
             updateDisplay();
             displayLabel.textContent = 'Ready.';
             updateStatus();
