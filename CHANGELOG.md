@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-alpha.3](https://github.com/do-mgix/evove-by-roko/compare/v1.1.0-alpha.2...v1.1.0-alpha.3) (2026-02-08)
+
+
+### Features
+
+* added autocompletion to log messages ([c2f7880](https://github.com/do-mgix/evove-by-roko/commit/c2f788091953bf18cfa88be8c822d5a29d8fa34c))
+* added T-9 text input ([3ba3b9e](https://github.com/do-mgix/evove-by-roko/commit/3ba3b9e11b5ea762dac6d38a235bfd1e30dd5315))
+
 ## [1.1.0-alpha.2](https://github.com/do-mgix/evove-by-roko/compare/v1.1.0-alpha.1...v1.1.0-alpha.2) (2026-02-08)
 
 
