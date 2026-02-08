@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-alpha.2](https://github.com/do-mgix/evove-by-roko/compare/v1.1.0-alpha.1...v1.1.0-alpha.2) (2026-02-08)
+
+
+### Features
+
+* implemented cancel behavior to long-press on the delete key ([50edfff](https://github.com/do-mgix/evove-by-roko/commit/50edfffccb686e8020e757e40e768a492e15682d))
+
+
+### Bug Fixes
+
+* removed the startup /api/cancel call ([04e9519](https://github.com/do-mgix/evove-by-roko/commit/04e9519b67306ff8857eef3d0c8132210b58f42d))
+
 ## [1.1.0-alpha.1](https://github.com/do-mgix/evove-by-roko/compare/v1.1.0-alpha.0...v1.1.0-alpha.1) (2026-02-08)
 
 
