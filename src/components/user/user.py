@@ -644,6 +644,9 @@ class User:
         self.save_user()
     
     def create_attribute_by_id(self, payloads, name=None):
+        if not payloads or not payloads[0]:
+            self.add_message("Invalid attribute ID.")
+            return
         new_id = f"8{payloads[0]}"        
         
         if new_id not in self._attributes:

@@ -106,7 +106,7 @@ def status():
 
 @app.route('/api/command', methods=['POST'])
 def command():
-    data = request.json
+    data = request.json or {}
     buffer = data.get('buffer', '')
     
     user.load_user()
@@ -115,94 +115,100 @@ def command():
     if session.pending_input:
         pi = session.pending_input
         session.pending_input = None
-        
-        p = pi.get("prompt", "")
-        t = pi.get("type", "")
 
-        # 1. Attribute/Action Creation
-        if p == "attribute name":
-            if "payloads" in pi.get("options", {}):
-                user.create_attribute_by_id(pi["options"]["payloads"], name=buffer)
-            else:
-                user.create_attribute(name=buffer)
-        
-        elif p == "action name":
-            user.create_action(pi.get("options", {}).get("buffer", ""), name=buffer)
-        
-        elif p == "log message":
-            user.log(buffer)
+        try:
+            p = pi.get("prompt", "")
+            t = pi.get("type", "")
+            options = pi.get("options") or {}
 
-        elif p.startswith("agenda ") or "agenda_step" in pi.get("options", {}):
-            step = pi.get("options", {}).get("agenda_step")
-            data = pi.get("options", {}).get("agenda_data", {})
-            next_step = user.agenda_wizard_next(step, data, buffer)
-            if next_step:
-                session.pending_input = next_step
+            # 1. Attribute/Action Creation
+            if p == "attribute name":
+                if "payloads" in options:
+                    user.create_attribute_by_id(options.get("payloads"), name=buffer)
+                else:
+                    user.create_attribute(name=buffer)
+            
+            elif p == "action name":
+                user.create_action(options.get("buffer", ""), name=buffer)
+            
+            elif p == "log message":
+                user.log(buffer)
+
+            elif p.startswith("agenda ") or "agenda_step" in options:
+                step = options.get("agenda_step")
+                data = options.get("agenda_data", {})
+                next_step = user.agenda_wizard_next(step, data, buffer)
+                if next_step:
+                    session.pending_input = next_step
+                    return jsonify({"completed": True, "clear": True})
+
+            elif p == "sequence label":
+                # This is first step of new_sequence
+                session.pending_input = {
+                    "prompt": "start value (integer)",
+                    "type": "numeric",
+                    "options": {"label": buffer}
+                }
                 return jsonify({"completed": True, "clear": True})
 
-        elif p == "sequence label":
-            # This is first step of new_sequence
-            session.pending_input = {
-                "prompt": "start value (integer)",
-                "type": "numeric",
-                "options": {"label": buffer}
-            }
-            return jsonify({"completed": True, "clear": True})
+            elif p == "start value (integer)":
+                label = options.get("label")
+                user.new_sequence(label, buffer)
+            
+            elif p == "sequence index to delete":
+                user.delete_sequence(buffer)
 
-        elif p == "start value (integer)":
-            label = pi.get("options", {}).get("label")
-            user.new_sequence(label, buffer)
-        
-        elif p == "sequence index to delete":
-            user.delete_sequence(buffer)
-
-        # 2. General Confirmation
-        elif t == "confirm":
-             if buffer == pi.get("options", {}).get("code"):
-                 action_type = pi.get("options", {}).get("action")
-                 payloads = pi.get("options", {}).get("payloads")
-                 
-                 if action_type == "delete_attribute":
-                     user.delete_attribute(payloads, confirmed=True)
-                 elif action_type == "delete_action":
-                     user.delete_action(payloads, confirmed=True)
-                 elif action_type == "journal_drop":
-                     from src.components.services.journal_service import journal_service
-                     result = journal_service.drop_last_day()
-                     user.add_message(result)
+            # 2. General Confirmation
+            elif t == "confirm":
+                 if buffer == options.get("code"):
+                     action_type = options.get("action")
+                     payloads = options.get("payloads")
+                     
+                     if action_type == "delete_attribute":
+                         user.delete_attribute(payloads, confirmed=True)
+                     elif action_type == "delete_action":
+                         user.delete_action(payloads, confirmed=True)
+                     elif action_type == "journal_drop":
+                         from src.components.services.journal_service import journal_service
+                         result = journal_service.drop_last_day()
+                         user.add_message(result)
+                     else:
+                         user.add_message("Confirmed.")
                  else:
-                     user.add_message("Confirmed.")
-             else:
-                 user.add_message("Cancelled.")
-        
-        elif t == "confirm_day":
-            log_text = pi.get("options", {}).get("text")
-            from src.components.services.journal_service import journal_service
-            if buffer == "1":
-                journal_service.add_log(log_text, auto_confirm=True)
-            else:
-                # If 0, we could prompt for custom day, but let's simplify or handle it
-                # For now, if not 1, assume current day or handle as custom day input if it was a number > 1
-                try:
-                    if int(buffer) > 1:
-                        journal_service.add_log(log_text, manual_date=buffer)
-                    else:
-                        journal_service.add_log(log_text, auto_confirm=True)
-                except:
+                     user.add_message("Cancelled.")
+            
+            elif t == "confirm_day":
+                log_text = options.get("text")
+                from src.components.services.journal_service import journal_service
+                if buffer == "1":
                     journal_service.add_log(log_text, auto_confirm=True)
+                else:
+                    # If 0, we could prompt for custom day, but let's simplify or handle it
+                    # For now, if not 1, assume current day or handle as custom day input if it was a number > 1
+                    try:
+                        if int(buffer) > 1:
+                            journal_service.add_log(log_text, manual_date=buffer)
+                        else:
+                            journal_service.add_log(log_text, auto_confirm=True)
+                    except:
+                        journal_service.add_log(log_text, auto_confirm=True)
 
-        elif t == "numeric" and "action_id" in pi.get("options", {}):
-            try:
-                val = int(buffer)
-                action_id = pi["options"]["action_id"]
-                payloads = [action_id[1:]]
-                result = user.act(payloads, value=val)
-                _handle_result(result)
-            except ValueError:
-                user.add_message("Invalid numeric value.")
+            elif t == "numeric" and "action_id" in options:
+                try:
+                    val = int(buffer)
+                    action_id = options["action_id"]
+                    payloads = [action_id[1:]]
+                    result = user.act(payloads, value=val)
+                    _handle_result(result)
+                except ValueError:
+                    user.add_message("Invalid numeric value.")
 
-        user.save_user()
-        return jsonify({"completed": True, "clear": True})
+            user.save_user()
+            return jsonify({"completed": True, "clear": True})
+        except Exception as e:
+            user.add_message(f"[ ERROR ] {str(e)}")
+            user.save_user()
+            return jsonify({"completed": True, "clear": True})
 
     # Process Command
     try:
