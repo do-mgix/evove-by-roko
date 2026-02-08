@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-alpha.7](https://github.com/do-mgix/evove-by-roko/compare/v1.1.0-alpha.6...v1.1.0-alpha.7) (2026-02-08)
+
+
+### Features
+
+* added parameters and status ([e0efe47](https://github.com/do-mgix/evove-by-roko/commit/e0efe477fc448d0a2603cc01ae80d6e39d3d194a))
+
+
+### Bug Fixes
+
+* set up waitress flask server with 120s timeout ([0ac7448](https://github.com/do-mgix/evove-by-roko/commit/0ac74480586ce85eb0e40b2a696fc53a52d0595d))
+
 ## [1.1.0-alpha.6](https://github.com/do-mgix/evove-by-roko/compare/v1.1.0-alpha.5...v1.1.0-alpha.6) (2026-02-08)
 
 
