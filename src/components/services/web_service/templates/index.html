@@ -758,9 +758,6 @@
             pendingPrompt = '';
             pendingType = '';
             updateDisplay();
-            try {
-                await fetch('/api/cancel', { method: 'POST' });
-            } catch (e) { /* ignore */ }
             updateStatus();
             setInterval(updateStatus, 3000);
         }
