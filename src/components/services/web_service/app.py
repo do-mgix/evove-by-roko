@@ -32,8 +32,18 @@ def serve_sw():
 
 @app.route('/media/<path:filename>')
 def serve_media(filename):
-    media_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../media"))
+    media_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../assets/media"))
     return send_from_directory(media_dir, filename)
+
+@app.route('/audio/<path:filename>')
+def serve_audio(filename):
+    audio_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../assets/audio"))
+    return send_from_directory(audio_dir, filename)
+
+@app.route('/assets/audio/<path:filename>')
+def serve_assets_audio(filename):
+    audio_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../assets/audio"))
+    return send_from_directory(audio_dir, filename)
 em = EntityManager()
 ui.web_mode = True
 
@@ -103,6 +113,23 @@ def status():
         "is_sleeping": user.metadata.get("is_sleeping", False)
     }
     return jsonify(resp)
+
+@app.route('/api/boot')
+def boot():
+    try:
+        user.load_user()
+        current_entity = em.get_entity()
+        progress = 40
+        message = "User loaded"
+        if current_entity:
+            progress = 80
+            message = "Entity ready"
+        if user._attributes is not None and user._actions is not None:
+            progress = 100
+            message = "Backend ready"
+        return jsonify({ "progress": progress, "message": message, "ready": progress >= 100 })
+    except Exception as e:
+        return jsonify({ "progress": 0, "message": f"Backend error: {e}", "ready": False })
 
 @app.route('/api/command', methods=['POST'])
 def command():
