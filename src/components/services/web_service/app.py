@@ -101,6 +101,15 @@ def status():
             "total_points": user.total_points,  # ← ADICIONADO
             "attributes": {k: {"name": v._name, "score": v.total_score} for k, v in user._attributes.items()},
             "actions": {k: {"name": v._name} for k, v in user._actions.items()},
+            "parameters": {
+                k: {
+                    "name": v._name,
+                    "value_type": v._value_type,
+                    "logic_type": v._logic_type,
+                    "value": v._value,
+                }
+                for k, v in user._parameters.items()
+            },
             "metadata": user.metadata
         },
         "entity": {
@@ -157,6 +166,17 @@ def command():
             
             elif p == "action name":
                 user.create_action(options.get("buffer", ""), name=buffer)
+
+            elif p == "status name":
+                user.create_status(options.get("buffer", ""), name=buffer)
+
+            elif p.startswith("parameter value"):
+                param_id = options.get("param_id")
+                status_id = options.get("status_id")
+                user._attach_status_to_param(param_id, status_id, buffer)
+
+            elif p == "parameter name":
+                user.create_parameter(options.get("buffer", ""), name=buffer)
             
             elif p == "log message":
                 user.log(buffer)
@@ -195,6 +215,10 @@ def command():
                          user.delete_attribute(payloads, confirmed=True)
                      elif action_type == "delete_action":
                          user.delete_action(payloads, confirmed=True)
+                     elif action_type == "delete_status":
+                         user.delete_status(payloads, confirmed=True)
+                     elif action_type == "delete_parameter":
+                         user.delete_parameter(payloads, confirmed=True)
                      elif action_type == "journal_drop":
                          from src.components.services.journal_service import journal_service
                          result = journal_service.drop_last_day()
@@ -346,6 +370,16 @@ def _resolve_name(prefix_char, id_value):
         attr_id = f"8{id_value}"
         if attr_id in user._attributes:
             return user._attributes[attr_id]._name
+
+        # Status → prefixo 4
+        status_id = f"4{id_value}"
+        if status_id in user._statuses:
+            return user._statuses[status_id]._name
+
+        # Parameter → prefixo 6
+        param_id = f"6{id_value}"
+        if param_id in user._parameters:
+            return user._parameters[param_id]._name
     except:
         pass
     return None

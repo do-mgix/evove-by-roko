@@ -133,6 +133,18 @@ class UI:
                     if hasattr(nome, '_name'): nome = nome._name
                     status_parts.append(f"{self.MAGENTA}⭐ ({nome}){self.CLR}")
                     p_idx += 1
+                elif t == "status":
+                    id_val = f"4{payloads[p_idx]}" if p_idx < len(payloads) else "???"
+                    nome = self.user._statuses.get(id_val, "...")
+                    if hasattr(nome, '_name'): nome = nome._name
+                    status_parts.append(f"{self.WHITE}◆ ({nome}){self.CLR}")
+                    p_idx += 1
+                elif t == "param":
+                    id_val = f"6{payloads[p_idx]}" if p_idx < len(payloads) else "???"
+                    nome = self.user._parameters.get(id_val, "...")
+                    if hasattr(nome, '_name'): nome = nome._name
+                    status_parts.append(f"{self.WHITE}◆ ({nome}){self.CLR}")
+                    p_idx += 1
                 elif t == "act":
                     status_parts.append(f"{self.GREEN}Act{self.CLR}")
                 elif t == "delete":

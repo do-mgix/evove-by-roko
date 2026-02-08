@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 from src.components.entitys.entity_manager import EntityManager
 from src.components.user.attributes.attribute import Attribute
 from src.components.user.actions.action import Action
+from src.components.user.parameters.parameter import Parameter
+from src.components.user.statuses.status import Status
 from src.components.services.journal_service import journal_service
 from src.components.services.agenda_service import agenda_service
 
@@ -12,6 +14,8 @@ class User:
         him = EntityManager().get_entity()
         self._attributes = {} 
         self._actions = {} 
+        self._parameters = {}
+        self._statuses = {}
         self._value = 0
         self.messages = []  # Buffer de mensagens para o render
         self.metadata = {
@@ -171,6 +175,24 @@ class User:
     def next_action_id(self):
         if self._actions:
             higher = max(self._actions)
+            higher = higher[1:3]
+            return int(higher) + 1
+        else:
+            return 1
+
+    @property
+    def next_param_id(self):
+        if self._parameters:
+            higher = max(self._parameters)
+            higher = higher[1:3]
+            return int(higher) + 1
+        else:
+            return 1
+
+    @property
+    def next_status_id(self):
+        if self._statuses:
+            higher = max(self._statuses)
             higher = higher[1:3]
             return int(higher) + 1
         else:
@@ -541,6 +563,12 @@ class User:
             "actions": {
                 k: v.to_dict() if hasattr(v, 'to_dict') else v for k, v in self._actions.items()
             },
+            "parameters": {
+                k: v.to_dict() if hasattr(v, 'to_dict') else v for k, v in self._parameters.items()
+            },
+            "statuses": {
+                k: v.to_dict() if hasattr(v, 'to_dict') else v for k, v in self._statuses.items()
+            },
             "metadata": self.metadata
         }
     
@@ -589,6 +617,16 @@ class User:
         for action_id, action_data in data.get("actions", {}).items():
             new_act = Action.from_dict(action_data)
             self._actions[action_id] = new_act
+
+        self._parameters.clear()
+        for param_id, param_data in data.get("parameters", {}).items():
+            new_param = Parameter.from_dict(param_data)
+            self._parameters[param_id] = new_param
+
+        self._statuses.clear()
+        for status_id, status_data in data.get("statuses", {}).items():
+            new_status = Status.from_dict(status_data)
+            self._statuses[status_id] = new_status
         
         for attr in self._attributes.values():
             if hasattr(attr, 'resolve_related_actions'):
@@ -684,6 +722,115 @@ class User:
             self.save_user()
         except Exception as e:
             self.add_message(f"{e}")
+
+    def create_status(self, buffer: str, name=None):
+        mode = self.metadata.get("mode", "progressive")
+        if mode == "semi-progressive":
+            self.add_message("[ MODE ] Manual creation disabled in semi-progressive mode.")
+            return
+
+        if name is None:
+            from src.components.services.UI.interface import WebInputInterrupt
+            raise WebInputInterrupt("status name", type="text", options={"buffer": buffer})
+
+        try:
+            duration_type = int(buffer[0])
+            nextid = self.next_status_id
+            new_id = f"40{nextid}" if nextid < 10 else f"4{nextid}"
+            status = Status(new_id, name, duration_type)
+            self._statuses[new_id] = status
+            self.add_message(f"status '{name}' created with ID {new_id}")
+            self.save_user()
+        except Exception as e:
+            self.add_message(f"{e}")
+
+    def create_parameter(self, buffer: str, name=None):
+        mode = self.metadata.get("mode", "progressive")
+        if mode == "semi-progressive":
+            self.add_message("[ MODE ] Manual creation disabled in semi-progressive mode.")
+            return
+
+        if name is None:
+            from src.components.services.UI.interface import WebInputInterrupt
+            raise WebInputInterrupt("parameter name", type="text", options={"buffer": buffer})
+
+        try:
+            value_type = int(buffer[0])
+            logic_type = int(buffer[1])
+            nextid = self.next_param_id
+            new_id = f"60{nextid}" if nextid < 10 else f"6{nextid}"
+            param = Parameter(new_id, name, value_type, logic_type, 0)
+            self._parameters[new_id] = param
+            self.add_message(f"parameter '{name}' created with ID {new_id}")
+            self.save_user()
+        except Exception as e:
+            self.add_message(f"{e}")
+
+    def activate_status(self, payloads):
+        status_id = f"4{payloads[0]}"
+        status = self._statuses.get(status_id)
+        if not status:
+            self.add_message(f"Status ID ({status_id}) not found")
+            return
+        status.activate()
+        self.add_message(f"Status {status._name} ({status._id}) activated.")
+        self.save_user()
+
+    def clean_status(self, payloads):
+        status_id = f"4{payloads[0]}"
+        status = self._statuses.get(status_id)
+        if not status:
+            self.add_message(f"Status ID ({status_id}) not found")
+            return
+        status.clean()
+        self.add_message(f"Status {status._name} ({status._id}) cleaned.")
+        self.save_user()
+
+    def _attach_status_to_param(self, param_id, status_id, value):
+        param = self._parameters.get(param_id)
+        status = self._statuses.get(status_id)
+        if not param or not status:
+            self.add_message("parameter or status not found.")
+            return
+
+        if param._value_type == 1:
+            value = max(-3, min(3, int(value)))
+        else:
+            value = max(0, min(100, int(value)))
+
+        status.add_param_link(param_id, value)
+        self.add_message(f"{status._name} -> {param._name} ({value})")
+        self.save_user()
+
+    def parameter_add_status(self, payloads, value=None):
+        if len(payloads) < 2:
+            self.add_message("Invalid parameter/status IDs.")
+            return
+        param_id = f"6{payloads[0]}"
+        status_id = f"4{payloads[1]}"
+        param = self._parameters.get(param_id)
+        status = self._statuses.get(status_id)
+        if not param or not status:
+            self.add_message("parameter or status not found.")
+            return
+
+        if value is None:
+            from src.components.services.UI.interface import WebInputInterrupt
+            if param._value_type == 1:
+                prompt = "parameter value (mark -3 to 3)"
+            else:
+                prompt = "parameter value (percentage 0-100)"
+            raise WebInputInterrupt(
+                prompt,
+                type="numeric",
+                options={
+                    "param_id": param_id,
+                    "status_id": status_id,
+                    "value_type": param._value_type,
+                },
+            )
+
+        self._attach_status_to_param(param_id, status_id, value)
     
     def list_attributes(self):
         if self._attributes:
@@ -700,6 +847,38 @@ class User:
             ui.show_list(items, "CURRENT ACTIONS")
         else:
             self.add_message("no actions available. try creating one with 25...")
+
+    def list_active_statuses(self):
+        from datetime import datetime
+        now = datetime.now()
+        expired = []
+        items = []
+        for status in self._statuses.values():
+            if status.is_active(now):
+                items.append(f"({status._id}) - {status._name} [{status.remaining_str(now)}]")
+            elif status.active_until and not status.is_active(now):
+                expired.append(status)
+
+        for st in expired:
+            st.clean()
+
+        if items:
+            from src.components.services.UI.interface import ui
+            ui.show_list(items, "ACTIVE STATUSES")
+        else:
+            self.add_message("no active statuses.")
+        self.save_user()
+
+    def list_parameters(self):
+        if self._parameters:
+            from src.components.services.UI.interface import ui
+            items = [
+                f"({param._id}) - {param._name} [{Parameter.VALUE_TYPES.get(param._value_type)} / {Parameter.LOGIC_TYPES.get(param._logic_type)}]"
+                for param in self._parameters.values()
+            ]
+            ui.show_list(items, "CURRENT PARAMETERS")
+        else:
+            self.add_message("no parameters available. try creating one with 26...")
     
     def drop_attributes(self):
         from src.components.services.UI.interface import ui
@@ -718,6 +897,15 @@ class User:
             self.save_user()
         else:
             self.add_message("the actions are safe.")
+
+    def drop_parameters(self):
+        from src.components.services.UI.interface import ui
+        if ui.ask_confirmation("This will PERMANENTLY DELETE ALL PARAMETERS."):
+            self._parameters.clear()
+            self.add_message("parameters deleted.")
+            self.save_user()
+        else:
+            self.add_message("the parameters are safe.")
     
     def delete_attribute(self, payloads, confirmed=None):
         payload_id = f"8{payloads[0]}"   
@@ -765,6 +953,62 @@ class User:
 
         self._actions.pop(payload_id, None)
         self.add_message(f"Action {action._name} ({action._id}) deleted.")
+        self.save_user()
+
+    def delete_status(self, payloads, confirmed=None):
+        payload_id = f"4{payloads[0]}"
+        status = self._statuses.get(payload_id)
+
+        if not status:
+            self.add_message(f"Status ID ({payload_id}) not found")
+            return
+
+        from src.components.services.UI.interface import ui, WebInputInterrupt
+        if confirmed is True:
+            pass
+        elif ui.web_mode:
+            import random
+            code = "".join([str(random.randint(0, 9)) for _ in range(3)])
+            self.add_message(f"Delete {status._name} ({status._id})?")
+            self.add_message(f"Type the code: {code}")
+            raise WebInputInterrupt(
+                f"Confirm code: {code}",
+                type="confirm",
+                options={"code": code, "payloads": payloads, "action": "delete_status"},
+            )
+        elif not ui.ask_confirmation(f"Delete status {status._name} ({status._id})?"):
+            return
+
+        self._statuses.pop(payload_id, None)
+        self.add_message(f"Status {status._name} ({status._id}) deleted.")
+        self.save_user()
+
+    def delete_parameter(self, payloads, confirmed=None):
+        payload_id = f"6{payloads[0]}"
+        param = self._parameters.get(payload_id)
+
+        if not param:
+            self.add_message(f"Parameter ID ({payload_id}) not found")
+            return
+
+        from src.components.services.UI.interface import ui, WebInputInterrupt
+        if confirmed is True:
+            pass
+        elif ui.web_mode:
+            import random
+            code = "".join([str(random.randint(0, 9)) for _ in range(3)])
+            self.add_message(f"Delete {param._name} ({param._id})?")
+            self.add_message(f"Type the code: {code}")
+            raise WebInputInterrupt(
+                f"Confirm code: {code}",
+                type="confirm",
+                options={"code": code, "payloads": payloads, "action": "delete_parameter"},
+            )
+        elif not ui.ask_confirmation(f"Delete parameter {param._name} ({param._id})?"):
+            return
+
+        self._parameters.pop(payload_id, None)
+        self.add_message(f"Parameter {param._name} ({param._id}) deleted.")
         self.save_user()
 
     def attribute_add_action(self, payloads):

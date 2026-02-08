@@ -75,6 +75,19 @@ def dial_start():
                         if e.prompt == "log message":
                              user.add_log_entry(cli_input)
                              buffer = ""
+                        elif e.prompt == "status name":
+                             user.create_status(e.options.get("buffer", ""), name=cli_input)
+                             buffer = ""
+                        elif e.prompt == "parameter name":
+                             user.create_parameter(e.options.get("buffer", ""), name=cli_input)
+                             buffer = ""
+                        elif e.prompt.startswith("parameter value"):
+                             user._attach_status_to_param(
+                                 e.options.get("param_id"),
+                                 e.options.get("status_id"),
+                                 cli_input,
+                             )
+                             buffer = ""
                         elif e.prompt.startswith("agenda "):
                              step = e.options.get("agenda_step") if e.options else None
                              data = e.options.get("agenda_data") if e.options else {}
@@ -127,6 +140,19 @@ def dial_start():
                         
                         if e.prompt == "log message":
                              user.add_log_entry(cli_input)
+                             buffer = ""
+                        elif e.prompt == "status name":
+                             user.create_status(e.options.get("buffer", ""), name=cli_input)
+                             buffer = ""
+                        elif e.prompt == "parameter name":
+                             user.create_parameter(e.options.get("buffer", ""), name=cli_input)
+                             buffer = ""
+                        elif e.prompt.startswith("parameter value"):
+                             user._attach_status_to_param(
+                                 e.options.get("param_id"),
+                                 e.options.get("status_id"),
+                                 cli_input,
+                             )
                              buffer = ""
                         elif e.prompt.startswith("agenda "):
                              step = e.options.get("agenda_step") if e.options else None

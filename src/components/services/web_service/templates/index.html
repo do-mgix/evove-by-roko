@@ -1550,10 +1550,6 @@
                         setTimeout(() => key.classList.remove('pressed'), 200);
                         return;
                     }
-                    if (!pendingType && uiMode === 'classic' && buffer.length === 0 && (num === '4' || num === '6')) {
-                        showToast('Use menu');
-                        return;
-                    }
                     if (pendingType === 'menu') {
                         playDTMF(num);
                         if (navigator.vibrate) navigator.vibrate(10);
