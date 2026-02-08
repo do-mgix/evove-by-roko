@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-alpha.5](https://github.com/do-mgix/evove-by-roko/compare/v1.1.0-alpha.4...v1.1.0-alpha.5) (2026-02-08)
+
+
+### Features
+
+* added fountain class and foutain sub-screen ([bccfe3f](https://github.com/do-mgix/evove-by-roko/commit/bccfe3f5418ac5a33c27684aab1e939aa4d23f89))
+* added menu class for navigation mode ([9b7b876](https://github.com/do-mgix/evove-by-roko/commit/9b7b8769e2469a9f1717aeb1c6f094b908cd6a6c))
+
 ## [1.1.0-alpha.4](https://github.com/do-mgix/evove-by-roko/compare/v1.1.0-alpha.3...v1.1.0-alpha.4) (2026-02-08)
 
 
