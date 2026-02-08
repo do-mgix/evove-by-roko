@@ -9,7 +9,7 @@ OBJECTS = {
     "5": {"len": 2, "label": "action"}, 
     "6": {"len": 2, "label": "param"},
     "4": {"len": 2, "label": "status"},
-    "3": {"len": 1, "label": "shop_item"}, 
+    "3": {"len": 2, "label": "shop_item"}, 
     "7": {"len": 0, "label": "log"},
     "47": {"len": 0, "label": "sequence"},
 }
@@ -59,7 +59,10 @@ COMMANDS = {
     "attr add attr": {"func": user.attribute_add_child},
     "status add": {"func": user.activate_status},
     "status act": {"func": user.clean_status},
+    "param act act": {"func": user.init_parameter},
+    "param add action": {"func": user.parameter_add_action},
     "param add status": {"func": user.parameter_add_status},
+    "shop_item add action": {"func": user.shop_item_add_action},
     "shop_item act": {"func": user.buy_shop_item},
 
 }

@@ -175,6 +175,21 @@ def command():
                 status_id = options.get("status_id")
                 user._attach_status_to_param(param_id, status_id, buffer)
 
+            elif p.startswith("parameter regen") or p.startswith("parameter start value"):
+                step = options.get("param_step")
+                data = options or {}
+                next_step = user.parameter_init_next(step, data, buffer)
+                if next_step:
+                    session.pending_input = next_step
+                    return jsonify({"completed": True, "clear": True})
+            elif p.startswith("param-action"):
+                step = options.get("pa_step")
+                data = options or {}
+                next_step = user.param_action_next(step, data, buffer)
+                if next_step:
+                    session.pending_input = next_step
+                    return jsonify({"completed": True, "clear": True})
+
             elif p == "parameter name":
                 user.create_parameter(options.get("buffer", ""), name=buffer)
             

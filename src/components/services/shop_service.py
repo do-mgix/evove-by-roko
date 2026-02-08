@@ -25,6 +25,8 @@ class ShopService:
         ui.show_list(items, f"EVOVE SHOP [{tokens}/{max_t}T]")
 
     def buy_item(self, item_id):
+        if isinstance(item_id, str):
+            item_id = item_id.lstrip("0") or "0"
         if item_id not in SHOP_ITEMS:
             self.user.add_message(f"Item {item_id} not found.")
             return False

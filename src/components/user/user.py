@@ -16,6 +16,9 @@ class User:
         self._actions = {} 
         self._parameters = {}
         self._statuses = {}
+        self._param_action_links = {}
+        self._shop_action_links = {}
+        self._shop_entitlements = {}
         self._value = 0
         self.messages = []  # Buffer de mensagens para o render
         self.metadata = {
@@ -267,7 +270,12 @@ class User:
             self.add_message(f"\n [ ERROR ] Action ID {action_id} not found. (Loaded Actions: {len(self._actions)})")
             return None
 
+        if not self._check_shop_access(action_id):
+            return None
+
         score_difference, action_messages = action.execution(manual_value=value)
+
+        self._apply_param_action_effects(action_id)
         
         # Daily Aggregation Logic -> Immediate Log (TO PROCESS)
         action_name = action.name
@@ -569,6 +577,9 @@ class User:
             "statuses": {
                 k: v.to_dict() if hasattr(v, 'to_dict') else v for k, v in self._statuses.items()
             },
+            "param_action_links": self._param_action_links,
+            "shop_action_links": self._shop_action_links,
+            "shop_entitlements": self._shop_entitlements,
             "metadata": self.metadata
         }
     
@@ -623,6 +634,10 @@ class User:
             new_param = Parameter.from_dict(param_data)
             self._parameters[param_id] = new_param
 
+        self._param_action_links = data.get("param_action_links", {}) or {}
+        self._shop_action_links = data.get("shop_action_links", {}) or {}
+        self._shop_entitlements = data.get("shop_entitlements", {}) or {}
+
         self._statuses.clear()
         for status_id, status_data in data.get("statuses", {}).items():
             new_status = Status.from_dict(status_data)
@@ -639,6 +654,10 @@ class User:
         for attr in self._attributes.values():
             if hasattr(attr, 'resolve_parent'):
                 attr.resolve_parent(self._attributes)
+
+        for param in self._parameters.values():
+            if param.update_value():
+                self._update_statuses_for_param(param)
     
     
 
@@ -661,7 +680,37 @@ class User:
             target_id = item_id[0]
             
         if shop.buy_item(target_id):
+            self._grant_shop_entitlement(target_id)
             self.save_user()
+
+    def _grant_shop_entitlement(self, shop_item_id):
+        from datetime import datetime, timedelta
+        if isinstance(shop_item_id, str):
+            shop_item_id = shop_item_id.lstrip("0") or "0"
+        expiry = datetime.now() + timedelta(hours=12)
+        for action_id, linked_item in self._shop_action_links.items():
+            linked = str(linked_item).lstrip("0") or "0"
+            if linked == shop_item_id:
+                self._shop_entitlements[action_id] = expiry.isoformat()
+
+    def _check_shop_access(self, action_id):
+        if action_id not in self._shop_action_links:
+            return True
+        from datetime import datetime
+        expiry_str = self._shop_entitlements.get(action_id)
+        if not expiry_str:
+            item_id = self._shop_action_links.get(action_id)
+            self.add_message(f"Action {action_id} requires shop item {item_id}. Buy it in the shop first.")
+            return False
+        try:
+            expiry = datetime.fromisoformat(expiry_str)
+        except Exception:
+            expiry = None
+        if not expiry or datetime.now() > expiry:
+            item_id = self._shop_action_links.get(action_id)
+            self.add_message(f"Action {action_id} requires shop item {item_id}. Buy it in the shop first.")
+            return False
+        return True
 
     def create_attribute(self, name=None):
         mode = self.metadata.get("mode", "progressive")
@@ -794,9 +843,17 @@ class User:
             return
 
         if param._value_type == 1:
-            value = max(-3, min(3, int(value)))
+            try:
+                value = float(value)
+            except Exception:
+                value = 0.0
+            value = max(-3.0, min(3.0, value))
         else:
-            value = max(0, min(100, int(value)))
+            try:
+                value = float(value)
+            except Exception:
+                value = 0.0
+            value = max(0.0, min(100.0, value))
 
         status.add_param_link(param_id, value)
         self.add_message(f"{status._name} -> {param._name} ({value})")
@@ -831,6 +888,199 @@ class User:
             )
 
         self._attach_status_to_param(param_id, status_id, value)
+
+    def init_parameter(self, payloads):
+        if not payloads or not payloads[0]:
+            self.add_message("Invalid parameter ID.")
+            return
+        param_id = f"6{payloads[0]}"
+        if param_id not in self._parameters:
+            self.add_message(f"Parameter ID ({param_id}) not found")
+            return
+        from src.components.services.UI.interface import WebInputInterrupt
+        raise WebInputInterrupt(
+            "parameter regen type (1 regen, 2 decay)",
+            type="numeric",
+            options={"param_step": "regen_type", "param_id": param_id},
+        )
+
+    def parameter_init_next(self, step, data, value):
+        data = dict(data or {})
+        val = (value or "").strip()
+
+        if step == "regen_type":
+            if val not in {"1", "2"}:
+                self.add_message("Regen type must be 1 (regen) or 2 (decay).")
+                return {"prompt": "parameter regen type (1 regen, 2 decay)", "type": "numeric", "options": {"param_step": "regen_type", "param_id": data.get("param_id")}}
+            data["regen_type"] = int(val)
+            param_id = data.get("param_id")
+            param = self._parameters.get(param_id)
+            if not param:
+                self.add_message("Parameter not found.")
+                return None
+            if param._value_type == 1:
+                prompt = "parameter regen factor (mark 1-6: 1/24h, 1/12h, 1/6h, 1/3h, 1/1.5h, 1/45min)"
+            else:
+                prompt = "parameter regen factor (percentage 1-5: 5/10/15/20/25% per h)"
+            return {"prompt": prompt, "type": "numeric", "options": {"param_step": "regen_factor", "param_id": param_id, "regen_type": data["regen_type"]}}
+
+        if step == "regen_factor":
+            param_id = data.get("param_id")
+            param = self._parameters.get(param_id)
+            if not param:
+                self.add_message("Parameter not found.")
+                return None
+            try:
+                factor = int(val)
+            except Exception:
+                factor = 0
+            if param._value_type == 1:
+                if factor < 1 or factor > 6:
+                    self.add_message("Mark regen factor must be between 1 and 6.")
+                    return {"prompt": "parameter regen factor (mark 1-6: 1/24h, 1/12h, 1/6h, 1/3h, 1/1.5h, 1/45min)", "type": "numeric", "options": {"param_step": "regen_factor", "param_id": param_id, "regen_type": data.get("regen_type")}}
+            else:
+                if factor < 1 or factor > 5:
+                    self.add_message("Percentage regen factor must be between 1 and 5.")
+                    return {"prompt": "parameter regen factor (percentage 1-5: 5/10/15/20/25% per h)", "type": "numeric", "options": {"param_step": "regen_factor", "param_id": param_id, "regen_type": data.get("regen_type")}}
+            data["regen_factor"] = factor
+            return {"prompt": "parameter start value", "type": "numeric", "options": {"param_step": "start_value", "param_id": param_id, "regen_type": data.get("regen_type"), "regen_factor": factor}}
+
+        if step == "start_value":
+            param_id = data.get("param_id")
+            param = self._parameters.get(param_id)
+            if not param:
+                self.add_message("Parameter not found.")
+                return None
+            try:
+                start_value = float(val)
+            except Exception:
+                self.add_message("Invalid start value.")
+                return {"prompt": "parameter start value", "type": "numeric", "options": {"param_step": "start_value", "param_id": param_id, "regen_type": data.get("regen_type"), "regen_factor": data.get("regen_factor")}}
+            param.set_regen(data.get("regen_type"), data.get("regen_factor"), start_value)
+            self.add_message(f"Parameter {param._name} ({param._id}) initialized.")
+            self.save_user()
+            return None
+
+        self.add_message("Parameter init error: invalid step.")
+        return None
+
+    def parameter_add_action(self, payloads, value=None):
+        if len(payloads) < 2:
+            self.add_message("Invalid parameter/action IDs.")
+            return
+        param_id = f"6{payloads[0]}"
+        action_id = f"5{payloads[1]}"
+        param = self._parameters.get(param_id)
+        action = self._actions.get(action_id)
+        if not param or not action:
+            self.add_message("parameter or action not found.")
+            return
+
+        if value is None:
+            from src.components.services.UI.interface import WebInputInterrupt
+            raise WebInputInterrupt(
+                "param-action type (1 regen, 2 decay)",
+                type="numeric",
+                options={"pa_step": "type", "param_id": param_id, "action_id": action_id},
+            )
+
+        self._add_param_action_link(param_id, action_id, value)
+
+    def _add_param_action_link(self, param_id, action_id, data):
+        try:
+            effect_type = int(data.get("effect_type"))
+            factor = int(data.get("factor"))
+        except Exception:
+            self.add_message("Invalid param-action data.")
+            return
+
+        if effect_type not in (1, 2) or factor not in (1, 2, 3):
+            self.add_message("Param-action type must be 1/2 and factor must be 1-3.")
+            return
+
+        links = self._param_action_links.get(action_id, [])
+        links.append({"param_id": param_id, "effect_type": effect_type, "factor": factor})
+        self._param_action_links[action_id] = links
+        self.add_message(f"Param {param_id} linked to Action {action_id}.")
+        self.save_user()
+
+    def param_action_next(self, step, data, value):
+        data = dict(data or {})
+        val = (value or "").strip()
+
+        if step == "type":
+            if val not in {"1", "2"}:
+                self.add_message("Type must be 1 (regen) or 2 (decay).")
+                return {"prompt": "param-action type (1 regen, 2 decay)", "type": "numeric", "options": {"pa_step": "type", "param_id": data.get("param_id"), "action_id": data.get("action_id")}}
+            data["effect_type"] = int(val)
+            return {"prompt": "param-action factor (1-3)", "type": "numeric", "options": {"pa_step": "factor", "param_id": data.get("param_id"), "action_id": data.get("action_id"), "effect_type": data["effect_type"]}}
+
+        if step == "factor":
+            try:
+                factor = int(val)
+            except Exception:
+                factor = 0
+            if factor < 1 or factor > 3:
+                self.add_message("Factor must be between 1 and 3.")
+                return {"prompt": "param-action factor (1-3)", "type": "numeric", "options": {"pa_step": "factor", "param_id": data.get("param_id"), "action_id": data.get("action_id"), "effect_type": data.get("effect_type")}}
+            data["factor"] = factor
+            self._add_param_action_link(data.get("param_id"), data.get("action_id"), data)
+            return None
+
+        self.add_message("Param-action error: invalid step.")
+        return None
+
+    def shop_item_add_action(self, payloads):
+        if len(payloads) < 2:
+            self.add_message("Invalid shop item/action IDs.")
+            return
+        shop_item_id = payloads[0]
+        action_id = f"5{payloads[1]}"
+        action = self._actions.get(action_id)
+        if not action:
+            self.add_message("action not found.")
+            return
+        self._shop_action_links[action_id] = shop_item_id
+        self.add_message(f"Shop item {shop_item_id} linked to Action {action_id}.")
+        self.save_user()
+
+    def _apply_param_action_effects(self, action_id):
+        links = self._param_action_links.get(action_id, [])
+        if not links:
+            return
+        factor_map_pct = {1: 1.0, 2: 2.0, 3: 3.0}
+        factor_map_mark = {1: 0.25, 2: 0.5, 3: 1.0}
+        for link in links:
+            param = self._parameters.get(link.get("param_id"))
+            if not param:
+                continue
+            effect_type = link.get("effect_type")
+            factor = link.get("factor")
+            if param._value_type == 1:
+                delta = factor_map_mark.get(factor, 0)
+            else:
+                delta = factor_map_pct.get(factor, 0)
+            if effect_type == 2:
+                delta = -delta
+            param.set_value(param._value + delta)
+            self._update_statuses_for_param(param)
+        self.save_user()
+
+    def _update_statuses_for_param(self, param):
+        from datetime import datetime
+        now = datetime.now()
+        for status in self._statuses.values():
+            links = getattr(status, "_param_links", [])
+            for link in links:
+                if link.get("param_id") != param._id:
+                    continue
+                try:
+                    target = float(link.get("value"))
+                except Exception:
+                    continue
+                if param._value >= target:
+                    if not status.is_active(now):
+                        status.activate(now)
     
     def list_attributes(self):
         if self._attributes:
@@ -872,11 +1122,15 @@ class User:
     def list_parameters(self):
         if self._parameters:
             from src.components.services.UI.interface import ui
+            for param in self._parameters.values():
+                if param.update_value():
+                    self._update_statuses_for_param(param)
             items = [
-                f"({param._id}) - {param._name} [{Parameter.VALUE_TYPES.get(param._value_type)} / {Parameter.LOGIC_TYPES.get(param._logic_type)}]"
+                f"({param._id}) - {param._name} [{Parameter.VALUE_TYPES.get(param._value_type)} / {Parameter.LOGIC_TYPES.get(param._logic_type)}] = {param._value:.2f}"
                 for param in self._parameters.values()
             ]
             ui.show_list(items, "CURRENT PARAMETERS")
+            self.save_user()
         else:
             self.add_message("no parameters available. try creating one with 26...")
     

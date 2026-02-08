@@ -88,6 +88,28 @@ def dial_start():
                                  cli_input,
                              )
                              buffer = ""
+                        elif e.prompt.startswith("parameter regen") or e.prompt.startswith("parameter start value"):
+                             step = e.options.get("param_step") if e.options else None
+                             data = e.options if e.options else {}
+                             next_step = user.parameter_init_next(step, data, cli_input)
+                             while next_step:
+                                 prompt = next_step["prompt"]
+                                 cli_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}")
+                                 step = next_step.get("options", {}).get("param_step")
+                                 data = next_step.get("options", {})
+                                 next_step = user.parameter_init_next(step, data, cli_input)
+                             buffer = ""
+                        elif e.prompt.startswith("param-action"):
+                             step = e.options.get("pa_step") if e.options else None
+                             data = e.options if e.options else {}
+                             next_step = user.param_action_next(step, data, cli_input)
+                             while next_step:
+                                 prompt = next_step["prompt"]
+                                 cli_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}")
+                                 step = next_step.get("options", {}).get("pa_step")
+                                 data = next_step.get("options", {})
+                                 next_step = user.param_action_next(step, data, cli_input)
+                             buffer = ""
                         elif e.prompt.startswith("agenda "):
                              step = e.options.get("agenda_step") if e.options else None
                              data = e.options.get("agenda_data") if e.options else {}
@@ -153,6 +175,28 @@ def dial_start():
                                  e.options.get("status_id"),
                                  cli_input,
                              )
+                             buffer = ""
+                        elif e.prompt.startswith("parameter regen") or e.prompt.startswith("parameter start value"):
+                             step = e.options.get("param_step") if e.options else None
+                             data = e.options if e.options else {}
+                             next_step = user.parameter_init_next(step, data, cli_input)
+                             while next_step:
+                                 prompt = next_step["prompt"]
+                                 cli_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}")
+                                 step = next_step.get("options", {}).get("param_step")
+                                 data = next_step.get("options", {})
+                                 next_step = user.parameter_init_next(step, data, cli_input)
+                             buffer = ""
+                        elif e.prompt.startswith("param-action"):
+                             step = e.options.get("pa_step") if e.options else None
+                             data = e.options if e.options else {}
+                             next_step = user.param_action_next(step, data, cli_input)
+                             while next_step:
+                                 prompt = next_step["prompt"]
+                                 cli_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}")
+                                 step = next_step.get("options", {}).get("pa_step")
+                                 data = next_step.get("options", {})
+                                 next_step = user.param_action_next(step, data, cli_input)
                              buffer = ""
                         elif e.prompt.startswith("agenda "):
                              step = e.options.get("agenda_step") if e.options else None
