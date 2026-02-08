@@ -459,7 +459,10 @@
 
         // HELPERS
         function updateDisplay() {
-            const emptyLabel = inputMode === 'text' ? 'type' : 'dial';
+            let emptyLabel = inputMode === 'text' ? 'type' : 'dial';
+            if (pendingType && pendingPrompt) {
+                emptyLabel = pendingPrompt;
+            }
             if (buffer) {
                 displayNumber.textContent = buffer;
                 displayNumber.classList.remove('empty');
@@ -476,7 +479,7 @@
         }
 
         async function fetchPreview(buf) {
-            if (inputMode === 'text') {
+            if (pendingType) {
                 if (pendingPrompt) {
                     displayLabel.textContent = `Input: ${pendingPrompt}`;
                 }
@@ -499,7 +502,7 @@
                 
                 displayLabel.textContent = preview || 'Processing...';
 
-                if (data.complete && !executing && buf === buffer) {
+                if (data.complete && !executing && buf === buffer && !pendingType) {
                     executing = true;
                     executeCommand(buf).finally(() => {
                         executing = false;
@@ -546,8 +549,8 @@
                     if (inputMode !== 'dial') {
                         inputMode = 'dial';
                         keypad.classList.remove('keypad-mode-text');
-                        updateDisplay();
                     }
+                    updateDisplay();
                 }
 
                 if (data.messages && data.messages.length > 0) {
@@ -580,6 +583,8 @@
                 if (data.completed) {
                     showToast('Command executed');
                     buffer = '';
+                    pendingPrompt = '';
+                    pendingType = '';
                     updateDisplay();
                     displayLabel.textContent = 'Ready.';
                     updateStatus();
@@ -719,6 +724,7 @@
             keypad.classList.remove('keypad-mode-text');
             inputMode = 'dial';
             pendingPrompt = '';
+            pendingType = '';
             updateDisplay();
             try {
                 await fetch('/api/cancel', { method: 'POST' });
