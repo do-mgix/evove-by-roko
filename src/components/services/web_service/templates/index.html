@@ -586,8 +586,10 @@
         let baseSuggestion = '';
         let suggestionActive = false;
         let uiMode = 'classic';
-        const navMenuItems = ['Configurations', 'Packages'];
-        let navIndex = 0;
+        let menuStack = [];
+        let menuSelection = 0;
+        let settingsData = null;
+        let packagesData = null;
         const messageHistory = [];
 
         // HELPERS
@@ -624,11 +626,22 @@
             lastTapTime = 0;
         }
 
+        class Menu {
+            constructor(title, items, onSelect) {
+                this.title = title;
+                this.items = items;
+                this.onSelect = onSelect;
+            }
+        }
+
         function setMode(mode) {
             uiMode = mode;
             keypad.classList.remove('mode-classic', 'mode-nav');
             keypad.classList.add(mode === 'nav' ? 'mode-nav' : 'mode-classic');
             updateNavKeys();
+            if (mode === 'nav') {
+                setRootMenu();
+            }
             renderMenu();
         }
 
@@ -657,11 +670,173 @@
                 return;
             }
             displayMessages.classList.add('menu');
-            const items = navMenuItems.map((label, idx) => {
-                const cls = idx === navIndex ? 'menu-item selected' : 'menu-item';
-                return `<div class="${cls}">${label}</div>`;
+            const menu = currentMenu();
+            if (!menu) {
+                displayMessages.innerHTML = '';
+                return;
+            }
+            displayLabel.textContent = menu.title;
+            const items = menu.items.map((item, idx) => {
+                const cls = idx === menuSelection ? 'menu-item selected' : 'menu-item';
+                return `<div class="${cls}">${item.label}</div>`;
             });
             displayMessages.innerHTML = items.join('');
+        }
+
+        function currentMenu() {
+            return menuStack.length > 0 ? menuStack[menuStack.length - 1] : null;
+        }
+
+        function setRootMenu() {
+            menuStack = [rootMenu()];
+            menuSelection = 0;
+        }
+
+        function rootMenu() {
+            return new Menu(
+                'MENU',
+                [
+                    { key: 'settings', label: 'Configurations' },
+                    { key: 'packages', label: 'Packages' }
+                ],
+                async (item) => {
+                    if (item.key === 'settings') {
+                        await loadSettingsMenu();
+                        menuStack.push(settingsMenu());
+                        menuSelection = 0;
+                        renderMenu();
+                    } else if (item.key === 'packages') {
+                        await loadPackagesMenu();
+                        menuStack.push(packagesMenu());
+                        menuSelection = 0;
+                        renderMenu();
+                    }
+                }
+            );
+        }
+
+        function settingsMenu() {
+            const agentLabel = settingsData
+                ? `Virtual Agent: ${settingsData.virtual_agent_active ? '[ENABLED]' : '[DISABLED]'}`
+                : 'Virtual Agent: [LOADING]';
+            const modeLabel = settingsData
+                ? `Current Mode: ${String(settingsData.mode || '').toUpperCase()}`
+                : 'Current Mode: [LOADING]';
+            return new Menu(
+                'SETTINGS',
+                [
+                    { key: 'agent', label: agentLabel },
+                    { key: 'mode', label: modeLabel },
+                    { key: 'back', label: 'Back' }
+                ],
+                async (item) => {
+                    if (item.key === 'agent') {
+                        await toggleAgent();
+                        menuStack[menuStack.length - 1] = settingsMenu();
+                    } else if (item.key === 'mode') {
+                        await cycleMode();
+                        menuStack[menuStack.length - 1] = settingsMenu();
+                    } else if (item.key === 'back') {
+                        popMenu();
+                        return;
+                    }
+                    renderMenu();
+                }
+            );
+        }
+
+        function packagesMenu() {
+            const items = [];
+            if (packagesData) {
+                packagesData.forEach(p => {
+                    const owned = p.owned ? ' [OWNED]' : '';
+                    items.push({ key: p.key, label: `${p.name}${owned}` });
+                });
+            } else {
+                items.push({ key: 'loading', label: 'Loading...' });
+            }
+            items.push({ key: 'back', label: 'Back' });
+            return new Menu(
+                'PACKAGES',
+                items,
+                async (item) => {
+                    if (item.key === 'back') {
+                        popMenu();
+                        return;
+                    }
+                    if (item.key === 'loading') return;
+                    await importPackage(item.key);
+                    await loadPackagesMenu();
+                    menuStack[menuStack.length - 1] = packagesMenu();
+                    renderMenu();
+                }
+            );
+        }
+
+        function popMenu() {
+            if (menuStack.length > 1) {
+                menuStack.pop();
+                menuSelection = 0;
+                renderMenu();
+            } else {
+                setMode('classic');
+            }
+        }
+
+        async function loadSettingsMenu() {
+            try {
+                const res = await fetch('/api/menu/settings');
+                if (!res.ok) return;
+                settingsData = await res.json();
+            } catch (e) { /* ignore */ }
+        }
+
+        async function toggleAgent() {
+            try {
+                const res = await fetch('/api/menu/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'toggle_agent' })
+                });
+                if (!res.ok) return;
+                settingsData = await res.json();
+            } catch (e) { /* ignore */ }
+        }
+
+        async function cycleMode() {
+            try {
+                const res = await fetch('/api/menu/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'cycle_mode' })
+                });
+                if (!res.ok) return;
+                settingsData = await res.json();
+            } catch (e) { /* ignore */ }
+        }
+
+        async function loadPackagesMenu() {
+            try {
+                const res = await fetch('/api/menu/packages');
+                if (!res.ok) return;
+                const data = await res.json();
+                packagesData = Array.isArray(data.packages) ? data.packages : [];
+            } catch (e) { /* ignore */ }
+        }
+
+        async function importPackage(key) {
+            try {
+                const res = await fetch('/api/menu/packages/import', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key })
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data && data.ok) {
+                    showToast('Imported');
+                }
+            } catch (e) { /* ignore */ }
         }
 
         async function fetchLogSuggestions() {
@@ -905,17 +1080,30 @@
                 const del = key.dataset.delete;
                 if (num) {
                     if (uiMode === 'nav' && !pendingType) {
+                        const menu = currentMenu();
+                        if (!menu || menu.items.length === 0) return;
                         if (num === '2') {
-                            navIndex = (navIndex - 1 + navMenuItems.length) % navMenuItems.length;
+                            menuSelection = (menuSelection - 1 + menu.items.length) % menu.items.length;
                             renderMenu();
                         } else if (num === '8') {
-                            navIndex = (navIndex + 1) % navMenuItems.length;
+                            menuSelection = (menuSelection + 1) % menu.items.length;
                             renderMenu();
-                        } else if (num === '5') {
-                            renderMenu();
+                        } else if (num === '4') {
+                            popMenu();
+                        } else if (num === '6' || num === '5') {
+                            const item = menu.items[menuSelection];
+                            if (menu.onSelect) {
+                                menu.onSelect(item);
+                            }
+                        } else if (num === '9') {
+                            popMenu();
                         }
                         key.classList.add('pressed');
                         setTimeout(() => key.classList.remove('pressed'), 200);
+                        return;
+                    }
+                    if (!pendingType && uiMode === 'classic' && (num === '4' || num === '6')) {
+                        showToast('Use menu');
                         return;
                     }
                     if (pendingType === 'menu') {

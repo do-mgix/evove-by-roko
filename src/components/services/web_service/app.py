@@ -10,6 +10,13 @@ from src.components.entitys.entity_manager import EntityManager
 from src.components.services.UI.interface import ui, WebInputInterrupt
 from src.components.services.dial_interaction.dial_digest import dial
 from src.components.services.journal_service import journal_service
+from src.components.services.web_service.web_menu_service import (
+    get_settings,
+    toggle_agent,
+    cycle_mode,
+    list_packages,
+    import_package,
+)
 from flask import request, send_from_directory
 
 app = Flask(__name__)
@@ -342,5 +349,27 @@ def log_suggestions():
         return jsonify({ "suggestions": suggestions, "base": base })
     except Exception:
         return jsonify({ "suggestions": [], "base": "" })
+
+@app.route('/api/menu/settings', methods=['GET', 'POST'])
+def menu_settings():
+    if request.method == 'GET':
+        return jsonify(get_settings())
+    data = request.json or {}
+    action = data.get("action")
+    if action == "toggle_agent":
+        return jsonify(toggle_agent())
+    if action == "cycle_mode":
+        return jsonify(cycle_mode())
+    return jsonify(get_settings())
+
+@app.route('/api/menu/packages', methods=['GET'])
+def menu_packages():
+    return jsonify({ "packages": list_packages() })
+
+@app.route('/api/menu/packages/import', methods=['POST'])
+def menu_packages_import():
+    data = request.json or {}
+    key = data.get("key")
+    return jsonify(import_package(key))
 if __name__ == '__main__':
     app.run(debug=True, host="0.0.0.0", port=5000)
