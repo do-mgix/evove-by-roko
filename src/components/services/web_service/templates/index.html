@@ -143,6 +143,50 @@
             min-height: 0;
         }
 
+        #display-messages.menu {
+            white-space: normal;
+        }
+
+        .menu-item {
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 0.6rem 0.8rem;
+            margin-bottom: 0.5rem;
+            background: rgba(0, 0, 0, 0.25);
+            color: var(--fg);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-size: 0.7rem;
+        }
+
+        .menu-item.selected {
+            background: rgba(0, 255, 0, 0.15);
+            border-color: var(--green);
+            color: var(--green);
+        }
+
+        #display-messages.menu {
+            white-space: normal;
+        }
+
+        .menu-item {
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 0.6rem 0.8rem;
+            margin-bottom: 0.5rem;
+            background: rgba(0, 0, 0, 0.25);
+            color: var(--fg);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-size: 0.7rem;
+        }
+
+        .menu-item.selected {
+            background: rgba(0, 255, 0, 0.15);
+            border-color: var(--green);
+            color: var(--green);
+        }
+
         #display-messages::-webkit-scrollbar {
             width: 6px;
         }
@@ -164,6 +208,52 @@
             -webkit-user-select: none;
             opacity: 1;
             pointer-events: auto;
+        }
+
+        #phone-keypad.mode-classic .key {
+            border-color: var(--fg);
+            color: var(--fg);
+        }
+
+        #phone-keypad.mode-nav .key {
+            border-color: #333;
+            color: #333;
+        }
+
+        #phone-keypad.mode-nav .key-number {
+            color: #333;
+        }
+
+        #phone-keypad.mode-nav .key.nav-active {
+            border-color: var(--green);
+            color: var(--green);
+        }
+
+        #phone-keypad.mode-nav .key.nav-active .key-number {
+            color: var(--green);
+        }
+
+        #phone-keypad.mode-classic .key {
+            border-color: var(--fg);
+            color: var(--fg);
+        }
+
+        #phone-keypad.mode-nav .key {
+            border-color: #333;
+            color: #333;
+        }
+
+        #phone-keypad.mode-nav .key-number {
+            color: #333;
+        }
+
+        #phone-keypad.mode-nav .key.nav-active {
+            border-color: var(--green);
+            color: var(--green);
+        }
+
+        #phone-keypad.mode-nav .key.nav-active .key-number {
+            color: var(--green);
         }
 
         .keypad-grid {
@@ -254,17 +344,17 @@
         }
 
         .key.confirm {
-            border-color: var(--green);
-            color: var(--green);
+            border-color: var(--fg);
+            color: var(--fg);
         }
 
         .key.confirm .key-number {
-            color: var(--green);
+            color: var(--fg);
         }
 
         .key.confirm:active {
-            background: var(--green);
-            border-color: var(--green);
+            background: var(--fg);
+            border-color: var(--fg);
         }
 
         .key.confirm:active .key-number {
@@ -415,7 +505,7 @@
                 <span class="key-letters">+</span>
             </button>
             <button class="key confirm" data-confirm="1">
-                <span class="key-number">OK</span>
+                <span class="key-number">●</span>
                 <span class="key-letters"></span>
             </button>
         </div>
@@ -495,6 +585,9 @@
         let activeSuggestionDisplay = '';
         let baseSuggestion = '';
         let suggestionActive = false;
+        let uiMode = 'classic';
+        const navMenuItems = ['Configurations', 'Packages'];
+        let navIndex = 0;
         const messageHistory = [];
 
         // HELPERS
@@ -529,6 +622,46 @@
             lastTapKey = null;
             lastTapIndex = 0;
             lastTapTime = 0;
+        }
+
+        function setMode(mode) {
+            uiMode = mode;
+            keypad.classList.remove('mode-classic', 'mode-nav');
+            keypad.classList.add(mode === 'nav' ? 'mode-nav' : 'mode-classic');
+            updateNavKeys();
+            renderMenu();
+        }
+
+        function updateNavKeys() {
+            const navKeys = new Set(['2', '4', '6', '8', '5']);
+            keys.forEach(k => {
+                const num = k.dataset.num;
+                if (!num) return;
+                if (uiMode === 'nav' && navKeys.has(num)) {
+                    k.classList.add('nav-active');
+                } else {
+                    k.classList.remove('nav-active');
+                }
+            });
+        }
+
+        function renderMenu() {
+            if (uiMode !== 'nav') {
+                displayMessages.classList.remove('menu');
+                if (messageHistory.length > 0) {
+                    displayMessages.textContent = messageHistory.join('\n');
+                    displayMessages.scrollTop = displayMessages.scrollHeight;
+                } else {
+                    displayMessages.textContent = '';
+                }
+                return;
+            }
+            displayMessages.classList.add('menu');
+            const items = navMenuItems.map((label, idx) => {
+                const cls = idx === navIndex ? 'menu-item selected' : 'menu-item';
+                return `<div class="${cls}">${label}</div>`;
+            });
+            displayMessages.innerHTML = items.join('');
         }
 
         async function fetchLogSuggestions() {
@@ -679,18 +812,20 @@
                 }
 
                 if (data.messages && data.messages.length > 0) {
-                    data.messages.forEach(m => {
-                        const line = Array.isArray(m) ? m.join(' ') : String(m);
-                        if (line.trim().length > 0) {
-                            messageHistory.push(line);
+                    if (uiMode !== 'nav') {
+                        data.messages.forEach(m => {
+                            const line = Array.isArray(m) ? m.join(' ') : String(m);
+                            if (line.trim().length > 0) {
+                                messageHistory.push(line);
+                            }
+                        });
+                        if (messageHistory.length > 300) {
+                            messageHistory.splice(0, messageHistory.length - 300);
                         }
-                    });
-                    if (messageHistory.length > 300) {
-                        messageHistory.splice(0, messageHistory.length - 300);
+                        displayMessages.textContent = messageHistory.join('\n');
+                        displayMessages.scrollTop = displayMessages.scrollHeight;
+                        showToast(data.messages[data.messages.length - 1]);
                     }
-                    displayMessages.textContent = messageHistory.join('\n');
-                    displayMessages.scrollTop = displayMessages.scrollHeight;
-                    showToast(data.messages[data.messages.length - 1]);
                 }
             } catch (e) { /* offline */ }
         }
@@ -769,6 +904,20 @@
                 const confirm = key.dataset.confirm;
                 const del = key.dataset.delete;
                 if (num) {
+                    if (uiMode === 'nav' && !pendingType) {
+                        if (num === '2') {
+                            navIndex = (navIndex - 1 + navMenuItems.length) % navMenuItems.length;
+                            renderMenu();
+                        } else if (num === '8') {
+                            navIndex = (navIndex + 1) % navMenuItems.length;
+                            renderMenu();
+                        } else if (num === '5') {
+                            renderMenu();
+                        }
+                        key.classList.add('pressed');
+                        setTimeout(() => key.classList.remove('pressed'), 200);
+                        return;
+                    }
                     if (pendingType === 'menu') {
                         playDTMF(num);
                         if (navigator.vibrate) navigator.vibrate(10);
@@ -834,6 +983,13 @@
                     updateLogSuggestion();
                     fetchPreview(buffer);
                 } else if (confirm) {
+                    if (!pendingType && buffer.length === 0) {
+                        setMode(uiMode === 'classic' ? 'nav' : 'classic');
+                        buffer = '';
+                        resetMultiTap();
+                        updateDisplay();
+                        return;
+                    }
                     if (suggestionActive && activeSuggestion) {
                         buffer = activeSuggestion;
                         suggestionActive = false;
@@ -906,6 +1062,7 @@
             pendingType = '';
             resetMultiTap();
             updateLogSuggestion();
+            setMode('classic');
             updateDisplay();
             updateStatus();
             setInterval(updateStatus, 3000);
