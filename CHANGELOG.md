@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-alpha.1](https://github.com/do-mgix/evove-by-roko/compare/v1.1.0-alpha.0...v1.1.0-alpha.1) (2026-02-08)
+
+
+### Bug Fixes
+
+* uses system keyboard instead of custom keyboard ([49c9e0e](https://github.com/do-mgix/evove-by-roko/commit/49c9e0e98d4fea017ace7a959df841ed291dc48d))
+
 ## 1.1.0-alpha.0 (2026-02-08)
 
 
