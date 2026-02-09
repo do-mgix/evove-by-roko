@@ -12,6 +12,7 @@ class Action:
         5: 1200,        
     }
     _TYPE_MAP = {
+        0: {"label": "session", "factor": 3},
         1: {"label": "repetitions", "factor": 1},
         2: {"label": "seconds", "factor": 1}, 
         3: {"label": "minutes", "factor": 2}, 
@@ -20,7 +21,7 @@ class Action:
         6: {"label": "lines", "factor": 2}, 
     }
     
-    def __init__(self, action_id, name: str, tipo: int, diff: int, value: float):
+    def __init__(self, action_id, name: str, tipo: int, diff: int, value: float, deleted=False):
         if not (0 <= diff <= 5):
             raise ValueError("Difficulty 'diff' must be an integer between 0 and 5.")
         if tipo not in self._TYPE_MAP:
@@ -30,6 +31,7 @@ class Action:
         self._tipo = tipo
         self._diff = diff
         self._value = value
+        self._deleted = bool(deleted)
         self._diff_multiplier = self._DIFFICULTY_MULTIPLIER_MAP[diff] 
     
     @property
@@ -51,6 +53,13 @@ class Action:
     @property
     def value(self):
         return self._value
+
+    @property
+    def deleted(self):
+        return self._deleted
+
+    def set_deleted(self, value=True):
+        self._deleted = bool(value)
     
     @property
     def diff_multiplier(self):
@@ -147,6 +156,7 @@ class Action:
             "diff": self.diff,
             "value": self.value,             
             "score": self.score,
+            "deleted": self.deleted,
         }
     
     @classmethod
@@ -157,5 +167,6 @@ class Action:
             data["type"], 
             data["diff"], 
             data["value"], 
+            data.get("deleted", False),
         )
         return action

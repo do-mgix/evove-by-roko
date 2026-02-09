@@ -16,10 +16,29 @@ from src.components.data.constants import (
     COMMANDS
 )
 
-def _prompt_cli_input(message):
+def _prompt_cli_input(message, autocomplete=None):
+    if autocomplete:
+        try:
+            import readline
+            matches = sorted(set(autocomplete))
+            def completer(text, state):
+                options = [m for m in matches if m.lower().startswith(text.lower())]
+                if state < len(options):
+                    return options[state]
+                return None
+            readline.set_completer(completer)
+            readline.parse_and_bind("tab: complete")
+        except Exception:
+            pass
     ui.clear_screen()
     print(message)
     value = input("> ")
+    if autocomplete:
+        try:
+            import readline
+            readline.set_completer(None)
+        except Exception:
+            pass
     ui.clear_screen()
     return value
 
@@ -69,7 +88,10 @@ def dial_start():
                         guide = f"[ INPUT REQUIRED ] {e.prompt}"
                         if e.type:
                             guide += f" ({e.type})"
-                        cli_input = _prompt_cli_input(guide)
+                        autocomplete = None
+                        if e.options and e.options.get("autocomplete") == "names":
+                             autocomplete = user._collect_autocomplete_names()
+                        cli_input = _prompt_cli_input(guide, autocomplete=autocomplete)
                         
 
                         if e.prompt == "log message":
@@ -109,6 +131,46 @@ def dial_start():
                                  step = next_step.get("options", {}).get("pa_step")
                                  data = next_step.get("options", {})
                                  next_step = user.param_action_next(step, data, cli_input)
+                             buffer = ""
+                        elif e.prompt.startswith("edit action") or e.prompt.startswith("edit attribute") or e.prompt.startswith("edit parameter") or e.prompt.startswith("edit status"):
+                             step = e.options.get("edit_step") if e.options else None
+                             data = e.options if e.options else {}
+                             if step and step.startswith("action_"):
+                                 next_step = user.action_edit_next(step, data, cli_input)
+                             else:
+                                 next_step = user.misc_edit_next(step, data, cli_input)
+                             while next_step:
+                                 prompt = next_step["prompt"]
+                                 autocomplete = None
+                                 if next_step.get("options", {}).get("autocomplete") == "names":
+                                     autocomplete = user._collect_autocomplete_names()
+                                 cli_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}", autocomplete=autocomplete)
+                                 step = next_step.get("options", {}).get("edit_step")
+                                 data = next_step.get("options", {})
+                                 if step and step.startswith("action_"):
+                                     next_step = user.action_edit_next(step, data, cli_input)
+                                 else:
+                                     next_step = user.misc_edit_next(step, data, cli_input)
+                             buffer = ""
+                        elif e.prompt.startswith("edit action") or e.prompt.startswith("edit attribute") or e.prompt.startswith("edit parameter") or e.prompt.startswith("edit status"):
+                             step = e.options.get("edit_step") if e.options else None
+                             data = e.options if e.options else {}
+                             if step and step.startswith("action_"):
+                                 next_step = user.action_edit_next(step, data, cli_input)
+                             else:
+                                 next_step = user.misc_edit_next(step, data, cli_input)
+                             while next_step:
+                                 prompt = next_step["prompt"]
+                                 autocomplete = None
+                                 if next_step.get("options", {}).get("autocomplete") == "names":
+                                     autocomplete = user._collect_autocomplete_names()
+                                 cli_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}", autocomplete=autocomplete)
+                                 step = next_step.get("options", {}).get("edit_step")
+                                 data = next_step.get("options", {})
+                                 if step and step.startswith("action_"):
+                                     next_step = user.action_edit_next(step, data, cli_input)
+                                 else:
+                                     next_step = user.misc_edit_next(step, data, cli_input)
                              buffer = ""
                         elif e.prompt.startswith("agenda "):
                              step = e.options.get("agenda_step") if e.options else None
@@ -158,7 +220,10 @@ def dial_start():
                         guide = f"[ INPUT REQUIRED ] {e.prompt}"
                         if e.type:
                             guide += f" ({e.type})"
-                        cli_input = _prompt_cli_input(guide)
+                        autocomplete = None
+                        if e.options and e.options.get("autocomplete") == "names":
+                             autocomplete = user._collect_autocomplete_names()
+                        cli_input = _prompt_cli_input(guide, autocomplete=autocomplete)
                         
                         if e.prompt == "log message":
                              user.add_log_entry(cli_input)

@@ -180,11 +180,13 @@ class Wizard:
     def _get_action_type_label(self, type_num):
         """Returns action type label"""
         types = {
+            0: "session",
             1: "reps",
             2: "secs",
             3: "mins",
             4: "hours",
-            5: "letters"
+            5: "letters",
+            6: "lines",
         }
         return types.get(type_num, "unknown")
     

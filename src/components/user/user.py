@@ -269,6 +269,9 @@ class User:
         if not action:
             self.add_message(f"\n [ ERROR ] Action ID {action_id} not found. (Loaded Actions: {len(self._actions)})")
             return None
+        if getattr(action, "_deleted", False):
+            self.add_message(f"Action {action_id} is deleted.")
+            return None
 
         if not self._check_shop_access(action_id):
             return None
@@ -723,7 +726,7 @@ class User:
 
         if name is None:
             from src.components.services.UI.interface import WebInputInterrupt
-            raise WebInputInterrupt("attribute name", type="text")
+            raise WebInputInterrupt("attribute name", type="text", options={"autocomplete": "names"})
 
         nextid = self.next_attr_id
         new_id = f"80{nextid}" if nextid < 10 else f"8{nextid}"           
@@ -742,7 +745,7 @@ class User:
         if new_id not in self._attributes:
             if name is None:
                 from src.components.services.UI.interface import WebInputInterrupt
-                raise WebInputInterrupt("attribute name", type="text", options={"payloads": payloads})
+                raise WebInputInterrupt("attribute name", type="text", options={"payloads": payloads, "autocomplete": "names"})
             new_attribute = Attribute(new_id, name, None, None, None)
             self._attributes[new_id] = new_attribute
             self.add_message(f"attribute '{name}' created with ID {new_attribute._id}")
@@ -758,7 +761,7 @@ class User:
 
         if name is None:
             from src.components.services.UI.interface import WebInputInterrupt
-            raise WebInputInterrupt("action name", type="text", options={"buffer": buffer})
+            raise WebInputInterrupt("action name", type="text", options={"buffer": buffer, "autocomplete": "names"})
 
         try:
             tipo = int(buffer[0])
@@ -783,7 +786,7 @@ class User:
 
         if name is None:
             from src.components.services.UI.interface import WebInputInterrupt
-            raise WebInputInterrupt("status name", type="text", options={"buffer": buffer})
+            raise WebInputInterrupt("status name", type="text", options={"buffer": buffer, "autocomplete": "names"})
 
         try:
             duration_type = int(buffer[0])
@@ -804,7 +807,7 @@ class User:
 
         if name is None:
             from src.components.services.UI.interface import WebInputInterrupt
-            raise WebInputInterrupt("parameter name", type="text", options={"buffer": buffer})
+            raise WebInputInterrupt("parameter name", type="text", options={"buffer": buffer, "autocomplete": "names"})
 
         try:
             value_type = int(buffer[0])
@@ -967,6 +970,206 @@ class User:
         self.add_message("Parameter init error: invalid step.")
         return None
 
+    def edit_action(self, payloads):
+        if not payloads or not payloads[0]:
+            self.add_message("Invalid action ID.")
+            return
+        action_id = f"5{payloads[0]}"
+        action = self._actions.get(action_id)
+        if not action:
+            self.add_message(f"Action ID ({action_id}) not found")
+            return
+        from src.components.services.UI.interface import WebInputInterrupt
+        raise WebInputInterrupt(
+            "edit action name (blank keep)",
+            type="text",
+            options={"edit_step": "action_name", "action_id": action_id, "autocomplete": "names"},
+        )
+
+    def action_edit_next(self, step, data, value):
+        data = dict(data or {})
+        val = value if value is not None else ""
+
+        if step == "action_name":
+            data["name"] = val.strip()
+            return {"prompt": "edit action type (0-6, blank keep)", "type": "numeric", "options": {"edit_step": "action_type", "action_id": data.get("action_id"), "name": data["name"]}}
+
+        if step == "action_type":
+            data["type"] = val.strip()
+            return {"prompt": "edit action diff (0-5, blank keep)", "type": "numeric", "options": {"edit_step": "action_diff", "action_id": data.get("action_id"), "name": data.get("name"), "type": data.get("type")}}
+
+        if step == "action_diff":
+            action_id = data.get("action_id")
+            action = self._actions.get(action_id)
+            if not action:
+                self.add_message("Action not found.")
+                return None
+            name = data.get("name")
+            tipo_raw = data.get("type")
+            diff_raw = val.strip()
+            if name:
+                action._name = name
+            if tipo_raw:
+                try:
+                    tipo = int(tipo_raw)
+                    if tipo in Action._TYPE_MAP:
+                        action._tipo = tipo
+                except Exception:
+                    pass
+            if diff_raw:
+                try:
+                    diff = int(diff_raw)
+                    if 0 <= diff <= 5:
+                        action._diff = diff
+                        action._diff_multiplier = action._DIFFICULTY_MULTIPLIER_MAP[diff]
+                except Exception:
+                    pass
+            self.add_message(f"Action {action._name} ({action._id}) updated.")
+            self.save_user()
+            return None
+
+        self.add_message("Action edit error: invalid step.")
+        return None
+
+    def edit_attribute(self, payloads):
+        if not payloads or not payloads[0]:
+            self.add_message("Invalid attribute ID.")
+            return
+        attr_id = f"8{payloads[0]}"
+        attr = self._attributes.get(attr_id)
+        if not attr:
+            self.add_message(f"Attribute ID ({attr_id}) not found")
+            return
+        from src.components.services.UI.interface import WebInputInterrupt
+        raise WebInputInterrupt(
+            "edit attribute name (blank keep)",
+            type="text",
+            options={"edit_step": "attr_name", "attr_id": attr_id, "autocomplete": "names"},
+        )
+
+    def edit_parameter(self, payloads):
+        if not payloads or not payloads[0]:
+            self.add_message("Invalid parameter ID.")
+            return
+        param_id = f"6{payloads[0]}"
+        param = self._parameters.get(param_id)
+        if not param:
+            self.add_message(f"Parameter ID ({param_id}) not found")
+            return
+        from src.components.services.UI.interface import WebInputInterrupt
+        raise WebInputInterrupt(
+            "edit parameter name (blank keep)",
+            type="text",
+            options={"edit_step": "param_name", "param_id": param_id, "autocomplete": "names"},
+        )
+
+    def edit_status(self, payloads):
+        if not payloads or not payloads[0]:
+            self.add_message("Invalid status ID.")
+            return
+        status_id = f"4{payloads[0]}"
+        status = self._statuses.get(status_id)
+        if not status:
+            self.add_message(f"Status ID ({status_id}) not found")
+            return
+        from src.components.services.UI.interface import WebInputInterrupt
+        raise WebInputInterrupt(
+            "edit status name (blank keep)",
+            type="text",
+            options={"edit_step": "status_name", "status_id": status_id, "autocomplete": "names"},
+        )
+
+    def misc_edit_next(self, step, data, value):
+        data = dict(data or {})
+        val = value if value is not None else ""
+
+        if step == "attr_name":
+            attr = self._attributes.get(data.get("attr_id"))
+            if not attr:
+                self.add_message("Attribute not found.")
+                return None
+            if val.strip():
+                attr._name = val.strip()
+            self.add_message(f"Attribute {attr._name} ({attr._id}) updated.")
+            self.save_user()
+            return None
+
+        if step == "param_name":
+            param = self._parameters.get(data.get("param_id"))
+            if not param:
+                self.add_message("Parameter not found.")
+                return None
+            data["name"] = val.strip()
+            return {"prompt": "edit parameter type (1 mark, 2 percentage, blank keep)", "type": "numeric", "options": {"edit_step": "param_type", "param_id": data.get("param_id"), "name": data.get("name")}}
+
+        if step == "param_type":
+            param = self._parameters.get(data.get("param_id"))
+            if not param:
+                self.add_message("Parameter not found.")
+                return None
+            data["type"] = val.strip()
+            return {"prompt": "edit parameter logic (1 Emotional, 2 Ambiental, 3 Fisiologic, blank keep)", "type": "numeric", "options": {"edit_step": "param_logic", "param_id": data.get("param_id"), "name": data.get("name"), "type": data.get("type")}}
+
+        if step == "param_logic":
+            param = self._parameters.get(data.get("param_id"))
+            if not param:
+                self.add_message("Parameter not found.")
+                return None
+            name = data.get("name")
+            type_raw = data.get("type")
+            logic_raw = val.strip()
+            if name:
+                param._name = name
+            if type_raw:
+                try:
+                    tval = int(type_raw)
+                    if tval in Parameter.VALUE_TYPES:
+                        param._value_type = tval
+                        param.set_value(param._value)
+                except Exception:
+                    pass
+            if logic_raw:
+                try:
+                    lval = int(logic_raw)
+                    if lval in Parameter.LOGIC_TYPES:
+                        param._logic_type = lval
+                except Exception:
+                    pass
+            self.add_message(f"Parameter {param._name} ({param._id}) updated.")
+            self.save_user()
+            return None
+
+        if step == "status_name":
+            status = self._statuses.get(data.get("status_id"))
+            if not status:
+                self.add_message("Status not found.")
+                return None
+            data["name"] = val.strip()
+            return {"prompt": "edit status duration (0-3, blank keep)", "type": "numeric", "options": {"edit_step": "status_duration", "status_id": data.get("status_id"), "name": data.get("name")}}
+
+        if step == "status_duration":
+            status = self._statuses.get(data.get("status_id"))
+            if not status:
+                self.add_message("Status not found.")
+                return None
+            name = data.get("name")
+            if name:
+                status._name = name
+            dur_raw = val.strip()
+            if dur_raw:
+                try:
+                    dval = int(dur_raw)
+                    if dval in Status.DURATION_MAP:
+                        status._duration_type = dval
+                except Exception:
+                    pass
+            self.add_message(f"Status {status._name} ({status._id}) updated.")
+            self.save_user()
+            return None
+
+        self.add_message("Edit error: invalid step.")
+        return None
+
     def parameter_add_action(self, payloads, value=None):
         if len(payloads) < 2:
             self.add_message("Invalid parameter/action IDs.")
@@ -1052,6 +1255,7 @@ class User:
         if not links:
             return
         unit_map = {
+            0: 3.0,  # session
             1: 1.0,  # repetitions
             2: 0.1,  # seconds
             3: 0.5,  # minutes
@@ -1101,7 +1305,7 @@ class User:
     def list_actions(self):
         if self._actions:
             from src.components.services.UI.interface import ui
-            items = [f"({action._id}) - {action._name}" for action in self._actions.values()]
+            items = [f"({action._id}) - {action._name}" for action in self._actions.values() if not getattr(action, "_deleted", False)]
             ui.show_list(items, "CURRENT ACTIONS")
         else:
             self.add_message("no actions available. try creating one with 25...")
@@ -1126,6 +1330,40 @@ class User:
         else:
             self.add_message("no active statuses.")
         self.save_user()
+
+    def _collect_autocomplete_names(self):
+        import json
+        import os
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        src_dir = os.path.dirname(os.path.dirname(base_dir))
+        data_dir = os.path.join(src_dir, "data")
+        results = set()
+
+        for root, _, files in os.walk(data_dir):
+            for fname in files:
+                if not fname.endswith(".json"):
+                    continue
+                path = os.path.join(root, fname)
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                except Exception:
+                    continue
+
+                def _walk(obj):
+                    if isinstance(obj, dict):
+                        name = obj.get("name")
+                        if isinstance(name, str) and name.strip():
+                            results.add(name.strip())
+                        for v in obj.values():
+                            _walk(v)
+                    elif isinstance(obj, list):
+                        for v in obj:
+                            _walk(v)
+
+                _walk(data)
+
+        return sorted(results)
 
     def list_parameters(self):
         if self._parameters:
@@ -1207,6 +1445,9 @@ class User:
         if not action:
             self.add_message(f"Action ID ({payload_id}) not found")
             return
+        if getattr(action, "_deleted", False):
+            self.add_message(f"Action {action._name} ({action._id}) already deleted.")
+            return
 
         from src.components.services.UI.interface import ui, WebInputInterrupt
         if confirmed is True:
@@ -1220,7 +1461,7 @@ class User:
         elif not ui.ask_confirmation(f"Delete action {action._name} ({action._id})?"):
             return
 
-        self._actions.pop(payload_id, None)
+        action.set_deleted(True)
         self.add_message(f"Action {action._name} ({action._id}) deleted.")
         self.save_user()
 

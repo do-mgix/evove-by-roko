@@ -100,7 +100,7 @@ def status():
             "value": user._value,
             "total_points": user.total_points,  # ← ADICIONADO
             "attributes": {k: {"name": v._name, "score": v.total_score} for k, v in user._attributes.items()},
-            "actions": {k: {"name": v._name} for k, v in user._actions.items()},
+            "actions": {k: {"name": v._name} for k, v in user._actions.items() if not getattr(v, "_deleted", False)},
             "parameters": {
                 k: {
                     "name": v._name,
@@ -186,6 +186,16 @@ def command():
                 step = options.get("pa_step")
                 data = options or {}
                 next_step = user.param_action_next(step, data, buffer)
+                if next_step:
+                    session.pending_input = next_step
+                    return jsonify({"completed": True, "clear": True})
+            elif p.startswith("edit action") or p.startswith("edit attribute") or p.startswith("edit parameter") or p.startswith("edit status"):
+                step = options.get("edit_step")
+                data = options or {}
+                if step and step.startswith("action_"):
+                    next_step = user.action_edit_next(step, data, buffer)
+                else:
+                    next_step = user.misc_edit_next(step, data, buffer)
                 if next_step:
                     session.pending_input = next_step
                     return jsonify({"completed": True, "clear": True})

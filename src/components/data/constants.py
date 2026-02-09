@@ -64,6 +64,10 @@ COMMANDS = {
     "param add status": {"func": user.parameter_add_status},
     "shop_item add action": {"func": user.shop_item_add_action},
     "shop_item act": {"func": user.buy_shop_item},
+    "action delete": {"func": user.edit_action},
+    "attr delete": {"func": user.edit_attribute},
+    "param delete": {"func": user.edit_parameter},
+    "status delete": {"func": user.edit_status},
 
 }
 

@@ -44,9 +44,13 @@ class ChallengeManager:
         self.user.refill_daily_tokens()
 
     def _generate_challenge(self, entity):
-        if not self.user or not self.user._actions: return
-        
-        action = random.choice(list(self.user._actions.values()))
+        if not self.user or not self.user._actions:
+            return
+
+        available = [a for a in self.user._actions.values() if not getattr(a, "_deleted", False)]
+        if not available:
+            return
+        action = random.choice(available)
         
         # Simple challenge logic
         self.active_challenge = {
