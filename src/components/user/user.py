@@ -1409,6 +1409,114 @@ class User:
         else:
             self.add_message("no tags available. try creating one with 21...")
 
+    def list_actions_detailed(self):
+        from src.components.services.UI.interface import ui
+        items = []
+        for action in self._actions.values():
+            if getattr(action, "_deleted", False):
+                continue
+            tag_list = []
+            for tag_link in self._action_tags.get(action._id, []):
+                tid = tag_link.get("tag_id")
+                weight = tag_link.get("weight")
+                name = self._tags.get(tid)._name if tid in self._tags else tid
+                tag_list.append(f"{name}({weight})")
+            tags_str = ", ".join(tag_list) if tag_list else "-"
+            items.append(f"({action._id}) {action._name} | score {action.score:.2f} | tags: {tags_str}")
+        if items:
+            ui.show_list(items, "ACTIONS (DETAILED)")
+        else:
+            self.add_message("no actions available.")
+
+    def list_params_full(self):
+        from src.components.services.UI.interface import ui
+        items = []
+        for param in self._parameters.values():
+            tag_list = []
+            for tag_link in self._param_tags.get(param._id, []):
+                tid = tag_link.get("tag_id")
+                weight = tag_link.get("weight")
+                name = self._tags.get(tid)._name if tid in self._tags else tid
+                tag_list.append(f"{name}({weight})")
+            tags_str = ", ".join(tag_list) if tag_list else "-"
+            val = param._value
+            items.append(f"({param._id}) {param._name} | value {val:.4f} | tags: {tags_str}")
+        if items:
+            ui.show_list(items, "PARAMS (FULL)")
+        else:
+            self.add_message("no parameters available.")
+
+    def list_attributes_detailed(self):
+        from src.components.services.UI.interface import ui
+        items = []
+        for attr in self._attributes.values():
+            rel_actions = [a._name for a in getattr(attr, "_related_actions", [])]
+            children = [c._name for c in getattr(attr, "_children", [])]
+            parents = [p._name for p in getattr(attr, "_parent", [])]
+            items.append(
+                f"({attr._id}) {attr._name} | score {attr.total_score:.2f} | "
+                f"actions: {', '.join(rel_actions) if rel_actions else '-'} | "
+                f"children: {', '.join(children) if children else '-'} | "
+                f"parent: {', '.join(parents) if parents else '-'}"
+            )
+        if items:
+            ui.show_list(items, "ATTRIBUTES (DETAILED)")
+        else:
+            self.add_message("no attributes available.")
+
+    def list_tags_detailed(self):
+        from src.components.services.UI.interface import ui
+        items = []
+        for tag in self._tags.values():
+            action_links = []
+            for action_id, links in self._action_tags.items():
+                for link in links:
+                    if link.get("tag_id") == tag._id:
+                        action = self._actions.get(action_id)
+                        if action and not getattr(action, "_deleted", False):
+                            action_links.append(f"{action._name}({link.get('weight')})")
+            param_links = []
+            for param_id, links in self._param_tags.items():
+                for link in links:
+                    if link.get("tag_id") == tag._id:
+                        param = self._parameters.get(param_id)
+                        if param:
+                            param_links.append(f"{param._name}({link.get('weight')})")
+            items.append(
+                f"({tag._id}) {tag._name} | actions: {', '.join(action_links) if action_links else '-'} | "
+                f"params: {', '.join(param_links) if param_links else '-'}"
+            )
+        if items:
+            ui.show_list(items, "TAGS (DETAILED)")
+        else:
+            self.add_message("no tags available.")
+
+    def show_user_info(self):
+        from src.components.services.UI.interface import ui
+        meta = self.metadata
+        items = [
+            f"score: {self.score:.2f}",
+            f"total_points: {self.total_points:.2f}",
+            f"mode: {meta.get('mode')}",
+            f"tokens: {meta.get('tokens')}/{meta.get('max_tokens')}",
+            f"daily_refill: {meta.get('daily_refill')}",
+            f"refill_cooldown: {meta.get('refill_cooldown')}",
+            f"last_token_refill: {meta.get('last_token_refill')}",
+            f"attributes: {len(self._attributes)}",
+            f"actions: {len([a for a in self._actions.values() if not getattr(a, '_deleted', False)])}",
+            f"parameters: {len(self._parameters)}",
+            f"statuses: {len(self._statuses)}",
+            f"tags: {len(self._tags)}",
+        ]
+        ui.show_list(items, "USER INFO")
+
+    def super_show(self):
+        self.show_user_info()
+        self.list_actions_detailed()
+        self.list_params_full()
+        self.list_attributes_detailed()
+        self.list_tags_detailed()
+
     def _collect_autocomplete_names(self):
         import json
         import os
