@@ -1440,7 +1440,11 @@ class User:
                 tag_list.append(f"{name}({weight})")
             tags_str = ", ".join(tag_list) if tag_list else "-"
             val = param._value
-            items.append(f"({param._id}) {param._name} | value {val:.4f} | tags: {tags_str}")
+            items.append(
+                f"({param._id}) {param._name} | "
+                f"{Parameter.VALUE_TYPES.get(param._value_type)} / {Parameter.LOGIC_TYPES.get(param._logic_type)} | "
+                f"value {val:.4f} | tags: {tags_str}"
+            )
         if items:
             ui.show_list(items, "PARAMS (FULL)")
         else:
@@ -1510,12 +1514,6 @@ class User:
         ]
         ui.show_list(items, "USER INFO")
 
-    def super_show(self):
-        self.show_user_info()
-        self.list_actions_detailed()
-        self.list_params_full()
-        self.list_attributes_detailed()
-        self.list_tags_detailed()
 
     def _collect_autocomplete_names(self):
         import json
@@ -1557,17 +1555,13 @@ class User:
             for param in self._parameters.values():
                 if param.update_value():
                     self._update_statuses_for_param(param)
-            items = [
-                (
-                    f"({param._id}) - {param._name} "
-                    f"[{Parameter.VALUE_TYPES.get(param._value_type)} / {Parameter.LOGIC_TYPES.get(param._logic_type)}] = "
-                    f"{int(round(param._value))}%" if param._value_type == 2 else
-                    f"({param._id}) - {param._name} "
-                    f"[{Parameter.VALUE_TYPES.get(param._value_type)} / {Parameter.LOGIC_TYPES.get(param._logic_type)}] = "
-                    f"{int(round(param._value))}"
-                )
-                for param in self._parameters.values()
-            ]
+            items = []
+            for param in self._parameters.values():
+                val = int(round(param._value))
+                if param._value_type == 2:
+                    items.append(f"({param._id}) - {param._name} = {val}%")
+                else:
+                    items.append(f"({param._id}) - {param._name} = {val}")
             ui.show_list(items, "CURRENT PARAMETERS")
             self.save_user()
         else:

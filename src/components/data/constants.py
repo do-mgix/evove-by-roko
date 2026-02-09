@@ -40,7 +40,6 @@ SINGLE_COMMANDS = {
     "998": {"len": 0, "func": user.list_attributes_detailed, "label": "list_attributes_detailed"},
     "991": {"len": 0, "func": user.list_tags_detailed, "label": "list_tags_detailed"},
     "999": {"len": 0, "func": user.show_user_info, "label": "show_user_info"},
-    "99": {"len": 0, "func": user.super_show, "label": "super_show"},
     "997": {"len": 0, "func": user.list_days, "label": "list_days"},
     "07": {"len": 0, "func": user.drop_last_log_buffer, "label": "drop_log"},
     "007": {"len": 0, "func": user.drop_last_day, "label": "drop_day"},
