@@ -9,6 +9,7 @@ OBJECTS = {
     "5": {"len": 2, "label": "action"}, 
     "6": {"len": 2, "label": "param"},
     "4": {"len": 2, "label": "status"},
+    "1": {"len": 2, "label": "tag"},
     "3": {"len": 2, "label": "shop_item"}, 
     "7": {"len": 0, "label": "log"},
     "47": {"len": 0, "label": "sequence"},
@@ -22,12 +23,13 @@ INTERACTIONS = {
 }
 
 SINGLE_COMMANDS = {
-    "1":  {"len": 0, "func": him.cutucar, "label": ""},
     "93": {"len": 0, "func": user.open_shop, "label": "list_shop"},
     "25": {"len": 2, "func": user.create_action, "label": "create_action"}, 
     "28": {"len": 0, "func": user.create_attribute, "label": "create_attr"}, 
     "24": {"len": 1, "func": user.create_status, "label": "create_status"},
+    "21": {"len": 0, "func": user.create_tag, "label": "create_tag"},
     "26": {"len": 2, "func": user.create_parameter, "label": "create_param"},
+    "91": {"len": 0, "func": user.list_tags, "label": "list_tags"},
     "98": {"len": 0, "func": user.list_attributes, "label": "list_attr"}, 
     "95": {"len": 0, "func": user.list_actions, "label": "list_actions"}, 
     "96": {"len": 0, "func": user.list_parameters, "label": "list_params"},
@@ -60,8 +62,9 @@ COMMANDS = {
     "status add": {"func": user.activate_status},
     "status act": {"func": user.clean_status},
     "param act act": {"func": user.init_parameter},
-    "param add action": {"func": user.parameter_add_action},
     "param add status": {"func": user.parameter_add_status},
+    "action add tag": {"func": user.action_add_tag},
+    "param add tag": {"func": user.parameter_add_tag},
     "shop_item add action": {"func": user.shop_item_add_action},
     "shop_item act": {"func": user.buy_shop_item},
     "action delete": {"func": user.edit_action},

@@ -6,6 +6,7 @@ from src.components.user.attributes.attribute import Attribute
 from src.components.user.actions.action import Action
 from src.components.user.parameters.parameter import Parameter
 from src.components.user.statuses.status import Status
+from src.components.user.tags.tag import Tag
 from src.components.services.journal_service import journal_service
 from src.components.services.agenda_service import agenda_service
 
@@ -16,9 +17,11 @@ class User:
         self._actions = {} 
         self._parameters = {}
         self._statuses = {}
-        self._param_action_links = {}
         self._shop_action_links = {}
         self._shop_entitlements = {}
+        self._tags = {}
+        self._action_tags = {}
+        self._param_tags = {}
         self._value = 0
         self.messages = []  # Buffer de mensagens para o render
         self.metadata = {
@@ -193,6 +196,15 @@ class User:
             return 1
 
     @property
+    def next_tag_id(self):
+        if self._tags:
+            higher = max(self._tags)
+            higher = higher[1:3]
+            return int(higher) + 1
+        else:
+            return 1
+
+    @property
     def next_status_id(self):
         if self._statuses:
             higher = max(self._statuses)
@@ -281,7 +293,7 @@ class User:
         value_difference = action.value - original_value
 
         if value_difference:
-            self._apply_param_action_effects(action, value_difference)
+            self._apply_tag_effects(action, value_difference)
         
         # Daily Aggregation Logic -> Immediate Log (TO PROCESS)
         action_name = action.name
@@ -583,9 +595,13 @@ class User:
             "statuses": {
                 k: v.to_dict() if hasattr(v, 'to_dict') else v for k, v in self._statuses.items()
             },
-            "param_action_links": self._param_action_links,
             "shop_action_links": self._shop_action_links,
             "shop_entitlements": self._shop_entitlements,
+            "tags": {
+                k: v.to_dict() if hasattr(v, 'to_dict') else v for k, v in self._tags.items()
+            },
+            "action_tags": self._action_tags,
+            "param_tags": self._param_tags,
             "metadata": self.metadata
         }
     
@@ -640,7 +656,6 @@ class User:
             new_param = Parameter.from_dict(param_data)
             self._parameters[param_id] = new_param
 
-        self._param_action_links = data.get("param_action_links", {}) or {}
         self._shop_action_links = data.get("shop_action_links", {}) or {}
         self._shop_entitlements = data.get("shop_entitlements", {}) or {}
 
@@ -648,6 +663,13 @@ class User:
         for status_id, status_data in data.get("statuses", {}).items():
             new_status = Status.from_dict(status_data)
             self._statuses[status_id] = new_status
+
+        self._tags.clear()
+        for tag_id, tag_data in data.get("tags", {}).items():
+            new_tag = Tag.from_dict(tag_data)
+            self._tags[tag_id] = new_tag
+        self._action_tags = data.get("action_tags", {}) or {}
+        self._param_tags = data.get("param_tags", {}) or {}
         
         for attr in self._attributes.values():
             if hasattr(attr, 'resolve_related_actions'):
@@ -777,6 +799,23 @@ class User:
             self.save_user()
         except Exception as e:
             self.add_message(f"{e}")
+
+    def create_tag(self, name=None):
+        mode = self.metadata.get("mode", "progressive")
+        if mode == "semi-progressive":
+            self.add_message("[ MODE ] Manual creation disabled in semi-progressive mode.")
+            return
+
+        if name is None:
+            from src.components.services.UI.interface import WebInputInterrupt
+            raise WebInputInterrupt("tag name", type="text", options={"autocomplete": "names"})
+
+        nextid = self.next_tag_id
+        new_id = f"10{nextid}" if nextid < 10 else f"1{nextid}"
+        new_tag = Tag(new_id, name)
+        self._tags[new_id] = new_tag
+        self.add_message(f"tag '{name}' created with ID {new_id}")
+        self.save_user()
 
     def create_status(self, buffer: str, name=None):
         mode = self.metadata.get("mode", "progressive")
@@ -1170,72 +1209,6 @@ class User:
         self.add_message("Edit error: invalid step.")
         return None
 
-    def parameter_add_action(self, payloads, value=None):
-        if len(payloads) < 2:
-            self.add_message("Invalid parameter/action IDs.")
-            return
-        param_id = f"6{payloads[0]}"
-        action_id = f"5{payloads[1]}"
-        param = self._parameters.get(param_id)
-        action = self._actions.get(action_id)
-        if not param or not action:
-            self.add_message("parameter or action not found.")
-            return
-
-        if value is None:
-            from src.components.services.UI.interface import WebInputInterrupt
-            raise WebInputInterrupt(
-                "param-action type (1 regen, 2 decay)",
-                type="numeric",
-                options={"pa_step": "type", "param_id": param_id, "action_id": action_id},
-            )
-
-        self._add_param_action_link(param_id, action_id, value)
-
-    def _add_param_action_link(self, param_id, action_id, data):
-        try:
-            effect_type = int(data.get("effect_type"))
-            factor = int(data.get("factor"))
-        except Exception:
-            self.add_message("Invalid param-action data.")
-            return
-
-        if effect_type not in (1, 2) or factor not in (1, 2, 3):
-            self.add_message("Param-action type must be 1/2 and factor must be 1-3.")
-            return
-
-        links = self._param_action_links.get(action_id, [])
-        links.append({"param_id": param_id, "effect_type": effect_type, "factor": factor})
-        self._param_action_links[action_id] = links
-        self.add_message(f"Param {param_id} linked to Action {action_id}.")
-        self.save_user()
-
-    def param_action_next(self, step, data, value):
-        data = dict(data or {})
-        val = (value or "").strip()
-
-        if step == "type":
-            if val not in {"1", "2"}:
-                self.add_message("Type must be 1 (regen) or 2 (decay).")
-                return {"prompt": "param-action type (1 regen, 2 decay)", "type": "numeric", "options": {"pa_step": "type", "param_id": data.get("param_id"), "action_id": data.get("action_id")}}
-            data["effect_type"] = int(val)
-            return {"prompt": "param-action factor (1-3)", "type": "numeric", "options": {"pa_step": "factor", "param_id": data.get("param_id"), "action_id": data.get("action_id"), "effect_type": data["effect_type"]}}
-
-        if step == "factor":
-            try:
-                factor = int(val)
-            except Exception:
-                factor = 0
-            if factor < 1 or factor > 3:
-                self.add_message("Factor must be between 1 and 3.")
-                return {"prompt": "param-action factor (1-3)", "type": "numeric", "options": {"pa_step": "factor", "param_id": data.get("param_id"), "action_id": data.get("action_id"), "effect_type": data.get("effect_type")}}
-            data["factor"] = factor
-            self._add_param_action_link(data.get("param_id"), data.get("action_id"), data)
-            return None
-
-        self.add_message("Param-action error: invalid step.")
-        return None
-
     def shop_item_add_action(self, payloads):
         if len(payloads) < 2:
             self.add_message("Invalid shop item/action IDs.")
@@ -1250,9 +1223,83 @@ class User:
         self.add_message(f"Shop item {shop_item_id} linked to Action {action_id}.")
         self.save_user()
 
-    def _apply_param_action_effects(self, action, value_difference):
-        links = self._param_action_links.get(action.id, [])
-        if not links:
+    def action_add_tag(self, payloads, value=None):
+        if len(payloads) < 2:
+            self.add_message("Invalid action/tag IDs.")
+            return
+        action_id = f"5{payloads[0]}"
+        tag_id = f"1{payloads[1]}"
+        action = self._actions.get(action_id)
+        tag = self._tags.get(tag_id)
+        if not action or not tag:
+            self.add_message("action or tag not found.")
+            return
+        if value is None:
+            from src.components.services.UI.interface import WebInputInterrupt
+            raise WebInputInterrupt(
+                "tag weight (-3 to 3)",
+                type="numeric",
+                options={"tag_step": "action_weight", "action_id": action_id, "tag_id": tag_id},
+            )
+        self._add_action_tag(action_id, tag_id, value)
+
+    def parameter_add_tag(self, payloads, value=None):
+        if len(payloads) < 2:
+            self.add_message("Invalid parameter/tag IDs.")
+            return
+        param_id = f"6{payloads[0]}"
+        tag_id = f"1{payloads[1]}"
+        param = self._parameters.get(param_id)
+        tag = self._tags.get(tag_id)
+        if not param or not tag:
+            self.add_message("parameter or tag not found.")
+            return
+        if value is None:
+            from src.components.services.UI.interface import WebInputInterrupt
+            raise WebInputInterrupt(
+                "tag weight (-3 to 3)",
+                type="numeric",
+                options={"tag_step": "param_weight", "param_id": param_id, "tag_id": tag_id},
+            )
+        self._add_param_tag(param_id, tag_id, value)
+
+    def tag_link_next(self, step, data, value):
+        data = dict(data or {})
+        try:
+            weight = int(value)
+        except Exception:
+            weight = 0
+        if weight < -3 or weight > 3 or weight == 0:
+            self.add_message("Tag weight must be between -3 and 3 (non-zero).")
+            return {"prompt": "tag weight (-3 to 3)", "type": "numeric", "options": data}
+
+        if step == "action_weight":
+            self._add_action_tag(data.get("action_id"), data.get("tag_id"), weight)
+            return None
+        if step == "param_weight":
+            self._add_param_tag(data.get("param_id"), data.get("tag_id"), weight)
+            return None
+
+        self.add_message("Tag link error: invalid step.")
+        return None
+
+    def _add_action_tag(self, action_id, tag_id, weight):
+        tags = self._action_tags.get(action_id, [])
+        tags.append({"tag_id": tag_id, "weight": weight})
+        self._action_tags[action_id] = tags
+        self.add_message(f"Tag {tag_id} linked to Action {action_id} ({weight}).")
+        self.save_user()
+
+    def _add_param_tag(self, param_id, tag_id, weight):
+        tags = self._param_tags.get(param_id, [])
+        tags.append({"tag_id": tag_id, "weight": weight})
+        self._param_tags[param_id] = tags
+        self.add_message(f"Tag {tag_id} linked to Param {param_id} ({weight}).")
+        self.save_user()
+
+    def _apply_tag_effects(self, action, value_difference):
+        action_tags = self._action_tags.get(action.id, [])
+        if not action_tags:
             return
         unit_map = {
             0: 3.0,  # session
@@ -1264,18 +1311,41 @@ class User:
             6: 1.0,  # lines
         }
         unit_factor = unit_map.get(action.type, 1.0)
-        for link in links:
-            param = self._parameters.get(link.get("param_id"))
-            if not param:
+        base_percent = 3.0
+        base_mark = 1.5
+
+        # Preindex action tag weights by tag_id
+        action_tag_map = {}
+        for t in action_tags:
+            tid = t.get("tag_id")
+            try:
+                w = int(t.get("weight"))
+            except Exception:
+                w = 0
+            if tid:
+                action_tag_map[tid] = action_tag_map.get(tid, 0) + w
+
+        for param_id, param in self._parameters.items():
+            param_tags = self._param_tags.get(param_id, [])
+            if not param_tags:
                 continue
-            effect_type = link.get("effect_type")
-            factor = link.get("factor")
-            base_value = 1.5 if param._value_type == 1 else 5.0
-            delta = value_difference * unit_factor * factor * base_value
-            if effect_type == 2:
-                delta = -delta
-            param.set_value(param._value + delta)
-            self._update_statuses_for_param(param)
+            delta_total = 0.0
+            for pt in param_tags:
+                tid = pt.get("tag_id")
+                if tid not in action_tag_map:
+                    continue
+                try:
+                    pw = int(pt.get("weight"))
+                except Exception:
+                    pw = 0
+                aw = action_tag_map.get(tid, 0)
+                if aw == 0 or pw == 0:
+                    continue
+                base_value = base_mark if param._value_type == 1 else base_percent
+                delta_total += value_difference * unit_factor * aw * pw * base_value
+            if delta_total != 0:
+                param.set_value(param._value + delta_total)
+                self._update_statuses_for_param(param)
         self.save_user()
 
     def _update_statuses_for_param(self, param):
@@ -1330,6 +1400,14 @@ class User:
         else:
             self.add_message("no active statuses.")
         self.save_user()
+
+    def list_tags(self):
+        if self._tags:
+            from src.components.services.UI.interface import ui
+            items = [f"({tag._id}) - {tag._name}" for tag in self._tags.values()]
+            ui.show_list(items, "CURRENT TAGS")
+        else:
+            self.add_message("no tags available. try creating one with 21...")
 
     def _collect_autocomplete_names(self):
         import json

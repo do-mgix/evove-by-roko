@@ -139,6 +139,12 @@ class UI:
                     if hasattr(nome, '_name'): nome = nome._name
                     status_parts.append(f"{self.WHITE}◆ ({nome}){self.CLR}")
                     p_idx += 1
+                elif t == "tag":
+                    id_val = f"1{payloads[p_idx]}" if p_idx < len(payloads) else "???"
+                    nome = self.user._tags.get(id_val, "...")
+                    if hasattr(nome, '_name'): nome = nome._name
+                    status_parts.append(f"{self.WHITE}TAG ({nome}){self.CLR}")
+                    p_idx += 1
                 elif t == "param":
                     id_val = f"6{payloads[p_idx]}" if p_idx < len(payloads) else "???"
                     nome = self.user._parameters.get(id_val, "...")

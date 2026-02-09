@@ -110,6 +110,7 @@ def status():
                 }
                 for k, v in user._parameters.items()
             },
+            "tags": {k: {"name": v._name} for k, v in user._tags.items()},
             "metadata": user.metadata
         },
         "entity": {
@@ -170,6 +171,9 @@ def command():
             elif p == "status name":
                 user.create_status(options.get("buffer", ""), name=buffer)
 
+            elif p == "tag name":
+                user.create_tag(name=buffer)
+
             elif p.startswith("parameter value"):
                 param_id = options.get("param_id")
                 status_id = options.get("status_id")
@@ -182,13 +186,6 @@ def command():
                 if next_step:
                     session.pending_input = next_step
                     return jsonify({"completed": True, "clear": True})
-            elif p.startswith("param-action"):
-                step = options.get("pa_step")
-                data = options or {}
-                next_step = user.param_action_next(step, data, buffer)
-                if next_step:
-                    session.pending_input = next_step
-                    return jsonify({"completed": True, "clear": True})
             elif p.startswith("edit action") or p.startswith("edit attribute") or p.startswith("edit parameter") or p.startswith("edit status"):
                 step = options.get("edit_step")
                 data = options or {}
@@ -196,6 +193,13 @@ def command():
                     next_step = user.action_edit_next(step, data, buffer)
                 else:
                     next_step = user.misc_edit_next(step, data, buffer)
+                if next_step:
+                    session.pending_input = next_step
+                    return jsonify({"completed": True, "clear": True})
+            elif p.startswith("tag weight"):
+                step = options.get("tag_step")
+                data = options or {}
+                next_step = user.tag_link_next(step, data, buffer)
                 if next_step:
                     session.pending_input = next_step
                     return jsonify({"completed": True, "clear": True})
@@ -400,6 +404,11 @@ def _resolve_name(prefix_char, id_value):
         status_id = f"4{id_value}"
         if status_id in user._statuses:
             return user._statuses[status_id]._name
+
+        # Tag → prefixo 1
+        tag_id = f"1{id_value}"
+        if tag_id in user._tags:
+            return user._tags[tag_id]._name
 
         # Parameter → prefixo 6
         param_id = f"6{id_value}"
