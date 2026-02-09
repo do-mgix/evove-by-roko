@@ -1266,12 +1266,16 @@ class User:
     def tag_link_next(self, step, data, value):
         data = dict(data or {})
         try:
-            weight = int(value)
+            text = str(value).strip()
+            if len(text) > 1 and text.startswith("0"):
+                weight = -int(text[1:])
+            else:
+                weight = int(text)
         except Exception:
             weight = 0
         if weight < -3 or weight > 3 or weight == 0:
-            self.add_message("Tag weight must be between -3 and 3 (non-zero).")
-            return {"prompt": "tag weight (-3 to 3)", "type": "numeric", "options": data}
+            self.add_message("Tag weight must be between -3 and 3 (non-zero). Use 0 prefix for negative (e.g., 03 = -3).")
+            return {"prompt": "tag weight (0x = negative, e.g., 03 = -3)", "type": "numeric", "options": data}
 
         if step == "action_weight":
             self._add_action_tag(data.get("action_id"), data.get("tag_id"), weight)
