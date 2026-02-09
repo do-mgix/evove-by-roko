@@ -1288,14 +1288,14 @@ class User:
         return None
 
     def _add_action_tag(self, action_id, tag_id, weight):
-        tags = self._action_tags.get(action_id, [])
+        tags = [t for t in self._action_tags.get(action_id, []) if t.get("tag_id") != tag_id]
         tags.append({"tag_id": tag_id, "weight": weight})
         self._action_tags[action_id] = tags
         self.add_message(f"Tag {tag_id} linked to Action {action_id} ({weight}).")
         self.save_user()
 
     def _add_param_tag(self, param_id, tag_id, weight):
-        tags = self._param_tags.get(param_id, [])
+        tags = [t for t in self._param_tags.get(param_id, []) if t.get("tag_id") != tag_id]
         tags.append({"tag_id": tag_id, "weight": weight})
         self._param_tags[param_id] = tags
         self.add_message(f"Tag {tag_id} linked to Param {param_id} ({weight}).")
