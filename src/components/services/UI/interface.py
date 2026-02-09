@@ -87,7 +87,14 @@ class UI:
         # 2. Formata como comando dinâmico
         while ptr < len(buffer):
             char = buffer[ptr]
-            info = self.OBJECTS.get(char) or self.INTERACTIONS.get(char)
+            if char == "1":
+                tag_info = self.OBJECTS.get(char)
+                if tag_info and (len(buffer) - ptr) >= (1 + tag_info.get("len", 0)):
+                    info = tag_info
+                else:
+                    info = self.INTERACTIONS.get(char)
+            else:
+                info = self.OBJECTS.get(char) or self.INTERACTIONS.get(char)
             
             if info:
                 chunk_len = 1 + info["len"]

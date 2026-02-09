@@ -24,6 +24,12 @@ class DialDigest:
 
     def get_info(self, char, buffer):
         """Returns the type and data of the character, if it exists."""
+        if char == "1" and buffer is not None:
+            tag_info = self.OBJECTS.get(char)
+            if tag_info and len(buffer) >= (1 + tag_info.get("len", 0)):
+                return "OBJECT", tag_info
+            if char in self.INTERACTIONS:
+                return "INTERACTION", self.INTERACTIONS[char]
         if char in self.INTERACTIONS:
             return "INTERACTION", self.INTERACTIONS[char]
         if char in self.OBJECTS:
@@ -31,6 +37,17 @@ class DialDigest:
         if buffer in self.SINGLE_COMMANDS:
             return "SINGLE_COMMAND", self.SINGLE_COMMANDS[buffer]
         return None, None
+
+    def _get_info_for_char(self, buffer, ptr):
+        char = buffer[ptr]
+        if char == "1":
+            tag_info = self.OBJECTS.get(char)
+            if tag_info:
+                needed = 1 + tag_info.get("len", 0)
+                if (len(buffer) - ptr) >= needed:
+                    return tag_info
+            return self.INTERACTIONS.get(char)
+        return self.OBJECTS.get(char) or self.INTERACTIONS.get(char)
 
     def get_length(self, buffer):
         if not buffer: return 1
@@ -60,7 +77,7 @@ class DialDigest:
         
         while ptr < len(buffer):
             char = buffer[ptr]
-            info = self.OBJECTS.get(char) or self.INTERACTIONS.get(char)
+            info = self._get_info_for_char(buffer, ptr)
             
             if not info: return 1            
             phrase.append(info["label"])
@@ -94,7 +111,7 @@ class DialDigest:
 
         while ptr < len(buffer):
             char = buffer[ptr]
-            info = self.OBJECTS.get(char) or self.INTERACTIONS.get(char)
+            info = self._get_info_for_char(buffer, ptr)
             
             if not info: 
                 break
