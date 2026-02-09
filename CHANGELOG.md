@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-alpha.8](https://github.com/do-mgix/evove-by-roko/compare/v1.1.0-alpha.7...v1.1.0-alpha.8) (2026-02-09)
+
+
+### Features
+
+* added (99) super list command ([84f21bf](https://github.com/do-mgix/evove-by-roko/commit/84f21bf62190a4842b959a391c1a20dedca6ec9f))
+* added new action type (0) and edit option (0) ([ef50546](https://github.com/do-mgix/evove-by-roko/commit/ef505468a1cb360a4a8728c0a06c82ea6d06c162))
+* added new tag object. removed: param/action relation. removed: poke code ([ab97e64](https://github.com/do-mgix/evove-by-roko/commit/ab97e64a066087457bfea2d40ce84d6764918035))
+* added param/action and shop/action relation ([77f1b28](https://github.com/do-mgix/evove-by-roko/commit/77f1b28dd3168600fcb15102b1c2f0a7c6a6242f))
+* implementation of action/param relaction ([e0b0349](https://github.com/do-mgix/evove-by-roko/commit/e0b034945ee4b6ec6dbf9858b24872859030ac60))
+
+
+### Bug Fixes
+
+* (99) command auto triggering super attribute show ([3736f5a](https://github.com/do-mgix/evove-by-roko/commit/3736f5a647df8e410e304c8f55ee9d791f53a4b8))
+* bug (1) to execute action conflicts with tag id ([6354d1d](https://github.com/do-mgix/evove-by-roko/commit/6354d1d089a9aa13bf2394507d3953a314adbd67))
+* bug of two tag relations of same tag in actions and params ([22f655c](https://github.com/do-mgix/evove-by-roko/commit/22f655c5abf4d015c71b9b5a441bf4c9fbd415a1))
+* input (3 to -3) in tag creation in webview version ([43d4ce6](https://github.com/do-mgix/evove-by-roko/commit/43d4ce6a5207713503e9f819b80bb3f4e6a4695a))
+
 ## [1.1.0-alpha.7](https://github.com/do-mgix/evove-by-roko/compare/v1.1.0-alpha.6...v1.1.0-alpha.7) (2026-02-08)
 
 
