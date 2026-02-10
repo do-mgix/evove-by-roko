@@ -166,6 +166,15 @@
             opacity: 0;
         }
 
+        #topbar.offline-alert {
+            animation: offlineBlink 1.2s ease-in-out infinite;
+        }
+
+        @keyframes offlineBlink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.2; }
+        }
+
         #display-messages {
             position: relative;
             flex: 1;
@@ -967,6 +976,14 @@
             if (connStatus) connStatus.textContent = text || '';
         }
 
+        function startOfflineAlarm() {
+            if (topbar) topbar.classList.add('offline-alert');
+        }
+
+        function stopOfflineAlarm() {
+            if (topbar) topbar.classList.remove('offline-alert');
+        }
+
         async function playStartupSound() {
             if (startupSoundPlayed) return;
             const addUnlockListeners = () => {
@@ -1545,15 +1562,14 @@
             statusInFlight = true;
             if (statusTimeoutTimer) clearTimeout(statusTimeoutTimer);
             statusTimeoutTimer = setTimeout(() => {
-                showLoadscreen();
                 statusInFlight = false;
             }, STATUS_TIMEOUT_MS);
             try {
                 const res = await fetch('/api/status');
                 if (!res.ok) {
                     if (statusTimeoutTimer) clearTimeout(statusTimeoutTimer);
-                    showLoadscreen();
                     setConnectionStatus('OFFLINE');
+                    startOfflineAlarm();
                     statusInFlight = false;
                     return;
                 }
@@ -1562,6 +1578,7 @@
                 setLoadProgress(100);
                 setLoadMessage('Online');
                 setConnectionStatus('ONLINE');
+                stopOfflineAlarm();
                 hideLoadscreen();
                 statusInFlight = false;
 
@@ -1632,8 +1649,8 @@
             } catch (e) {
                 if (statusTimeoutTimer) clearTimeout(statusTimeoutTimer);
                 setLoadMessage('Connecting...');
-                showLoadscreen();
                 setConnectionStatus('OFFLINE');
+                startOfflineAlarm();
                 statusInFlight = false;
             }
         }
@@ -1694,7 +1711,17 @@
         };
         const dtmfPitch = 0.8;
 
+        function ensureAudioContext() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume().catch(() => {});
+            }
+        }
+
         function playTone(freq, duration = 80, type = 'triangle', volume = 0.12) {
+            ensureAudioContext();
             if (!audioCtx) return;
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
@@ -2049,11 +2076,13 @@
 
         window.addEventListener('online', () => {
             setConnectionStatus('ONLINE');
+            stopOfflineAlarm();
             updateStatus();
         });
 
         window.addEventListener('offline', () => {
             setConnectionStatus('OFFLINE');
+            startOfflineAlarm();
         });
 
         async function cancelPending() {
