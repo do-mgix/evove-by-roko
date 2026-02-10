@@ -212,7 +212,26 @@ def command():
                     return jsonify({"completed": True, "clear": True})
 
             elif p == "parameter name":
-                user.create_parameter(options.get("buffer", ""), name=buffer)
+                step = options.get("create_step") if options else None
+                data = options if options else {}
+                try:
+                    user.create_parameter(step=step, data=data, value=buffer)
+                except WebInputInterrupt as e:
+                    session.pending_input = {"prompt": e.prompt, "type": e.type, "options": e.options, "context": {"buffer": buffer}}
+                    user.save_user()
+                    return jsonify({"completed": True, "clear": True})
+            elif p in (
+                "parameter type (1 mark, 2 percentage)",
+                "parameter logic (1 Emotional, 2 Ambiental, 3 Fisiologic)",
+            ):
+                step = options.get("create_step") if options else None
+                data = options if options else {}
+                try:
+                    user.create_parameter(step=step, data=data, value=buffer)
+                except WebInputInterrupt as e:
+                    session.pending_input = {"prompt": e.prompt, "type": e.type, "options": e.options, "context": {"buffer": buffer}}
+                    user.save_user()
+                    return jsonify({"completed": True, "clear": True})
             
             elif p == "log message":
                 user.log(buffer)

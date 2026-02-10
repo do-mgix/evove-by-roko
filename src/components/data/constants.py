@@ -29,7 +29,7 @@ SINGLE_COMMANDS = {
     "28": {"len": 0, "func": user.create_attribute, "label": "create_attr"}, 
     "24": {"len": 1, "func": user.create_status, "label": "create_status"},
     "21": {"len": 0, "func": user.create_tag, "label": "create_tag"},
-    "26": {"len": 2, "func": user.create_parameter, "label": "create_param"},
+    "26": {"len": 0, "func": user.create_parameter, "label": "create_param"},
     "91": {"len": 0, "func": user.list_tags, "label": "list_tags"},
     "98": {"len": 0, "func": user.list_attributes, "label": "list_attr"}, 
     "95": {"len": 0, "func": user.list_actions, "label": "list_actions"}, 

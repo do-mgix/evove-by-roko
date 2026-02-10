@@ -973,19 +973,89 @@ class User:
         except Exception as e:
             self.add_message(f"{e}")
 
-    def create_parameter(self, buffer: str, name=None):
+    def create_parameter(self, step=None, data=None, value=None):
         mode = self.metadata.get("mode", "progressive")
         if mode == "semi-progressive":
             self.add_message("[ MODE ] Manual creation disabled in semi-progressive mode.")
             return
 
-        if name is None:
-            from src.components.services.UI.interface import WebInputInterrupt
-            raise WebInputInterrupt("parameter name", type="text", options={"buffer": buffer, "autocomplete": "names"})
+        from src.components.services.UI.interface import ui, WebInputInterrupt
+
+        data = data or {}
+        clean_data = {k: v for k, v in data.items() if k != "create_step"}
+        step = step or "param_type"
+
+        if step == "param_type":
+            try:
+                value_type = int(value)
+            except Exception:
+                ui.show_list(["1 - Mark", "2 - Percentage"], "PARAMETER TYPE")
+                raise WebInputInterrupt(
+                    "parameter type (1 mark, 2 percentage)",
+                    type="numeric",
+                    options={"create_step": "param_type"},
+                )
+            if value_type not in (1, 2):
+                self.add_message("Parameter type must be 1 (mark) or 2 (percentage).")
+                raise WebInputInterrupt(
+                    "parameter type (1 mark, 2 percentage)",
+                    type="numeric",
+                    options={"create_step": "param_type"},
+                )
+            clean_data["value_type"] = value_type
+            ui.show_list(
+                ["1 - Emotional", "2 - Ambiental", "3 - Fisiologic"],
+                "PARAMETER LOGIC",
+            )
+            raise WebInputInterrupt(
+                "parameter logic (1 Emotional, 2 Ambiental, 3 Fisiologic)",
+                type="numeric",
+                options={**clean_data, "create_step": "param_logic"},
+            )
+
+        if step == "param_logic":
+            try:
+                logic_type = int(value)
+            except Exception:
+                raise WebInputInterrupt(
+                    "parameter logic (1 Emotional, 2 Ambiental, 3 Fisiologic)",
+                    type="numeric",
+                    options={**clean_data, "create_step": "param_logic"},
+                )
+            if logic_type not in (1, 2, 3):
+                self.add_message("Parameter logic must be 1, 2, or 3.")
+                raise WebInputInterrupt(
+                    "parameter logic (1 Emotional, 2 Ambiental, 3 Fisiologic)",
+                    type="numeric",
+                    options={**clean_data, "create_step": "param_logic"},
+                )
+            clean_data["logic_type"] = logic_type
+            ui.show_list(["Type a name"], "PARAMETER NAME")
+            raise WebInputInterrupt(
+                "parameter name",
+                type="text",
+                options={**clean_data, "create_step": "param_name", "autocomplete": "names"},
+            )
+
+        if step == "param_name":
+            name = str(value or "").strip()
+            if not name:
+                ui.show_list(["Type a name"], "PARAMETER NAME")
+                raise WebInputInterrupt(
+                    "parameter name",
+                    type="text",
+                    options={**clean_data, "create_step": "param_name", "autocomplete": "names"},
+                )
+            value_type = clean_data.get("value_type")
+            logic_type = clean_data.get("logic_type")
+            if value_type is None or logic_type is None:
+                raise WebInputInterrupt(
+                    "parameter type (1 mark, 2 percentage)",
+                    type="numeric",
+                    options={"create_step": "param_type"},
+                )
 
         try:
-            value_type = int(buffer[0])
-            logic_type = int(buffer[1])
             nextid = self.next_param_id
             new_id = f"60{nextid}" if nextid < 10 else f"6{nextid}"
             param = Parameter(new_id, name, value_type, logic_type, 0)
@@ -994,6 +1064,14 @@ class User:
             self.save_user()
         except Exception as e:
             self.add_message(f"{e}")
+        return
+
+        # Unknown step: restart flow
+        raise WebInputInterrupt(
+            "parameter type (1 mark, 2 percentage)",
+            type="numeric",
+            options={"create_step": "param_type"},
+        )
 
     def activate_status(self, payloads):
         status_id = f"4{payloads[0]}"
