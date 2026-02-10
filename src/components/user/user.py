@@ -698,6 +698,8 @@ class User:
         for param in self._parameters.values():
             if param.update_value():
                 self._update_statuses_for_param(param)
+        if hasattr(self, "tutorial"):
+            self.tutorial.maybe_show_startup()
 
     def _ensure_tutorial_state(self):
         tutorial = self.metadata.get("tutorial")
