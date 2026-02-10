@@ -303,7 +303,19 @@ def command():
                 try:
                     val = int(buffer)
                     action_id = options["action_id"]
-                    payloads = [action_id[1:]]
+                    payload = action_id[1:]
+                    action = user._actions.get(action_id)
+                    if action:
+                        lt = getattr(action, "_logic_type", None)
+                        st = getattr(action, "_sub_logic_type", None)
+                        if lt is not None:
+                            lt = str(lt).zfill(2) if str(lt).isdigit() else str(lt)
+                            if st is not None:
+                                st = str(st).zfill(2) if str(st).isdigit() else str(st)
+                                payload = f"{lt}{st}{payload}"
+                            else:
+                                payload = f"{lt}{payload}"
+                    payloads = [payload]
                     result = user.act(payloads, value=val)
                     _handle_result(result)
                 except ValueError:
@@ -319,7 +331,7 @@ def command():
     # Process Command
     try:
         # Standard Dial Processing (Prefixes like : or / are no longer special-cased here)
-        completed, result = dial.process(buffer)
+        completed, result = dial.process(buffer, force=True)
         if completed:
             _handle_result(result)
             user.save_user()
@@ -357,7 +369,8 @@ def preview():
 
     try:
         user.load_user()
-        remaining = dial.get_length(buffer)
+        state = dial.get_state(buffer)
+        remaining = state.get("remaining", 0)
         phrase, payloads, is_single = dial.parse_buffer(buffer)
 
         tokens = []
@@ -406,7 +419,8 @@ def preview():
         return jsonify({
             "preview": preview_str,
             "remaining": remaining,
-            "complete": (remaining == 0 and len(buffer) > 0)
+            "complete": (remaining == 0 and len(buffer) > 0),
+            "ambiguous": bool(state.get("ambiguous"))
         })
 
     except Exception as e:
@@ -417,9 +431,11 @@ def _resolve_name(prefix_char, id_value):
     """Map an ID to a name based on its prefix to avoid cross-type collisions."""
     try:
         if prefix_char == "5":
-            action_id = f"5{id_value}"
-            if action_id in user._actions:
-                return user._actions[action_id]._name
+            raw = str(id_value)
+            if len(raw) >= 2:
+                action_id = f"5{raw[-2:]}"
+                if action_id in user._actions:
+                    return user._actions[action_id]._name
         elif prefix_char == "8":
             attr_id = f"8{id_value}"
             if attr_id in user._attributes:

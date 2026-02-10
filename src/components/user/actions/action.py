@@ -21,7 +21,7 @@ class Action:
         6: {"label": "lines", "factor": 2}, 
     }
     
-    def __init__(self, action_id, name: str, tipo: int, diff: int, value: float, deleted=False, logic_type=None, logic_label=None, sub_logic_type=None, sub_logic_label=None):
+    def __init__(self, action_id, name: str, tipo: int, diff: int, value: float, deleted=False, logic_type=None, sub_logic_type=None):
         if not (0 <= diff <= 5):
             raise ValueError("Difficulty 'diff' must be an integer between 0 and 5.")
         if tipo not in self._TYPE_MAP:
@@ -34,9 +34,7 @@ class Action:
         self._deleted = bool(deleted)
         self._diff_multiplier = self._DIFFICULTY_MULTIPLIER_MAP[diff] 
         self._logic_type = logic_type
-        self._logic_label = logic_label
         self._sub_logic_type = sub_logic_type
-        self._sub_logic_label = sub_logic_label
     
     @property
     def id(self):
@@ -162,9 +160,7 @@ class Action:
             "score": self.score,
             "deleted": self.deleted,
             "logic_type": self._logic_type,
-            "logic_label": self._logic_label,
             "sub_logic_type": self._sub_logic_type,
-            "sub_logic_label": self._sub_logic_label,
         }
     
     @classmethod
@@ -177,8 +173,6 @@ class Action:
             data["value"], 
             data.get("deleted", False),
             data.get("logic_type"),
-            data.get("logic_label"),
             data.get("sub_logic_type"),
-            data.get("sub_logic_label"),
         )
         return action

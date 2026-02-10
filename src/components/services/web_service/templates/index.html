@@ -1361,7 +1361,7 @@
                 
                 displayLabel.textContent = preview || 'Processing...';
 
-                if (data.complete && !executing && buf === buffer && !pendingType) {
+                if (data.complete && !data.ambiguous && !executing && buf === buffer && !pendingType) {
                     executing = true;
                     executeCommand(buf).finally(() => {
                         executing = false;

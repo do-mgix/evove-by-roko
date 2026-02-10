@@ -24,6 +24,8 @@ class User:
         self._tags = {}
         self._action_tags = {}
         self._param_tags = {}
+        self.logic_types = {}
+        self.sublogic_types = {}
         self._value = 0
         self.messages = []  # Buffer de mensagens para o render
         self.metadata = {
@@ -279,16 +281,12 @@ class User:
         if self._check_sleep():
             return
 
-        # Original Action Logic
-        action_id = "".join(payloads)
-        
-        # Actions in _actions are stored with a '5' prefix (e.g., '501', '526')
-        if not action_id.startswith('5'):
-            action_id = f"5{action_id}"
-        
-        action = self._actions.get(action_id)
+        if not payloads or not payloads[0]:
+            self.add_message("Invalid action ID.")
+            return None
+
+        action_id, action = self._resolve_action_payload(payloads[0])
         if not action:
-            self.add_message(f"\n [ ERROR ] Action ID {action_id} not found. (Loaded Actions: {len(self._actions)})")
             return None
         if getattr(action, "_deleted", False):
             self.add_message(f"Action {action_id} is deleted.")
@@ -336,6 +334,78 @@ class User:
             self.metadata["score"] = current_score + action.score
         self.save_user()
         return final_score_difference
+
+    def _format_logic_id(self, value):
+        if value is None:
+            return None
+        s = str(value)
+        if s.isdigit():
+            return s.zfill(2)
+        return s
+
+    def _resolve_action_payload(self, payload):
+        raw = str(payload or "").strip()
+        if not raw:
+            self.add_message("Invalid action ID.")
+            return None, None
+
+        if len(raw) == 2:
+            logic_type = None
+            sub_logic_type = None
+            action_part = raw
+        elif len(raw) == 4:
+            logic_type = raw[:2]
+            sub_logic_type = None
+            action_part = raw[2:]
+        elif len(raw) == 6:
+            logic_type = raw[:2]
+            sub_logic_type = raw[2:4]
+            action_part = raw[4:]
+        else:
+            self.add_message("Invalid action ID format.")
+            return None, None
+
+        action_id = f"5{action_part}"
+        action = self._actions.get(action_id)
+        if not action:
+            self.add_message(f"\n [ ERROR ] Action ID {action_id} not found. (Loaded Actions: {len(self._actions)})")
+            return None, None
+
+        action_logic = self._format_logic_id(getattr(action, "_logic_type", None))
+        action_sublogic = self._format_logic_id(getattr(action, "_sub_logic_type", None))
+
+        if logic_type is None:
+            if action_logic or action_sublogic:
+                self.add_message("Action requires logic type. Use id5/id7.")
+                return None, None
+        else:
+            if logic_type not in self.logic_types:
+                self.add_message(f"Logic type {logic_type} not found.")
+                return None, None
+            if action_logic != logic_type:
+                self.add_message(f"Action {action_id} not in logic type {logic_type}.")
+                return None, None
+            if action_sublogic:
+                if sub_logic_type is None:
+                    self.add_message(f"Action {action_id} requires sub logic type.")
+                    return None, None
+                if sub_logic_type != action_sublogic:
+                    self.add_message(f"Action {action_id} not in sub logic type {sub_logic_type}.")
+                    return None, None
+            else:
+                if sub_logic_type is not None:
+                    self.add_message(f"Action {action_id} has no sub logic type.")
+                    return None, None
+            if sub_logic_type is not None:
+                if sub_logic_type not in self.sublogic_types:
+                    self.add_message(f"Sub logic type {sub_logic_type} not found.")
+                    return None, None
+                subs = self.logic_types.get(logic_type, {}).get("subs", [])
+                if sub_logic_type not in subs:
+                    self.add_message(f"Sub logic type {sub_logic_type} not allowed for logic {logic_type}.")
+                    return None, None
+
+        return action_id, action
 
     def log(self, text):
         if journal_service.add_log(text):
@@ -612,6 +682,8 @@ class User:
             },
             "action_tags": self._action_tags,
             "param_tags": self._param_tags,
+            "logic_types": self.logic_types,
+            "sublogic_types": self.sublogic_types,
             "metadata": self.metadata
         }
     
@@ -651,6 +723,8 @@ class User:
         self._value = data.get("value", 0)
         self.metadata.update(data.get("metadata", {}))
         self._ensure_tutorial_state()
+        self.logic_types = data.get("logic_types", {}) or {}
+        self.sublogic_types = data.get("sublogic_types", {}) or {}
         
         self._attributes.clear()
         for attr_id, attr_data in data.get("attributes", {}).items():
@@ -659,6 +733,24 @@ class User:
         
         self._actions.clear()
         for action_id, action_data in data.get("actions", {}).items():
+            logic_type = self._format_logic_id(action_data.get("logic_type"))
+            logic_label = action_data.get("logic_label")
+            if logic_type:
+                label = logic_label or logic_type
+                entry = self.logic_types.get(logic_type) or {"id": logic_type, "label": label, "subs": []}
+                entry["label"] = label
+                entry.setdefault("subs", [])
+                self.logic_types[logic_type] = entry
+            sub_logic_type = self._format_logic_id(action_data.get("sub_logic_type"))
+            sub_logic_label = action_data.get("sub_logic_label")
+            if sub_logic_type:
+                self.sublogic_types[sub_logic_type] = {"id": sub_logic_type, "label": sub_logic_label or sub_logic_type}
+                if logic_type:
+                    entry = self.logic_types.get(logic_type) or {"id": logic_type, "label": logic_label or logic_type, "subs": []}
+                    subs = entry.setdefault("subs", [])
+                    if sub_logic_type not in subs:
+                        subs.append(sub_logic_type)
+                    self.logic_types[logic_type] = entry
             new_act = Action.from_dict(action_data)
             self._actions[action_id] = new_act
 
@@ -1040,7 +1132,7 @@ class User:
         if step == "param_name":
             name = str(value or "").strip()
             if not name:
-                ui.show_list(["Type a name"], "PARAMETER NAME")
+                ui.show_messages_animated(["Type a name"])
                 raise WebInputInterrupt(
                     "parameter name",
                     type="text",
@@ -1226,10 +1318,8 @@ class User:
         if not payloads or not payloads[0]:
             self.add_message("Invalid action ID.")
             return
-        action_id = f"5{payloads[0]}"
-        action = self._actions.get(action_id)
+        action_id, action = self._resolve_action_payload(payloads[0])
         if not action:
-            self.add_message(f"Action ID ({action_id}) not found")
             return
         from src.components.services.UI.interface import WebInputInterrupt
         raise WebInputInterrupt(
@@ -1427,8 +1517,7 @@ class User:
             self.add_message("Invalid shop item/action IDs.")
             return
         shop_item_id = payloads[0]
-        action_id = f"5{payloads[1]}"
-        action = self._actions.get(action_id)
+        action_id, action = self._resolve_action_payload(payloads[1])
         if not action:
             self.add_message("action not found.")
             return
@@ -1440,9 +1529,8 @@ class User:
         if len(payloads) < 2:
             self.add_message("Invalid action/tag IDs.")
             return
-        action_id = f"5{payloads[0]}"
+        action_id, action = self._resolve_action_payload(payloads[0])
         tag_id = f"1{payloads[1]}"
-        action = self._actions.get(action_id)
         tag = self._tags.get(tag_id)
         if not action or not tag:
             self.add_message("action or tag not found.")
@@ -1856,11 +1944,11 @@ class User:
         self.save_user()
 
     def delete_action(self, payloads, confirmed=None):
-        payload_id = f"5{payloads[0]}"   
-        action = self._actions.get(payload_id)
-
+        if not payloads or not payloads[0]:
+            self.add_message("Invalid action ID.")
+            return
+        payload_id, action = self._resolve_action_payload(payloads[0])
         if not action:
-            self.add_message(f"Action ID ({payload_id}) not found")
             return
         if getattr(action, "_deleted", False):
             self.add_message(f"Action {action._name} ({action._id}) already deleted.")
@@ -1940,10 +2028,9 @@ class User:
 
     def attribute_add_action(self, payloads):
         attr_id = f"8{payloads[0]}"   
-        action_id = f"5{payloads[1]}"
+        action_id, action = self._resolve_action_payload(payloads[1])
         
         attribute = self._attributes.get(attr_id)
-        action = self._actions.get(action_id)
         
         if attribute and action:
             attribute.add_related_action(action)

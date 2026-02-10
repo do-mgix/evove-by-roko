@@ -75,7 +75,7 @@ def dial_start():
             elif key == readchar.key.ENTER or key == '\r' or key == '\n':
                 # If Enter is pressed, process buffer
                 try:
-                    completed, result = dial.process(buffer)
+                    completed, result = dial.process(buffer, force=True)
                     if completed:
                         buffer = ""
                         _handle_result(result, em, ui)
@@ -103,23 +103,40 @@ def dial_start():
                         elif e.prompt == "tag name":
                              user.create_tag(name=cli_input)
                              buffer = ""
-                        elif e.prompt in ("unit type", "difficulty (1-5)", "session id (01-99)", "session label", "sub session id (01-99)", "sub session label", "action name"):
-                             step = e.options.get("create_step") if e.options else None
-                             data = e.options if e.options else {}
-                             next_step = user.action_create_next(step, data, cli_input)
-                             while next_step:
-                                 prompt = next_step["prompt"]
-                                 autocomplete = None
-                                 if next_step.get("options", {}).get("autocomplete") == "names":
-                                     autocomplete = user._collect_autocomplete_names()
-                                 cli_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}", autocomplete=autocomplete)
-                                 step = next_step.get("options", {}).get("create_step")
-                                 data = next_step.get("options", {})
-                                 next_step = user.action_create_next(step, data, cli_input)
-                             buffer = ""
-                        elif e.prompt == "parameter name":
-                             user.create_parameter(e.options.get("buffer", ""), name=cli_input)
-                             buffer = ""
+                        elif e.prompt in ("unit type", "difficulty (1-5)", "action name"):
+                             current = e
+                             current_input = cli_input
+                             while True:
+                                 step = current.options.get("create_step") if current.options else None
+                                 data = current.options if current.options else {}
+                                 try:
+                                     user.create_action(step=step, data=data, value=current_input)
+                                     buffer = ""
+                                     break
+                                 except WebInputInterrupt as next_e:
+                                     prompt = next_e.prompt
+                                     autocomplete = None
+                                     if next_e.options and next_e.options.get("autocomplete") == "names":
+                                         autocomplete = user._collect_autocomplete_names()
+                                     current_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}", autocomplete=autocomplete)
+                                     current = next_e
+                        elif e.prompt in ("parameter type (1 mark, 2 percentage)", "parameter logic (1 Emotional, 2 Ambiental, 3 Fisiologic)", "parameter name"):
+                             current = e
+                             current_input = cli_input
+                             while True:
+                                 step = current.options.get("create_step") if current.options else None
+                                 data = current.options if current.options else {}
+                                 try:
+                                     user.create_parameter(step=step, data=data, value=current_input)
+                                     buffer = ""
+                                     break
+                                 except WebInputInterrupt as next_e:
+                                     prompt = next_e.prompt
+                                     autocomplete = None
+                                     if next_e.options and next_e.options.get("autocomplete") == "names":
+                                         autocomplete = user._collect_autocomplete_names()
+                                     current_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}", autocomplete=autocomplete)
+                                     current = next_e
                         elif e.prompt.startswith("parameter value"):
                              user._attach_status_to_param(
                                  e.options.get("param_id"),
@@ -191,7 +208,19 @@ def dial_start():
                              # action value
                              action_id = e.options.get("action_id")
                              if action_id:
-                                 user.act(list(action_id), cli_input) # Approximate reconstruction
+                                 payload = action_id[1:]
+                                 action = user._actions.get(action_id)
+                                 if action:
+                                     lt = getattr(action, "_logic_type", None)
+                                     st = getattr(action, "_sub_logic_type", None)
+                                     if lt is not None:
+                                         lt = str(lt).zfill(2) if str(lt).isdigit() else str(lt)
+                                         if st is not None:
+                                             st = str(st).zfill(2) if str(st).isdigit() else str(st)
+                                             payload = f"{lt}{st}{payload}"
+                                         else:
+                                             payload = f"{lt}{payload}"
+                                 user.act([payload], cli_input)
                                  buffer = ""
                              
                     else:
@@ -205,7 +234,7 @@ def dial_start():
 
             if not buffer.startswith(':') and not buffer.startswith('/'):
                 try:
-                    completed, result = dial.process(buffer)
+                    completed, result = dial.process(buffer, force=False)
                     
                     if completed:
                         buffer = ""
@@ -231,23 +260,40 @@ def dial_start():
                         elif e.prompt == "tag name":
                              user.create_tag(name=cli_input)
                              buffer = ""
-                        elif e.prompt in ("unit type", "difficulty (1-5)", "session id (01-99)", "session label", "sub session id (01-99)", "sub session label", "action name"):
-                             step = e.options.get("create_step") if e.options else None
-                             data = e.options if e.options else {}
-                             next_step = user.action_create_next(step, data, cli_input)
-                             while next_step:
-                                 prompt = next_step["prompt"]
-                                 autocomplete = None
-                                 if next_step.get("options", {}).get("autocomplete") == "names":
-                                     autocomplete = user._collect_autocomplete_names()
-                                 cli_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}", autocomplete=autocomplete)
-                                 step = next_step.get("options", {}).get("create_step")
-                                 data = next_step.get("options", {})
-                                 next_step = user.action_create_next(step, data, cli_input)
-                             buffer = ""
-                        elif e.prompt == "parameter name":
-                             user.create_parameter(e.options.get("buffer", ""), name=cli_input)
-                             buffer = ""
+                        elif e.prompt in ("unit type", "difficulty (1-5)", "action name"):
+                             current = e
+                             current_input = cli_input
+                             while True:
+                                 step = current.options.get("create_step") if current.options else None
+                                 data = current.options if current.options else {}
+                                 try:
+                                     user.create_action(step=step, data=data, value=current_input)
+                                     buffer = ""
+                                     break
+                                 except WebInputInterrupt as next_e:
+                                     prompt = next_e.prompt
+                                     autocomplete = None
+                                     if next_e.options and next_e.options.get("autocomplete") == "names":
+                                         autocomplete = user._collect_autocomplete_names()
+                                     current_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}", autocomplete=autocomplete)
+                                     current = next_e
+                        elif e.prompt in ("parameter type (1 mark, 2 percentage)", "parameter logic (1 Emotional, 2 Ambiental, 3 Fisiologic)", "parameter name"):
+                             current = e
+                             current_input = cli_input
+                             while True:
+                                 step = current.options.get("create_step") if current.options else None
+                                 data = current.options if current.options else {}
+                                 try:
+                                     user.create_parameter(step=step, data=data, value=current_input)
+                                     buffer = ""
+                                     break
+                                 except WebInputInterrupt as next_e:
+                                     prompt = next_e.prompt
+                                     autocomplete = None
+                                     if next_e.options and next_e.options.get("autocomplete") == "names":
+                                         autocomplete = user._collect_autocomplete_names()
+                                     current_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}", autocomplete=autocomplete)
+                                     current = next_e
                         elif e.prompt.startswith("parameter value"):
                              user._attach_status_to_param(
                                  e.options.get("param_id"),

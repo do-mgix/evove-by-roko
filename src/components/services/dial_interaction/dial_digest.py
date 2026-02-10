@@ -47,54 +47,108 @@ class DialDigest:
                 if (len(buffer) - ptr) >= needed:
                     return tag_info
             return self.INTERACTIONS.get(char)
+        if char == "5":
+            return self._get_action_info(buffer, ptr)
         return self.OBJECTS.get(char) or self.INTERACTIONS.get(char)
 
-    def get_length(self, buffer):
-        if not buffer: return 1
+    def _is_valid_logic_type(self, logic_type):
+        if logic_type is None:
+            return False
+        return str(logic_type) in getattr(self.user, "logic_types", {})
+
+    def _is_valid_sublogic(self, logic_type, sublogic_type):
+        if sublogic_type is None:
+            return False
+        logic_types = getattr(self.user, "logic_types", {})
+        sublogic_types = getattr(self.user, "sublogic_types", {})
+        lt = str(logic_type)
+        st = str(sublogic_type)
+        if st not in sublogic_types:
+            return False
+        subs = logic_types.get(lt, {}).get("subs", [])
+        return st in subs
+
+    def _get_action_info(self, buffer, ptr):
+        remaining = len(buffer) - (ptr + 1)
+        if remaining < 2:
+            return {"label": "action", "len": 2, "ambiguous": False}
+        logic_candidate = buffer[ptr + 1 : ptr + 3]
+        has_logic = self._is_valid_logic_type(logic_candidate)
+        if not has_logic:
+            return {"label": "action", "len": 2, "ambiguous": False}
+
+        # Logic type exists; choose id5/id7 if enough digits are present.
+        if remaining >= 6:
+            sub_candidate = buffer[ptr + 3 : ptr + 5]
+            if self._is_valid_sublogic(logic_candidate, sub_candidate):
+                return {"label": "action", "len": 6, "ambiguous": False}
+            return {"label": "action", "len": 4, "ambiguous": False}
+        if remaining > 4:
+            sub_candidate = buffer[ptr + 3 : ptr + 5]
+            if self._is_valid_sublogic(logic_candidate, sub_candidate):
+                return {"label": "action", "len": 6, "ambiguous": False}
+            return {"label": "action", "len": 4, "ambiguous": False}
+        if remaining == 4:
+            return {"label": "action", "len": 4, "ambiguous": False}
+
+        # Not enough digits for id5 yet: treat as id3 but mark ambiguous.
+        return {"label": "action", "len": 2, "ambiguous": True}
+
+    def get_state(self, buffer):
+        if not buffer:
+            return {"remaining": 0, "ambiguous": False, "complete": False}
 
         is_prefix = False
         for cmd, info in self.SINGLE_COMMANDS.items():
             if cmd.startswith(buffer):
                 is_prefix = True
                 if len(buffer) < len(cmd):
-                     continue 
-                else:
-                    total_esperado = len(cmd) + info["len"]
-                    if len(buffer) < total_esperado:
-                        return total_esperado - len(buffer)
-                    return 0
+                    return {"remaining": len(cmd) - len(buffer), "ambiguous": False, "complete": False}
+                total_esperado = len(cmd) + info["len"]
+                if len(buffer) < total_esperado:
+                    return {"remaining": total_esperado - len(buffer), "ambiguous": False, "complete": False}
+                return {"remaining": 0, "ambiguous": False, "complete": True}
             elif buffer.startswith(cmd):
                 total_esperado = len(cmd) + info["len"]
                 if len(buffer) < total_esperado:
-                    return total_esperado - len(buffer)
-                return 0
+                    return {"remaining": total_esperado - len(buffer), "ambiguous": False, "complete": False}
+                return {"remaining": 0, "ambiguous": False, "complete": True}
 
         if is_prefix:
-            return 1
+            return {"remaining": 1, "ambiguous": False, "complete": False}
 
         ptr = 0
         phrase = []
+        ambiguous = False
         
         while ptr < len(buffer):
             char = buffer[ptr]
             info = self._get_info_for_char(buffer, ptr)
             
-            if not info: return 1            
+            if not info:
+                return {"remaining": 1, "ambiguous": False, "complete": False}
             phrase.append(info["label"])
             ptr += 1         
            
             payload_needed = info["len"]
+            if info.get("ambiguous"):
+                ambiguous = True
             chars_restantes = len(buffer) - ptr
             
             if chars_restantes < payload_needed:
-                return payload_needed - chars_restantes
+                return {"remaining": payload_needed - chars_restantes, "ambiguous": False, "complete": False}
                 
             ptr += payload_needed
             
             if " ".join(phrase) in self.COMMANDS:
-                return 0
+                if ptr == len(buffer):
+                    return {"remaining": 0, "ambiguous": ambiguous, "complete": True}
+                return {"remaining": 1, "ambiguous": False, "complete": False}
 
-        return 1 
+        return {"remaining": 1, "ambiguous": False, "complete": False}
+
+    def get_length(self, buffer):
+        return self.get_state(buffer)["remaining"]
 
     def parse_buffer(self, buffer):
         for cmd_prefix, info in self.SINGLE_COMMANDS.items():
@@ -127,11 +181,14 @@ class DialDigest:
                 
         return " ".join(tokens), payloads, False
 
-    def process(self, buffer):
+    def process(self, buffer, force=False):
         # Call internal method using self
-        faltando = self.get_length(buffer)
+        state = self.get_state(buffer)
+        faltando = state["remaining"]
         
         if faltando == 0 and len(buffer) > 0:
+            if state.get("ambiguous") and not force:
+                return False, None
             phrase, payloads, is_single = self.parse_buffer(buffer)
             
             if is_single:
