@@ -1680,6 +1680,24 @@
             '7': [852, 1209], '8': [852, 1336], '9': [852, 1477],
             '0': [941, 1336], '*': [941, 1209], '#': [941, 1477]
         };
+        const dtmfPitch = 0.8;
+
+        function playTone(freq, duration = 80, type = 'triangle', volume = 0.12) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.value = freq;
+            gain.gain.value = volume;
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.linearRampToValueAtTime(volume, now + 0.005);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + duration / 1000);
+            osc.start(now);
+            osc.stop(now + duration / 1000 + 0.02);
+        }
         
         function playDTMF(digit, duration = 100) {
             if (!dtmfFreqs[digit]) return;
@@ -1688,16 +1706,30 @@
             const osc1 = audioCtx.createOscillator();
             const osc2 = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
+            const delay = audioCtx.createDelay(1.0);
+            const feedback = audioCtx.createGain();
+            const wet = audioCtx.createGain();
+            const dry = audioCtx.createGain();
             
-            osc1.frequency.value = freq1;
-            osc2.frequency.value = freq2;
+            osc1.frequency.value = freq1 * dtmfPitch;
+            osc2.frequency.value = freq2 * dtmfPitch;
             osc1.type = 'sine';
             osc2.type = 'sine';
             gain.gain.value = 0.1;
+            delay.delayTime.value = 0.12;
+            feedback.gain.value = 0.35;
+            wet.gain.value = 0.35;
+            dry.gain.value = 0.8;
             
             osc1.connect(gain);
             osc2.connect(gain);
-            gain.connect(audioCtx.destination);
+            gain.connect(dry);
+            gain.connect(delay);
+            delay.connect(feedback);
+            feedback.connect(delay);
+            delay.connect(wet);
+            dry.connect(audioCtx.destination);
+            wet.connect(audioCtx.destination);
             
             const now = audioCtx.currentTime;
             gain.gain.setValueAtTime(0, now);
@@ -1811,6 +1843,7 @@
                     key.classList.add('pressed');
                     setTimeout(() => key.classList.remove('pressed'), 300);
                 } else if (del) {
+                    playTone(2800, 60, 'sine', 0.1);
                     if (screenUI.exitListOrSequence()) {
                         lastServerRender = null;
                         return;
@@ -1824,6 +1857,7 @@
                     updateLogSuggestion();
                     fetchPreview(buffer);
                 } else if (confirm) {
+                    playTone(1800, 70, 'triangle', 0.12);
                     if (!pendingType && buffer.length === 0) {
                         if (screenUI.nextListPage()) {
                             return;
