@@ -2,6 +2,7 @@ class ScreenUI {
     constructor(container) {
         this.container = container;
         this.lastRender = null;
+        this.sequenceTimer = null;
     }
 
     _normalizeMessage(msg) {
@@ -32,7 +33,20 @@ class ScreenUI {
         return first.startsWith('--- ') && first.endsWith(' ---');
     }
 
+    _isActionSequence(lines) {
+        if (!lines.length) return false;
+        return lines.some((line) => /score plus|increase by/i.test(line));
+    }
+
+    _stopSequence() {
+        if (this.sequenceTimer) {
+            clearInterval(this.sequenceTimer);
+            this.sequenceTimer = null;
+        }
+    }
+
     showMessage(message) {
+        this._stopSequence();
         const text = this._normalizeMessage(message).trim();
         if (!text) return;
         this.container.classList.remove('menu', 'screen-list');
@@ -42,6 +56,7 @@ class ScreenUI {
     }
 
     showList(title, items) {
+        this._stopSequence();
         const safeTitle = title || 'SYSTEM';
         const listItems = (items || []).slice(0, 9);
         this.container.classList.remove('menu', 'screen-single');
@@ -54,6 +69,25 @@ class ScreenUI {
         this.lastRender = { mode: 'list', title: safeTitle, items: listItems };
     }
 
+    showSequence(messages, delayMs = 3000) {
+        this._stopSequence();
+        const lines = this._flattenMessages(messages);
+        if (!lines.length) return;
+        this.container.classList.remove('menu', 'screen-list');
+        this.container.classList.add('screen-seq');
+        let idx = 0;
+        const render = () => {
+            const line = lines[idx] || '';
+            this.container.innerHTML = `<div class="screen-message">${line}</div>`;
+        };
+        render();
+        this.sequenceTimer = setInterval(() => {
+            idx = (idx + 1) % lines.length;
+            render();
+        }, delayMs);
+        this.lastRender = { mode: 'seq', messages: lines, delayMs, index: idx };
+    }
+
     showFromMessages(messages) {
         const lines = this._flattenMessages(messages || []);
         if (!lines.length) return;
@@ -61,6 +95,10 @@ class ScreenUI {
             const rawTitle = lines[0].replace(/^---\s*/, '').replace(/\s*---$/, '');
             const items = lines.slice(1);
             this.showList(rawTitle, items);
+            return;
+        }
+        if (this._isActionSequence(lines)) {
+            this.showSequence(lines, 3000);
             return;
         }
         if (lines.length > 1) {
@@ -74,6 +112,8 @@ class ScreenUI {
         if (!this.lastRender) return;
         if (this.lastRender.mode === 'list') {
             this.showList(this.lastRender.title, this.lastRender.items);
+        } else if (this.lastRender.mode === 'seq') {
+            this.showSequence(this.lastRender.messages, this.lastRender.delayMs);
         } else {
             this.showMessage(this.lastRender.message);
         }

@@ -146,7 +146,8 @@
         }
 
         #display-messages.screen-single,
-        #display-messages.screen-list {
+        #display-messages.screen-list,
+        #display-messages.screen-seq {
             font-family: "Zalando Sans Expanded", sans-serif;
             letter-spacing: 0.08em;
             text-transform: uppercase;
@@ -165,6 +166,20 @@
         }
 
         #display-messages.screen-single .screen-message {
+            width: 100%;
+        }
+
+        #display-messages.screen-seq {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: clamp(1.05rem, 3.1vw, 2rem);
+            line-height: 1.2;
+            padding: 0 0.25rem;
+        }
+
+        #display-messages.screen-seq .screen-message {
             width: 100%;
         }
 
