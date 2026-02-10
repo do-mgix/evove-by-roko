@@ -826,30 +826,154 @@ class User:
         else:
             self.add_message(f"ID ({new_id}) already exists.")
     
-    def create_action(self, buffer: str, name=None):    
+    def create_action(self, buffer: str = "", name=None):    
         mode = self.metadata.get("mode", "progressive")
         if mode == "semi-progressive":
             self.add_message("[ MODE ] Manual creation disabled in semi-progressive mode.")
             return
 
-        if name is None:
-            from src.components.services.UI.interface import WebInputInterrupt
-            raise WebInputInterrupt("action name", type="text", options={"buffer": buffer, "autocomplete": "names"})
-
         try:
-            tipo = int(buffer[0])
-            diff = int(buffer[1])
-            nextid = self.next_action_id
-            new_id = f"50{nextid}" if nextid < 10 else f"5{nextid}"           
-            starter_value = 0
-            
-            action = Action(new_id, name, tipo, diff, starter_value)
-            self._actions[new_id] = action
-            
-            self.add_message(f"action '{name}' created with ID {new_id}")
-            self.save_user()
+            if name is None:
+                from src.components.services.UI.interface import ui, WebInputInterrupt
+                ui.show_list(
+                    ["1 - Repetition", "2 - Seconds", "3 - Minutes", "4 - Hours", "5 - Letters", "6 - Lines"],
+                    "UNIT TYPE",
+                )
+                raise WebInputInterrupt("unit type", type="numeric", options={"create_step": "action_type"})
+
+            if buffer and len(buffer) >= 2 and buffer[:2].isdigit():
+                tipo = int(buffer[0])
+                diff = int(buffer[1])
+                nextid = self.next_action_id
+                new_id = f"50{nextid}" if nextid < 10 else f"5{nextid}"
+                starter_value = 0
+
+                action = Action(new_id, name, tipo, diff, starter_value)
+                self._actions[new_id] = action
+
+                self.add_message(f"action '{name}' created with ID {new_id}")
+                if hasattr(self, "tutorial"):
+                    self.tutorial.complete("has_created_action")
+                self.save_user()
         except Exception as e:
             self.add_message(f"{e}")
+
+    def action_create_next(self, step, data, value):
+        from src.components.services.UI.interface import ui, WebInputInterrupt
+
+        if step == "action_type":
+            try:
+                tipo = int(value)
+            except Exception:
+                return {"prompt": "unit type", "type": "numeric", "options": {"create_step": "action_type"}}
+            if tipo < 1 or tipo > 6:
+                self.add_message("Invalid unit type. Use 1-6.")
+                return {"prompt": "unit type", "type": "numeric", "options": {"create_step": "action_type"}}
+            data["action_type"] = tipo
+            return {"prompt": "difficulty (1-5)", "type": "numeric", "options": {"create_step": "action_diff", "action_type": tipo}}
+
+        if step == "action_diff":
+            try:
+                diff = int(value)
+            except Exception:
+                return {"prompt": "difficulty (1-5)", "type": "numeric", "options": {"create_step": "action_diff", **data}}
+            if diff < 1 or diff > 5:
+                self.add_message("Invalid difficulty. Use 1-5.")
+                return {"prompt": "difficulty (1-5)", "type": "numeric", "options": {"create_step": "action_diff", **data}}
+            data["action_diff"] = diff
+            sessions = self._collect_sessions()
+            if sessions:
+                ui.show_list(sessions, "AVAILABLE SESSIONS")
+            else:
+                self.add_message("No sessions found. Enter session 01-99.")
+            return {"prompt": "session id (01-99)", "type": "numeric", "options": {"create_step": "session_id", **data}}
+
+        if step == "session_id":
+            sid = str(value).zfill(2) if value is not None else ""
+            if not sid.isdigit() or int(sid) < 1 or int(sid) > 99:
+                self.add_message("Invalid session. Use 01-99.")
+                return {"prompt": "session id (01-99)", "type": "numeric", "options": {"create_step": "session_id", **data}}
+            data["session_id"] = sid
+            return {"prompt": "session label", "type": "text", "options": {"create_step": "session_label", **data}}
+
+        if step == "session_label":
+            label = str(value or "").strip()
+            if not label:
+                self.add_message("Session label required.")
+                return {"prompt": "session label", "type": "text", "options": {"create_step": "session_label", **data}}
+            data["session_label"] = label
+            sessions = self._collect_sessions()
+            if sessions:
+                ui.show_list(sessions, "AVAILABLE SUB-SESSIONS")
+            else:
+                self.add_message("No sub-sessions found. Enter sub session 01-99.")
+            return {"prompt": "sub session id (01-99)", "type": "numeric", "options": {"create_step": "sub_session_id", **data}}
+
+        if step == "sub_session_id":
+            sid = str(value).zfill(2) if value is not None else ""
+            if not sid.isdigit() or int(sid) < 1 or int(sid) > 99:
+                self.add_message("Invalid sub session. Use 01-99.")
+                return {"prompt": "sub session id (01-99)", "type": "numeric", "options": {"create_step": "sub_session_id", **data}}
+            data["sub_session_id"] = sid
+            return {"prompt": "sub session label", "type": "text", "options": {"create_step": "sub_session_label", **data}}
+
+        if step == "sub_session_label":
+            label = str(value or "").strip()
+            if not label:
+                self.add_message("Sub session label required.")
+                return {"prompt": "sub session label", "type": "text", "options": {"create_step": "sub_session_label", **data}}
+            data["sub_session_label"] = label
+            return {"prompt": "action name", "type": "text", "options": {"create_step": "action_name", **data, "autocomplete": "names"}}
+
+        if step == "action_name":
+            name = str(value or "").strip()
+            if not name:
+                return {"prompt": "action name", "type": "text", "options": {"create_step": "action_name", **data, "autocomplete": "names"}}
+            tipo = data.get("action_type")
+            diff = data.get("action_diff")
+            nextid = self.next_action_id
+            new_id = f"50{nextid}" if nextid < 10 else f"5{nextid}"
+            starter_value = 0
+            action = Action(
+                new_id,
+                name,
+                tipo,
+                diff,
+                starter_value,
+                False,
+                data.get("session_id"),
+                data.get("session_label"),
+                data.get("sub_session_id"),
+                data.get("sub_session_label"),
+            )
+            self._actions[new_id] = action
+            self.add_message(f"action '{name}' created with ID {new_id}")
+            if hasattr(self, "tutorial"):
+                self.tutorial.complete("has_created_action")
+            self.save_user()
+            return None
+
+        return None
+
+    def _collect_sessions(self):
+        sessions = []
+        seen = set()
+        for action in self._actions.values():
+            sid = getattr(action, "_logic_type", None)
+            sname = getattr(action, "_logic_label", None)
+            if sid and sname:
+                key = f"{sid}:{sname}"
+                if key not in seen:
+                    seen.add(key)
+                    sessions.append(f"{sid} - {sname}")
+            ssid = getattr(action, "_sub_logic_type", None)
+            ssname = getattr(action, "_sub_logic_label", None)
+            if ssid and ssname:
+                key = f"{ssid}:{ssname}"
+                if key not in seen:
+                    seen.add(key)
+                    sessions.append(f"{ssid} - {ssname}")
+        return sessions
 
     def create_tag(self, name=None):
         mode = self.metadata.get("mode", "progressive")

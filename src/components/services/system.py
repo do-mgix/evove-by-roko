@@ -103,6 +103,20 @@ def dial_start():
                         elif e.prompt == "tag name":
                              user.create_tag(name=cli_input)
                              buffer = ""
+                        elif e.prompt in ("unit type", "difficulty (1-5)", "session id (01-99)", "session label", "sub session id (01-99)", "sub session label", "action name"):
+                             step = e.options.get("create_step") if e.options else None
+                             data = e.options if e.options else {}
+                             next_step = user.action_create_next(step, data, cli_input)
+                             while next_step:
+                                 prompt = next_step["prompt"]
+                                 autocomplete = None
+                                 if next_step.get("options", {}).get("autocomplete") == "names":
+                                     autocomplete = user._collect_autocomplete_names()
+                                 cli_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}", autocomplete=autocomplete)
+                                 step = next_step.get("options", {}).get("create_step")
+                                 data = next_step.get("options", {})
+                                 next_step = user.action_create_next(step, data, cli_input)
+                             buffer = ""
                         elif e.prompt == "parameter name":
                              user.create_parameter(e.options.get("buffer", ""), name=cli_input)
                              buffer = ""
@@ -216,6 +230,20 @@ def dial_start():
                              buffer = ""
                         elif e.prompt == "tag name":
                              user.create_tag(name=cli_input)
+                             buffer = ""
+                        elif e.prompt in ("unit type", "difficulty (1-5)", "session id (01-99)", "session label", "sub session id (01-99)", "sub session label", "action name"):
+                             step = e.options.get("create_step") if e.options else None
+                             data = e.options if e.options else {}
+                             next_step = user.action_create_next(step, data, cli_input)
+                             while next_step:
+                                 prompt = next_step["prompt"]
+                                 autocomplete = None
+                                 if next_step.get("options", {}).get("autocomplete") == "names":
+                                     autocomplete = user._collect_autocomplete_names()
+                                 cli_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}", autocomplete=autocomplete)
+                                 step = next_step.get("options", {}).get("create_step")
+                                 data = next_step.get("options", {})
+                                 next_step = user.action_create_next(step, data, cli_input)
                              buffer = ""
                         elif e.prompt == "parameter name":
                              user.create_parameter(e.options.get("buffer", ""), name=cli_input)
