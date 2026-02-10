@@ -812,6 +812,7 @@ class User:
         shop = ShopService(self)
         shop.show_items()
 
+
     def buy_shop_item(self, item_id=None):
         """Buys a shop item. item_id can be passed from dial or buffer."""
         from src.components.services.shop_service import ShopService

@@ -79,6 +79,12 @@ class ScreenUI {
         const safeTitle = title || 'SYSTEM';
         const listItems = Array.isArray(items) ? items : (items ? [String(items)] : []);
         this.listPageIndex = 0;
+        const titleUpper = String(safeTitle).toUpperCase();
+        if (window.playStatsJingle && titleUpper.includes('USER INFO')) {
+            window.playStatsJingle();
+        } else if (window.playListJingle) {
+            window.playListJingle();
+        }
         this.container.classList.remove('menu', 'screen-single');
         this.container.classList.add('screen-list');
         this._renderListPage(safeTitle, listItems, this.listPageIndex);
@@ -113,6 +119,9 @@ class ScreenUI {
         this._stopSequence();
         const lines = this._flattenMessages(messages);
         if (!lines.length) return;
+        if (window.playActionJingle) {
+            window.playActionJingle();
+        }
         this.container.classList.remove('menu', 'screen-list');
         this.container.classList.add('screen-seq');
         let idx = 0;
