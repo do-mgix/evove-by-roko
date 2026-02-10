@@ -7,6 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Zalando+Sans+Expanded:ital,wght@0,200..900;1,200..900&display=swap" rel="stylesheet">
+    <script src="{{ url_for('static', filename='screen_ui.js') }}"></script>
     <style>
         :root {
             --bg: #000;
@@ -141,6 +143,49 @@
             overflow-y: auto;
             padding-right: 4px;
             min-height: 0;
+        }
+
+        #display-messages.screen-single,
+        #display-messages.screen-list {
+            font-family: "Zalando Sans Expanded", sans-serif;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            white-space: normal;
+            opacity: 1;
+        }
+
+        #display-messages.screen-single {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: clamp(1.1rem, 3.4vw, 2.2rem);
+            line-height: 1.2;
+            padding: 0 0.25rem;
+        }
+
+        #display-messages.screen-single .screen-message {
+            width: 100%;
+        }
+
+        #display-messages.screen-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+            font-size: clamp(0.75rem, 2.1vw, 1.2rem);
+        }
+
+        .screen-title {
+            font-size: 0.7rem;
+            color: var(--dim);
+            letter-spacing: 0.16em;
+        }
+
+        .screen-item {
+            padding: 0.35rem 0.45rem;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.03);
         }
 
         #display-messages.menu {
@@ -765,7 +810,7 @@
         let holdDelayTimer = null;
         let holdActive = false;
         let holdUsed = false;
-        const messageHistory = [];
+        const screenUI = new ScreenUI(displayMessages);
         const STATUS_TIMEOUT_MS = 6000;
         const MIN_LOADSCREEN_MS = 1000;
         let statusInFlight = false;
@@ -944,12 +989,7 @@
             if (uiMode !== 'nav') {
                 displayMessages.classList.remove('menu');
                 displayMessages.style.overflowY = 'auto';
-                if (messageHistory.length > 0) {
-                    displayMessages.textContent = messageHistory.join('\n');
-                    displayMessages.scrollTop = displayMessages.scrollHeight;
-                } else {
-                    displayMessages.textContent = '';
-                }
+                screenUI.renderLast();
                 return;
             }
             if (subScreen === 'fountain') {
@@ -1395,17 +1435,7 @@
 
                 if (data.messages && data.messages.length > 0) {
                     if (uiMode !== 'nav') {
-                        data.messages.forEach(m => {
-                            const line = Array.isArray(m) ? m.join(' ') : String(m);
-                            if (line.trim().length > 0) {
-                                messageHistory.push(line);
-                            }
-                        });
-                        if (messageHistory.length > 300) {
-                            messageHistory.splice(0, messageHistory.length - 300);
-                        }
-                        displayMessages.textContent = messageHistory.join('\n');
-                        displayMessages.scrollTop = displayMessages.scrollHeight;
+                        screenUI.showFromMessages(data.messages);
                         showToast(data.messages[data.messages.length - 1]);
                     }
                 }
