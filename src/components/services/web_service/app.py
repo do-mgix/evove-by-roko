@@ -165,8 +165,15 @@ def command():
                 else:
                     user.create_attribute(name=buffer)
             
-            elif p == "action name":
-                user.create_action(options.get("buffer", ""), name=buffer)
+            elif p in ("unit type", "difficulty (1-5)", "action name"):
+                step = options.get("create_step") if options else None
+                data = options if options else {}
+                try:
+                    user.create_action(step=step, data=data, value=buffer)
+                except WebInputInterrupt as e:
+                    session.pending_input = {"prompt": e.prompt, "type": e.type, "options": e.options, "context": {"buffer": buffer}}
+                    user.save_user()
+                    return jsonify({"completed": True, "clear": True})
 
             elif p == "status name":
                 user.create_status(options.get("buffer", ""), name=buffer)

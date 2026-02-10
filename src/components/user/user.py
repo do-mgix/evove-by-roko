@@ -847,19 +847,73 @@ class User:
         else:
             self.add_message(f"ID ({new_id}) already exists.")
     
-    def create_action(self, buffer: str, name=None):    
+    def create_action(self, step=None, data=None, value=None):    
         mode = self.metadata.get("mode", "progressive")
         if mode == "semi-progressive":
             self.add_message("[ MODE ] Manual creation disabled in semi-progressive mode.")
             return
 
-        if name is None:
-            from src.components.services.UI.interface import WebInputInterrupt
-            raise WebInputInterrupt("action name", type="text", options={"buffer": buffer, "autocomplete": "names"})
+        from src.components.services.UI.interface import ui, WebInputInterrupt
 
-        try:
-            tipo = int(buffer[0])
-            diff = int(buffer[1])
+        data = data or {}
+        clean_data = {k: v for k, v in data.items() if k != "create_step"}
+        step = step or "action_type"
+
+        if step == "action_type":
+            try:
+                tipo = int(value)
+            except Exception:
+                ui.show_list(
+                    ["1 - Repetition", "2 - Seconds", "3 - Minutes", "4 - Hours", "5 - Letters", "6 - Lines"],
+                    "UNIT TYPE",
+                )
+                raise WebInputInterrupt("unit type", type="numeric", options={"create_step": "action_type"})
+            if tipo < 1 or tipo > 6:
+                self.add_message("Invalid unit type. Use 1-6.")
+                raise WebInputInterrupt("unit type", type="numeric", options={"create_step": "action_type"})
+            clean_data["action_type"] = tipo
+            raise WebInputInterrupt(
+                "difficulty (1-5)",
+                type="numeric",
+                options={**clean_data, "create_step": "action_diff"},
+            )
+
+        if step == "action_diff":
+            try:
+                diff = int(value)
+            except Exception:
+                raise WebInputInterrupt(
+                    "difficulty (1-5)",
+                    type="numeric",
+                    options={"create_step": "action_diff", **data},
+                )
+            if diff < 1 or diff > 5:
+                self.add_message("Invalid difficulty. Use 1-5.")
+                raise WebInputInterrupt(
+                    "difficulty (1-5)",
+                    type="numeric",
+                    options={"create_step": "action_diff", **data},
+                )
+            clean_data["action_diff"] = diff
+            raise WebInputInterrupt(
+                "action name",
+                type="text",
+                options={**clean_data, "create_step": "action_name", "autocomplete": "names"},
+            )
+
+        if step == "action_name":
+            name = str(value or "").strip()
+            if not name:
+                raise WebInputInterrupt(
+                    "action name",
+                    type="text",
+                    options={**clean_data, "create_step": "action_name", "autocomplete": "names"},
+                )
+            tipo = clean_data.get("action_type")
+            diff = clean_data.get("action_diff")
+            if tipo is None or diff is None:
+                raise WebInputInterrupt("unit type", type="numeric", options={"create_step": "action_type"})
+
             nextid = self.next_action_id
             new_id = f"50{nextid}" if nextid < 10 else f"5{nextid}"           
             starter_value = 0
@@ -871,8 +925,10 @@ class User:
             if hasattr(self, "tutorial"):
                 self.tutorial.complete("has_created_action")
             self.save_user()
-        except Exception as e:
-            self.add_message(f"{e}")
+            return
+
+        # Unknown step: restart flow
+        raise WebInputInterrupt("unit type", type="numeric", options={"create_step": "action_type"})
 
     def create_tag(self, name=None):
         mode = self.metadata.get("mode", "progressive")
