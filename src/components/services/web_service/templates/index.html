@@ -617,29 +617,6 @@
             color: var(--bg);
         }
 
-        /* TOAST */
-        #toast {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%) scale(0.8);
-            background: var(--fg);
-            color: var(--bg);
-            padding: 1rem 2rem;
-            border-radius: 1rem;
-            font-size: 1rem;
-            font-weight: 700;
-            opacity: 0;
-            pointer-events: none;
-            transition: all 0.3s ease;
-            z-index: 1000;
-        }
-
-        #toast.show {
-            opacity: 1;
-            transform: translate(-50%, -50%) scale(1);
-        }
-
         /* LOADSCREEN */
         #loadscreen {
             position: fixed;
@@ -880,16 +857,12 @@
         </div>
     </div>
 
-    <!-- TOAST -->
-    <div id="toast"></div>
-
     <script>
         // REFS
         const displayPoints = document.getElementById('display-points');
         const displayNumber = document.getElementById('display-number');
         const displayLabel  = document.getElementById('display-label');
         const displayMessages = document.getElementById('display-messages');
-        const toast         = document.getElementById('toast');
         const topbar        = document.getElementById('topbar');
         const connStatus    = document.getElementById('conn-status');
         const lockscreen    = document.getElementById('lockscreen');
@@ -1439,9 +1412,7 @@
                 });
                 if (!res.ok) return;
                 const data = await res.json();
-                if (data && data.ok) {
-                    showToast('Imported');
-                }
+                if (data && data.ok) {}
             } catch (e) { /* ignore */ }
         }
 
@@ -1532,12 +1503,6 @@
                 .filter(Boolean)
                 .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
                 .join(' ');
-        }
-
-        function showToast(msg) {
-            toast.textContent = msg;
-            toast.classList.add('show');
-            setTimeout(() => toast.classList.remove('show'), 2000);
         }
 
         async function fetchPreview(buf) {
@@ -1655,7 +1620,6 @@
                     if (uiMode !== 'nav') {
                         screenUI.showFromMessages(data.messages);
                         lastServerRender = screenUI.getLastRender();
-                        showToast(data.messages[data.messages.length - 1]);
                         const createHit = data.messages.some((msg) => {
                             const text = String(msg || '').toLowerCase();
                             return text.includes(' created ') || text.includes(" created with id") || text.startsWith("action '") && text.includes(' created');
@@ -1705,7 +1669,6 @@
                 const data = await res.json();
                 
                 if (data.completed) {
-                    showToast('Command executed');
                     buffer = '';
                     pendingPrompt = '';
                     pendingType = '';
@@ -1717,7 +1680,6 @@
                     updateStatus();
                 }
             } catch (e) {
-                showToast('Offline');
             }
         }
 
@@ -1968,10 +1930,7 @@
                         updateLogSuggestion();
                         return;
                     }
-                    if (!buffer) {
-                        showToast('Enter text');
-                        return;
-                    }
+                    if (!buffer) return;
                     if (pendingType === 'text') {
                         executeCommand(toTitleCase(buffer));
                     } else {
