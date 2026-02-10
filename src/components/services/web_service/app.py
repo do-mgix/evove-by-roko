@@ -165,11 +165,8 @@ def command():
                 else:
                     user.create_attribute(name=buffer)
             
-            elif p in ("unit type", "difficulty (1-5)", "session id (01-99)", "session label", "sub session id (01-99)", "sub session label", "action name"):
-                step = options.get("create_step") if options else None
-                data = options if options else {}
-                next_step = user.action_create_next(step, data, buffer)
-                session.pending_input = next_step
+            elif p == "action name":
+                user.create_action(options.get("buffer", ""), name=buffer)
 
             elif p == "status name":
                 user.create_status(options.get("buffer", ""), name=buffer)
