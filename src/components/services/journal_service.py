@@ -29,6 +29,16 @@ class JournalService:
         else:
             self.logs = []
 
+        # Normalize legacy statuses
+        normalized = False
+        for log in self.logs:
+            status = log.get("status")
+            if isinstance(status, str) and "TO PROCESS" in status and status != "[TO PROCESS]":
+                log["status"] = "[TO PROCESS]"
+                normalized = True
+        if normalized:
+            self._save_logs_data()
+
     def _save_logs_data(self):
         """Saves structured log data."""
         try:
@@ -87,6 +97,8 @@ class JournalService:
         timestamp_str = target_date.strftime("%d %m %Y : %H:%M:%S")
         
         status = custom_status if custom_status else "[IN WAIT]"
+        if isinstance(status, str) and "TO PROCESS" in status:
+            status = "[TO PROCESS]"
         
         # 1. Append to evove26 (Skip if it's a "TO PROCESS" system log)
         if status != "[TO PROCESS]":

@@ -19,6 +19,7 @@ class User:
         self._statuses = {}
         self._shop_action_links = {}
         self._shop_entitlements = {}
+        self._shop_item_entitlements = {}
         self._tags = {}
         self._action_tags = {}
         self._param_tags = {}
@@ -305,7 +306,7 @@ class User:
             val_int = 1 
             
         # Log to logs.json only (TO PROCESS)
-        journal_service.add_log(f"{val_int} {action_name.upper()}", auto_confirm=True, custom_status="[SYSTEM - TO PROCESS]")
+        journal_service.add_log(f"{val_int} {action_name.upper()}", auto_confirm=True, custom_status="[TO PROCESS]")
 
         # Adiciona mensagens da action
         for msg in action_messages:
@@ -597,6 +598,7 @@ class User:
             },
             "shop_action_links": self._shop_action_links,
             "shop_entitlements": self._shop_entitlements,
+            "shop_item_entitlements": self._shop_item_entitlements,
             "tags": {
                 k: v.to_dict() if hasattr(v, 'to_dict') else v for k, v in self._tags.items()
             },
@@ -658,6 +660,7 @@ class User:
 
         self._shop_action_links = data.get("shop_action_links", {}) or {}
         self._shop_entitlements = data.get("shop_entitlements", {}) or {}
+        self._shop_item_entitlements = data.get("shop_item_entitlements", {}) or {}
 
         self._statuses.clear()
         for status_id, status_data in data.get("statuses", {}).items():
@@ -705,40 +708,88 @@ class User:
         # If called from list_actions/dial, it might be a list
         target_id = item_id
         if isinstance(item_id, list) and item_id:
-            target_id = item_id[0]
+            target_id = "".join(str(part) for part in item_id)
             
         if shop.buy_item(target_id):
             self._grant_shop_entitlement(target_id)
             self.save_user()
 
+    def _normalize_shop_item_id(self, shop_item_id):
+        if isinstance(shop_item_id, str):
+            return shop_item_id.lstrip("0") or "0"
+        return str(shop_item_id).lstrip("0") or "0"
+
+    def _is_entitlement_active(self, expiry_str, now=None):
+        if not expiry_str:
+            return False
+        from datetime import datetime
+        if now is None:
+            now = datetime.now()
+        try:
+            expiry = datetime.fromisoformat(expiry_str)
+        except Exception:
+            return False
+        return now <= expiry
+
     def _grant_shop_entitlement(self, shop_item_id):
         from datetime import datetime, timedelta
-        if isinstance(shop_item_id, str):
-            shop_item_id = shop_item_id.lstrip("0") or "0"
+        norm_item_id = self._normalize_shop_item_id(shop_item_id)
         expiry = datetime.now() + timedelta(hours=12)
+        expiry_str = expiry.isoformat()
+        # Track entitlement by item for consistent access checks and UI
+        self._shop_item_entitlements[norm_item_id] = expiry_str
         for action_id, linked_item in self._shop_action_links.items():
-            linked = str(linked_item).lstrip("0") or "0"
-            if linked == shop_item_id:
-                self._shop_entitlements[action_id] = expiry.isoformat()
+            linked = self._normalize_shop_item_id(linked_item)
+            if linked == norm_item_id:
+                self._shop_entitlements[action_id] = expiry_str
+
+    def _get_item_entitlement_from_actions(self, norm_item_id, now=None):
+        """Fallback for legacy data where only action entitlements exist."""
+        for action_id, linked_item in self._shop_action_links.items():
+            linked = self._normalize_shop_item_id(linked_item)
+            if linked != norm_item_id:
+                continue
+            expiry_str = self._shop_entitlements.get(action_id)
+            if self._is_entitlement_active(expiry_str, now=now):
+                return expiry_str
+        return None
+
+    def is_shop_item_purchased(self, shop_item_id):
+        norm_item_id = self._normalize_shop_item_id(shop_item_id)
+        now = datetime.now()
+        expiry_str = self._shop_item_entitlements.get(norm_item_id)
+        if self._is_entitlement_active(expiry_str, now=now):
+            return True
+        # Legacy fallback: derive from action entitlements
+        expiry_str = self._get_item_entitlement_from_actions(norm_item_id, now=now)
+        if self._is_entitlement_active(expiry_str, now=now):
+            # Upgrade to item entitlement for future checks
+            self._shop_item_entitlements[norm_item_id] = expiry_str
+            return True
+        return False
 
     def _check_shop_access(self, action_id):
         if action_id not in self._shop_action_links:
             return True
-        from datetime import datetime
+        item_id = self._shop_action_links.get(action_id)
+        norm_item_id = self._normalize_shop_item_id(item_id)
+        now = datetime.now()
         expiry_str = self._shop_entitlements.get(action_id)
-        if not expiry_str:
-            item_id = self._shop_action_links.get(action_id)
-            self.add_message(f"Action {action_id} requires shop item {item_id}. Buy it in the shop first.")
-            return False
-        try:
-            expiry = datetime.fromisoformat(expiry_str)
-        except Exception:
-            expiry = None
-        if not expiry or datetime.now() > expiry:
-            item_id = self._shop_action_links.get(action_id)
-            self.add_message(f"Action {action_id} requires shop item {item_id}. Buy it in the shop first.")
-            return False
-        return True
+        if self._is_entitlement_active(expiry_str, now=now):
+            return True
+
+        # Fall back to item entitlement (purchase) if action entitlement is missing/expired
+        item_expiry = self._shop_item_entitlements.get(norm_item_id)
+        if not self._is_entitlement_active(item_expiry, now=now):
+            item_expiry = self._get_item_entitlement_from_actions(norm_item_id, now=now)
+
+        if self._is_entitlement_active(item_expiry, now=now):
+            # Repair/refresh action entitlement for this action
+            self._shop_entitlements[action_id] = item_expiry
+            return True
+
+        self.add_message(f"Action {action_id} requires shop item {item_id}. Buy it in the shop first.")
+        return False
 
     def create_attribute(self, name=None):
         mode = self.metadata.get("mode", "progressive")

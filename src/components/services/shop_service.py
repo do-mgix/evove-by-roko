@@ -19,7 +19,13 @@ class ShopService:
         tokens = self.user.metadata.get("tokens", 0)
         max_t = self.user.metadata.get("max_tokens", 50)
         
-        items = [f"({item_id}) - {info['name']} [{info['cost']}T]" for item_id, info in SHOP_ITEMS.items()]
+        items = []
+        for item_id, info in SHOP_ITEMS.items():
+            purchased = False
+            if hasattr(self.user, "is_shop_item_purchased"):
+                purchased = self.user.is_shop_item_purchased(item_id)
+            star = " (*)" if purchased else ""
+            items.append(f"({item_id}) - {info['name']}{star} [{info['cost']}T]")
         
         # Balance is at the top title now
         ui.show_list(items, f"EVOVE SHOP [{tokens}/{max_t}T]")
@@ -39,7 +45,7 @@ class ShopService:
             # Log immediately as TO PROCESS
             # Format: "qtd x ITEM" (We log 1 unit per purchase call usually, aggregation happens later)
             from src.components.services.journal_service import journal_service
-            journal_service.add_log(f"1 x {item['name'].upper()}", auto_confirm=True, custom_status="[SYSTEM - TO PROCESS]")
+            journal_service.add_log(f"1 x {item['name'].upper()}", auto_confirm=True, custom_status="[TO PROCESS]")
             
             return True
         return False
