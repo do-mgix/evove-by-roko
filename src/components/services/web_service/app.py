@@ -353,7 +353,7 @@ def preview():
             ptr = 0
             while ptr < len(buffer):
                 char = buffer[ptr]
-                info = dial.OBJECTS.get(char) or dial.INTERACTIONS.get(char)
+                info = dial._get_info_for_char(buffer, ptr)
                 if not info:
                     break
 
@@ -388,32 +388,28 @@ def preview():
 
 
 def _resolve_name(prefix_char, id_value):
-    """Tenta mapear um ID extraído para o nome da entidade correspondente."""
+    """Map an ID to a name based on its prefix to avoid cross-type collisions."""
     try:
-        # Action  → prefixo 5
-        action_id = f"5{id_value}"
-        if action_id in user._actions:
-            return user._actions[action_id]._name
-
-        # Attribute → prefixo 8
-        attr_id = f"8{id_value}"
-        if attr_id in user._attributes:
-            return user._attributes[attr_id]._name
-
-        # Status → prefixo 4
-        status_id = f"4{id_value}"
-        if status_id in user._statuses:
-            return user._statuses[status_id]._name
-
-        # Tag → prefixo 1
-        tag_id = f"1{id_value}"
-        if tag_id in user._tags:
-            return user._tags[tag_id]._name
-
-        # Parameter → prefixo 6
-        param_id = f"6{id_value}"
-        if param_id in user._parameters:
-            return user._parameters[param_id]._name
+        if prefix_char == "5":
+            action_id = f"5{id_value}"
+            if action_id in user._actions:
+                return user._actions[action_id]._name
+        elif prefix_char == "8":
+            attr_id = f"8{id_value}"
+            if attr_id in user._attributes:
+                return user._attributes[attr_id]._name
+        elif prefix_char == "4":
+            status_id = f"4{id_value}"
+            if status_id in user._statuses:
+                return user._statuses[status_id]._name
+        elif prefix_char == "1":
+            tag_id = f"1{id_value}"
+            if tag_id in user._tags:
+                return user._tags[tag_id]._name
+        elif prefix_char == "6":
+            param_id = f"6{id_value}"
+            if param_id in user._parameters:
+                return user._parameters[param_id]._name
     except:
         pass
     return None
