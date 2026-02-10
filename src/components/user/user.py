@@ -1435,6 +1435,26 @@ class User:
         else:
             self.add_message("no actions available. try creating one with 25...")
 
+    def list_statuses(self):
+        if not self._statuses:
+            self.add_message("no statuses available. try creating one with 24...")
+            return
+        from datetime import datetime
+        from src.components.services.UI.interface import ui
+        now = datetime.now()
+        items = []
+        for status in self._statuses.values():
+            is_active = status.is_active(now)
+            state = "active" if is_active else "inactive"
+            if is_active:
+                remaining = status.remaining_str(now)
+            elif status.active_until:
+                remaining = "expired"
+            else:
+                remaining = "-"
+            items.append(f"({status._id}) - {status._name} [{state} | {remaining}]")
+        ui.show_list(items, "STATUSES")
+
     def list_active_statuses(self):
         from datetime import datetime
         now = datetime.now()

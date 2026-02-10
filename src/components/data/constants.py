@@ -24,6 +24,7 @@ INTERACTIONS = {
 
 SINGLE_COMMANDS = {
     "93": {"len": 0, "func": user.open_shop, "label": "list_shop"},
+    "94": {"len": 0, "func": user.list_statuses, "label": "list_statuses"},
     "25": {"len": 2, "func": user.create_action, "label": "create_action"}, 
     "28": {"len": 0, "func": user.create_attribute, "label": "create_attr"}, 
     "24": {"len": 1, "func": user.create_status, "label": "create_status"},
@@ -39,6 +40,7 @@ SINGLE_COMMANDS = {
     "996": {"len": 0, "func": user.list_params_full, "label": "list_params_full"},
     "998": {"len": 0, "func": user.list_attributes_detailed, "label": "list_attributes_detailed"},
     "991": {"len": 0, "func": user.list_tags_detailed, "label": "list_tags_detailed"},
+    "994": {"len": 0, "func": user.list_active_statuses, "label": "list_active_statuses"},
     "999": {"len": 0, "func": user.show_user_info, "label": "show_user_info"},
     "997": {"len": 0, "func": user.list_days, "label": "list_days"},
     "07": {"len": 0, "func": user.drop_last_log_buffer, "label": "drop_log"},
