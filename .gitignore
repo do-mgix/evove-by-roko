@@ -15,3 +15,8 @@ implement.md
 node_modules/
 
 tests/
+
+
+
+.nx/cache
+.nx/workspace-data
