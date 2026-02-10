@@ -809,9 +809,8 @@
         }
 
         function showNetworkLost() {
-            if (networkLost) networkLost.classList.add('show');
-            displayRow.style.display = 'none';
-            keypad.style.display = 'none';
+            // Disabled: do not block UI when connection drops.
+            return;
         }
 
         function hideNetworkLost() {
