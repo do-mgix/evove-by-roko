@@ -1686,6 +1686,7 @@
                     if (uiMode !== 'nav') {
                         screenUI.showFromMessages(data.messages);
                         lastServerRender = screenUI.getLastRender();
+                        playMessagePop();
                         const createHit = data.messages.some((msg) => {
                             const text = String(msg || '').toLowerCase();
                             return text.includes(' created ') || text.includes(" created with id") || text.startsWith("action '") && text.includes(' created');
@@ -1858,6 +1859,21 @@
             setTimeout(() => playTone(900, 60, 'triangle', 0.1), 70);
             setTimeout(() => playTone(1200, 60, 'triangle', 0.1), 140);
         }
+
+        function playMessagePop() {
+            playTone(1400, 50, 'triangle', 0.09);
+            setTimeout(() => playTone(1700, 50, 'triangle', 0.08), 40);
+        }
+
+        function playClearAllTone() {
+            playTone(300, 120, 'sine', 0.08);
+            setTimeout(() => playTone(220, 140, 'sine', 0.08), 120);
+        }
+
+        function playCancelTone() {
+            playTone(520, 70, 'triangle', 0.08);
+            setTimeout(() => playTone(420, 90, 'triangle', 0.08), 80);
+        }
         
         function playDTMF(digit, duration = 100) {
             if (!dtmfFreqs[digit]) return;
@@ -2020,6 +2036,11 @@
                         lastServerRender = null;
                         return;
                     }
+                    if (!buffer) {
+                        screenUI.clearScreen();
+                        lastServerRender = null;
+                        return;
+                    }
                     if (buffer.length === 0) return;
                     buffer = buffer.slice(0, -1);
                     if (pendingType === 'text' && buffer.length === 0) {
@@ -2086,11 +2107,13 @@
                 deleteAllTimer = setTimeout(() => {
                     if (pendingType) {
                         cancelPending();
+                        playCancelTone();
                         if (navigator.vibrate) navigator.vibrate([15, 5, 15]);
                         return;
                     }
                     if (buffer.length === 0) return;
                     buffer = '';
+                    playClearAllTone();
                     resetMultiTap();
                     updateDisplay();
                     fetchPreview(buffer);
