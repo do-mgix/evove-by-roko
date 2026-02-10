@@ -3,6 +3,8 @@ class ScreenUI {
         this.container = container;
         this.lastRender = null;
         this.sequenceTimer = null;
+        this.listPageIndex = 0;
+        this.listPageSize = 5;
     }
 
     _normalizeMessage(msg) {
@@ -45,6 +47,14 @@ class ScreenUI {
         }
     }
 
+    clearScreen() {
+        this._stopSequence();
+        this.container.classList.remove('menu', 'screen-list', 'screen-seq');
+        this.container.classList.add('screen-single');
+        this.container.innerHTML = '';
+        this.lastRender = null;
+    }
+
     showMessage(message) {
         this._stopSequence();
         const text = this._normalizeMessage(message).trim();
@@ -58,15 +68,36 @@ class ScreenUI {
     showList(title, items) {
         this._stopSequence();
         const safeTitle = title || 'SYSTEM';
-        const listItems = (items || []).slice(0, 9);
+        const listItems = Array.isArray(items) ? items : (items ? [String(items)] : []);
+        this.listPageIndex = 0;
         this.container.classList.remove('menu', 'screen-single');
         this.container.classList.add('screen-list');
+        this._renderListPage(safeTitle, listItems, this.listPageIndex);
+        this.lastRender = { mode: 'list', title: safeTitle, items: listItems };
+    }
+
+    _renderListPage(title, items, pageIndex) {
+        const totalItems = items.length;
+        const totalPages = Math.max(1, Math.ceil(totalItems / this.listPageSize));
+        const safeIndex = Math.min(Math.max(0, pageIndex), totalPages - 1);
+        const start = safeIndex * this.listPageSize;
+        const pageItems = items.slice(start, start + this.listPageSize);
         const html = [
-            `<div class="screen-title">${safeTitle}</div>`,
-            ...listItems.map((item) => `<div class="screen-item">${item}</div>`)
+            `<div class="screen-title">${title} (${safeIndex + 1}/${totalPages})</div>`,
+            ...pageItems.map((item) => `<div class="screen-item">${item}</div>`)
         ];
         this.container.innerHTML = html.join('');
-        this.lastRender = { mode: 'list', title: safeTitle, items: listItems };
+        this.listPageIndex = safeIndex;
+    }
+
+    nextListPage() {
+        if (!this.lastRender || this.lastRender.mode !== 'list') return false;
+        const items = this.lastRender.items || [];
+        const totalPages = Math.max(1, Math.ceil(items.length / this.listPageSize));
+        if (totalPages <= 1) return false;
+        const nextIndex = (this.listPageIndex + 1) % totalPages;
+        this._renderListPage(this.lastRender.title, items, nextIndex);
+        return true;
     }
 
     showSequence(messages, delayMs = 3000) {
@@ -86,6 +117,15 @@ class ScreenUI {
             render();
         }, delayMs);
         this.lastRender = { mode: 'seq', messages: lines, delayMs, index: idx };
+    }
+
+    exitListOrSequence() {
+        if (!this.lastRender) return false;
+        if (this.lastRender.mode === 'list' || this.lastRender.mode === 'seq') {
+            this.clearScreen();
+            return true;
+        }
+        return false;
     }
 
     showFromMessages(messages) {
@@ -111,7 +151,7 @@ class ScreenUI {
     renderLast() {
         if (!this.lastRender) return;
         if (this.lastRender.mode === 'list') {
-            this.showList(this.lastRender.title, this.lastRender.items);
+            this._renderListPage(this.lastRender.title, this.lastRender.items || [], this.listPageIndex);
         } else if (this.lastRender.mode === 'seq') {
             this.showSequence(this.lastRender.messages, this.lastRender.delayMs);
         } else {
