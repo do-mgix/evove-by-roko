@@ -136,6 +136,35 @@
             background: #000;
             min-height: 0;
             overflow: hidden;
+            position: relative;
+        }
+
+        #display-messages-panel .goodnight-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+            z-index: 6;
+        }
+
+        #display-messages-panel.night-mode .goodnight-overlay {
+            opacity: 1;
+        }
+
+        .goodnight-text {
+            font-family: "Zalando Sans Expanded", sans-serif;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            font-size: clamp(1.1rem, 3vw, 2rem);
+            color: #fff;
+            text-shadow:
+                0 0 8px rgba(255, 255, 255, 0.5),
+                0 0 18px rgba(255, 255, 255, 0.3);
         }
 
         #topbar {
@@ -367,6 +396,22 @@
             filter: blur(18px);
             opacity: 0.35;
             pointer-events: none;
+        }
+
+        #phone-keypad.shutdown {
+            pointer-events: none;
+            opacity: 0.3;
+        }
+
+        #phone-keypad.shutdown::before {
+            opacity: 0;
+        }
+
+        #phone-keypad.shutdown .key {
+            border-color: transparent;
+            color: transparent;
+            box-shadow: none;
+            background: transparent;
         }
 
         #phone-keypad.mode-classic .key {
@@ -767,6 +812,9 @@
                 <div id="display-number"></div>
             </div>
             <div id="display-label">Ready.</div>
+            <div class="goodnight-overlay">
+                <div class="goodnight-text">Goodnight</div>
+            </div>
         </div>
     </div>
 
@@ -872,6 +920,7 @@
         const displayNumber = document.getElementById('display-number');
         const displayLabel  = document.getElementById('display-label');
         const displayMessages = document.getElementById('display-messages');
+        const displayPanel  = document.getElementById('display-messages-panel');
         const topbar        = document.getElementById('topbar');
         const connStatus    = document.getElementById('conn-status');
         const lockscreen    = document.getElementById('lockscreen');
@@ -1644,6 +1693,32 @@
                         if (createHit) {
                             playCreateJingle();
                         }
+                        const wakeHit = data.messages.some((msg) => String(msg || '').toLowerCase().includes('woke up'));
+                        const nightHit = data.messages.some((msg) => String(msg || '').toLowerCase().includes('goodnight'));
+                        if (displayPanel) {
+                            if (nightHit) {
+                                displayPanel.classList.add('night-mode');
+                            } else {
+                                displayPanel.classList.remove('night-mode');
+                            }
+                        }
+                        if (nightHit) {
+                            if (keypad) keypad.classList.add('shutdown');
+                            const hasNap = data.messages.some((msg) => String(msg || '').toLowerCase().includes('nap at'));
+                            const hasSleep = data.messages.some((msg) => String(msg || '').toLowerCase().includes('sleep at'));
+                            if (hasSleep) {
+                                playSleepJingle();
+                            } else if (hasNap) {
+                                playNapJingle();
+                            } else {
+                                playSleepJingle();
+                            }
+                        } else {
+                            if (keypad) keypad.classList.remove('shutdown');
+                            if (wakeHit) {
+                                playWakeJingle();
+                            }
+                        }
                     }
                 }
             } catch (e) {
@@ -1742,6 +1817,23 @@
             playTone(900, 60, 'triangle', 0.1);
             setTimeout(() => playTone(1200, 60, 'triangle', 0.1), 70);
             setTimeout(() => playTone(1500, 70, 'triangle', 0.11), 140);
+        }
+
+        function playSleepJingle() {
+            playTone(420, 90, 'sine', 0.08);
+            setTimeout(() => playTone(320, 120, 'sine', 0.07), 110);
+            setTimeout(() => playTone(260, 160, 'sine', 0.06), 240);
+        }
+
+        function playNapJingle() {
+            playTone(520, 80, 'sine', 0.08);
+            setTimeout(() => playTone(420, 90, 'sine', 0.07), 90);
+        }
+
+        function playWakeJingle() {
+            playTone(900, 60, 'triangle', 0.1);
+            setTimeout(() => playTone(1200, 70, 'triangle', 0.11), 70);
+            setTimeout(() => playTone(1500, 80, 'triangle', 0.12), 140);
         }
 
         function playListJingle() {

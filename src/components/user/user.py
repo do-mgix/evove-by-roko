@@ -251,6 +251,7 @@ class User:
         # 2. Proceed to Sleep (Git Sync)
         result = journal_service.sleep()
         self.metadata["is_sleeping"] = True
+        self.add_message("Goodnight.")
         self.add_message(result)
         self.save_user()
 
@@ -261,6 +262,7 @@ class User:
         #Sleep without git sync
         result = journal_service.nap()
         self.metadata["is_sleeping"] = True
+        self.add_message("Goodnight.")
         self.add_message(result)
         self.log("NAP")
         self.save_user()
