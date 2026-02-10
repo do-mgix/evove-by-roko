@@ -47,6 +47,15 @@ class ScreenUI {
         }
     }
 
+    getLastRender() {
+        return this.lastRender ? { ...this.lastRender } : null;
+    }
+
+    setLastRender(state) {
+        this.lastRender = state ? { ...state } : null;
+        this.renderLast();
+    }
+
     clearScreen() {
         this._stopSequence();
         this.container.classList.remove('menu', 'screen-list', 'screen-seq');

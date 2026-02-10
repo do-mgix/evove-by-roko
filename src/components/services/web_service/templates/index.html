@@ -27,7 +27,7 @@
 
         body {
             font-family: 'JetBrains Mono', monospace;
-            background: var(--bg);
+            background: #000;
             color: var(--fg);
             height: 100vh;
             height: 100dvh;
@@ -52,7 +52,7 @@
         /* DISPLAY */
         #display-row {
             flex: 0 0 45vh;
-            background: #0b120e;
+            background: #000;
             padding: 1.6rem 1.2rem;
             display: flex;
             flex-direction: column;
@@ -114,23 +114,44 @@
         }
 
         #display-messages-panel {
-            flex: 0 0 22vh;
+            flex: 1 1 auto;
             display: flex;
             flex-direction: column;
             gap: 0.6rem;
             border: 1px solid rgba(255, 255, 255, 0.12);
             border-radius: 12px;
             padding: 0.75rem;
-            background: rgba(0, 0, 0, 0.35);
+            background: #000;
             min-height: 0;
             overflow: hidden;
         }
 
-        #display-messages-title {
-            font-size: 0.7rem;
-            color: var(--dim);
-            letter-spacing: 0.12em;
+        #topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.55rem;
+            letter-spacing: 0.16em;
+            color: rgba(255, 255, 255, 0.5);
             text-transform: uppercase;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+
+        #topbar .top-left {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        #topbar .brand {
+            font-size: 0.55rem;
+            letter-spacing: 0.22em;
+            color: rgba(255, 255, 255, 0.45);
+        }
+
+        #topbar.hidden {
+            transform: translateY(-120%);
+            opacity: 0;
         }
 
         #display-messages {
@@ -203,11 +224,52 @@
             padding: 0.35rem 0.45rem;
             border-radius: 8px;
             border: 1px solid rgba(255, 255, 255, 0.12);
-            background: rgba(255, 255, 255, 0.03);
+            background: #000;
         }
 
         #display-messages.menu {
             white-space: normal;
+        }
+
+        #display-messages-panel #display-points {
+            font-family: 'Courier New', monospace;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--fg);
+            letter-spacing: 0.1em;
+            text-align: left;
+            opacity: 0.5;
+        }
+
+        #display-messages-panel #phone-display {
+            flex: 0 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #display-number {
+            opacity: 0;
+            transform: translateY(16px);
+            transition: transform 0.25s ease, opacity 0.25s ease;
+        }
+
+        #display-number.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        #display-number .float-char {
+            display: inline-block;
+            animation: floatChar 2.4s ease-in-out infinite;
+            animation-delay: var(--float-delay, 0s);
+        }
+
+        @keyframes floatChar {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
         }
 
         .menu-item {
@@ -215,7 +277,7 @@
             border-radius: 10px;
             padding: 0.6rem 0.8rem;
             margin-bottom: 0.5rem;
-            background: rgba(0, 0, 0, 0.25);
+            background: #000;
             color: var(--fg);
             text-transform: uppercase;
             letter-spacing: 0.08em;
@@ -223,7 +285,7 @@
         }
 
         .menu-item.selected {
-            background: rgba(0, 255, 0, 0.15);
+            background: #000;
             border-color: var(--green);
             color: var(--green);
         }
@@ -237,7 +299,7 @@
             border-radius: 10px;
             padding: 0.6rem 0.8rem;
             margin-bottom: 0.5rem;
-            background: rgba(0, 0, 0, 0.25);
+            background: #000;
             color: var(--fg);
             text-transform: uppercase;
             letter-spacing: 0.08em;
@@ -245,7 +307,7 @@
         }
 
         .menu-item.selected {
-            background: rgba(0, 255, 0, 0.15);
+            background: #000;
             border-color: var(--green);
             color: var(--green);
         }
@@ -560,7 +622,7 @@
             justify-content: center;
             flex-direction: column;
             gap: 16px;
-            background: #0b0b0b url('/media/evove-mobile-loadscreen.png') center center / cover no-repeat;
+            background: #000;
             color: #f5f5f5;
             z-index: 2000;
             text-align: center;
@@ -593,51 +655,6 @@
             letter-spacing: 0.06em;
         }
 
-        /* NETWORK LOST */
-        #network-lost {
-            position: fixed;
-            inset: 0;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            background: #0b0b0b;
-            color: #f5f5f5;
-            z-index: 3000;
-            text-align: center;
-            padding: 24px;
-        }
-        #network-lost.show { display: flex; }
-        #network-lost .nl-card {
-            border: 1px solid rgba(255,255,255,0.2);
-            padding: 24px;
-            border-radius: 16px;
-            background: rgba(255,255,255,0.04);
-            min-width: 240px;
-            max-width: 420px;
-        }
-        #network-lost .nl-title {
-            font-size: 18px;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            margin-bottom: 6px;
-        }
-        #network-lost .nl-subtitle {
-            font-size: 13px;
-            color: rgba(255,255,255,0.75);
-            margin-bottom: 16px;
-        }
-        #network-lost .nl-retry {
-            border: 1px solid #fff;
-            background: transparent;
-            color: #fff;
-            padding: 10px 16px;
-            border-radius: 999px;
-            font-size: 12px;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            cursor: pointer;
-        }
-
         /* LOCKSCREEN */
         #lockscreen {
             position: absolute;
@@ -646,10 +663,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background:
-                radial-gradient(circle at 20% 20%, rgba(0, 255, 160, 0.08), transparent 40%),
-                radial-gradient(circle at 80% 10%, rgba(0, 120, 255, 0.08), transparent 45%),
-                linear-gradient(180deg, #0b120e 0%, #050806 100%);
+            background: #000;
             color: var(--fg);
             text-align: center;
             transition: transform 0.45s ease, opacity 0.45s ease;
@@ -709,18 +723,16 @@
         <div class="progress"><div class="progress-fill"></div></div>
         <div class="status" id="loadscreen-status"></div>
     </div>
-    <div id="network-lost">
-        <div class="nl-card">
-            <div class="nl-title">Network Lost</div>
-            <div class="nl-subtitle">Please check your connection</div>
-            <button class="nl-retry" id="network-retry">Retry</button>
-        </div>
-    </div>
     <!-- DISPLAY -->
     <div id="display-row">
-        <div id="display-points">0</div>
-            <div id="display-messages-panel">
-            <div id="display-messages-title">SYSTEM</div>
+        <div id="display-messages-panel">
+            <div id="topbar">
+                <div class="top-left">
+                    <div id="display-points">0</div>
+                    <div class="brand">EVOVE</div>
+                </div>
+                <span id="conn-status">CONNECTING</span>
+            </div>
             <div id="display-messages">
                 <div id="lockscreen">
                     <div class="lockscreen-content">
@@ -729,9 +741,9 @@
                     </div>
                 </div>
             </div>
-        </div>
-        <div id="phone-display">
-            <div id="display-number" class="empty">dial</div>
+            <div id="phone-display">
+                <div id="display-number"></div>
+            </div>
             <div id="display-label">Ready.</div>
         </div>
     </div>
@@ -842,14 +854,14 @@
         const displayLabel  = document.getElementById('display-label');
         const displayMessages = document.getElementById('display-messages');
         const toast         = document.getElementById('toast');
+        const topbar        = document.getElementById('topbar');
+        const connStatus    = document.getElementById('conn-status');
         const lockscreen    = document.getElementById('lockscreen');
         const lockTime      = document.getElementById('lock-time');
         const lockDate      = document.getElementById('lock-date');
         const progressFill  = document.querySelector('#loadscreen .progress-fill');
         const loadscreen    = document.getElementById('loadscreen');
         const loadscreenStatus = document.getElementById('loadscreen-status');
-        const networkLost   = document.getElementById('network-lost');
-        const networkRetry  = document.getElementById('network-retry');
         const keys          = document.querySelectorAll('.key');
         const keypad        = document.getElementById('phone-keypad');
         const displayRow    = document.getElementById('display-row');
@@ -909,6 +921,7 @@
         let lockDragStartY = 0;
         let lockDragDelta = 0;
         let lockDragging = false;
+        let lastServerRender = null;
 
         function setLoadMessage(msg) {
             if (loadscreenStatus) loadscreenStatus.textContent = msg || '';
@@ -941,15 +954,8 @@
             }, remaining);
         }
 
-        function showNetworkLost() {
-            // Disabled: do not block UI when connection drops.
-            return;
-        }
-
-        function hideNetworkLost() {
-            if (networkLost) networkLost.classList.remove('show');
-            displayRow.style.display = '';
-            keypad.style.display = '';
+        function setConnectionStatus(text) {
+            if (connStatus) connStatus.textContent = text || '';
         }
 
         async function playStartupSound() {
@@ -1079,10 +1085,6 @@
 
         // HELPERS
         function updateDisplay() {
-            let emptyLabel = inputMode === 'text' ? 'type' : 'dial';
-            if (pendingType && pendingPrompt) {
-                emptyLabel = pendingPrompt;
-            }
             if (buffer) {
                 if (suggestionActive && activeSuggestionDisplay && pendingPrompt === 'log message') {
                     const b = buffer;
@@ -1091,17 +1093,49 @@
                     const bLower = b.toLowerCase();
                     if (sLower.startsWith(bLower) && s.length >= b.length) {
                         const tail = s.slice(b.length);
-                        displayNumber.innerHTML = `${b}<span class="ghost">${tail}</span>`;
+                        const animated = b.split('').map((ch, idx) => {
+                            const delay = `${(idx % 6) * 0.12}s`;
+                            return `<span class="float-char" style="--float-delay:${delay}">${ch}</span>`;
+                        }).join('');
+                        displayNumber.innerHTML = `${animated}<span class="ghost">${tail}</span>`;
                     } else {
-                        displayNumber.textContent = buffer;
+                        const animated = buffer.split('').map((ch, idx) => {
+                            const delay = `${(idx % 6) * 0.12}s`;
+                            return `<span class="float-char" style="--float-delay:${delay}">${ch}</span>`;
+                        }).join('');
+                        displayNumber.innerHTML = animated;
                     }
                 } else {
-                    displayNumber.textContent = buffer;
+                    const animated = buffer.split('').map((ch, idx) => {
+                        const delay = `${(idx % 6) * 0.12}s`;
+                        return `<span class="float-char" style="--float-delay:${delay}">${ch}</span>`;
+                    }).join('');
+                    displayNumber.innerHTML = animated;
                 }
-                displayNumber.classList.remove('empty');
+                displayNumber.classList.add('visible');
             } else {
-                displayNumber.textContent = emptyLabel;
-                displayNumber.classList.add('empty');
+                displayNumber.textContent = '';
+                displayNumber.classList.remove('visible');
+            }
+
+            if (topbar) {
+                if (buffer && buffer.length > 0) {
+                    topbar.classList.add('hidden');
+                } else {
+                    topbar.classList.remove('hidden');
+                }
+            }
+
+            if (uiMode !== 'nav') {
+                if (lastServerRender) {
+                    screenUI.setLastRender(lastServerRender);
+                }
+            }
+
+            if (pendingType && pendingPrompt) {
+                displayLabel.textContent = `Input: ${pendingPrompt}`;
+            } else if (!buffer) {
+                displayLabel.textContent = 'Ready.';
             }
         }
 
@@ -1120,17 +1154,10 @@
         }
 
         function setMode(mode) {
-            uiMode = mode;
+            uiMode = 'classic';
             keypad.classList.remove('mode-classic', 'mode-nav');
-            keypad.classList.add(mode === 'nav' ? 'mode-nav' : 'mode-classic');
+            keypad.classList.add('mode-classic');
             updateNavKeys();
-            if (mode === 'nav') {
-                setRootMenu();
-                subScreen = 'list';
-                if (fountainValue === 0 && currentScore > 0) {
-                    fountainValue = currentScore;
-                }
-            }
             renderMenu();
         }
 
@@ -1154,23 +1181,9 @@
                 screenUI.renderLast();
                 return;
             }
-            if (subScreen === 'fountain') {
-                renderFountain();
-                return;
-            }
-            displayMessages.classList.add('menu');
+            displayMessages.classList.remove('menu');
             displayMessages.style.overflowY = 'auto';
-            const menu = currentMenu();
-            if (!menu) {
-                displayMessages.innerHTML = '';
-                return;
-            }
-            displayLabel.textContent = menu.title;
-            const items = menu.items.map((item, idx) => {
-                const cls = idx === menuSelection ? 'menu-item selected' : 'menu-item';
-                return `<div class="${cls}">${item.label}</div>`;
-            });
-            displayMessages.innerHTML = items.join('');
+            screenUI.renderLast();
         }
 
         function renderFountain() {
@@ -1531,8 +1544,8 @@
                 const res = await fetch('/api/status');
                 if (!res.ok) {
                     if (statusTimeoutTimer) clearTimeout(statusTimeoutTimer);
-                    showNetworkLost();
                     showLoadscreen();
+                    setConnectionStatus('OFFLINE');
                     statusInFlight = false;
                     return;
                 }
@@ -1540,8 +1553,8 @@
                 if (statusTimeoutTimer) clearTimeout(statusTimeoutTimer);
                 setLoadProgress(100);
                 setLoadMessage('Online');
+                setConnectionStatus('ONLINE');
                 hideLoadscreen();
-                hideNetworkLost();
                 statusInFlight = false;
 
                 if (data.user) {
@@ -1598,6 +1611,7 @@
                 if (data.messages && data.messages.length > 0) {
                     if (uiMode !== 'nav') {
                         screenUI.showFromMessages(data.messages);
+                        lastServerRender = screenUI.getLastRender();
                         showToast(data.messages[data.messages.length - 1]);
                     }
                 }
@@ -1605,7 +1619,7 @@
                 if (statusTimeoutTimer) clearTimeout(statusTimeoutTimer);
                 setLoadMessage('Connecting...');
                 showLoadscreen();
-                showNetworkLost();
+                setConnectionStatus('OFFLINE');
                 statusInFlight = false;
             }
         }
@@ -1798,6 +1812,7 @@
                     setTimeout(() => key.classList.remove('pressed'), 300);
                 } else if (del) {
                     if (screenUI.exitListOrSequence()) {
+                        lastServerRender = null;
                         return;
                     }
                     if (buffer.length === 0) return;
@@ -1926,7 +1941,7 @@
             setMode('classic');
             updateDisplay();
             showLoadscreen();
-            hideNetworkLost();
+            setConnectionStatus('CONNECTING');
             setLoadProgress(10);
             setLoadMessage('DOM ready');
             updateBootStatus();
@@ -1945,21 +1960,13 @@
         });
 
         window.addEventListener('online', () => {
-            hideNetworkLost();
+            setConnectionStatus('ONLINE');
             updateStatus();
         });
 
         window.addEventListener('offline', () => {
-            showNetworkLost();
+            setConnectionStatus('OFFLINE');
         });
-
-        if (networkRetry) {
-            networkRetry.addEventListener('click', () => {
-                showLoadscreen();
-                setLoadMessage('Retrying...');
-                updateStatus();
-            });
-        }
 
         async function cancelPending() {
             try {
