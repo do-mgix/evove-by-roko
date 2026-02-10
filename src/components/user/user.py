@@ -872,6 +872,10 @@ class User:
                 self.add_message("Invalid unit type. Use 1-6.")
                 raise WebInputInterrupt("unit type", type="numeric", options={"create_step": "action_type"})
             clean_data["action_type"] = tipo
+            ui.show_list(
+                ["1", "2", "3", "4", "5"],
+                "DIFFICULTY (1-5)",
+            )
             raise WebInputInterrupt(
                 "difficulty (1-5)",
                 type="numeric",
@@ -895,6 +899,7 @@ class User:
                     options={"create_step": "action_diff", **data},
                 )
             clean_data["action_diff"] = diff
+            ui.show_messages_animated(["Type a name"])
             raise WebInputInterrupt(
                 "action name",
                 type="text",
