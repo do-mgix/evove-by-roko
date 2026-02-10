@@ -1,3 +1,57 @@
+# 3.0.0 (2026-02-10)
+
+### 🚀 Features
+
+- implementation of base user agenda service ([2b8edec](https://github.com/do-mgix/evove-by-roko/commit/2b8edec))
+- web client cancel button ([d70bced](https://github.com/do-mgix/evove-by-roko/commit/d70bced))
+- added terminal based interface ([b3b7567](https://github.com/do-mgix/evove-by-roko/commit/b3b7567))
+- added backup service ([015cfe6](https://github.com/do-mgix/evove-by-roko/commit/015cfe6))
+- implemented cancel behavior to long-press on the delete key ([50edfff](https://github.com/do-mgix/evove-by-roko/commit/50edfff))
+- added T-9 text input ([3ba3b9e](https://github.com/do-mgix/evove-by-roko/commit/3ba3b9e))
+- added autocompletion to log messages ([c2f7880](https://github.com/do-mgix/evove-by-roko/commit/c2f7880))
+- added mode cycle button with and a menu navigation mode ([ab1c170](https://github.com/do-mgix/evove-by-roko/commit/ab1c170))
+- added menu class for navigation mode ([9b7b876](https://github.com/do-mgix/evove-by-roko/commit/9b7b876))
+- added fountain class and foutain sub-screen ([bccfe3f](https://github.com/do-mgix/evove-by-roko/commit/bccfe3f))
+- added loadscreen ([da1e8a6](https://github.com/do-mgix/evove-by-roko/commit/da1e8a6))
+- added parameters and status ([e0efe47](https://github.com/do-mgix/evove-by-roko/commit/e0efe47))
+- added param/action and shop/action relation ([77f1b28](https://github.com/do-mgix/evove-by-roko/commit/77f1b28))
+- implementation of action/param relaction ([e0b0349](https://github.com/do-mgix/evove-by-roko/commit/e0b0349))
+- added new action type (0) and edit option (0) ([ef50546](https://github.com/do-mgix/evove-by-roko/commit/ef50546))
+- added new tag object. removed: param/action relation. removed: poke code ([ab97e64](https://github.com/do-mgix/evove-by-roko/commit/ab97e64))
+- added (99) super list command ([84f21bf](https://github.com/do-mgix/evove-by-roko/commit/84f21bf))
+- **action:** add session-based creation wizard ([a274d9e](https://github.com/do-mgix/evove-by-roko/commit/a274d9e))
+- **action:** add simple creation wizard ([2d2f6a7](https://github.com/do-mgix/evove-by-roko/commit/2d2f6a7))
+- **action:** support id3/id5/id7 and logic types ([63c6c29](https://github.com/do-mgix/evove-by-roko/commit/63c6c29))
+- **param:** add simple creation wizard ([c7fa791](https://github.com/do-mgix/evove-by-roko/commit/c7fa791))
+- **status:** add list commands ([993b12b](https://github.com/do-mgix/evove-by-roko/commit/993b12b))
+- **tutorial:** add tutorial service and messages ([1c5a253](https://github.com/do-mgix/evove-by-roko/commit/1c5a253))
+- **ui:** add screen message renderer ([0347f18](https://github.com/do-mgix/evove-by-roko/commit/0347f18))
+- **ui:** add action sequence view ([a98d70e](https://github.com/do-mgix/evove-by-roko/commit/a98d70e))
+
+### 🩹 Fixes
+
+- refactor on token daily refill method and lock implementation ([26b519f](https://github.com/do-mgix/evove-by-roko/commit/26b519f))
+- removed points display float point ([1c44db7](https://github.com/do-mgix/evove-by-roko/commit/1c44db7))
+- bug of auto confirmation at action execution ([6ad1d99](https://github.com/do-mgix/evove-by-roko/commit/6ad1d99))
+- uses system keyboard instead of custom keyboard ([49c9e0e](https://github.com/do-mgix/evove-by-roko/commit/49c9e0e))
+- removed the startup /api/cancel call ([04e9519](https://github.com/do-mgix/evove-by-roko/commit/04e9519))
+- bug that blocks 4 or 6 inputs in classic mode ([f19afc0](https://github.com/do-mgix/evove-by-roko/commit/f19afc0))
+- bug of offline status in attribute creation ([4d4820c](https://github.com/do-mgix/evove-by-roko/commit/4d4820c))
+- set up waitress flask server with 120s timeout ([0ac7448](https://github.com/do-mgix/evove-by-roko/commit/0ac7448))
+- (99) command auto triggering super attribute show ([3736f5a](https://github.com/do-mgix/evove-by-roko/commit/3736f5a))
+- bug (1) to execute action conflicts with tag id ([6354d1d](https://github.com/do-mgix/evove-by-roko/commit/6354d1d))
+- input (3 to -3) in tag creation in webview version ([43d4ce6](https://github.com/do-mgix/evove-by-roko/commit/43d4ce6))
+- bug of two tag relations of same tag in actions and params ([22f655c](https://github.com/do-mgix/evove-by-roko/commit/22f655c))
+- **action:** show prompts for difficulty and name ([3376bf8](https://github.com/do-mgix/evove-by-roko/commit/3376bf8))
+- **shop:** honor purchases and mark items ([54b62cf](https://github.com/do-mgix/evove-by-roko/commit/54b62cf))
+- **tutorial:** trigger startup tutorial on load ([6366cff](https://github.com/do-mgix/evove-by-roko/commit/6366cff))
+- **ui:** disable connection loss screen ([ec3a69b](https://github.com/do-mgix/evove-by-roko/commit/ec3a69b))
+- **web:** resolve buffer names by prefix ([d0d312b](https://github.com/do-mgix/evove-by-roko/commit/d0d312b))
+
+### ❤️ Thank You
+
+- do-mgix @do-mgix
+
 # Changelog
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
