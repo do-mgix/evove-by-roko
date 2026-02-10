@@ -9,6 +9,7 @@ from src.components.user.statuses.status import Status
 from src.components.user.tags.tag import Tag
 from src.components.services.journal_service import journal_service
 from src.components.services.agenda_service import agenda_service
+from src.components.services.tutorial_service import TutorialService
 
 class User:
     def __init__(self):
@@ -34,9 +35,16 @@ class User:
             "daily_refill": 10,
             "refill_cooldown": 12,
             "refill_cooldown": 12,
-            "last_token_refill": datetime.now().strftime("%Y-%m-%d")
+            "last_token_refill": datetime.now().strftime("%Y-%m-%d"),
+            "tutorial": {
+                "has_created_action": {"status": False, "priority": 10},
+                "welcomed": {"status": False, "priority": 11}
+            }
         }
-        self.load_user()    
+        self.load_user()
+        self._ensure_tutorial_state()
+        self.tutorial = TutorialService(self)
+        self.tutorial.maybe_show_startup()
 
     def refill_daily_tokens(self, now=None):
         """Refill once per day based on date (ignores time)."""
@@ -642,6 +650,7 @@ class User:
         
         self._value = data.get("value", 0)
         self.metadata.update(data.get("metadata", {}))
+        self._ensure_tutorial_state()
         
         self._attributes.clear()
         for attr_id, attr_data in data.get("attributes", {}).items():
@@ -689,6 +698,18 @@ class User:
         for param in self._parameters.values():
             if param.update_value():
                 self._update_statuses_for_param(param)
+        if hasattr(self, "tutorial"):
+            self.tutorial.maybe_show_startup()
+
+    def _ensure_tutorial_state(self):
+        tutorial = self.metadata.get("tutorial")
+        if not isinstance(tutorial, dict):
+            tutorial = {}
+        if "has_created_action" not in tutorial:
+            tutorial["has_created_action"] = {"status": False, "priority": 10}
+        if "welcomed" not in tutorial:
+            tutorial["welcomed"] = {"status": False, "priority": 11}
+        self.metadata["tutorial"] = tutorial
     
     
 
