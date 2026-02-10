@@ -39,6 +39,17 @@
             -webkit-user-select: none;
         }
 
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background: radial-gradient(circle at 50% 85%, rgba(255, 255, 255, 0.08), transparent 45%);
+            mix-blend-mode: screen;
+            opacity: 0.6;
+            z-index: 0;
+        }
+
         #system-input {
             position: absolute;
             opacity: 0;
@@ -63,6 +74,7 @@
             user-select: text;
             -webkit-user-select: text;
             position: relative;
+            z-index: 1;
         }
 
         #phone-display {
@@ -333,6 +345,19 @@
             -webkit-user-select: none;
             opacity: 1;
             pointer-events: auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        #phone-keypad::before {
+            content: '';
+            position: absolute;
+            inset: 10% 8% auto 8%;
+            height: 70%;
+            background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.12), transparent 60%);
+            filter: blur(18px);
+            opacity: 0.35;
+            pointer-events: none;
         }
 
         #phone-keypad.mode-classic .key {
@@ -483,6 +508,7 @@
             -webkit-user-select: none;
             width: var(--key-size);
             height: var(--key-size);
+            box-shadow: 0 0 12px rgba(255, 255, 255, 0.08);
         }
 
         .key.letter {
@@ -494,6 +520,7 @@
         .key:active {
             transform: scale(0.92);
             background: var(--fg);
+            box-shadow: 0 0 18px rgba(255, 255, 255, 0.5);
         }
 
         .key:active .key-number,
@@ -715,6 +742,15 @@
 
         .key.pressed {
             animation: pulse 0.3s ease;
+        }
+
+        #phone-keypad.locked .key {
+            animation: keyBlink 4s ease-in-out infinite;
+        }
+
+        @keyframes keyBlink {
+            0%, 100% { background: transparent; color: var(--fg); }
+            50% { background: #fff; color: #000; }
         }
     </style>
 </head>
@@ -1037,11 +1073,15 @@
         function unlockLockscreen() {
             if (!lockscreen || !lockActive) return;
             lockActive = false;
+            playUnlockJingle();
             lockscreen.classList.remove('dragging');
             lockscreen.classList.add('unlocking');
             lockscreen.addEventListener('transitionend', () => {
                 lockscreen.classList.add('hidden');
             }, { once: true });
+            if (keypad) {
+                keypad.classList.remove('locked');
+            }
         }
 
         function bindLockscreenGestures() {
@@ -1085,6 +1125,9 @@
 
         // HELPERS
         function updateDisplay() {
+            if (lockActive && keypad) {
+                keypad.classList.add('locked');
+            }
             if (buffer) {
                 if (suggestionActive && activeSuggestionDisplay && pendingPrompt === 'log message') {
                     const b = buffer;
@@ -1613,6 +1656,13 @@
                         screenUI.showFromMessages(data.messages);
                         lastServerRender = screenUI.getLastRender();
                         showToast(data.messages[data.messages.length - 1]);
+                        const createHit = data.messages.some((msg) => {
+                            const text = String(msg || '').toLowerCase();
+                            return text.includes(' created ') || text.includes(" created with id") || text.startsWith("action '") && text.includes(' created');
+                        });
+                        if (createHit) {
+                            playCreateJingle();
+                        }
                     }
                 }
             } catch (e) {
@@ -1698,6 +1748,35 @@
             osc.start(now);
             osc.stop(now + duration / 1000 + 0.02);
         }
+
+        function playUnlockJingle() {
+            playTone(900, 60, 'triangle', 0.1);
+            setTimeout(() => playTone(1200, 60, 'triangle', 0.1), 70);
+            setTimeout(() => playTone(1500, 70, 'triangle', 0.11), 140);
+        }
+
+        function playListJingle() {
+            playTone(700, 60, 'triangle', 0.08);
+            setTimeout(() => playTone(980, 60, 'triangle', 0.08), 60);
+        }
+
+        function playActionJingle() {
+            playTone(520, 50, 'sine', 0.08);
+            setTimeout(() => playTone(780, 60, 'triangle', 0.1), 50);
+            setTimeout(() => playTone(1040, 70, 'triangle', 0.11), 120);
+        }
+
+        function playCreateJingle() {
+            playTone(880, 50, 'triangle', 0.09);
+            setTimeout(() => playTone(1320, 70, 'triangle', 0.11), 60);
+            setTimeout(() => playTone(1760, 80, 'triangle', 0.12), 130);
+        }
+
+        function playStatsJingle() {
+            playTone(600, 60, 'sine', 0.08);
+            setTimeout(() => playTone(900, 60, 'triangle', 0.1), 70);
+            setTimeout(() => playTone(1200, 60, 'triangle', 0.1), 140);
+        }
         
         function playDTMF(digit, duration = 100) {
             if (!dtmfFreqs[digit]) return;
@@ -1750,6 +1829,10 @@
                 const confirm = key.dataset.confirm;
                 const del = key.dataset.delete;
                 if (num) {
+                    if (lockActive) {
+                        unlockLockscreen();
+                        return;
+                    }
                     if (uiMode === 'nav' && !pendingType) {
                         const menu = currentMenu();
                         if (!menu || menu.items.length === 0) return;
@@ -1834,6 +1917,10 @@
                     key.classList.add('pressed');
                     setTimeout(() => key.classList.remove('pressed'), 300);
                 } else if (char) {
+                    if (lockActive) {
+                        unlockLockscreen();
+                        return;
+                    }
                     buffer += char;
                     updateDisplay();
                     fetchPreview(buffer);
@@ -1843,6 +1930,10 @@
                     key.classList.add('pressed');
                     setTimeout(() => key.classList.remove('pressed'), 300);
                 } else if (del) {
+                    if (lockActive) {
+                        unlockLockscreen();
+                        return;
+                    }
                     playTone(2800, 60, 'sine', 0.1);
                     if (screenUI.exitListOrSequence()) {
                         lastServerRender = null;
@@ -1857,6 +1948,10 @@
                     updateLogSuggestion();
                     fetchPreview(buffer);
                 } else if (confirm) {
+                    if (lockActive) {
+                        unlockLockscreen();
+                        return;
+                    }
                     playTone(1800, 70, 'triangle', 0.12);
                     if (!pendingType && buffer.length === 0) {
                         if (screenUI.nextListPage()) {
