@@ -179,11 +179,17 @@ class JournalService:
 
     def list_logs(self):
         """Returns last 15 active logs formatted."""
+        self._load_logs_data()
         if not self.logs:
             return ["No logs available."]
         
         # Filter active logs only (ignore DELETED and PROCESSED)
-        active_logs = [log for log in self.logs if log.get("status") not in ["[DELETED]", "[PROCESSED]"]]
+        active_logs = []
+        for log in self.logs:
+            status = str(log.get("status", "")).upper()
+            if "DELETED" in status or "PROCESSED" in status:
+                continue
+            active_logs.append(log)
         
         if not active_logs:
             return ["No active logs available."]
