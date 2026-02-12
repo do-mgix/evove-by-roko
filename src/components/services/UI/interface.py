@@ -130,7 +130,7 @@ class UI:
                     id_val = f"8{payloads[p_idx]}" if p_idx < len(payloads) else "???"
                     nome = self.user._attributes.get(id_val, "...")
                     if hasattr(nome, '_name'): nome = nome._name
-                    status_parts.append(f"{self.WHITE}⚪ ({nome}){self.CLR}")
+                    status_parts.append(f"{self.WHITE}ATTRIBUTES ({nome}){self.CLR}")
                     p_idx += 1
                 elif t == "add":
                     status_parts.append(f"{self.CYAN}Add{self.CLR}")

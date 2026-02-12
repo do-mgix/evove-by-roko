@@ -193,7 +193,7 @@ def command():
                 if next_step:
                     session.pending_input = next_step
                     return jsonify({"completed": True, "clear": True})
-            elif p.startswith("edit action") or p.startswith("edit attribute") or p.startswith("edit parameter") or p.startswith("edit status"):
+            elif p.startswith("edit action") or p.startswith("edit attribute") or p.startswith("edit parameter") or p.startswith("edit status") or p.startswith("edit tag"):
                 step = options.get("edit_step")
                 data = options or {}
                 if step and step.startswith("action_"):
@@ -274,6 +274,8 @@ def command():
                          user.delete_status(payloads, confirmed=True)
                      elif action_type == "delete_parameter":
                          user.delete_parameter(payloads, confirmed=True)
+                     elif action_type == "delete_tag":
+                         user.delete_tag(payloads, confirmed=True)
                      elif action_type == "journal_drop":
                          from src.components.services.journal_service import journal_service
                          result = journal_service.drop_last_day()

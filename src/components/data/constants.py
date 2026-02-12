@@ -63,6 +63,7 @@ COMMANDS = {
     "delete action": {"func": user.delete_action},
     "delete status": {"func": user.delete_status},
     "delete param": {"func": user.delete_parameter},
+    "delete tag": {"func": user.delete_tag},
     "add add attr": {"func": user.create_attribute_by_id},
     "attr add attr": {"func": user.attribute_add_child},
     "status add": {"func": user.activate_status},
@@ -77,6 +78,7 @@ COMMANDS = {
     "attr delete": {"func": user.edit_attribute},
     "param delete": {"func": user.edit_parameter},
     "status delete": {"func": user.edit_status},
+    "tag delete": {"func": user.edit_tag},
 
 }
 

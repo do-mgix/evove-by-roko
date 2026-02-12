@@ -939,6 +939,8 @@
         let pendingPrompt = '';
         let executing = false;
         let pendingType = '';
+        let pendingPrefillApplied = false;
+        let pendingPrefillKey = '';
         let lastTapKey = null;
         let lastTapIndex = 0;
         let lastTapTime = 0;
@@ -1653,12 +1655,22 @@
                 if (data.pending) {
                     pendingPrompt = data.pending.prompt || 'required';
                     pendingType = data.pending.type || '';
+                    const prefill = data.pending.options ? data.pending.options.prefill : '';
+                    const prefillKey = `${pendingPrompt}::${prefill || ''}`;
+                    if (prefillKey !== pendingPrefillKey) {
+                        pendingPrefillApplied = false;
+                        pendingPrefillKey = prefillKey;
+                    }
                     if (data.pending.type === 'text') {
                         inputMode = 'text';
                         displayLabel.textContent = `Input: ${pendingPrompt}`;
                         keypad.classList.add('text-input-active');
                         if (pendingPrompt === 'log message' && logSuggestions.length === 0) {
                             fetchLogSuggestions().then(updateLogSuggestion);
+                        }
+                        if (!pendingPrefillApplied && prefill && buffer.length === 0) {
+                            buffer = prefill;
+                            pendingPrefillApplied = true;
                         }
                     } else {
                         inputMode = 'dial';
@@ -1673,6 +1685,8 @@
                 } else {
                     pendingPrompt = '';
                     pendingType = '';
+                    pendingPrefillApplied = false;
+                    pendingPrefillKey = '';
                     if (inputMode !== 'dial') {
                         inputMode = 'dial';
                     }
