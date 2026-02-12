@@ -583,7 +583,7 @@ class User:
             return
         logs = journal_service.list_logs()
         from src.components.services.UI.interface import ui
-        ui.show_list(logs, "CURRENT LOG BUFFER")
+        ui.render_terminal(title="CURRENT LOG BUFFER", items=logs)
 
     def drop_last_log_buffer(self):
         if self._check_sleep():
@@ -611,8 +611,7 @@ class User:
             return
         logs = journal_service.list_days()
         from src.components.services.UI.interface import ui
-        # Using show_list to display the file content
-        ui.show_list(logs, "EVOVE26 FILE CONTENT")
+        ui.render_terminal(title="EVOVE26 FILE CONTENT", items=logs)
 
     def delete_sequence(self, index=None):
         if self._check_sleep():

@@ -177,6 +177,34 @@ class UI:
             wait_time = len(msg) * 0.05
             time.sleep(wait_time)
 
+    def render_terminal(self, title=None, items=None, messages=None, wait=True):
+        """Renders a terminal-style view: clear once, then print content."""
+        if self.web_mode:
+            if title:
+                self.web_buffer.append(f"--- {title} ---")
+            if items:
+                for item in items:
+                    self.web_buffer.append(item)
+            if messages:
+                for msg in messages:
+                    self.web_buffer.append(msg)
+            return
+
+        self.clear_screen()
+        if title:
+            print(f"{self.CYAN}{self.BOLD}{' ' * 8}{title}{self.CLR}\n")
+
+        if items:
+            for item in items:
+                print(f"{self.WHITE}{item}{self.CLR}")
+
+        if messages:
+            for msg in messages:
+                print(msg)
+        if wait:
+            print(f"\n{self.GREEN}[ Press any key to continue ]{self.CLR}")
+            readchar.readkey()
+
     def show_list(self, items, title, limit=20):
         if self.web_mode:
             self.web_buffer.append(f"--- {title} ---")
