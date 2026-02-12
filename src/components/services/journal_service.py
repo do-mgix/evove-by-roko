@@ -216,7 +216,9 @@ class JournalService:
         formatted = []
         for log in recent:
             # Format: [dd mm yy : hh:mm:ss ] log 1 [STATUS]
-            line = f"[{log['timestamp']} ] {log['content']} {log['status']}"
+            log_id = log.get("id")
+            id_str = f"{log_id}" if log_id is not None else "----"
+            line = f"[{id_str}] [{log['timestamp']} ] {log['content']} {log['status']}"
             formatted.append(line)
         return formatted
     
