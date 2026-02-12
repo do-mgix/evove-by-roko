@@ -94,7 +94,15 @@ class DialDigest:
         # Not enough digits for id5 yet: treat as id3 but mark ambiguous.
         return {"label": "action", "len": 2, "ambiguous": True}
 
+    def _normalize_buffer(self, buffer):
+        if not buffer:
+            return buffer
+        if all(c.isdigit() or c == " " for c in buffer):
+            return buffer.replace(" ", "")
+        return buffer
+
     def get_state(self, buffer):
+        buffer = self._normalize_buffer(buffer)
         if not buffer:
             return {"remaining": 0, "ambiguous": False, "complete": False}
 
@@ -151,6 +159,7 @@ class DialDigest:
         return self.get_state(buffer)["remaining"]
 
     def parse_buffer(self, buffer):
+        buffer = self._normalize_buffer(buffer)
         for cmd_prefix, info in self.SINGLE_COMMANDS.items():
             if buffer.startswith(cmd_prefix):
                 payload_len = info["len"]
@@ -182,6 +191,7 @@ class DialDigest:
         return " ".join(tokens), payloads, False
 
     def process(self, buffer, force=False):
+        buffer = self._normalize_buffer(buffer)
         # Call internal method using self
         state = self.get_state(buffer)
         faltando = state["remaining"]

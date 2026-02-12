@@ -585,6 +585,27 @@ class User:
         from src.components.services.UI.interface import ui
         ui.render_terminal(title="CURRENT LOG BUFFER", items=logs)
 
+    def up_log_day(self, payloads=None):
+        if self._check_sleep():
+            return
+        payload = payloads[0] if payloads else ""
+        raw = str(payload).strip()
+        if not raw.isdigit():
+            self.add_message("Invalid log id payload.")
+            return
+        # Accept either 4-digit payload (appends prefix) or 5-digit payload (full id without leading "7")
+        if len(raw) == journal_service.log_id_width:
+            raw = raw.zfill(journal_service.log_id_width)
+            full_id = int(f"{journal_service.log_id_prefix}{raw}")
+        elif len(raw) == journal_service.log_id_width + 1:
+            full_id = int(f"7{raw}")
+        else:
+            self.add_message("Invalid log id payload length.")
+            return
+        result = journal_service.up_log_day(full_id)
+        self.add_message(result)
+        self.save_user()
+
     def drop_last_log_buffer(self):
         if self._check_sleep():
             return

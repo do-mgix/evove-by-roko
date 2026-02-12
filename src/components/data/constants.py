@@ -11,7 +11,7 @@ OBJECTS = {
     "4": {"len": 2, "label": "status"},
     "1": {"len": 2, "label": "tag"},
     "3": {"len": 2, "label": "shop_item"}, 
-    "7": {"len": 0, "label": "log"},
+    "7": {"len": 5, "label": "log"},
     "47": {"len": 0, "label": "sequence"},
 }
 
@@ -79,6 +79,7 @@ COMMANDS = {
     "param delete": {"func": user.edit_parameter},
     "status delete": {"func": user.edit_status},
     "tag delete": {"func": user.edit_tag},
+    "log act": {"func": user.up_log_day},
 
 }
 

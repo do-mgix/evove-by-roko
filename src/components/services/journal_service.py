@@ -7,7 +7,7 @@ from src.components.services.sequence_service import sequence_service
 
 class JournalService:
     def __init__(self):
-        self.log_id_prefix = 47
+        self.log_id_prefix = 73
         self.log_id_width = 4
         # Paths
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -88,6 +88,16 @@ class JournalService:
         except Exception:
             return None
         return None
+
+    def _is_date_header_line(self, line):
+        line = line.strip()
+        if line.startswith("[") and line.endswith("]") and len(line) == 12:
+            try:
+                datetime.strptime(line, "[%d/%m/%Y]")
+                return True
+            except ValueError:
+                return False
+        return False
 
     def add_log(self, text, manual_date=None, auto_confirm=False, custom_status=None):
         """Adds a log entry to both evove26 and logs.json."""
@@ -304,6 +314,88 @@ class JournalService:
     def drop_last_day(self):
         """Alias for 007 - Drops last, same as 07 in this new single-file context."""
         return self.drop_last_buffer_entry()
+
+    def up_log_day(self, log_id):
+        """Moves a log entry to the previous day (logs.json + evove26)."""
+        self._load_logs_data()
+        target = None
+        for log in self.logs:
+            try:
+                if int(log.get("id")) == int(log_id):
+                    target = log
+                    break
+            except (TypeError, ValueError):
+                continue
+
+        if not target:
+            return f"Log id {log_id} not found."
+
+        status = str(target.get("status", "")).upper()
+        if "DELETED" in status:
+            return f"Log {log_id} moved in evove26 (deleted log)."
+        if status == "[TO PROCESS]":
+            return f"Log {log_id} moved to previous day."
+        if "CLOUD" not in status:
+            return f"Log {log_id} not moved. Only [CLOUD] logs can be upped."
+
+        if not os.path.exists(self.journal_file):
+            return f"Log {log_id} not moved. Journal file not found."
+
+        content = target.get("content", "").strip()
+        if not content:
+            return f"Log {log_id} not moved. Empty content in journal."
+
+        try:
+            with open(self.journal_file, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+
+            # Remove last matching line and capture its header position
+            header_indices = [i for i, line in enumerate(lines) if self._is_date_header_line(line)]
+            removed = False
+            old_header_idx = None
+            old_header_line = None
+            for i in range(len(lines) - 1, -1, -1):
+                if lines[i].strip() == content:
+                    # find nearest header above
+                    for h in reversed(header_indices):
+                        if h < i:
+                            old_header_idx = h
+                            old_header_line = lines[h].strip()
+                            break
+                    lines.pop(i)
+                    removed = True
+                    break
+
+            if not removed or old_header_idx is None or not old_header_line:
+                return f"Log {log_id} not moved. Entry not found in evove26."
+
+            # Find previous day header (nearest header above the old one)
+            prev_header_idx = None
+            for h in reversed(header_indices):
+                if h < old_header_idx:
+                    prev_header_idx = h
+                    break
+
+            if prev_header_idx is None:
+                return f"Log {log_id} not moved. No previous day header."
+
+            # Insert under the last day log (before first blank line in that day, if any)
+            header_indices = [i for i, line in enumerate(lines) if self._is_date_header_line(line)]
+            next_header_idx = next((i for i in header_indices if i > prev_header_idx), len(lines))
+            insert_idx = next_header_idx
+            for i in range(prev_header_idx + 1, next_header_idx):
+                if lines[i].strip() == "":
+                    insert_idx = i
+                    break
+            lines.insert(insert_idx, f"{content}\n")
+
+            with open(self.journal_file, "w", encoding="utf-8") as f:
+                f.writelines(lines)
+
+        except Exception as e:
+            return f"Log {log_id} not moved. Journal update failed: {e}"
+
+        return f"Log {log_id} moved to previous day."
 
     def _git_push(self):
         """Commits and pushes changes to Git with enhanced error handling."""
