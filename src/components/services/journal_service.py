@@ -7,6 +7,8 @@ from src.components.services.sequence_service import sequence_service
 
 class JournalService:
     def __init__(self):
+        self.log_id_prefix = 47
+        self.log_id_width = 4
         # Paths
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         self.logs_data_path = os.path.join(base_dir, "data", "logs.json")
@@ -17,6 +19,21 @@ class JournalService:
         
         self.logs = []
         self._load_logs_data()
+
+    def _next_log_id(self):
+        """Returns the next sequential log id (e.g. 470001)."""
+        max_id = 0
+        for log in self.logs:
+            log_id = log.get("id")
+            try:
+                val = int(log_id)
+            except (TypeError, ValueError):
+                continue
+            if val > max_id:
+                max_id = val
+        if max_id <= 0:
+            return int(f"{self.log_id_prefix}{1:0{self.log_id_width}d}")
+        return max_id + 1
 
     def _load_logs_data(self):
         """Loads structured log data."""
@@ -118,6 +135,7 @@ class JournalService:
 
         # 2. Add to logs.json
         entry = {
+            "id": self._next_log_id(),
             "timestamp": timestamp_str,
             "content": text.strip(),
             "status": status
