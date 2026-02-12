@@ -1424,6 +1424,22 @@ class User:
             options={"edit_step": "status_name", "status_id": status_id, "autocomplete": "names"},
         )
 
+    def edit_tag(self, payloads):
+        if not payloads or not payloads[0]:
+            self.add_message("Invalid tag ID.")
+            return
+        tag_id = f"1{payloads[0]}"
+        tag = self._tags.get(tag_id)
+        if not tag:
+            self.add_message(f"Tag ID ({tag_id}) not found")
+            return
+        from src.components.services.UI.interface import WebInputInterrupt
+        raise WebInputInterrupt(
+            "edit tag name (blank keep)",
+            type="text",
+            options={"edit_step": "tag_name", "tag_id": tag_id, "autocomplete": "names"},
+        )
+
     def misc_edit_next(self, step, data, value):
         data = dict(data or {})
         val = value if value is not None else ""
@@ -1509,6 +1525,17 @@ class User:
                 except Exception:
                     pass
             self.add_message(f"Status {status._name} ({status._id}) updated.")
+            self.save_user()
+            return None
+
+        if step == "tag_name":
+            tag = self._tags.get(data.get("tag_id"))
+            if not tag:
+                self.add_message("Tag not found.")
+                return None
+            if val.strip():
+                tag._name = val.strip()
+            self.add_message(f"Tag {tag._name} ({tag._id}) updated.")
             self.save_user()
             return None
 
@@ -2027,6 +2054,47 @@ class User:
 
         self._parameters.pop(payload_id, None)
         self.add_message(f"Parameter {param._name} ({param._id}) deleted.")
+        self.save_user()
+
+    def delete_tag(self, payloads, confirmed=None):
+        payload_id = f"1{payloads[0]}"
+        tag = self._tags.get(payload_id)
+
+        if not tag:
+            self.add_message(f"Tag ID ({payload_id}) not found")
+            return
+
+        from src.components.services.UI.interface import ui, WebInputInterrupt
+        if confirmed is True:
+            pass
+        elif ui.web_mode:
+            import random
+            code = "".join([str(random.randint(0, 9)) for _ in range(3)])
+            self.add_message(f"Delete {tag._name} ({tag._id})?")
+            self.add_message(f"Type the code: {code}")
+            raise WebInputInterrupt(
+                f"Confirm code: {code}",
+                type="confirm",
+                options={"code": code, "payloads": payloads, "action": "delete_tag"},
+            )
+        elif not ui.ask_confirmation(f"Delete tag {tag._name} ({tag._id})?"):
+            return
+
+        self._tags.pop(payload_id, None)
+        for action_id, links in list(self._action_tags.items()):
+            new_links = [link for link in links if link.get("tag_id") != payload_id]
+            if new_links:
+                self._action_tags[action_id] = new_links
+            else:
+                self._action_tags.pop(action_id, None)
+        for param_id, links in list(self._param_tags.items()):
+            new_links = [link for link in links if link.get("tag_id") != payload_id]
+            if new_links:
+                self._param_tags[param_id] = new_links
+            else:
+                self._param_tags.pop(param_id, None)
+
+        self.add_message(f"Tag {tag._name} ({tag._id}) deleted.")
         self.save_user()
 
     def attribute_add_action(self, payloads):
