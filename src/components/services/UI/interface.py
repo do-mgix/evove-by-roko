@@ -199,6 +199,21 @@ class UI:
         page_idx = 0
 
         try:
+            stop_event = None
+            if num_pages > 1:
+                import threading
+
+                stop_event = threading.Event()
+
+                def _wait_for_key():
+                    try:
+                        readchar.readkey()
+                    except Exception:
+                        pass
+                    stop_event.set()
+
+                threading.Thread(target=_wait_for_key, daemon=True).start()
+
             while True:
                 self.clear_screen()
                 print(f"{self.CYAN}{self.BOLD}{' ' * 8}{title} (Page {page_idx + 1}/{num_pages}){self.CLR}\n")
@@ -220,17 +235,14 @@ class UI:
                     print(f"\n{self.YELLOW}>>> Cycling pages every 1s... Press any key to stop <<<{self.CLR}")
                 else:
                     print(f"\n{self.GREEN}[ Press any key to continue ]{self.CLR}")
+                    readchar.readkey()
+                    return
 
-                # Wait for key press to continue or return
-                readchar.readkey()
-                return
-                
-                if num_pages > 1:
-                    page_idx = (page_idx + 1) % num_pages
-                else:
-                    # If only one page, we could either return after 1s or keep showing it.
-                    # Usually for 1 page, waiting for a key is better, but to be consistent:
-                    pass
+                if stop_event and stop_event.is_set():
+                    return
+
+                time.sleep(1)
+                page_idx = (page_idx + 1) % num_pages
         except Exception as e:
             # Fallback if cycling fails (e.g. terminal issues)
             print(f"\nError: {e}")
