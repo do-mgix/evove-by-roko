@@ -613,6 +613,26 @@ class User:
         self.add_message(result)
         self.save_user()
 
+    def delete_log(self, payloads=None):
+        if self._check_sleep():
+            return
+        payload = payloads[0] if payloads else ""
+        raw = str(payload).strip()
+        if not raw.isdigit():
+            self.add_message("Invalid log id payload.")
+            return
+        if len(raw) == journal_service.log_id_width:
+            raw = raw.zfill(journal_service.log_id_width)
+            full_id = int(f"{journal_service.log_id_prefix}{raw}")
+        elif len(raw) == journal_service.log_id_width + 1:
+            full_id = int(f"7{raw}")
+        else:
+            self.add_message("Invalid log id payload length.")
+            return
+        result = journal_service.delete_log_by_id(full_id)
+        self.add_message(result)
+        self.save_user()
+
     def drop_last_log_buffer(self):
         if self._check_sleep():
             return
