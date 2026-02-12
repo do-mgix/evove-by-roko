@@ -44,6 +44,7 @@ SINGLE_COMMANDS = {
     "999": {"len": 0, "func": user.show_user_info, "label": "show_user_info"},
     "997": {"len": 0, "func": user.list_days, "label": "list_days"},
     "07": {"len": 0, "func": user.drop_last_log_buffer, "label": "drop_log"},
+    "17": {"len": 0, "func": user.up_current_day, "label": "up_day"},
     "007": {"len": 0, "func": user.drop_last_day, "label": "drop_day"},
     "71": {"len": 0, "func": user.wake, "label": "wake"},
     "70": {"len": 0, "func": user.sleep, "label": "sleep"},

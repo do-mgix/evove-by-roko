@@ -606,6 +606,13 @@ class User:
         self.add_message(result)
         self.save_user()
 
+    def up_current_day(self):
+        if self._check_sleep():
+            return
+        result = journal_service.up_current_day()
+        self.add_message(result)
+        self.save_user()
+
     def drop_last_log_buffer(self):
         if self._check_sleep():
             return

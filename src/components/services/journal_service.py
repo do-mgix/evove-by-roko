@@ -397,6 +397,87 @@ class JournalService:
 
         return f"Log {log_id} moved to previous day."
 
+    def up_current_day(self):
+        """Moves all today's [CLOUD] logs to the previous day in evove26."""
+        self._load_logs_data()
+        today_str = datetime.now().strftime("%d %m %Y")
+        candidates = {}
+        for log in self.logs:
+            status = str(log.get("status", "")).upper()
+            if "CLOUD" not in status:
+                continue
+            ts = str(log.get("timestamp", ""))
+            if not ts.startswith(today_str):
+                continue
+            content = str(log.get("content", "")).strip()
+            if not content:
+                continue
+            candidates[content] = candidates.get(content, 0) + 1
+
+        if not candidates:
+            return "No [CLOUD] logs for today."
+
+        if not os.path.exists(self.journal_file):
+            return "Journal file not found."
+
+        today_header = datetime.now().strftime("[%d/%m/%Y]")
+
+        try:
+            with open(self.journal_file, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+
+            header_indices = [i for i, line in enumerate(lines) if self._is_date_header_line(line)]
+            today_idx = next((i for i in header_indices if lines[i].strip() == today_header), None)
+            if today_idx is None:
+                return "Today's header not found in evove26."
+
+            prev_header_idx = None
+            for h in reversed(header_indices):
+                if h < today_idx:
+                    prev_header_idx = h
+                    break
+            if prev_header_idx is None:
+                return "No previous day header."
+
+            next_header_idx = next((i for i in header_indices if i > today_idx), len(lines))
+
+            moved_lines = []
+            remove_indices = []
+            for i in range(today_idx + 1, next_header_idx):
+                line = lines[i].strip()
+                if not line:
+                    continue
+                if line in candidates and candidates[line] > 0:
+                    moved_lines.append(lines[i])
+                    remove_indices.append(i)
+                    candidates[line] -= 1
+
+            if not moved_lines:
+                return "No matching [CLOUD] logs found in evove26."
+
+            for i in reversed(remove_indices):
+                lines.pop(i)
+
+            # Insert under the last day log (before first blank line in that day, if any)
+            header_indices = [i for i, line in enumerate(lines) if self._is_date_header_line(line)]
+            next_prev_header_idx = next((i for i in header_indices if i > prev_header_idx), len(lines))
+            insert_idx = next_prev_header_idx
+            for i in range(prev_header_idx + 1, next_prev_header_idx):
+                if lines[i].strip() == "":
+                    insert_idx = i
+                    break
+
+            for offset, line in enumerate(moved_lines):
+                lines.insert(insert_idx + offset, line)
+
+            with open(self.journal_file, "w", encoding="utf-8") as f:
+                f.writelines(lines)
+
+        except Exception as e:
+            return f"Failed to move logs: {e}"
+
+        return f"Moved {len(moved_lines)} logs to previous day."
+
     def _git_push(self):
         """Commits and pushes changes to Git with enhanced error handling."""
         if not os.path.exists(self.journal_dir):
