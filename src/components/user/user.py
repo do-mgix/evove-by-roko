@@ -306,15 +306,15 @@ class User:
         
         # Daily Aggregation Logic -> Immediate Log (TO PROCESS)
         action_name = action.name
-        executed_value = value if value else 1
-        
+        executed_value = value if value is not None else value_difference
+
         try:
-            val_int = int(executed_value)
-        except:
-            val_int = 1 
-            
+            val_num = float(executed_value)
+        except Exception:
+            val_num = 1
+
         # Log to logs.json only (TO PROCESS)
-        journal_service.add_log(f"{val_int} {action_name.upper()}", auto_confirm=True, custom_status="[TO PROCESS]")
+        journal_service.add_log(f"{int(round(val_num))} {action_name.upper()}", auto_confirm=True, custom_status="[TO PROCESS]")
 
         # Adiciona mensagens da action
         for msg in action_messages:

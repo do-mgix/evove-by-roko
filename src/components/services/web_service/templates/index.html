@@ -1675,6 +1675,10 @@
                     } else {
                         inputMode = 'dial';
                         keypad.classList.remove('text-input-active');
+                        if (!pendingPrefillApplied && buffer.length > 0) {
+                            buffer = '';
+                            pendingPrefillApplied = true;
+                        }
                     }
                     // cancel button removed; handled via long-press delete
                     if (data.pending.type !== 'text') {
