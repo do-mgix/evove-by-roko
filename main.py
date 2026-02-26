@@ -1,12 +1,5 @@
-import sys
-import json
+from apps.cli.main import main
 
-sys.path.append("src")
 
-from src.components.services.system import dial_start 
-
-def main():    
-   dial_start() 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
