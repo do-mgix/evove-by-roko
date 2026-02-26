@@ -4,7 +4,7 @@ import sys
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(REPO_ROOT))
 
-from src.components.services.system import dial_start
+from src.interfaces.cli.system import dial_start
 
 
 def main():

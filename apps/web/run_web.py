@@ -9,7 +9,7 @@ except Exception:
     serve = None
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-APP_MODULE_PATH = REPO_ROOT / "src" / "components" / "services" / "web_service" / "app.py"
+APP_MODULE_PATH = REPO_ROOT / "src" / "interfaces" / "web" / "app.py"
 sys.path.append(str(REPO_ROOT))
 
 
@@ -19,7 +19,7 @@ def run():
     env["PYTHONPATH"] = str(REPO_ROOT)
     try:
         if serve is not None:
-            from src.components.services.web_service.app import app
+            from src.interfaces.web.app import app
             serve(app, host="0.0.0.0", port=5000, channel_timeout=120)
         else:
             print("Waitress not installed; falling back to Flask dev server.")

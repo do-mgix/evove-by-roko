@@ -7,9 +7,12 @@ Tags describe actions and attributes to connect related behavior.
 Parameters and statuses track internal state and conditions over time.
 
 **Structure**
-- `src/`: core domain + services
+- `src/domain/`: entities + rules
+- `src/application/`: use-cases/services
+- `src/interfaces/`: web + cli adapters
+- `src/infrastructure/`: persistence + assets
 - `apps/cli/`: terminal client entrypoint
-- `apps/web/`: Flask web server entrypoint (serves `src/components/services/web_service`)
+- `apps/web/`: Flask web server entrypoint (serves `src/interfaces/web`)
 - `apps/android/`: Android WebView client (Kotlin + Gradle)
 
 **Run Clients**
