@@ -4,20 +4,20 @@ __pycache__/
 *.pyo
 *.bk
 
+# Runtime data (do not version)
+src/infrastructure/data/user.json
+src/infrastructure/data/logs.json
+src/infrastructure/data/sequences.json
+src/infrastructure/data/sleep_data.json
+src/infrastructure/data/agenda.json
+src/infrastructure/data/user.json.lock
+src/infrastructure/data/user_history.json
+src/infrastructure/data/fountain.json
 
-src/data/user.json
-src/data/logs.json
-src/data/sequences.json
-src/data/sleep_data.json
-src/data/agenda.json
-src/data/user.json.lock
-src/data/user_history.json
 implement.md
 node_modules/
 
 tests/
-
-
 
 .nx/cache
 .nx/workspace-data

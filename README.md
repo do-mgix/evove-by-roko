@@ -6,6 +6,24 @@ Actions are what you do. Attributes summarize long-term focus areas.
 Tags describe actions and attributes to connect related behavior.
 Parameters and statuses track internal state and conditions over time.
 
+**Structure**
+- `src/domain/`: entities + rules
+- `src/application/`: use-cases/services
+- `src/interfaces/`: web + cli adapters
+- `src/infrastructure/`: persistence + assets
+- `apps/cli/`: terminal client entrypoint
+- `apps/web/`: Flask web server entrypoint (serves `src/interfaces/web`)
+- `apps/android/`: Android WebView client (Kotlin + Gradle)
+
+**Run Clients**
+- CLI: `python main.py` (wrapper) or `python apps/cli/main.py`
+- Web: `python run_web.py` (wrapper) or `python apps/web/run_web.py`
+- Android: open `apps/android` in Android Studio and run. Adjust `@string/base_url` in `apps/android/app/src/main/res/values/strings.xml` to your Flask server URL (emulator default is `http://10.0.2.2:5000/`). Gradle wrapper is not included; generate via Android Studio or `gradle wrapper` if you want one.
+
+**Docker Compose**
+- Web: `docker compose up --build web`
+- CLI: `docker compose run --rm cli`
+
 **Commands**
 Objects:
 - `8` → `attr`
