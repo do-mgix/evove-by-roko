@@ -20,6 +20,10 @@ Parameters and statuses track internal state and conditions over time.
 - Web: `python run_web.py` (wrapper) or `python apps/web/run_web.py`
 - Android: open `apps/android` in Android Studio and run. Adjust `@string/base_url` in `apps/android/app/src/main/res/values/strings.xml` to your Flask server URL (emulator default is `http://10.0.2.2:5000/`). Gradle wrapper is not included; generate via Android Studio or `gradle wrapper` if you want one.
 
+**Docker Compose**
+- Web: `docker compose up --build web`
+- CLI: `docker compose run --rm cli`
+
 **Commands**
 Objects:
 - `8` → `attr`

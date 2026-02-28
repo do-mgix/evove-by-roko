@@ -430,7 +430,7 @@
             "value": -3.0,
             "regen_type": 2,
             "regen_factor": 3,
-            "last_check": "2026-02-26T07:00:35.076678"
+            "last_check": "2026-02-28T14:49:53.849550"
         },
         "602": {
             "id": "602",
@@ -440,7 +440,7 @@
             "value": 100.0,
             "regen_type": 1,
             "regen_factor": 2,
-            "last_check": "2026-02-26T07:00:35.076716"
+            "last_check": "2026-02-28T14:49:53.849577"
         },
         "603": {
             "id": "603",
@@ -450,7 +450,7 @@
             "value": 0.0,
             "regen_type": 2,
             "regen_factor": 3,
-            "last_check": "2026-02-26T07:00:35.076738"
+            "last_check": "2026-02-28T14:49:53.849593"
         },
         "604": {
             "id": "604",
@@ -460,7 +460,7 @@
             "value": -3.0,
             "regen_type": 2,
             "regen_factor": 2,
-            "last_check": "2026-02-26T07:00:35.076750"
+            "last_check": "2026-02-28T14:49:53.849603"
         },
         "605": {
             "id": "605",
@@ -480,7 +480,7 @@
             "value": 100.0,
             "regen_type": 1,
             "regen_factor": 4,
-            "last_check": "2026-02-26T07:00:35.076760"
+            "last_check": "2026-02-28T14:49:53.849613"
         },
         "607": {
             "id": "607",
@@ -490,7 +490,7 @@
             "value": 0.0,
             "regen_type": 2,
             "regen_factor": 3,
-            "last_check": "2026-02-26T07:00:35.076770"
+            "last_check": "2026-02-28T14:49:53.849623"
         },
         "608": {
             "id": "608",
@@ -500,7 +500,7 @@
             "value": 0.0,
             "regen_type": 2,
             "regen_factor": 1,
-            "last_check": "2026-02-26T07:00:35.076779"
+            "last_check": "2026-02-28T14:49:53.849632"
         },
         "609": {
             "id": "609",
@@ -510,7 +510,7 @@
             "value": -3.0,
             "regen_type": 2,
             "regen_factor": 4,
-            "last_check": "2026-02-26T07:00:35.076802"
+            "last_check": "2026-02-28T14:49:53.849641"
         },
         "610": {
             "id": "610",
@@ -520,7 +520,7 @@
             "value": 100.0,
             "regen_type": 1,
             "regen_factor": 1,
-            "last_check": "2026-02-26T07:00:35.076812"
+            "last_check": "2026-02-28T14:49:53.849650"
         },
         "611": {
             "id": "611",
@@ -530,7 +530,7 @@
             "value": 0.0,
             "regen_type": 2,
             "regen_factor": 1,
-            "last_check": "2026-02-26T07:00:35.076821"
+            "last_check": "2026-02-28T14:49:53.849660"
         }
     },
     "statuses": {
@@ -544,8 +544,8 @@
                     "value": 60
                 }
             ],
-            "active_from": "2026-02-26T07:00:35.076726",
-            "active_until": "2026-02-26T07:30:35.076726"
+            "active_from": "2026-02-28T14:49:53.849585",
+            "active_until": "2026-02-28T15:19:53.849585"
         }
     },
     "shop_action_links": {
@@ -799,7 +799,7 @@
         "max_tokens": 50,
         "daily_refill": 10,
         "refill_cooldown": 12,
-        "last_token_refill": "2026-02-26",
+        "last_token_refill": "2026-02-28",
         "tutorial": {
             "has_created_action": {
                 "status": true,
