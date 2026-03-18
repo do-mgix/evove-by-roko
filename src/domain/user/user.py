@@ -582,7 +582,23 @@ class User:
             return
         logs = journal_service.list_logs()
         from src.interfaces.cli.ui.interface import ui
-        ui.render_terminal(title="CURRENT LOG BUFFER", items=logs)
+        table_rows = []
+        for line in logs:
+            text = str(line)
+            if text.startswith("[") and "]" in text:
+                first_end = text.find("]")
+                log_id = text[1:first_end].strip() or "----"
+                label = text[first_end + 1:].strip()
+            else:
+                log_id = "----"
+                label = text
+            table_rows.append({"id": log_id, "label": label})
+        ui.show_vertical_list(
+            table_rows,
+            "CURRENT LOG BUFFER",
+            mode="table",
+            columns=[("id", "ID"), ("label", "HISTÓRICO")],
+        )
 
     def up_log_day(self, payloads=None):
         if self._check_sleep():
@@ -658,7 +674,7 @@ class User:
             return
         logs = journal_service.list_days()
         from src.interfaces.cli.ui.interface import ui
-        ui.render_terminal(title="EVOVE26 FILE CONTENT", items=logs)
+        ui.show_vertical_list(logs, "EVOVE26 FILE CONTENT", mode="plain")
 
     def delete_sequence(self, index=None):
         if self._check_sleep():

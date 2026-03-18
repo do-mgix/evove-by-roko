@@ -226,7 +226,7 @@ class JournalService:
         return f"Processed {len(to_process_indices)} entries."
 
     def list_logs(self):
-        """Returns last 15 active logs formatted."""
+        """Returns all active logs formatted."""
         self._load_logs_data()
         if not self.logs:
             return ["No logs available."]
@@ -242,9 +242,8 @@ class JournalService:
         if not active_logs:
             return ["No active logs available."]
 
-        recent = active_logs[-15:]
         formatted = []
-        for log in recent:
+        for log in active_logs:
             # Format: [dd mm yy : hh:mm:ss ] log 1 [STATUS]
             log_id = log.get("id")
             id_str = f"{log_id}" if log_id is not None else "----"

@@ -67,17 +67,18 @@ def dial_start():
             em.check_and_spawn()
             cm.update()
 
-            # Blocking key read - much better for performance
             key = readchar.readkey()
             
-            if key in (readchar.key.BACKSPACE, '\x7f', '\x08'):
+            if key in ('\b', '\x7f', '\x08'):
                 buffer = buffer[:-1]
-            elif key == readchar.key.ENTER or key == '\r' or key == '\n':
+            elif key in ('\r', '\n'):
                 # If Enter is pressed, process buffer
                 try:
+                    submitted_command = buffer
                     completed, result = dial.process(buffer, force=True)
                     if completed:
                         buffer = ""
+                        ui.add_command_history(submitted_command)
                         _handle_result(result, em, ui)
                 except Exception as e:
                     # In case of WebInputInterrupt, we need to import it inside to avoid circular imports if possible
@@ -234,10 +235,12 @@ def dial_start():
 
             if not buffer.startswith(':') and not buffer.startswith('/'):
                 try:
+                    submitted_command = buffer
                     completed, result = dial.process(buffer, force=False)
                     
                     if completed:
                         buffer = ""
+                        ui.add_command_history(submitted_command)
                         _handle_result(result, em, ui)
                 except Exception as e:
                      from src.interfaces.cli.ui.interface import WebInputInterrupt

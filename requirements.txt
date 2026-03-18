@@ -2,3 +2,4 @@ flask==3.0.2
 waitress==3.0.0
 readchar==4.0.5
 pyinstaller==5.13.2
+rich==13.9.4
