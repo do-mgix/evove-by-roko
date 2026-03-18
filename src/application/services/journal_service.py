@@ -4,14 +4,15 @@ import subprocess
 from datetime import datetime, timedelta
 from src.application.services.sleep_service import sleep_service
 from src.application.services.sequence_service import sequence_service
+from src.infrastructure.storage import get_evove_data_dir
 
 class JournalService:
     def __init__(self):
         self.log_id_prefix = 73
         self.log_id_width = 4
         # Paths
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        self.logs_data_path = os.path.join(base_dir, "infrastructure", "data", "logs.json")
+        data_dir = get_evove_data_dir()
+        self.logs_data_path = os.path.join(data_dir, "logs.json")
         
         # User journal directory (Git Repo)
         self.journal_dir = os.path.expanduser("~/journal")

@@ -3,7 +3,7 @@ import shutil
 
 
 def backup_json(src_path: str):
-    """Mirror JSON saves from infrastructure/data into ~/journal/evove/."""
+    """Mirror JSON saves from ~/.local/share/evove into ~/journal/evove/."""
     if not src_path:
         return
     try:

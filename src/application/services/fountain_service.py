@@ -1,12 +1,13 @@
 import json
 import os
 from src.domain.constants import user
+from src.infrastructure.storage import get_evove_data_dir
 
 
 class FountainService:
     def __init__(self):
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        self.data_path = os.path.join(base_dir, "infrastructure", "data", "fountain.json")
+        data_dir = get_evove_data_dir()
+        self.data_path = os.path.join(data_dir, "fountain.json")
         self.total_offer = 0
         self._load()
 

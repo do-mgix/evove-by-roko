@@ -10,6 +10,7 @@ from src.domain.user.tags.tag import Tag
 from src.application.services.journal_service import journal_service
 from src.application.services.agenda_service import agenda_service
 from src.application.services.tutorial_service import TutorialService
+from src.infrastructure.storage import get_evove_data_dir
 
 class User:
     def __init__(self):
@@ -57,9 +58,7 @@ class User:
             now = datetime.now()
 
         # Try to acquire a simple inter-process lock (best-effort)
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        src_dir = os.path.dirname(os.path.dirname(base_dir))
-        data_dir = os.path.join(src_dir, "infrastructure", "data")
+        data_dir = get_evove_data_dir()
         os.makedirs(data_dir, exist_ok=True)
         lock_path = os.path.join(data_dir, "user.json.lock")
 
@@ -696,10 +695,7 @@ class User:
             self.add_message("Invalid start value. Must be an integer.")
     
     def save_user(self):
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        # Sobe 2 níveis: user/ -> domain/ -> src/
-        src_dir = os.path.dirname(os.path.dirname(base_dir))
-        data_dir = os.path.join(src_dir, "infrastructure", "data")
+        data_dir = get_evove_data_dir()
         data_file = os.path.join(data_dir, "user.json")
 
         # Cria o diretório se não existir
@@ -747,10 +743,7 @@ class User:
             self.add_message(f"Error saving {e}")
 
     def load_user(self):
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        # Sobe 2 níveis: user/ -> domain/ -> src/
-        src_dir = os.path.dirname(os.path.dirname(base_dir))
-        data_dir = os.path.join(src_dir, "infrastructure", "data")
+        data_dir = get_evove_data_dir()
         data_file = os.path.join(data_dir, "user.json")
 
         if not os.path.exists(data_file):

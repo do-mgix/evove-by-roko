@@ -2,10 +2,12 @@ import os
 import json
 from datetime import datetime
 
+from src.infrastructure.storage import get_evove_data_dir
+
 class SleepService:
     def __init__(self):
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        self.data_path = os.path.join(base_dir, "infrastructure", "data", "sleep_data.json")
+        data_dir = get_evove_data_dir()
+        self.data_path = os.path.join(data_dir, "sleep_data.json")
         self.data = self._load_data()
 
     def _load_data(self):
