@@ -21,3 +21,8 @@ tests/
 
 .nx/cache
 .nx/workspace-data
+
+.venv/
+build/
+dist/
+main.spec
