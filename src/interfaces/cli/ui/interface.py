@@ -227,50 +227,39 @@ class UI:
         page_idx = 0
 
         try:
-            stop_event = None
-            if num_pages > 1:
-                import threading
-
-                stop_event = threading.Event()
-
-                def _wait_for_key():
-                    try:
-                        readchar.readkey()
-                    except Exception:
-                        pass
-                    stop_event.set()
-
-                threading.Thread(target=_wait_for_key, daemon=True).start()
-
             while True:
                 self.clear_screen()
                 print(f"{self.CYAN}{self.BOLD}{' ' * 8}{title} (Page {page_idx + 1}/{num_pages}){self.CLR}\n")
-                
+
                 current_page = pages[page_idx]
                 col_width = 30
-                
+
                 for i in range(0, len(current_page), 2):
                     col1 = current_page[i]
                     line = f"{self.WHITE}{col1}{self.CLR}".ljust(col_width + 10)
-                    
+
                     if i + 1 < len(current_page):
-                        col2 = current_page[i+1]
+                        col2 = current_page[i + 1]
                         line += f"{self.WHITE}{col2}{self.CLR}"
-                    
+
                     print(line)
-                
+
                 if num_pages > 1:
-                    print(f"\n{self.YELLOW}>>> Cycling pages every 1s... Press any key to stop <<<{self.CLR}")
-                else:
-                    print(f"\n{self.GREEN}[ Press any key to continue ]{self.CLR}")
-                    readchar.readkey()
+                    print(f"\n{self.YELLOW}[ h: previous | l: next | any other key: exit ]{self.CLR}")
+                    key = readchar.readkey()
+                    low_key = key.lower() if isinstance(key, str) else key
+
+                    if low_key == "h":
+                        page_idx = (page_idx - 1) % num_pages
+                        continue
+                    if low_key == "l":
+                        page_idx = (page_idx + 1) % num_pages
+                        continue
                     return
 
-                if stop_event and stop_event.is_set():
-                    return
-
-                time.sleep(1)
-                page_idx = (page_idx + 1) % num_pages
+                print(f"\n{self.GREEN}[ Press any key to continue ]{self.CLR}")
+                readchar.readkey()
+                return
         except Exception as e:
             # Fallback if cycling fails (e.g. terminal issues)
             print(f"\nError: {e}")
