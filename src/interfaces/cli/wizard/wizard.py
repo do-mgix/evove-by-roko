@@ -187,6 +187,7 @@ class Wizard:
             4: "hours",
             5: "letters",
             6: "lines",
+            7: "words",
         }
         return types.get(type_num, "unknown")
     

@@ -999,12 +999,20 @@ class User:
                 tipo = int(value)
             except Exception:
                 ui.show_list(
-                    ["1 - Repetition", "2 - Seconds", "3 - Minutes", "4 - Hours", "5 - Letters", "6 - Lines"],
+                    [
+                        "1 - Repetition",
+                        "2 - Seconds",
+                        "3 - Minutes",
+                        "4 - Hours",
+                        "5 - Letters",
+                        "6 - Lines",
+                        "7 - Words",
+                    ],
                     "UNIT TYPE",
                 )
                 raise WebInputInterrupt("unit type", type="numeric", options={"create_step": "action_type"})
-            if tipo < 1 or tipo > 6:
-                self.add_message("Invalid unit type. Use 1-6.")
+            if tipo < 1 or tipo > 7:
+                self.add_message("Invalid unit type. Use 1-7.")
                 raise WebInputInterrupt("unit type", type="numeric", options={"create_step": "action_type"})
             clean_data["action_type"] = tipo
             ui.show_list(
@@ -1377,7 +1385,7 @@ class User:
 
         if step == "action_name":
             data["name"] = val.strip()
-            return {"prompt": "edit action type (0-6, blank keep)", "type": "numeric", "options": {"edit_step": "action_type", "action_id": data.get("action_id"), "name": data["name"]}}
+            return {"prompt": "edit action type (0-7, blank keep)", "type": "numeric", "options": {"edit_step": "action_type", "action_id": data.get("action_id"), "name": data["name"]}}
 
         if step == "action_type":
             data["type"] = val.strip()
@@ -1684,6 +1692,7 @@ class User:
             4: 3.0,  # hours
             5: 1.0,  # letters
             6: 1.0,  # lines
+            7: 1.0,  # words
         }
         unit_factor = unit_map.get(action.type, 1.0)
         base_percent = 3.0
