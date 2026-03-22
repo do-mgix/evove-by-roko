@@ -5,7 +5,7 @@ import random
 import sys
 import select
 from rich.align import Align
-from rich.console import Console
+from rich.console import Console, Group
 from rich.padding import Padding
 from rich.table import Table
 from rich.text import Text
@@ -37,6 +37,10 @@ class UI:
         self.margin_x = 4
         self.command_history = []
         self.command_history_limit = 30
+        self.home_input_armed = False
+        self.nav_focus = "agenda"
+        self._agenda_scroll = 0
+        self._commands_scroll = 0
 
         # Import from constants only
         from src.domain.constants import (
@@ -173,7 +177,81 @@ class UI:
         text = Text(visible, style="bold green", justify="left")
         return Panel(Align.center(text), title="[dim]histórico[/]", border_style="dim")
 
+    _AGENDA_PATHS = ("/home/mgix/jounal/agenda", "/home/mgix/journal/agenda")
+
+    def _load_agenda(self):
+        for path in self._AGENDA_PATHS:
+            if os.path.isfile(path):
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        return path, f.read().splitlines()
+                except OSError:
+                    return path, ["(erro ao ler o ficheiro)"]
+        return None, []
+
+    def _sorted_command_pairs(self):
+        return sorted(self.SINGLE_COMMANDS.items(), key=lambda x: (len(x[0]), x[0]))
+
+    def _agenda_viewport_cap(self):
+        th = max(12, self.console.size.height)
+        return max(6, th - 18)
+
+    def _commands_viewport_cap(self):
+        th = max(12, self.console.size.height)
+        return max(8, th - 14)
+
+    def _nav_scroll_delta(self, delta):
+        if self.nav_focus == "agenda":
+            _, lines = self._load_agenda()
+            total = len(lines)
+            cap = self._agenda_viewport_cap()
+            if total <= cap:
+                return
+            data_rows = cap - 1
+            max_scroll = max(0, total - data_rows)
+            self._agenda_scroll = min(max_scroll, max(0, self._agenda_scroll + delta))
+        else:
+            pairs = self._sorted_command_pairs()
+            total = len(pairs)
+            cap = self._commands_viewport_cap()
+            if total <= cap:
+                return
+            data_rows = cap - 1
+            max_scroll = max(0, total - data_rows)
+            self._commands_scroll = min(max_scroll, max(0, self._commands_scroll + delta))
+
+    def handle_idle_navigation(self, key):
+        if key == "h":
+            self.nav_focus = "agenda"
+        elif key == "l":
+            self.nav_focus = "commands"
+        elif key == "j":
+            self._nav_scroll_delta(1)
+        elif key == "k":
+            self._nav_scroll_delta(-1)
+        elif key == "i":
+            self.home_input_armed = True
+
     def _build_commands_side_panel(self):
+        focused = self.nav_focus == "commands"
+        border = "bright_blue" if focused else "dim blue"
+        pairs = self._sorted_command_pairs()
+        total = len(pairs)
+        cap = self._commands_viewport_cap()
+        start = 0
+        slice_pairs = pairs
+        extra_row = None
+
+        if total > cap:
+            data_rows = cap - 1
+            max_scroll = max(0, total - data_rows)
+            self._commands_scroll = min(max(self._commands_scroll, 0), max_scroll)
+            start = self._commands_scroll
+            slice_pairs = pairs[start : start + data_rows]
+            rest = total - start - len(slice_pairs)
+            if rest > 0:
+                extra_row = ("...", f"+{rest} comandos")
+
         table = Table(
             show_header=True,
             header_style="bold cyan",
@@ -185,16 +263,58 @@ class UI:
         table.add_column("CMD", justify="left", style="yellow", no_wrap=True)
         table.add_column("LABEL", justify="left", style="white", overflow="fold", no_wrap=False)
 
-        term_height = max(12, self.console.size.height)
-        max_rows = max(8, term_height - 14)
-        rows = sorted(self.SINGLE_COMMANDS.items(), key=lambda x: (len(x[0]), x[0]))
-        for cmd, info in rows[:max_rows]:
+        for cmd, info in slice_pairs:
             table.add_row(str(cmd), str(info.get("label", "")))
+        if extra_row:
+            table.add_row(extra_row[0], extra_row[1])
 
-        if len(rows) > max_rows:
-            table.add_row("...", f"+{len(rows) - max_rows} comandos")
+        if total > cap:
+            title = f"[dim]comandos[/] [dim]({start + 1}-{start + len(slice_pairs)}/{total})[/]"
+        else:
+            title = "[dim]comandos[/]"
+        return Panel(table, title=title, border_style=border)
 
-        return Panel(table, title="[dim]comandos[/]", border_style="blue")
+    def _build_agenda_panel(self):
+        focused = self.nav_focus == "agenda"
+        border = "bright_magenta" if focused else "dim magenta"
+        resolved, lines = self._load_agenda()
+        cap = self._agenda_viewport_cap()
+
+        if resolved is None:
+            body = Text(
+                f"(não encontrado: {self._AGENDA_PATHS[0]})",
+                style="dim",
+                overflow="fold",
+                no_wrap=False,
+            )
+            title = "[dim]agenda[/]"
+            return Panel(body, title=title, border_style=border)
+
+        total = len(lines)
+        if total == 0:
+            body = Text("(vazio)", style="dim white", overflow="fold", no_wrap=False)
+            title = f"[dim]agenda[/] [dim]({resolved})[/]"
+            return Panel(body, title=title, border_style=border)
+
+        start = 0
+        chunk = lines
+        title_suffix = ""
+        if total > cap:
+            data_rows = cap - 1
+            max_scroll = max(0, total - data_rows)
+            self._agenda_scroll = min(max(self._agenda_scroll, 0), max_scroll)
+            start = self._agenda_scroll
+            chunk = lines[start : start + data_rows]
+            title_suffix = f" · {start + 1}-{start + len(chunk)}/{total}"
+
+        body = Text(
+            "\n".join(chunk) if chunk else "(vazio)",
+            style="dim white",
+            overflow="fold",
+            no_wrap=False,
+        )
+        title = f"[dim]agenda[/] [dim]({resolved}){title_suffix}[/]"
+        return Panel(body, title=title, border_style=border)
 
     def show_startup_commands(self):
         if self.web_mode:
@@ -678,7 +798,11 @@ class UI:
         # ═══════════════════════════════════════════════════════════
         points_str = f"P: {self.WHITE}{self.BOLD}{self.user.total_points}{self.CLR}"
         lines = [points_str]
-        
+        if not buffer and not self.home_input_armed:
+            lines.append(
+                f"{self.CLR}\033[2mh/l · agenda/comandos   j/k · lista   i · editar comando\033[0m"
+            )
+
         buffer_view = self.format_visual_buffer(buffer)
         process_view_result = self.process_view(buffer)
         
@@ -699,9 +823,11 @@ class UI:
             lines.append(f"{debug}")
         main_text = Text.from_ansi("\n".join(lines))
         main_panel = Panel(Align.left(main_text), title="[dim]interface[/]", border_style="cyan")
+        agenda_panel = self._build_agenda_panel()
+        left_column = Group(main_panel, agenda_panel)
         side_panel = self._build_commands_side_panel()
         self.console.print(
-            Padding(Columns([main_panel, side_panel], expand=True, equal=False), (0, self.margin_x)),
+            Padding(Columns([left_column, side_panel], expand=True, equal=False), (0, self.margin_x)),
             highlight=False,
             soft_wrap=True,
         )
