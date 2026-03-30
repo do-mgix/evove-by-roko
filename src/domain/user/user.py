@@ -292,8 +292,9 @@ class User:
         if getattr(action, "_deleted", False):
             self.add_message(f"Action {action_id} is deleted.")
             return None
-
-        if not self._check_shop_access(action_id):
+        
+        # descomente para reativar pagamento par ações de shop
+        #if not self._check_shop_access(action_id):
             return None
 
         original_value = action.value
@@ -578,8 +579,8 @@ class User:
         self._add_agenda_payload(payload)
 
     def list_logs(self):
-        if self._check_sleep():
-            return
+        #if self._check_sleep():
+            #return
         logs = journal_service.list_logs()
         from src.interfaces.cli.ui.interface import ui
         table_rows = []

@@ -22,7 +22,7 @@ class ChallengeManager:
 
     def update(self):
         """Checks if a new challenge should start or if an active one expired"""
-        self._check_daily_refill()
+        #self._check_daily_refill()
 
         if self.active_challenge:
             if time.time() > self.deadline:
