@@ -1768,8 +1768,8 @@ class User:
     def list_attributes(self):
         if self._attributes:
             from src.interfaces.cli.ui.interface import ui
-            items = [f"({attr._id}) - {attr._name}" for attr in self._attributes.values()]
-            ui.show_list(items, "CURRENT ATTRIBUTES")
+            items = [f"({attr._id}) - {attr._name} - {attr.power_display}" for attr in self._attributes.values()]
+            ui.show_vertical_list(items, "CURRENT ATTRIBUTES")
         else:
             self.add_message("no attributes available. try creating one with 28...")
     
