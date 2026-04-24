@@ -1564,6 +1564,61 @@
             }
         }
 
+        function isLogMessageInputActive() {
+            return pendingType === 'text' && pendingPrompt === 'log message';
+        }
+
+        function clearLogSuggestion() {
+            activeSuggestion = '';
+            activeSuggestionDisplay = '';
+            suggestionActive = false;
+        }
+
+        function appendLogText(value) {
+            const normalized = String(value || '').toLowerCase();
+            if (!normalized) return false;
+            resetMultiTap();
+            buffer += normalized;
+            updateDisplay();
+            updateLogSuggestion();
+            return true;
+        }
+
+        function removeLogText() {
+            if (!buffer) return false;
+            resetMultiTap();
+            buffer = buffer.slice(0, -1);
+            if (pendingType === 'text' && buffer.length === 0) {
+                resetMultiTap();
+            }
+            updateDisplay();
+            updateLogSuggestion();
+            return true;
+        }
+
+        function acceptLogSuggestion() {
+            if (!isLogMessageInputActive() || !suggestionActive || !activeSuggestion) {
+                return false;
+            }
+            resetMultiTap();
+            buffer = activeSuggestion;
+            clearLogSuggestion();
+            updateDisplay();
+            updateLogSuggestion();
+            return true;
+        }
+
+        function submitLogMessage() {
+            if (!String(buffer || '').trim()) return false;
+            resetMultiTap();
+            const normalized = toTitleCase(buffer);
+            buffer = normalized;
+            clearLogSuggestion();
+            updateDisplay();
+            executeCommand(normalized);
+            return true;
+        }
+
         function toTitleCase(str) {
             return String(str || '')
                 .trim()
@@ -1794,6 +1849,72 @@
             }
         }
 
+        document.addEventListener('keydown', (event) => {
+            if (lockActive || event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
+
+            const isEscape = event.key === 'Escape' || event.key === 'Esc' || event.code === 'Escape';
+            if (isEscape) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                if (pendingType) {
+                    cancelPending();
+                } else if (buffer) {
+                    buffer = '';
+                    resetMultiTap();
+                    clearLogSuggestion();
+                    updateDisplay();
+                    updateLogSuggestion();
+                    displayLabel.textContent = 'Ready.';
+                }
+                return;
+            }
+
+            if (!isLogMessageInputActive()) return;
+
+            if (event.key === 'Tab') {
+                event.preventDefault();
+                if (!event.shiftKey) {
+                    acceptLogSuggestion();
+                }
+                return;
+            }
+
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                if (!String(buffer || '').trim()) return;
+                if (suggestionActive && activeSuggestion) {
+                    buffer = activeSuggestion;
+                }
+                submitLogMessage();
+                return;
+            }
+
+            if (event.key === 'Backspace') {
+                event.preventDefault();
+                removeLogText();
+                return;
+            }
+
+            if (event.key === 'Delete') {
+                event.preventDefault();
+                buffer = '';
+                resetMultiTap();
+                clearLogSuggestion();
+                updateDisplay();
+                updateLogSuggestion();
+                return;
+            }
+
+            if (event.key.length === 1) {
+                event.preventDefault();
+                if (event.key === ' ') {
+                    appendLogText(' ');
+                } else if (/^[a-zA-Z]$/.test(event.key)) {
+                    appendLogText(event.key);
+                }
+            }
+        }, { capture: true });
+
         // DTMF TONES
         let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         
@@ -1996,13 +2117,13 @@
                     if (pendingType === 'text') {
                         if (num === '0') {
                             if (buffer && !buffer.endsWith(' ')) {
-                                buffer += ' ';
+                                appendLogText(' ');
                                 resetMultiTap();
-                                updateDisplay();
                             } else if (!buffer) {
                                 buffer = ' ';
                                 resetMultiTap();
                                 updateDisplay();
+                                updateLogSuggestion();
                             }
                         }
                         const letters = textMap[num];
@@ -2036,9 +2157,13 @@
                         unlockLockscreen();
                         return;
                     }
-                    buffer += char;
-                    updateDisplay();
-                    fetchPreview(buffer);
+                    if (pendingType === 'text') {
+                        appendLogText(char);
+                    } else {
+                        buffer += char;
+                        updateDisplay();
+                        fetchPreview(buffer);
+                    }
 
                     if (navigator.vibrate) navigator.vibrate(10);
 
@@ -2060,13 +2185,14 @@
                         return;
                     }
                     if (buffer.length === 0) return;
-                    buffer = buffer.slice(0, -1);
-                    if (pendingType === 'text' && buffer.length === 0) {
-                        resetMultiTap();
+                    if (pendingType === 'text') {
+                        removeLogText();
+                    } else {
+                        buffer = buffer.slice(0, -1);
+                        updateDisplay();
+                        updateLogSuggestion();
+                        fetchPreview(buffer);
                     }
-                    updateDisplay();
-                    updateLogSuggestion();
-                    fetchPreview(buffer);
                 } else if (confirm) {
                     if (lockActive) {
                         unlockLockscreen();
@@ -2079,18 +2205,12 @@
                         }
                         return;
                     }
-                    if (suggestionActive && activeSuggestion) {
-                        buffer = activeSuggestion;
-                        suggestionActive = false;
-                        activeSuggestion = '';
-                        activeSuggestionDisplay = '';
-                        updateDisplay();
-                        updateLogSuggestion();
+                    if (pendingType === 'text' && acceptLogSuggestion()) {
                         return;
                     }
                     if (!buffer) return;
                     if (pendingType === 'text') {
-                        executeCommand(toTitleCase(buffer));
+                        submitLogMessage();
                     } else {
                         executeCommand(buffer);
                     }
@@ -2105,9 +2225,13 @@
         zeroKey.addEventListener('touchstart', (e) => {
             longPressTimer = setTimeout(() => {
                 if (buffer.length > 0) {
-                    buffer = buffer.slice(0, -1);
-                    updateDisplay();
-                    fetchPreview(buffer);
+                    if (pendingType === 'text') {
+                        removeLogText();
+                    } else {
+                        buffer = buffer.slice(0, -1);
+                        updateDisplay();
+                        fetchPreview(buffer);
+                    }
                     if (navigator.vibrate) navigator.vibrate([15, 5, 15]);
                 }
             }, 500);
@@ -2225,7 +2349,10 @@
             buffer = '';
             pendingPrompt = '';
             pendingType = '';
+            pendingPrefillApplied = false;
+            pendingPrefillKey = '';
             resetMultiTap();
+            clearLogSuggestion();
             updateDisplay();
             displayLabel.textContent = 'Ready.';
             updateStatus();

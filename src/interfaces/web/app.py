@@ -10,6 +10,7 @@ from src.domain.entities.entity_manager import EntityManager
 from src.interfaces.cli.ui.interface import ui, WebInputInterrupt
 from src.application.dial_interaction.dial_digest import dial
 from src.application.services.journal_service import journal_service
+from src.application.services.roko_message_service import roko_message_service
 from src.interfaces.web.web_menu_service import (
     get_settings,
     toggle_agent,
@@ -53,6 +54,10 @@ class SessionManager:
         self.last_buffer = ""
 
 session = SessionManager()
+
+
+def _append_roko_message():
+    user.add_message(roko_message_service.generate())
 
 def _handle_result(result):
     if result is None: return
@@ -325,6 +330,7 @@ def command():
                 except ValueError:
                     user.add_message("Invalid numeric value.")
 
+            _append_roko_message()
             user.save_user()
             return jsonify({"completed": True, "clear": True})
         except Exception as e:
@@ -338,6 +344,7 @@ def command():
         completed, result = dial.process(buffer, force=True)
         if completed:
             _handle_result(result)
+            _append_roko_message()
             user.save_user()
             return jsonify({"completed": True, "clear": True})
 

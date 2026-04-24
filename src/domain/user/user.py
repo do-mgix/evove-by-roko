@@ -366,9 +366,17 @@ class User:
 
         return action_id, action
 
+    def _format_log_text(self, text):
+        return " ".join(
+            part[:1].upper() + part[1:].lower()
+            for part in str(text or "").strip().split()
+            if part
+        )
+
     def log(self, text):
-        if journal_service.add_log(text):
-            self.add_message(f"Log buffered: {text}")
+        formatted = self._format_log_text(text)
+        if journal_service.add_log(formatted):
+            self.add_message(f"Log buffered: {formatted}")
         self.save_user()
 
     def add_log_entry(self, text=None):

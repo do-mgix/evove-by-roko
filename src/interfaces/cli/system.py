@@ -1,12 +1,15 @@
 import os
 import sys
 import time 
+import select
 import readchar
 
 from src.interfaces.cli.ui.interface import ui
 from src.application.dial_interaction.dial_digest import dial
 from src.domain.entities.entity_manager import EntityManager
 from src.application.services.challenge_service import ChallengeManager
+from src.application.services.journal_service import journal_service
+from src.application.services.roko_message_service import roko_message_service
 
 from src.domain.constants import (
     user,
@@ -16,31 +19,319 @@ from src.domain.constants import (
     COMMANDS
 )
 
-def _prompt_cli_input(message, autocomplete=None):
-    if autocomplete:
+class PromptCancelled(Exception):
+    pass
+
+ESC_SEQ_TIMEOUT = 0.4
+
+def _read_cli_key():
+    try:
+        import termios
+        import tty
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
         try:
-            import readline
-            matches = sorted(set(autocomplete))
-            def completer(text, state):
-                options = [m for m in matches if m.lower().startswith(text.lower())]
-                if state < len(options):
-                    return options[state]
-                return None
-            readline.set_completer(completer)
-            readline.parse_and_bind("tab: complete")
-        except Exception:
-            pass
+            tty.setraw(fd)
+            ch = sys.stdin.read(1)
+            if ch == "\x1b":
+                deadline = time.monotonic() + ESC_SEQ_TIMEOUT
+                seq = ""
+                while time.monotonic() < deadline:
+                    timeout = max(0, deadline - time.monotonic())
+                    if not select.select([sys.stdin], [], [], timeout)[0]:
+                        break
+                    seq += sys.stdin.read(1)
+                    if len(seq) >= 2:
+                        if seq[0] in ("[", "O") and seq[1] in ("A", "B", "C", "D", "H", "F"):
+                            return f"\x1b{seq[0]}{seq[1]}"
+                        if len(seq) >= 3 and seq[0] == "[" and seq[1] in ("1", "2", "3", "4", "5", "6", "7", "8") and seq[2] in ("A", "B", "C", "D", "H", "F"):
+                            return f"\x1b{seq}"
+                        break
+                return "\x1b"
+            return ch
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    except Exception:
+        return readchar.readkey()
+
+def _prompt_cli_input(message, autocomplete=None, history=None):
     ui.clear_screen()
-    print(message)
-    value = input("> ")
-    if autocomplete:
-        try:
-            import readline
-            readline.set_completer(None)
-        except Exception:
-            pass
+    print(f"{message} [Esc cancela]")
+    matches = sorted({
+        str(item).strip().lower()
+        for item in (autocomplete or [])
+        if str(item).strip()
+    })
+    history_items = []
+    seen_history = set()
+    for item in (history or []):
+        value = str(item).strip().lower()
+        if value and value not in seen_history:
+            seen_history.add(value)
+            history_items.append(value)
+    typed = ""
+    nav_mode = None
+    nav_base = ""
+    nav_options = []
+    nav_index = -1
+
+    def redraw():
+        sys.stdout.write("\r\033[K")
+        sys.stdout.write(f"> {typed}")
+        sys.stdout.flush()
+
+    def reset_navigation():
+        nonlocal nav_mode, nav_base, nav_options, nav_index
+        nav_mode = None
+        nav_base = ""
+        nav_options = []
+        nav_index = -1
+
+    def current_options():
+        if nav_mode == "completion":
+            return [m for m in matches if m.startswith(nav_base)]
+        if nav_mode == "history":
+            return history_items
+        prefix = typed.strip().lower()
+        if prefix:
+            return [m for m in matches if m.startswith(prefix)]
+        return history_items
+
+    def step_options(direction):
+        nonlocal typed, nav_mode, nav_base, nav_options, nav_index
+        options = current_options()
+        if not options:
+            return
+
+        if nav_mode in ("completion", "history"):
+            mode = nav_mode
+            prefix = nav_base if nav_mode == "completion" else ""
+        else:
+            prefix = typed.strip().lower()
+            mode = "completion" if prefix else "history"
+
+        if nav_mode != mode or nav_base != prefix or nav_options != options:
+            nav_mode = mode
+            nav_base = prefix
+            nav_options = options
+            nav_index = -1
+
+        if direction == "up":
+            if nav_index < len(options) - 1:
+                nav_index += 1
+            else:
+                return
+        else:
+            if nav_index > 0:
+                nav_index -= 1
+            else:
+                nav_index = -1
+                typed = nav_base if nav_mode == "completion" else ""
+                redraw()
+                return
+
+        typed = nav_options[nav_index]
+        redraw()
+
+    redraw()
+    while True:
+        key = _read_cli_key()
+        if key == "\x1b":
+            sys.stdout.write("\r\033[K\n")
+            sys.stdout.flush()
+            ui.clear_screen()
+            raise PromptCancelled()
+        if key in ("\r", "\n"):
+            sys.stdout.write("\r\033[K\n")
+            sys.stdout.flush()
+            break
+        if key in ("\b", "\x7f", "\x08"):
+            if typed:
+                typed = typed[:-1]
+                reset_navigation()
+                redraw()
+            continue
+        if key in ("\t", "\x1b[A", "\x1b[B"):
+            if key == "\t" or key == "\x1b[A":
+                step_options("up")
+            else:
+                step_options("down")
+            continue
+        if len(key) == 1:
+            typed += key.lower() if key.isalpha() else key
+            reset_navigation()
+            redraw()
+
     ui.clear_screen()
-    return value
+    return typed
+
+def _handle_web_input_interrupt(e, current_buffer, clear_command_buffer):
+    from src.interfaces.cli.ui.interface import WebInputInterrupt
+    try:
+        ui.render(current_buffer, force_print=True)
+        guide = f"[ INPUT REQUIRED ] {e.prompt}"
+        if e.type:
+            guide += f" ({e.type})"
+        autocomplete = None
+        if e.prompt == "log message":
+             journal_service._load_logs_data()
+             autocomplete = [
+                 entry.get("content", "")
+                 for entry in reversed(journal_service.logs)
+                 if isinstance(entry, dict) and str(entry.get("content", "")).strip()
+             ]
+             history = autocomplete
+        elif e.options and e.options.get("autocomplete") == "names":
+             autocomplete = user._collect_autocomplete_names()
+        else:
+             history = None
+        cli_input = _prompt_cli_input(guide, autocomplete=autocomplete, history=history if e.prompt == "log message" else None)
+
+        if e.prompt == "log message":
+             user.add_log_entry(cli_input)
+             clear_command_buffer()
+        elif e.prompt == "status name":
+             user.create_status(e.options.get("buffer", ""), name=cli_input)
+             clear_command_buffer()
+        elif e.prompt == "tag name":
+             user.create_tag(name=cli_input)
+             clear_command_buffer()
+        elif e.prompt in ("unit type", "difficulty (1-5)", "action name"):
+             current = e
+             current_input = cli_input
+             while True:
+                 step = current.options.get("create_step") if current.options else None
+                 data = current.options if current.options else {}
+                 try:
+                     user.create_action(step=step, data=data, value=current_input)
+                     clear_command_buffer()
+                     break
+                 except WebInputInterrupt as next_e:
+                     prompt = next_e.prompt
+                     autocomplete = None
+                     if next_e.options and next_e.options.get("autocomplete") == "names":
+                         autocomplete = user._collect_autocomplete_names()
+                     current_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}", autocomplete=autocomplete)
+                     current = next_e
+        elif e.prompt in ("parameter type (1 mark, 2 percentage)", "parameter logic (1 Emotional, 2 Ambiental, 3 Fisiologic)", "parameter name"):
+             current = e
+             current_input = cli_input
+             while True:
+                 step = current.options.get("create_step") if current.options else None
+                 data = current.options if current.options else {}
+                 try:
+                     user.create_parameter(step=step, data=data, value=current_input)
+                     clear_command_buffer()
+                     break
+                 except WebInputInterrupt as next_e:
+                     prompt = next_e.prompt
+                     autocomplete = None
+                     if next_e.options and next_e.options.get("autocomplete") == "names":
+                         autocomplete = user._collect_autocomplete_names()
+                     current_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}", autocomplete=autocomplete)
+                     current = next_e
+        elif e.prompt.startswith("parameter value"):
+             user._attach_status_to_param(
+                 e.options.get("param_id"),
+                 e.options.get("status_id"),
+                 cli_input,
+             )
+             clear_command_buffer()
+        elif e.prompt.startswith("parameter regen") or e.prompt.startswith("parameter start value"):
+             step = e.options.get("param_step") if e.options else None
+             data = e.options if e.options else {}
+             next_step = user.parameter_init_next(step, data, cli_input)
+             while next_step:
+                 prompt = next_step["prompt"]
+                 cli_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}")
+                 step = next_step.get("options", {}).get("param_step")
+                 data = next_step.get("options", {})
+                 next_step = user.parameter_init_next(step, data, cli_input)
+             clear_command_buffer()
+        elif e.prompt.startswith("tag weight"):
+             step = e.options.get("tag_step") if e.options else None
+             data = e.options if e.options else {}
+             next_step = user.tag_link_next(step, data, cli_input)
+             while next_step:
+                 prompt = next_step["prompt"]
+                 cli_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}")
+                 step = next_step.get("options", {}).get("tag_step")
+                 data = next_step.get("options", {})
+                 next_step = user.tag_link_next(step, data, cli_input)
+             clear_command_buffer()
+        elif e.prompt.startswith("edit action") or e.prompt.startswith("edit attribute") or e.prompt.startswith("edit parameter") or e.prompt.startswith("edit status"):
+             step = e.options.get("edit_step") if e.options else None
+             data = e.options if e.options else {}
+             if step and step.startswith("action_"):
+                 next_step = user.action_edit_next(step, data, cli_input)
+             else:
+                 next_step = user.misc_edit_next(step, data, cli_input)
+             while next_step:
+                 prompt = next_step["prompt"]
+                 autocomplete = None
+                 if next_step.get("options", {}).get("autocomplete") == "names":
+                     autocomplete = user._collect_autocomplete_names()
+                 cli_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}", autocomplete=autocomplete)
+                 step = next_step.get("options", {}).get("edit_step")
+                 data = next_step.get("options", {})
+                 if step and step.startswith("action_"):
+                     next_step = user.action_edit_next(step, data, cli_input)
+                 else:
+                     next_step = user.misc_edit_next(step, data, cli_input)
+             clear_command_buffer()
+        elif e.prompt.startswith("agenda "):
+             step = e.options.get("agenda_step") if e.options else None
+             data = e.options.get("agenda_data") if e.options else {}
+             next_step = user.agenda_wizard_next(step, data, cli_input)
+             while next_step:
+                 prompt = next_step["prompt"]
+                 cli_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}")
+                 step = next_step.get("options", {}).get("agenda_step")
+                 data = next_step.get("options", {}).get("agenda_data", {})
+                 next_step = user.agenda_wizard_next(step, data, cli_input)
+             clear_command_buffer()
+        elif e.prompt == "sequence label":
+             label_input = cli_input
+             try:
+                 user.new_sequence(label=label_input)
+             except WebInputInterrupt as next_e:
+                 sv_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {next_e.prompt}")
+                 user.new_sequence(label=label_input, start_value=sv_input)
+             clear_command_buffer()
+        elif e.prompt == "start value (integer)":
+             pass
+        elif e.prompt == "sequence index for action link":
+             user.sequence_add_action(
+                 e.options.get("action_id_suffix"),
+                 sequence_index=cli_input,
+             )
+             clear_command_buffer()
+        elif e.prompt == "sequence id to delete":
+             user.delete_sequence(cli_input)
+             clear_command_buffer()
+        elif "value" in e.prompt:
+             action_id = e.options.get("action_id")
+             if action_id:
+                 payload = action_id[1:]
+                 action = user._actions.get(action_id)
+                 if action:
+                     lt = getattr(action, "_logic_type", None)
+                     st = getattr(action, "_sub_logic_type", None)
+                     if lt is not None:
+                         lt = str(lt).zfill(2) if str(lt).isdigit() else str(lt)
+                         if st is not None:
+                             st = str(st).zfill(2) if str(st).isdigit() else str(st)
+                             payload = f"{lt}{st}{payload}"
+                         else:
+                             payload = f"{lt}{payload}"
+                 user.act([payload], cli_input)
+                 clear_command_buffer()
+        return True
+    except PromptCancelled:
+        user.add_message("Cancelled.")
+        user.save_user()
+        clear_command_buffer()
+        return False
 
 def dial_start():
     user.load_user()
@@ -49,11 +340,12 @@ def dial_start():
     
     try:
         buffer = ""
+        ui.home_input_armed = True
 
         def clear_command_buffer():
             nonlocal buffer
             buffer = ""
-            ui.home_input_armed = False
+            ui.home_input_armed = True
 
         while True:
             # Process any existing messages from entities BEFORE waiting for input
@@ -73,15 +365,14 @@ def dial_start():
             em.check_and_spawn()
             cm.update()
 
-            key = readchar.readkey()
+            key = _read_cli_key()
             
+            if key == '\x1b':
+                buffer = ""
+                ui.home_input_armed = False
             if key in ('\b', '\x7f', '\x08'):
                 if buffer:
                     buffer = buffer[:-1]
-                    if not buffer:
-                        ui.home_input_armed = False
-                elif ui.home_input_armed:
-                    ui.home_input_armed = False
             elif key in ('\r', '\n'):
                 if buffer:
                     try:
@@ -96,159 +387,15 @@ def dial_start():
                         # or assume it's the one. Common pattern: check class name or import.
                         from src.interfaces.cli.ui.interface import WebInputInterrupt
                         if isinstance(e, WebInputInterrupt):
-                            ui.render(buffer, force_print=True) # Ensure render doesn't wipe immediately
-                            guide = f"[ INPUT REQUIRED ] {e.prompt}"
-                            if e.type:
-                                guide += f" ({e.type})"
-                            autocomplete = None
-                            if e.options and e.options.get("autocomplete") == "names":
-                                 autocomplete = user._collect_autocomplete_names()
-                            cli_input = _prompt_cli_input(guide, autocomplete=autocomplete)
-                            
-
-                            if e.prompt == "log message":
-                                 user.add_log_entry(cli_input)
-                                 clear_command_buffer()
-                            elif e.prompt == "status name":
-                                 user.create_status(e.options.get("buffer", ""), name=cli_input)
-                                 clear_command_buffer()
-                            elif e.prompt == "tag name":
-                                 user.create_tag(name=cli_input)
-                                 clear_command_buffer()
-                            elif e.prompt in ("unit type", "difficulty (1-5)", "action name"):
-                                 current = e
-                                 current_input = cli_input
-                                 while True:
-                                     step = current.options.get("create_step") if current.options else None
-                                     data = current.options if current.options else {}
-                                     try:
-                                         user.create_action(step=step, data=data, value=current_input)
-                                         clear_command_buffer()
-                                         break
-                                     except WebInputInterrupt as next_e:
-                                         prompt = next_e.prompt
-                                         autocomplete = None
-                                         if next_e.options and next_e.options.get("autocomplete") == "names":
-                                             autocomplete = user._collect_autocomplete_names()
-                                         current_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}", autocomplete=autocomplete)
-                                         current = next_e
-                            elif e.prompt in ("parameter type (1 mark, 2 percentage)", "parameter logic (1 Emotional, 2 Ambiental, 3 Fisiologic)", "parameter name"):
-                                 current = e
-                                 current_input = cli_input
-                                 while True:
-                                     step = current.options.get("create_step") if current.options else None
-                                     data = current.options if current.options else {}
-                                     try:
-                                         user.create_parameter(step=step, data=data, value=current_input)
-                                         clear_command_buffer()
-                                         break
-                                     except WebInputInterrupt as next_e:
-                                         prompt = next_e.prompt
-                                         autocomplete = None
-                                         if next_e.options and next_e.options.get("autocomplete") == "names":
-                                             autocomplete = user._collect_autocomplete_names()
-                                         current_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}", autocomplete=autocomplete)
-                                         current = next_e
-                            elif e.prompt.startswith("parameter value"):
-                                 user._attach_status_to_param(
-                                     e.options.get("param_id"),
-                                     e.options.get("status_id"),
-                                     cli_input,
-                                 )
-                                 clear_command_buffer()
-                            elif e.prompt.startswith("parameter regen") or e.prompt.startswith("parameter start value"):
-                                 step = e.options.get("param_step") if e.options else None
-                                 data = e.options if e.options else {}
-                                 next_step = user.parameter_init_next(step, data, cli_input)
-                                 while next_step:
-                                     prompt = next_step["prompt"]
-                                     cli_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}")
-                                     step = next_step.get("options", {}).get("param_step")
-                                     data = next_step.get("options", {})
-                                     next_step = user.parameter_init_next(step, data, cli_input)
-                                 clear_command_buffer()
-                            elif e.prompt.startswith("tag weight"):
-                                 step = e.options.get("tag_step") if e.options else None
-                                 data = e.options if e.options else {}
-                                 next_step = user.tag_link_next(step, data, cli_input)
-                                 while next_step:
-                                     prompt = next_step["prompt"]
-                                     cli_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}")
-                                     step = next_step.get("options", {}).get("tag_step")
-                                     data = next_step.get("options", {})
-                                     next_step = user.tag_link_next(step, data, cli_input)
-                                 clear_command_buffer()
-                            elif e.prompt.startswith("edit action") or e.prompt.startswith("edit attribute") or e.prompt.startswith("edit parameter") or e.prompt.startswith("edit status"):
-                                 step = e.options.get("edit_step") if e.options else None
-                                 data = e.options if e.options else {}
-                                 if step and step.startswith("action_"):
-                                     next_step = user.action_edit_next(step, data, cli_input)
-                                 else:
-                                     next_step = user.misc_edit_next(step, data, cli_input)
-                                 while next_step:
-                                     prompt = next_step["prompt"]
-                                     autocomplete = None
-                                     if next_step.get("options", {}).get("autocomplete") == "names":
-                                         autocomplete = user._collect_autocomplete_names()
-                                     cli_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}", autocomplete=autocomplete)
-                                     step = next_step.get("options", {}).get("edit_step")
-                                     data = next_step.get("options", {})
-                                     if step and step.startswith("action_"):
-                                         next_step = user.action_edit_next(step, data, cli_input)
-                                     else:
-                                         next_step = user.misc_edit_next(step, data, cli_input)
-                                 clear_command_buffer()
-                            elif e.prompt.startswith("agenda "):
-                                 step = e.options.get("agenda_step") if e.options else None
-                                 data = e.options.get("agenda_data") if e.options else {}
-                                 next_step = user.agenda_wizard_next(step, data, cli_input)
-                                 while next_step:
-                                     prompt = next_step["prompt"]
-                                     cli_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}")
-                                     step = next_step.get("options", {}).get("agenda_step")
-                                     data = next_step.get("options", {}).get("agenda_data", {})
-                                     next_step = user.agenda_wizard_next(step, data, cli_input)
-                                 clear_command_buffer()
-                            elif e.prompt == "sequence label":
-                                 label_input = cli_input
-                                 try:
-                                     user.new_sequence(label=label_input)
-                                 except WebInputInterrupt as next_e:
-                                     sv_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {next_e.prompt}")
-                                     user.new_sequence(label=label_input, start_value=sv_input)
-                                 clear_command_buffer()
-                            elif e.prompt == "start value (integer)":
-                                 pass
-                            elif e.prompt == "sequence index for action link":
-                                 user.sequence_add_action(
-                                     e.options.get("action_id_suffix"),
-                                     sequence_index=cli_input,
-                                 )
-                                 clear_command_buffer()
-                            elif "value" in e.prompt:
-                                 # action value
-                                 action_id = e.options.get("action_id")
-                                 if action_id:
-                                     payload = action_id[1:]
-                                     action = user._actions.get(action_id)
-                                     if action:
-                                         lt = getattr(action, "_logic_type", None)
-                                         st = getattr(action, "_sub_logic_type", None)
-                                         if lt is not None:
-                                             lt = str(lt).zfill(2) if str(lt).isdigit() else str(lt)
-                                             if st is not None:
-                                                 st = str(st).zfill(2) if str(st).isdigit() else str(st)
-                                                 payload = f"{lt}{st}{payload}"
-                                             else:
-                                                 payload = f"{lt}{payload}"
-                                     user.act([payload], cli_input)
-                                     clear_command_buffer()
-                                 
+                            if not _handle_web_input_interrupt(e, buffer, clear_command_buffer):
+                                continue
                         else:
                             raise e
             elif buffer == "" and not ui.home_input_armed:
                 ui.handle_idle_navigation(key)
-            elif len(key) == 1 and (key.isalnum() or key in " :/._-+=()*&^%$#@!?,<>{}[]|\\~`'\""):
+            elif key in ("\x1b[A", "\x1b[B", "\x1b[C", "\x1b[D"):
+                continue
+            elif len(key) == 1 and (key.isdigit() or key in " :/._-+=()*&^%$#@!?,<>{}[]|\\~`'\""):
                 buffer += key
             
 
@@ -264,121 +411,8 @@ def dial_start():
                 except Exception as e:
                      from src.interfaces.cli.ui.interface import WebInputInterrupt
                      if isinstance(e, WebInputInterrupt):
-                        # CLI Interrupt Handling duplicated logic
-                        guide = f"[ INPUT REQUIRED ] {e.prompt}"
-                        if e.type:
-                            guide += f" ({e.type})"
-                        autocomplete = None
-                        if e.options and e.options.get("autocomplete") == "names":
-                             autocomplete = user._collect_autocomplete_names()
-                        cli_input = _prompt_cli_input(guide, autocomplete=autocomplete)
-                        
-                        if e.prompt == "log message":
-                             user.add_log_entry(cli_input)
-                             clear_command_buffer()
-                        elif e.prompt == "status name":
-                             user.create_status(e.options.get("buffer", ""), name=cli_input)
-                             clear_command_buffer()
-                        elif e.prompt == "tag name":
-                             user.create_tag(name=cli_input)
-                             clear_command_buffer()
-                        elif e.prompt in ("unit type", "difficulty (1-5)", "action name"):
-                             current = e
-                             current_input = cli_input
-                             while True:
-                                 step = current.options.get("create_step") if current.options else None
-                                 data = current.options if current.options else {}
-                                 try:
-                                     user.create_action(step=step, data=data, value=current_input)
-                                     clear_command_buffer()
-                                     break
-                                 except WebInputInterrupt as next_e:
-                                     prompt = next_e.prompt
-                                     autocomplete = None
-                                     if next_e.options and next_e.options.get("autocomplete") == "names":
-                                         autocomplete = user._collect_autocomplete_names()
-                                     current_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}", autocomplete=autocomplete)
-                                     current = next_e
-                        elif e.prompt in ("parameter type (1 mark, 2 percentage)", "parameter logic (1 Emotional, 2 Ambiental, 3 Fisiologic)", "parameter name"):
-                             current = e
-                             current_input = cli_input
-                             while True:
-                                 step = current.options.get("create_step") if current.options else None
-                                 data = current.options if current.options else {}
-                                 try:
-                                     user.create_parameter(step=step, data=data, value=current_input)
-                                     clear_command_buffer()
-                                     break
-                                 except WebInputInterrupt as next_e:
-                                     prompt = next_e.prompt
-                                     autocomplete = None
-                                     if next_e.options and next_e.options.get("autocomplete") == "names":
-                                         autocomplete = user._collect_autocomplete_names()
-                                     current_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}", autocomplete=autocomplete)
-                                     current = next_e
-                        elif e.prompt.startswith("parameter value"):
-                             user._attach_status_to_param(
-                                 e.options.get("param_id"),
-                                 e.options.get("status_id"),
-                                 cli_input,
-                             )
-                             clear_command_buffer()
-                        elif e.prompt.startswith("parameter regen") or e.prompt.startswith("parameter start value"):
-                             step = e.options.get("param_step") if e.options else None
-                             data = e.options if e.options else {}
-                             next_step = user.parameter_init_next(step, data, cli_input)
-                             while next_step:
-                                 prompt = next_step["prompt"]
-                                 cli_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}")
-                                 step = next_step.get("options", {}).get("param_step")
-                                 data = next_step.get("options", {})
-                                 next_step = user.parameter_init_next(step, data, cli_input)
-                             clear_command_buffer()
-                        elif e.prompt.startswith("tag weight"):
-                             step = e.options.get("tag_step") if e.options else None
-                             data = e.options if e.options else {}
-                             next_step = user.tag_link_next(step, data, cli_input)
-                             while next_step:
-                                 prompt = next_step["prompt"]
-                                 cli_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}")
-                                 step = next_step.get("options", {}).get("tag_step")
-                                 data = next_step.get("options", {})
-                                 next_step = user.tag_link_next(step, data, cli_input)
-                             clear_command_buffer()
-                        elif e.prompt.startswith("agenda "):
-                             step = e.options.get("agenda_step") if e.options else None
-                             data = e.options.get("agenda_data") if e.options else {}
-                             next_step = user.agenda_wizard_next(step, data, cli_input)
-                             while next_step:
-                                 prompt = next_step["prompt"]
-                                 cli_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}")
-                                 step = next_step.get("options", {}).get("agenda_step")
-                                 data = next_step.get("options", {}).get("agenda_data", {})
-                                 next_step = user.agenda_wizard_next(step, data, cli_input)
-                             clear_command_buffer()
-                        elif e.prompt == "sequence label":
-                             label_input = cli_input
-                             try:
-                                 user.new_sequence(label=label_input)
-                             except WebInputInterrupt as next_e:
-                                 sv_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {next_e.prompt}")
-                                 user.new_sequence(label=label_input, start_value=sv_input)
-                             clear_command_buffer()
-                        elif "numeric value" in e.prompt or "value" in e.prompt:
-                             action_id = e.options.get("action_id")
-                             if action_id:
-
-                                 user.act(list(action_id), cli_input)
-                                 clear_command_buffer()
-                        elif e.prompt == "sequence id to delete":
-                            user.delete_sequence(cli_input)
-                            clear_command_buffer()
-                        elif e.prompt == "sequence index for action link":
-                            user.sequence_add_action(
-                                e.options.get("action_id_suffix"),
-                                sequence_index=cli_input,
-                            )
-                            clear_command_buffer()
+                        if not _handle_web_input_interrupt(e, buffer, clear_command_buffer):
+                            continue
                 
     except KeyboardInterrupt:
         print("\nBYE")
@@ -399,6 +433,7 @@ def _handle_result(result, em, ui):
                 ui.show_messages_animated(current_him.messages)
                 current_him.clear_messages()            
 
+    user.add_message(roko_message_service.generate())
     if user.messages:
         ui.show_messages_animated(user.messages)
         user.clear_messages()
