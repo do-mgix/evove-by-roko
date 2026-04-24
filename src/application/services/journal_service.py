@@ -1,6 +1,7 @@
 import os
 import json
 import subprocess
+import re
 from datetime import datetime, timedelta
 from src.application.services.sleep_service import sleep_service
 from src.application.services.sequence_service import sequence_service
@@ -109,6 +110,56 @@ class JournalService:
                 continue
         return None
 
+    def _normalize_text_key(self, text):
+        return " ".join(str(text or "").strip().lower().split())
+
+    def _parse_action_log_content(self, content):
+        raw = str(content or "").strip()
+        if not raw:
+            return None
+
+        value_match = re.match(r"^(\d+)\s*[xX]\s*(.+)$", raw)
+        if value_match:
+            return {
+                "kind": "value",
+                "value": int(value_match.group(1)),
+                "action": value_match.group(2).strip(),
+            }
+
+        legacy_value_match = re.match(r"^(\d+)\s+(.+)$", raw)
+        if legacy_value_match:
+            return {
+                "kind": "value",
+                "value": int(legacy_value_match.group(1)),
+                "action": legacy_value_match.group(2).strip(),
+            }
+
+        note_match = re.match(r"^(.+?)\s*:\s*(.+)$", raw)
+        if note_match:
+            return {
+                "kind": "note",
+                "action": note_match.group(1).strip(),
+                "note": note_match.group(2).strip(),
+            }
+
+        return {"kind": "raw", "content": raw}
+
+    def resolve_note_action(self, note_text):
+        target = self._normalize_text_key(note_text)
+        if not target:
+            return None
+
+        self._load_logs_data()
+        for entry in reversed(self.logs):
+            if not isinstance(entry, dict):
+                continue
+            parsed = self._parse_action_log_content(entry.get("content"))
+            if not parsed or parsed.get("kind") != "note":
+                continue
+            if self._normalize_text_key(parsed.get("note")) == target:
+                return parsed.get("action")
+        return None
+
     def _insert_under_last_log(self, lines, header_idx):
         header_indices = [i for i, line in enumerate(lines) if self._is_date_header_line(line)]
         next_header_idx = next((i for i in header_indices if i > header_idx), len(lines))
@@ -195,24 +246,32 @@ class JournalService:
         # Aggregation buckets
         actions_agg = {}   # "ACTION NAME": value
         purchases_agg = {} # "SHOP ITEM": qtd
+        note_logs = []
         
         # Helper to parse log content
         # Expected formats: "value ACTION" or "qtd x ITEM"
         for idx in to_process_indices:
             content = self.logs[idx]["content"]
+            parsed = self._parse_action_log_content(content)
             try:
-                if " x " in content:
+                if parsed and parsed.get("kind") == "value":
+                    name = parsed["action"]
+                    value = int(parsed["value"])
+                    actions_agg[name] = actions_agg.get(name, 0) + value
+                elif parsed and parsed.get("kind") == "note":
+                    note_logs.append({
+                        "action": parsed.get("action"),
+                        "note": parsed.get("note"),
+                    })
+                elif " x " in content:
                     # Purchase: "2 x VIDEOGAMES"
                     parts = content.split(" x ", 1)
                     qtd = int(parts[0])
                     name = parts[1].strip()
                     purchases_agg[name] = purchases_agg.get(name, 0) + qtd
                 else:
-                    # Action: "50 PUSHUPS"
-                    parts = content.split(" ", 1)
-                    val = int(parts[0])
-                    name = parts[1].strip()
-                    actions_agg[name] = actions_agg.get(name, 0) + val
+                    # Fallback: preserve raw content
+                    note_logs.append({"action": None, "note": content})
             except (ValueError, IndexError):
                 # Fallback: Just mark as processed but don't aggregate if format is weird? 
                 # Or maybe just leave it? Let's assume strict format from User/Shop.
@@ -220,7 +279,18 @@ class JournalService:
 
         # Create new aggregated logs
         for name, value in actions_agg.items():
-            self.add_log(f"{value} {name}", auto_confirm=True, custom_status="[IN WAIT]", is_activity=False)
+            self.add_log(f"{value} X {name}", auto_confirm=True, custom_status="[IN WAIT]", is_activity=False)
+
+        for item in note_logs:
+            if item.get("action") and item.get("note"):
+                self.add_log(
+                    f"{item['action']} : {item['note']}",
+                    auto_confirm=True,
+                    custom_status="[IN WAIT]",
+                    is_activity=False,
+                )
+            elif item.get("note"):
+                self.add_log(item["note"], auto_confirm=True, custom_status="[IN WAIT]", is_activity=False)
 
         for name, qtd in purchases_agg.items():
             self.add_log(f"{qtd} x {name}", auto_confirm=True, custom_status="[IN WAIT]", is_activity=False)

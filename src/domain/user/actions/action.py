@@ -1,5 +1,6 @@
 # ==================== ACTION.PY ====================
 from abc import ABC, abstractmethod
+import random
 
 class Action:
     # Progressão linear: 2.1 + (diff - 1) * 1.1
@@ -77,45 +78,16 @@ class Action:
         return score 
     
     def execution(self, manual_value=None):
-        """Executa a ação e retorna (score_difference, messages)"""
+        """Executa a ação e retorna (score_difference, messages, note_info)"""
         action_data = self._TYPE_MAP[self.type]
         messages = []
+        note_info = None
         
         original_value = self.value
         original_score = self.score
         label = action_data["label"]
-        
-        from src.interfaces.cli.ui.interface import ui
-        
-        # Timer support for time-based actions (2: seconds, 3: minutes, 4: hours)
-        if self.type in [2, 3, 4] and not ui.web_mode:
-            import time
-            import readchar
-            
-            print(f"\n[ TIMER MODE ] Action: {self.name.upper()}")
-            print(f"Press any key to START timer, or 'm' for Manual input.")
-            key = readchar.readkey()
-            
-            if key.lower() != 'm':
-                start_time = time.time()
-                print(f"Timer started. Press any key to STOP...")
-                readchar.readkey()
-                duration = time.time() - start_time
-                
-                if self.type == 2: # seconds
-                    added_value = duration
-                elif self.type == 3: # minutes
-                    added_value = duration / 60
-                elif self.type == 4: # hours
-                    added_value = duration / 3600
-                
-                self._value += added_value
-                messages.append(f"Timer stopped. Total time added: {added_value:.2f} {label}")
-            else:
-                self._manual_input(messages, label, value=manual_value)
-        else:
-            # On web, we skip the key-press timer and go straight to manual or use passed value
-            self._manual_input(messages, label, value=manual_value)
+
+        note_info = self._manual_input(messages, label, value=manual_value)
         
         value_difference = self.value - original_value
         messages.append(f"{self.name} increase by {value_difference:.2f}! {original_value:.2f} -> {self.value:.2f}")
@@ -130,26 +102,64 @@ class Action:
             if value_difference >= cm.active_challenge["required_value"]:
                 cm.complete_challenge()
         
-        return score_difference, messages
+        return score_difference, messages, note_info
 
     def _manual_input(self, messages, label, value=None):
         if value is not None:
-            self._value += value
-            return
+            note_text = str(value).strip()
+            added_value = self._note_to_value(note_text)
+            self._value += added_value
+            return {
+                "text": note_text,
+                "is_numeric": self._is_integer_note(note_text),
+                "value": added_value,
+            }
 
         from src.interfaces.cli.ui.interface import ui, WebInputInterrupt
         if ui.web_mode:
-            raise WebInputInterrupt(f"insert {label}", type="numeric", options={"action_id": self.id})
+            raise WebInputInterrupt("action note", type="text", options={"action_id": self.id})
 
-        prompt_message = f"insert {label}: "
+        prompt_message = f"insert note for {self.name}: "
         while True:
             try:
                 input_value = input(prompt_message)
-                if input_value:
-                    self._value += int(input_value)
-                break 
+                if not input_value.strip():
+                    continue
+                note_text = str(input_value).strip()
+                added_value = self._note_to_value(note_text)
+                self._value += added_value
+                return {
+                    "text": note_text,
+                    "is_numeric": self._is_integer_note(note_text),
+                    "value": added_value,
+                }
             except ValueError:
-                messages.append(f"Invalid enter, insert integer for {label}.")
+                messages.append(f"Invalid note for {label}.")
+
+    def _is_integer_note(self, note_text):
+        text = str(note_text or "").strip()
+        if not text:
+            return False
+        try:
+            int(text)
+            return True
+        except Exception:
+            return False
+
+    def _note_to_value(self, note_text):
+        text = str(note_text or "").strip()
+        if not text:
+            return 1
+        if self._is_integer_note(text):
+            return int(text)
+
+        normalized = " ".join(text.lower().split())
+        seed = f"{self.id}:{self.name}:{normalized}"
+        rng = random.Random(seed)
+        words = [w for w in normalized.split(" ") if w]
+        base = max(1, min(8, len(words) + max(1, len(normalized) // 10)))
+        spread = max(1, min(6, self.diff + len(words)))
+        return base + rng.randint(0, spread)
     
     def to_dict(self):
         return {

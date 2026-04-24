@@ -9,7 +9,6 @@ from src.application.dial_interaction.dial_digest import dial
 from src.domain.entities.entity_manager import EntityManager
 from src.application.services.challenge_service import ChallengeManager
 from src.application.services.journal_service import journal_service
-from src.application.services.roko_message_service import roko_message_service
 
 from src.domain.constants import (
     user,
@@ -309,7 +308,7 @@ def _handle_web_input_interrupt(e, current_buffer, clear_command_buffer):
         elif e.prompt == "sequence id to delete":
              user.delete_sequence(cli_input)
              clear_command_buffer()
-        elif "value" in e.prompt:
+        elif e.prompt == "action note":
              action_id = e.options.get("action_id")
              if action_id:
                  payload = action_id[1:]
@@ -433,7 +432,6 @@ def _handle_result(result, em, ui):
                 ui.show_messages_animated(current_him.messages)
                 current_him.clear_messages()            
 
-    user.add_message(roko_message_service.generate())
     if user.messages:
         ui.show_messages_animated(user.messages)
         user.clear_messages()

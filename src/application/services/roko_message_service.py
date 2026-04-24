@@ -98,7 +98,7 @@ class RokoMessageService:
         prefix, body = "ROKO:", message.split("ROKO:", 1)[1].strip()
         if not body:
             return prefix
-        return f"{prefix} {body[0].upper()}{body[1:]}"
+        return f"{prefix} {body.upper()}"
 
 
 roko_message_service = RokoMessageService()

@@ -8,6 +8,7 @@ from src.domain.user.parameters.parameter import Parameter
 from src.domain.user.statuses.status import Status
 from src.domain.user.tags.tag import Tag
 from src.application.services.journal_service import journal_service
+from src.application.services.roko_message_service import roko_message_service
 from src.application.services.agenda_service import agenda_service
 from src.application.services.tutorial_service import TutorialService
 from src.infrastructure.storage import get_evove_data_dir
@@ -255,23 +256,33 @@ class User:
             return None
 
         original_value = action.value
-        score_difference, action_messages = action.execution(manual_value=value)
+        score_difference, action_messages, note_info = action.execution(manual_value=value)
         value_difference = action.value - original_value
 
         if value_difference:
             self._apply_tag_effects(action, value_difference)
         
-        # Daily Aggregation Logic -> Immediate Log (TO PROCESS)
         action_name = action.name
-        executed_value = value if value is not None else value_difference
+        note_text = ""
+        note_value = None
+        note_is_numeric = False
+        if isinstance(note_info, dict):
+            note_text = str(note_info.get("text", "")).strip()
+            note_value = note_info.get("value")
+            note_is_numeric = bool(note_info.get("is_numeric"))
 
-        try:
-            val_num = float(executed_value)
-        except Exception:
-            val_num = 1
+        if not note_text:
+            note_text = str(value if value is not None else "").strip()
+            note_is_numeric = note_text.isdigit()
+            if note_is_numeric:
+                note_value = int(note_text)
 
-        # Log to logs.json only (TO PROCESS)
-        journal_service.add_log(f"{int(round(val_num))} {action_name.upper()}", auto_confirm=True, custom_status="[TO PROCESS]")
+        if note_is_numeric:
+            log_text = self._format_action_note_log(action_name, note_text, note_value=note_value, is_numeric=True)
+        else:
+            log_text = self._format_action_note_log(action_name, note_text)
+
+        journal_service.add_log(log_text, auto_confirm=True, custom_status="[TO PROCESS]")
 
         # Adiciona mensagens da action
         for msg in action_messages:
@@ -291,6 +302,7 @@ class User:
         if not self._attributes:
             current_score = self.metadata.get("score", 0) or 0
             self.metadata["score"] = current_score + action.score
+        self.add_message(roko_message_service.generate())
         self.save_user()
         return final_score_difference
 
@@ -373,10 +385,21 @@ class User:
             if part
         )
 
+    def _format_action_note_log(self, action_name, note_text, note_value=None, is_numeric=False):
+        action_label = self._format_log_text(action_name)
+        note_label = self._format_log_text(note_text)
+        if is_numeric:
+            return f"{int(note_value)} X {action_label}"
+        return f"{str(action_name or '').strip().upper()} : {note_label}"
+
     def log(self, text):
         formatted = self._format_log_text(text)
+        linked_action = journal_service.resolve_note_action(formatted)
+        if linked_action:
+            formatted = self._format_action_note_log(linked_action, formatted)
         if journal_service.add_log(formatted):
             self.add_message(f"Log buffered: {formatted}")
+            self.add_message(roko_message_service.generate())
         self.save_user()
 
     def add_log_entry(self, text=None):

@@ -10,7 +10,6 @@ from src.domain.entities.entity_manager import EntityManager
 from src.interfaces.cli.ui.interface import ui, WebInputInterrupt
 from src.application.dial_interaction.dial_digest import dial
 from src.application.services.journal_service import journal_service
-from src.application.services.roko_message_service import roko_message_service
 from src.interfaces.web.web_menu_service import (
     get_settings,
     toggle_agent,
@@ -54,10 +53,6 @@ class SessionManager:
         self.last_buffer = ""
 
 session = SessionManager()
-
-
-def _append_roko_message():
-    user.add_message(roko_message_service.generate())
 
 def _handle_result(result):
     if result is None: return
@@ -308,29 +303,24 @@ def command():
                     except:
                         journal_service.add_log(log_text, auto_confirm=True)
 
-            elif t == "numeric" and "action_id" in options:
-                try:
-                    val = int(buffer)
-                    action_id = options["action_id"]
-                    payload = action_id[1:]
-                    action = user._actions.get(action_id)
-                    if action:
-                        lt = getattr(action, "_logic_type", None)
-                        st = getattr(action, "_sub_logic_type", None)
-                        if lt is not None:
-                            lt = str(lt).zfill(2) if str(lt).isdigit() else str(lt)
-                            if st is not None:
-                                st = str(st).zfill(2) if str(st).isdigit() else str(st)
-                                payload = f"{lt}{st}{payload}"
-                            else:
-                                payload = f"{lt}{payload}"
-                    payloads = [payload]
-                    result = user.act(payloads, value=val)
-                    _handle_result(result)
-                except ValueError:
-                    user.add_message("Invalid numeric value.")
+            elif t == "text" and "action_id" in options:
+                action_id = options["action_id"]
+                payload = action_id[1:]
+                action = user._actions.get(action_id)
+                if action:
+                    lt = getattr(action, "_logic_type", None)
+                    st = getattr(action, "_sub_logic_type", None)
+                    if lt is not None:
+                        lt = str(lt).zfill(2) if str(lt).isdigit() else str(lt)
+                        if st is not None:
+                            st = str(st).zfill(2) if str(st).isdigit() else str(st)
+                            payload = f"{lt}{st}{payload}"
+                        else:
+                            payload = f"{lt}{payload}"
+                payloads = [payload]
+                result = user.act(payloads, value=buffer)
+                _handle_result(result)
 
-            _append_roko_message()
             user.save_user()
             return jsonify({"completed": True, "clear": True})
         except Exception as e:
@@ -344,7 +334,6 @@ def command():
         completed, result = dial.process(buffer, force=True)
         if completed:
             _handle_result(result)
-            _append_roko_message()
             user.save_user()
             return jsonify({"completed": True, "clear": True})
 
