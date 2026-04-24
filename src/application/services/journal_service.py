@@ -142,6 +142,8 @@ class JournalService:
         # wake-up log is not bundled into the previous-day aggregate.
         if is_activity:
             self._auto_sleep_transition(target_date)
+            sequence_service.record_activity(target_date)
+            sequence_service.update_sequences()
 
         # Formats
         # New Header Format: [dd/mm/yyyy]

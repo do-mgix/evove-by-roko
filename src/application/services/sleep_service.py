@@ -84,4 +84,36 @@ class SleepService:
         self._save_data()
         return sleep_detected, duration_str, sleep_start, now
 
+    def get_last_sleep(self):
+        """Returns the most recent completed sleep as a normalized dict
+        with keys: sleep_start (iso), wake (iso), duration, date. Returns
+        None if no completed sleep exists. Handles both the new single-entry
+        format and the legacy sleep/wake pair format."""
+        logs = self.data.get("logs", [])
+        for i in range(len(logs) - 1, -1, -1):
+            entry = logs[i]
+            etype = entry.get("type")
+            # New format: single entry with sleep_start/wake/duration
+            if etype == "sleep" and entry.get("wake") and entry.get("duration"):
+                return {
+                    "sleep_start": entry.get("sleep_start"),
+                    "wake": entry.get("wake"),
+                    "duration": entry.get("duration"),
+                    "date": entry.get("date"),
+                }
+            # Legacy format: find last wake, pair with preceding sleep
+            if etype == "wake":
+                sleep_start = None
+                for j in range(i - 1, -1, -1):
+                    if logs[j].get("type") == "sleep":
+                        sleep_start = logs[j].get("timestamp")
+                        break
+                return {
+                    "sleep_start": sleep_start,
+                    "wake": entry.get("timestamp"),
+                    "duration": entry.get("duration", "?"),
+                    "date": entry.get("date"),
+                }
+        return None
+
 sleep_service = SleepService()

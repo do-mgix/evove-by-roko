@@ -4,6 +4,7 @@ import readchar
 import random
 import sys
 import select
+from datetime import datetime
 from rich.align import Align
 from rich.console import Console, Group
 from rich.padding import Padding
@@ -798,6 +799,32 @@ class UI:
         # ═══════════════════════════════════════════════════════════
         points_str = f"P: {self.WHITE}{self.BOLD}{self.user.total_points}{self.CLR}"
         lines = [points_str]
+
+        from src.application.services.sleep_service import sleep_service
+        from src.application.services.sequence_service import sequence_service
+
+        last_sleep = sleep_service.get_last_sleep()
+        if last_sleep:
+            try:
+                wake_dt = datetime.fromisoformat(last_sleep.get("wake", ""))
+                wake_fmt = wake_dt.strftime("%d/%m %H:%M")
+            except (ValueError, TypeError):
+                wake_fmt = last_sleep.get("date", "?")
+            lines.append(
+                f"{self.WHITE}SLEEP:{self.CLR} {last_sleep.get('duration', '-')} "
+                f"{self.CLR}\033[2m(wake {wake_fmt})\033[0m"
+            )
+        else:
+            lines.append(f"{self.WHITE}SLEEP:{self.CLR}\033[2m no data\033[0m")
+
+        days = sequence_service.days_since_first_activity()
+        seq_summary = sequence_service.get_current_sequences_str()
+        day_label = f"DAY {days}" if days > 0 else "DAY 0"
+        lines.append(
+            f"{self.CYAN}{self.BOLD}{day_label}{self.CLR} "
+            f"{self.CLR}\033[2m| {seq_summary}\033[0m"
+        )
+
         if not buffer and not self.home_input_armed:
             lines.append(
                 f"{self.CLR}\033[2mh/l · agenda/comandos   j/k · lista   i · editar comando\033[0m"
