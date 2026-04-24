@@ -99,6 +99,8 @@ def status():
             "score": user.score,
             "value": user._value,
             "total_points": user.total_points,  # ← ADICIONADO
+            "progression": user.get_progression_state() if hasattr(user, "get_progression_state") else {},
+            "felicity": user.get_user_felicity() if hasattr(user, "get_user_felicity") else 0,
             "attributes": {k: {"name": v._name, "score": v.total_score} for k, v in user._attributes.items()},
             "actions": {k: {"name": v._name} for k, v in user._actions.items() if not getattr(v, "_deleted", False)},
             "parameters": {

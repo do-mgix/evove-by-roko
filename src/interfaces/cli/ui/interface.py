@@ -233,49 +233,99 @@ class UI:
         elif key == "i":
             self.home_input_armed = True
 
-    def _build_commands_side_panel(self):
+    def _build_commands_side_panel(self, evove_lines=None, aux_height=None):
         focused = self.nav_focus == "commands"
         border = "bright_blue" if focused else "dim blue"
-        pairs = self._sorted_command_pairs()
-        total = len(pairs)
-        cap = self._commands_viewport_cap()
-        start = 0
-        slice_pairs = pairs
-        extra_row = None
+        total_height = max(24, self.console.size.height)
+        if aux_height is None:
+            aux_height = max(5, min(8, total_height // 7))
+        top_height = max(12, total_height - aux_height - 6)
+        evove_height = 5
+        agenda_height = max(8, top_height - evove_height)
+        user_height = max(8, int(top_height * 0.53))
+        roko_height = max(6, top_height - user_height)
 
-        if total > cap:
-            data_rows = cap - 1
-            max_scroll = max(0, total - data_rows)
-            self._commands_scroll = min(max(self._commands_scroll, 0), max_scroll)
-            start = self._commands_scroll
-            slice_pairs = pairs[start : start + data_rows]
-            rest = total - start - len(slice_pairs)
-            if rest > 0:
-                extra_row = ("...", f"+{rest} comandos")
-
-        table = Table(
-            show_header=True,
-            header_style="bold cyan",
-            box=box.SIMPLE_HEAVY,
-            pad_edge=False,
-            expand=True,
-            collapse_padding=True,
+        evove_panel = self._build_evove_panel(evove_lines or [], height=evove_height)
+        agenda_panel = self._build_agenda_panel(height=agenda_height)
+        user_panel = self._build_user_side_panel(border, height=user_height)
+        roko_panel = self._build_roko_side_panel(border, height=roko_height)
+        aux_panel = Panel(
+            Text("", style="dim"),
+            title="[dim]aux[/]",
+            border_style="dim blue",
+            height=aux_height,
         )
-        table.add_column("CMD", justify="left", style="yellow", no_wrap=True)
-        table.add_column("LABEL", justify="left", style="white", overflow="fold", no_wrap=False)
 
-        for cmd, info in slice_pairs:
-            table.add_row(str(cmd), str(info.get("label", "")))
-        if extra_row:
-            table.add_row(extra_row[0], extra_row[1])
+        top_grid = Table.grid(expand=True)
+        top_grid.add_column(ratio=48)
+        top_grid.add_column(ratio=52)
+        top_grid.add_row(Group(evove_panel, agenda_panel), Group(user_panel, roko_panel))
+        return Group(top_grid, aux_panel)
 
-        if total > cap:
-            title = f"[dim]comandos[/] [dim]({start + 1}-{start + len(slice_pairs)}/{total})[/]"
+    def _build_evove_panel(self, lines, height):
+        body_lines = list(lines or [])
+        body = Text.from_ansi("\n".join(body_lines))
+        return Panel(body, title="[dim]evove[/]", border_style="cyan", height=height)
+
+    def _build_user_side_panel(self, border, height=None):
+        from src.application.services.sleep_service import sleep_service
+        from src.application.services.sequence_service import sequence_service
+
+        progress = self.user.get_progression_state() if hasattr(self.user, "get_progression_state") else {}
+        sleep_info = sleep_service.get_last_sleep()
+        sleep_text = sleep_info.get("duration", "no data") if sleep_info else "no data"
+        day_text = sequence_service.days_since_first_activity()
+        felicity = int(round(self.user.get_user_felicity())) if hasattr(self.user, "get_user_felicity") else 0
+
+        items = [
+            f"{self.CYAN}P:{self.CLR} {self.BOLD}{self.user.total_points}{self.CLR}",
+            f"{self.GREEN}LEVEL:{self.CLR} {self.BOLD}{progress.get('rank_symbol', 'α')}{self.CLR} {self.WHITE}|{self.CLR} {self.BOLD}{progress.get('local_level_roman', 'I')}{self.CLR}",
+            f"{self.CYAN}XP:{self.CLR} {progress.get('xp', 0)}  {self.YELLOW}NEXT:{self.CLR} {self.BOLD}{progress.get('next_xp', 0)}{self.CLR}",
+            f"{self.MAGENTA}SAT:{self.CLR} {felicity}%",
+            f"{self.WHITE}SLEEP:{self.CLR} {sleep_text}",
+            f"{self.WHITE}DAY:{self.CLR} {day_text}",
+            "",
+            "ATTRIBUTES",
+        ]
+
+        if self.user._attributes:
+            for attr in self.user._attributes.values():
+                items.append(f"{self.WHITE}{attr._name}{self.CLR} :: {self.CYAN}{attr.power_display}{self.CLR}")
         else:
-            title = "[dim]comandos[/]"
-        return Panel(table, title=title, border_style=border)
+            items.append("no attributes.")
 
-    def _build_agenda_panel(self):
+        body = Text.from_ansi("\n".join(items))
+        return Panel(body, title="[dim]user[/]", border_style=border, height=height)
+
+    def _build_roko_side_panel(self, border, height=None):
+        from src.domain.entities.entity_manager import EntityManager
+
+        current_entity = EntityManager().get_entity()
+        adjective = self.user._get_roko_adjective() if hasattr(self.user, "_get_roko_adjective") else "NEUTRO"
+        lines = [
+            f"ROKO ({adjective})",
+        ]
+
+        if current_entity:
+            try:
+                sat = int(round(current_entity.satisfaction))
+            except Exception:
+                sat = 0
+            mood = current_entity._get_mood().upper() if hasattr(current_entity, "_get_mood") else "-"
+            lines.extend([
+                f"SAT: {sat}%",
+                f"MOOD: {mood}",
+            ])
+        else:
+            lines.extend([
+                "SAT: 0%",
+            "MOOD: -",
+            ])
+
+        body = Text("\n".join(lines), style="white", overflow="fold", no_wrap=False)
+        return Panel(body, title="[dim]roko[/]", border_style=border, height=height)
+
+    def _build_agenda_panel(self, height=None):
         focused = self.nav_focus == "agenda"
         border = "bright_magenta" if focused else "dim magenta"
         resolved, lines = self._load_agenda()
@@ -289,13 +339,13 @@ class UI:
                 no_wrap=False,
             )
             title = "[dim]agenda[/]"
-            return Panel(body, title=title, border_style=border)
+            return Panel(body, title=title, border_style=border, height=height)
 
         total = len(lines)
         if total == 0:
             body = Text("(vazio)", style="dim white", overflow="fold", no_wrap=False)
             title = f"[dim]agenda[/] [dim]({resolved})[/]"
-            return Panel(body, title=title, border_style=border)
+            return Panel(body, title=title, border_style=border, height=height)
 
         start = 0
         chunk = lines
@@ -315,7 +365,7 @@ class UI:
             no_wrap=False,
         )
         title = f"[dim]agenda[/] [dim]({resolved}){title_suffix}[/]"
-        return Panel(body, title=title, border_style=border)
+        return Panel(body, title=title, border_style=border, height=height)
 
     def show_startup_commands(self):
         if self.web_mode:
@@ -793,68 +843,23 @@ class UI:
             soft_wrap=True,
         )
         
-        # ═══════════════════════════════════════════════════════════
-        # EXIBIÇÃO DE TOTAL POINTS
-        # Usa self.user que já está disponível na instância UI
-        # ═══════════════════════════════════════════════════════════
-        points_str = f"P: {self.WHITE}{self.BOLD}{self.user.total_points}{self.CLR}"
-        lines = [points_str]
-
-        from src.application.services.sleep_service import sleep_service
-        from src.application.services.sequence_service import sequence_service
-
-        last_sleep = sleep_service.get_last_sleep()
-        if last_sleep:
-            try:
-                wake_dt = datetime.fromisoformat(last_sleep.get("wake", ""))
-                wake_fmt = wake_dt.strftime("%d/%m %H:%M")
-            except (ValueError, TypeError):
-                wake_fmt = last_sleep.get("date", "?")
-            lines.append(
-                f"{self.WHITE}SLEEP:{self.CLR} {last_sleep.get('duration', '-')} "
-                f"{self.CLR}\033[2m(wake {wake_fmt})\033[0m"
-            )
+        total_height = max(24, self.console.size.height)
+        aux_height = max(5, min(8, total_height // 7))
+        if self.home_input_armed:
+            mode_line = f"\033[1;33m-- INSERT --\033[0m"
         else:
-            lines.append(f"{self.WHITE}SLEEP:{self.CLR}\033[2m no data\033[0m")
-
-        days = sequence_service.days_since_first_activity()
-        seq_summary = sequence_service.get_current_sequences_str()
-        day_label = f"DAY {days}" if days > 0 else "DAY 0"
-        lines.append(
-            f"{self.CYAN}{self.BOLD}{day_label}{self.CLR} "
-            f"{self.CLR}\033[2m| {seq_summary}\033[0m"
-        )
-
-        if not buffer and not self.home_input_armed:
-            lines.append(
-                f"{self.CLR}\033[2mh/l · agenda/comandos   j/k · lista   i · editar comando\033[0m"
-            )
-
-        buffer_view = self.format_visual_buffer(buffer)
-        process_view_result = self.process_view(buffer)
-        
-        lines.append(f"{buffer_view}")
-        lines.append(f"{process_view_result}")
-        
-        from src.application.services.challenge_service import ChallengeManager
-        cm = ChallengeManager()
-        if cm.active_challenge:
-            rem = cm.get_remaining_time()
-            lines.append("")
-            lines.append(f"{self.YELLOW}{self.BOLD}[ CHALLENGE: {rem}s ]{self.CLR}")
-            lines.append(f"{self.WHITE}DO: {cm.active_challenge['required_value']} {cm.active_challenge['name'].upper()}{self.CLR}")
-
-        debug = ""
-        if debug:
-            lines.append("DEBUG")
-            lines.append(f"{debug}")
-        main_text = Text.from_ansi("\n".join(lines))
-        main_panel = Panel(Align.left(main_text), title="[dim]interface[/]", border_style="cyan")
-        agenda_panel = self._build_agenda_panel()
-        left_column = Group(main_panel, agenda_panel)
-        side_panel = self._build_commands_side_panel()
+            mode_line = f"\033[2m-- NORMAL --\033[0m"
+        if buffer:
+            visual = self.format_visual_buffer(buffer)
+            parsed = self.process_view(buffer)
+            evove_lines = [mode_line, visual]
+            if parsed:
+                evove_lines.append(parsed)
+        else:
+            evove_lines = [mode_line, f"\033[2m_\033[0m"]
+        side_panels = self._build_commands_side_panel(evove_lines=evove_lines, aux_height=aux_height)
         self.console.print(
-            Padding(Columns([left_column, side_panel], expand=True, equal=False), (0, self.margin_x)),
+            Padding(side_panels, (0, self.margin_x)),
             highlight=False,
             soft_wrap=True,
         )

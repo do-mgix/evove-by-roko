@@ -1,6 +1,9 @@
 # ==================== USER.PY ====================
 import json, os, time
+import roman
 from datetime import datetime, timedelta
+
+_GREEK = ['α','β','γ','δ','ε','ζ','η','θ','ι','κ','λ','μ','ν','ξ','ο','π','ρ','σ','τ','υ','φ','χ','ψ','ω']
 from src.domain.entities.entity_manager import EntityManager
 from src.domain.user.attributes.attribute import Attribute
 from src.domain.user.actions.action import Action
@@ -40,6 +43,7 @@ class User:
             "refill_cooldown": 12,
             "refill_cooldown": 12,
             "last_token_refill": datetime.now().strftime("%Y-%m-%d"),
+            "interaction_count": 0,
             "tutorial": {
                 "has_created_action": {"status": False, "priority": 10},
                 "welcomed": {"status": False, "priority": 11}
@@ -302,6 +306,7 @@ class User:
         if not self._attributes:
             current_score = self.metadata.get("score", 0) or 0
             self.metadata["score"] = current_score + action.score
+        self._register_interaction()
         self.add_message(roko_message_service.generate())
         self.save_user()
         return final_score_difference
@@ -385,6 +390,108 @@ class User:
             if part
         )
 
+    def _build_progression_tiers(self):
+        if hasattr(self, "_progression_tiers_cache") and self._progression_tiers_cache:
+            return self._progression_tiers_cache
+
+        tiers = []
+        cumulative_xp = 0
+        global_level = 1
+        letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        total_ranks = len(letters)
+
+        for rank_index, letter in enumerate(letters):
+            levels_in_rank = max(1, total_ranks - rank_index)
+            rank_symbol = _GREEK[rank_index % len(_GREEK)]
+            for local_level in range(1, levels_in_rank + 1):
+                xp_cost = int(round(24 * (1.11 ** (global_level - 1)) * (1 + rank_index * 0.18)))
+                xp_cost = max(1, xp_cost)
+                cumulative_xp += xp_cost
+                tiers.append({
+                    "level": global_level,
+                    "rank_index": rank_index,
+                    "rank_letter": letter,
+                    "rank_symbol": rank_symbol,
+                    "rank_name": letter,
+                    "local_level": local_level,
+                    "local_level_roman": roman.toRoman(local_level),
+                    "local_levels_total": levels_in_rank,
+                    "xp_cost": xp_cost,
+                    "threshold": cumulative_xp,
+                })
+                global_level += 1
+
+        self._progression_tiers_cache = tiers
+        return tiers
+
+    def get_progression_state(self):
+        xp = max(0, int(round(self.total_points)))
+        tiers = self._build_progression_tiers()
+        if not tiers:
+            return {
+                "level": 1,
+                "rank_symbol": "α",
+                "rank_name": "A",
+                "rank_letter": "A",
+                "local_level": 1,
+                "local_level_roman": "I",
+                "local_levels_total": 1,
+                "next_xp": 0,
+                "xp": xp,
+            }
+
+        current_tier = tiers[0]
+        for tier in tiers:
+            current_tier = tier
+            if xp < tier["threshold"]:
+                break
+        else:
+            current_tier = tiers[-1]
+
+        next_xp = max(0, current_tier["threshold"] - xp)
+        if xp >= tiers[-1]["threshold"]:
+            next_xp = 0
+
+        return {
+            "level": current_tier["level"],
+            "rank_symbol": current_tier["rank_symbol"],
+            "rank_name": current_tier["rank_name"],
+            "rank_letter": current_tier["rank_letter"],
+            "local_level": current_tier["local_level"],
+            "local_level_roman": current_tier["local_level_roman"],
+            "local_levels_total": current_tier["local_levels_total"],
+            "next_xp": next_xp,
+            "xp": xp,
+        }
+
+    def get_user_felicity(self):
+        interaction_count = int(self.metadata.get("interaction_count", 0) or 0)
+        xp = max(0, int(round(self.total_points)))
+        felicity = 35 + min(35, xp / 30) + min(30, interaction_count * 1.4)
+        return max(0, min(100, felicity))
+
+    def _get_roko_adjective(self):
+        adjectives = [
+            "sereno",
+            "vivo",
+            "ácido",
+            "calmo",
+            "ácustico",
+            "firme",
+            "breve",
+            "luminoso",
+            "silencioso",
+            "preciso",
+            "vibrante",
+            "quieto",
+        ]
+        seed = f"{int(self.total_points)}:{int(self.get_user_felicity())}:{self.metadata.get('interaction_count', 0)}"
+        import random
+        return random.Random(seed).choice(adjectives).upper()
+
+    def _register_interaction(self):
+        self.metadata["interaction_count"] = int(self.metadata.get("interaction_count", 0) or 0) + 1
+
     def _format_action_note_log(self, action_name, note_text, note_value=None, is_numeric=False):
         action_label = self._format_log_text(action_name)
         note_label = self._format_log_text(note_text)
@@ -400,6 +507,7 @@ class User:
         if journal_service.add_log(formatted):
             self.add_message(f"Log buffered: {formatted}")
             self.add_message(roko_message_service.generate())
+            self._register_interaction()
         self.save_user()
 
     def add_log_entry(self, text=None):
@@ -1954,22 +2062,58 @@ class User:
 
     def show_user_info(self):
         from src.interfaces.cli.ui.interface import ui
+        from src.application.services.sleep_service import sleep_service
+        from src.application.services.sequence_service import sequence_service
+        current_entity = EntityManager().get_entity()
         meta = self.metadata
+
+        progress = self.get_progression_state()
+        sleep_info = sleep_service.get_last_sleep()
+        if sleep_info:
+            sleep_text = f"{sleep_info.get('duration', '-')}"
+        else:
+            sleep_text = "no data"
+
+        days = sequence_service.days_since_first_activity()
+        day_text = str(days)
+        roko_satisfaction = 0
+        roko_mood = "none"
+        roko_name = "ROKO"
+        if current_entity:
+            try:
+                roko_satisfaction = int(round(current_entity.satisfaction))
+            except Exception:
+                roko_satisfaction = 0
+            roko_name = f"ROKO ({self._get_roko_adjective()})"
+            if hasattr(current_entity, "_get_mood"):
+                roko_mood = str(current_entity._get_mood()).upper()
+
         items = [
-            f"score: {self.score:.2f}",
-            f"total_points: {self.total_points:.2f}",
-            f"mode: {meta.get('mode')}",
-            f"tokens: {meta.get('tokens')}/{meta.get('max_tokens')}",
-            f"daily_refill: {meta.get('daily_refill')}",
-            f"refill_cooldown: {meta.get('refill_cooldown')}",
-            f"last_token_refill: {meta.get('last_token_refill')}",
-            f"attributes: {len(self._attributes)}",
-            f"actions: {len([a for a in self._actions.values() if not getattr(a, '_deleted', False)])}",
-            f"parameters: {len(self._parameters)}",
-            f"statuses: {len(self._statuses)}",
-            f"tags: {len(self._tags)}",
+            "USER",
+            f"SLEEP: {sleep_text}",
+            f"DAY: {day_text}",
+            f"LEVEL: {progress['level']}",
+            f"RANK: {progress['rank_symbol']}",
+            f"NEXT: {progress['next_xp']} XP",
+            f"SATISFACTION: {self.get_user_felicity():.0f}%",
+            "",
+            "ATTRIBUTES",
         ]
-        ui.show_list(items, "USER INFO")
+
+        if self._attributes:
+            for attr in self._attributes.values():
+                items.append(f"({attr._id}) {attr._name} :: {attr.power_display}")
+        else:
+            items.append("No attributes yet.")
+
+        items.extend([
+            "",
+            roko_name,
+            f"SATISFACTION: {roko_satisfaction}%",
+            f"MOOD: {roko_mood}",
+        ])
+
+        ui.show_vertical_list(items, "USER / ROKO")
 
 
     def _collect_autocomplete_names(self):

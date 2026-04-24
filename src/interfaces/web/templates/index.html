@@ -1695,6 +1695,7 @@
                     const scoreVal = (metaScore !== null)
                         ? metaScore
                         : (typeof data.user.score === 'number' ? data.user.score : null);
+                    const progression = data.user.progression || {};
                     if (scoreVal !== null) {
                         displayPoints.textContent = Math.round(scoreVal).toString();
                         currentScore = Math.round(scoreVal);
@@ -1704,6 +1705,13 @@
                                 renderFountain();
                             }
                         }
+                    }
+                    if (!pendingType && !buffer) {
+                        const level = progression.level || 1;
+                        const rank = progression.rank_symbol || '⟐A';
+                        const nextXp = typeof progression.next_xp === 'number' ? progression.next_xp : 0;
+                        const felicity = typeof data.user.felicity === 'number' ? Math.round(data.user.felicity) : 0;
+                        displayLabel.textContent = `LEVEL ${level} | RANK ${rank} | NEXT ${nextXp} XP | SAT ${felicity}%`;
                     }
                 }
 
