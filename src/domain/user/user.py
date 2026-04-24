@@ -238,50 +238,7 @@ class User:
             return sum(action.score for action in self._actions.values())
         return 0
 
-    def sleep(self):
-        if self._check_sleep():
-            return
-
-        # 1. Process Daily Logs (TO PROCESS -> IN WAIT)
-        # Aggregates granular logs into daily summary logs in evove26
-        process_msg = journal_service.process_daily_logs()
-        self.add_message(process_msg)
-
-        # 2. Proceed to Sleep (Git Sync)
-        result = journal_service.sleep()
-        self.metadata["is_sleeping"] = True
-        self.add_message("Goodnight.")
-        self.add_message(result)
-        self.save_user()
-
-    def nap(self):
-        if self._check_sleep():
-            return
-
-        #Sleep without git sync
-        result = journal_service.nap()
-        self.metadata["is_sleeping"] = True
-        self.add_message("Goodnight.")
-        self.add_message(result)
-        self.log("NAP")
-        self.save_user()
-
-    def wake(self):
-        result = journal_service.wake()
-        self.metadata["is_sleeping"] = False
-        self.add_message(result)
-        self.save_user()
-    
-    def _check_sleep(self):
-        if self.metadata.get("is_sleeping"):
-            self.add_message("You are sleeping! Remember to wake up (71) before any operation.")
-            return True
-        return False
-
     def act(self, payloads, value=None):
-        if self._check_sleep():
-            return
-
         if not payloads or not payloads[0]:
             self.add_message("Invalid action ID.")
             return None
@@ -415,8 +372,6 @@ class User:
         self.save_user()
 
     def add_log_entry(self, text=None):
-        if self._check_sleep():
-            return
         if text is None:
             from src.interfaces.cli.ui.interface import WebInputInterrupt
             raise WebInputInterrupt("log message", type="text")
@@ -563,8 +518,6 @@ class User:
         return None
 
     def add_agenda_item(self, text=None):
-        if self._check_sleep():
-            return
         if text is None:
             from src.interfaces.cli.ui.interface import WebInputInterrupt
             raise WebInputInterrupt("agenda label", type="text", options={"agenda_step": "label", "agenda_data": {}})
@@ -579,8 +532,6 @@ class User:
         self._add_agenda_payload(payload)
 
     def list_logs(self):
-        #if self._check_sleep():
-            #return
         logs = journal_service.list_logs()
         from src.interfaces.cli.ui.interface import ui
         table_rows = []
@@ -602,8 +553,6 @@ class User:
         )
 
     def up_log_day(self, payloads=None):
-        if self._check_sleep():
-            return
         payload = payloads[0] if payloads else ""
         raw = str(payload).strip()
         if not raw.isdigit():
@@ -623,15 +572,11 @@ class User:
         self.save_user()
 
     def up_current_day(self):
-        if self._check_sleep():
-            return
         result = journal_service.up_current_day()
         self.add_message(result)
         self.save_user()
 
     def delete_log(self, payloads=None):
-        if self._check_sleep():
-            return
         payload = payloads[0] if payloads else ""
         raw = str(payload).strip()
         if not raw.isdigit():
@@ -650,36 +595,26 @@ class User:
         self.save_user()
 
     def drop_last_log_buffer(self):
-        if self._check_sleep():
-            return
         result = journal_service.drop_last_buffer_entry()
         self.add_message(result)
         self.save_user()
 
     def drop_last_day(self):
-        if self._check_sleep():
-            return
         result = journal_service.drop_last_day()
         self.add_message(result)
         self.save_user()
 
     def list_sequences(self):
-        if self._check_sleep():
-            return
         from src.application.services.sequence_service import sequence_service
         info = sequence_service.get_current_sequences_str()
         self.add_message(f"Sequences: {info}")
 
     def list_days(self):
-        if self._check_sleep():
-            return
         logs = journal_service.list_days()
         from src.interfaces.cli.ui.interface import ui
         ui.show_vertical_list(logs, "EVOVE26 FILE CONTENT", mode="plain")
 
     def delete_sequence(self, index=None):
-        if self._check_sleep():
-            return
         if index is None:
             from src.interfaces.cli.ui.interface import WebInputInterrupt
             raise WebInputInterrupt("sequence index to delete", type="numeric")
@@ -692,8 +627,6 @@ class User:
             self.add_message("Invalid index.")
 
     def new_sequence(self, label=None, start_value=None):
-        if self._check_sleep():
-            return
         if label is None:
             from src.interfaces.cli.ui.interface import WebInputInterrupt
             raise WebInputInterrupt("sequence label", type="text")

@@ -119,16 +119,16 @@ class JournalService:
                 break
         return insert_idx
 
-    def add_log(self, text, manual_date=None, auto_confirm=False, custom_status=None):
+    def add_log(self, text, manual_date=None, auto_confirm=False, custom_status=None, is_activity=True):
         """Adds a log entry to both evove26 and logs.json."""
         if not text.strip():
             return False
 
         now = datetime.now()
-        
+
         # Date Logic
         target_date = now
-        
+
         if manual_date:
              try:
                 target_date = now.replace(day=int(manual_date))
@@ -138,11 +138,16 @@ class JournalService:
              # Logic matching (simplified)
              pass
 
+        # Auto sleep/wake detection: run before persisting this log so the
+        # wake-up log is not bundled into the previous-day aggregate.
+        if is_activity:
+            self._auto_sleep_transition(target_date)
+
         # Formats
         # New Header Format: [dd/mm/yyyy]
         current_date_header = target_date.strftime("[%d/%m/%Y]")
         timestamp_str = target_date.strftime("%d %m %Y : %H:%M:%S")
-        
+
         status = custom_status if custom_status else "[IN WAIT]"
         if isinstance(status, str) and "TO PROCESS" in status:
             status = "[TO PROCESS]"
@@ -213,10 +218,10 @@ class JournalService:
 
         # Create new aggregated logs
         for name, value in actions_agg.items():
-            self.add_log(f"{value} {name}", auto_confirm=True, custom_status="[IN WAIT]")
-            
+            self.add_log(f"{value} {name}", auto_confirm=True, custom_status="[IN WAIT]", is_activity=False)
+
         for name, qtd in purchases_agg.items():
-            self.add_log(f"{qtd} x {name}", auto_confirm=True, custom_status="[IN WAIT]")
+            self.add_log(f"{qtd} x {name}", auto_confirm=True, custom_status="[IN WAIT]", is_activity=False)
 
         # Mark originals as PROCESSED
         for idx in to_process_indices:
@@ -740,39 +745,32 @@ class JournalService:
         except Exception as e:
             return f"Git Exception: {str(e)}"
 
-    def sleep(self):
-        """Sleeps, pushes to git, updates status."""
-        # 1. Push to Git
+    def _sync_to_cloud(self):
+        """Pushes journal to Git and marks [IN WAIT] logs as [CLOUD]."""
         git_res = self._git_push()
-        
-        msg = ""
         if git_res is True:
-            msg = "Git push successful."
-            # Update [IN WAIT] to [CLOUD]
             updated_count = 0
             for log in self.logs:
                 if log["status"] == "[IN WAIT]":
                     log["status"] = "[CLOUD]"
                     updated_count += 1
             self._save_logs_data()
-            if updated_count > 0:
-                msg += f" Marked {updated_count} logs as [CLOUD]."
-        else:
-            msg = f"Git failed: {git_res}"
-            
-        # 2. Log sleep time (service)
-        sleep_time = sleep_service.log_sleep()
-        
-        return f"Sleep at {sleep_time.strftime('%H:%M:%S')}. {msg}"
+            return True, f"Git push successful. Marked {updated_count} logs as [CLOUD]."
+        return False, f"Git failed: {git_res}"
 
-    def nap(self):                   
-        # 2. Log sleep time (service)
-        sleep_time = sleep_service.log_sleep()
-        
-        return f"Nap at {sleep_time.strftime('%H:%M:%S')}"
+    def _auto_sleep_transition(self, now):
+        """Records activity and, on detected wake-up, processes pending logs
+        and syncs to cloud. Returns a human-readable message or None."""
+        sleep_detected, duration, sleep_start, wake_time = sleep_service.record_activity(now)
+        if not sleep_detected:
+            return None
 
-    def wake(self):
-        wake_time, duration = sleep_service.log_wake()
-        return f"Woke up at {wake_time.strftime('%H:%M:%S')}. Sleep duration: {duration}."
+        parts = [f"Woke up at {wake_time.strftime('%H:%M:%S')}. Slept {duration}."]
+        process_msg = self.process_daily_logs()
+        if process_msg:
+            parts.append(process_msg)
+        _, sync_msg = self._sync_to_cloud()
+        parts.append(sync_msg)
+        return " ".join(parts)
 
 journal_service = JournalService()

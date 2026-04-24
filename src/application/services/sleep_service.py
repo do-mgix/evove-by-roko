@@ -1,8 +1,12 @@
 import os
 import json
-from datetime import datetime
+from datetime import datetime, time as dtime
 
 from src.infrastructure.storage import get_evove_data_dir
+
+# Window: if inactivity covers this hour boundary crossing to the next day,
+# the gap is treated as sleep.
+SLEEP_START_HOUR = 22
 
 class SleepService:
     def __init__(self):
@@ -14,10 +18,13 @@ class SleepService:
         if os.path.exists(self.data_path):
             try:
                 with open(self.data_path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    data = json.load(f)
+                    data.setdefault("logs", [])
+                    data.setdefault("last_activity", None)
+                    return data
             except (json.JSONDecodeError, IOError):
-                return {"logs": []}
-        return {"logs": []}
+                return {"logs": [], "last_activity": None}
+        return {"logs": [], "last_activity": None}
 
     def _save_data(self):
         try:
@@ -29,43 +36,52 @@ class SleepService:
         except IOError as e:
             print(f"Error saving sleep data: {e}")
 
-    def log_sleep(self):
-        now = datetime.now()
-        entry = {
-            "type": "sleep",
-            "timestamp": now.isoformat(),
-            "date": now.strftime("%d %m %Y")
-        }
-        self.data["logs"].append(entry)
-        self._save_data()
-        return now
+    def record_activity(self, now=None):
+        """Registers a user activity. If the inactivity gap since the last
+        activity crosses 22:00 into the next day, logs a sleep entry.
+        Returns (sleep_detected, duration_str, sleep_start, wake_time).
+        """
+        if now is None:
+            now = datetime.now()
 
-    def log_wake(self):
-        now = datetime.now()
-        
-        # Find last sleep entry to calculate diff
-        last_sleep = None
-        for entry in reversed(self.data["logs"]):
-            if entry["type"] == "sleep":
-                last_sleep = entry
-                break
-        
-        duration_str = "Unknown"
-        if last_sleep:
-            sleep_time = datetime.fromisoformat(last_sleep["timestamp"])
-            diff = now - sleep_time
-            hours, remainder = divmod(diff.total_seconds(), 3600)
-            minutes, seconds = divmod(remainder, 60)
-            duration_str = f"{int(hours)}h {int(minutes)}m"
+        last_activity = None
+        last_str = self.data.get("last_activity")
+        if last_str:
+            try:
+                last_activity = datetime.fromisoformat(last_str)
+            except (ValueError, TypeError):
+                last_activity = None
 
-        entry = {
-            "type": "wake",
-            "timestamp": now.isoformat(),
-            "date": now.strftime("%d %m %Y"),
-            "duration": duration_str
-        }
-        self.data["logs"].append(entry)
+        sleep_detected = False
+        duration_str = None
+        sleep_start = None
+
+        if last_activity:
+            days_gap = (now.date() - last_activity.date()).days
+            # Only consider sleep when the wake-up log lands on the immediate
+            # next day. A longer gap likely means a routine hiccup and is
+            # ignored (buffer discarded).
+            if days_gap == 1:
+                threshold = datetime.combine(last_activity.date(), dtime(SLEEP_START_HOUR, 0))
+                # Sleep starts at the later of: last activity or 22:00 of that day.
+                sleep_start = last_activity if last_activity >= threshold else threshold
+                if sleep_start < now:
+                    diff = now - sleep_start
+                    hours, remainder = divmod(diff.total_seconds(), 3600)
+                    minutes, _ = divmod(remainder, 60)
+                    duration_str = f"{int(hours)}h {int(minutes)}m"
+                    entry = {
+                        "type": "sleep",
+                        "sleep_start": sleep_start.isoformat(),
+                        "wake": now.isoformat(),
+                        "date": now.strftime("%d %m %Y"),
+                        "duration": duration_str,
+                    }
+                    self.data["logs"].append(entry)
+                    sleep_detected = True
+
+        self.data["last_activity"] = now.isoformat()
         self._save_data()
-        return now, duration_str
+        return sleep_detected, duration_str, sleep_start, now
 
 sleep_service = SleepService()

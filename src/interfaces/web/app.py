@@ -120,7 +120,6 @@ def status():
         },
         "messages": messages,
         "pending": session.pending_input,
-        "is_sleeping": user.metadata.get("is_sleeping", False)
     }
     return jsonify(resp)
 
