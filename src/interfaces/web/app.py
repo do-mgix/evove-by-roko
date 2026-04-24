@@ -259,6 +259,9 @@ def command():
             elif p == "sequence index to delete":
                 user.delete_sequence(buffer)
 
+            elif p == "sequence index for action link":
+                user.sequence_add_action(options.get("action_id_suffix"), sequence_index=buffer)
+
             # 2. General Confirmation
             elif t == "confirm":
                  if buffer == options.get("code"):

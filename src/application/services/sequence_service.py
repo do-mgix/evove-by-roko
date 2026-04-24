@@ -14,26 +14,60 @@ class SequenceService:
 
     def _load_data(self):
         default = {"sequences": [], "first_activity_date": None}
+        data = default
         if os.path.exists(self.data_path):
             try:
                 with open(self.data_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     data.setdefault("sequences", [])
                     data.setdefault("first_activity_date", None)
-                    return data
             except (json.JSONDecodeError, IOError):
-                return default
-        return default
+                data = default
+        if self._backfill_ids(data["sequences"]):
+            self._write(data)
+        return data
 
-    def _save_data(self):
+    @staticmethod
+    def _backfill_ids(sequences):
+        changed = False
+        taken = {str(s.get("id")) for s in sequences if s.get("id")}
+        n = 1
+        for s in sequences:
+            if s.get("id"):
+                continue
+            while f"{n:02d}" in taken:
+                n += 1
+            s["id"] = f"{n:02d}"
+            taken.add(s["id"])
+            n += 1
+            changed = True
+        return changed
+
+    def _next_id(self):
+        taken = {str(s.get("id")) for s in self.sequences["sequences"] if s.get("id")}
+        n = 1
+        while f"{n:02d}" in taken:
+            n += 1
+        return f"{n:02d}"
+
+    def _write(self, data):
         try:
             os.makedirs(os.path.dirname(self.data_path), exist_ok=True)
             with open(self.data_path, 'w', encoding='utf-8') as f:
-                json.dump(self.sequences, f, indent=4)
+                json.dump(data, f, indent=4)
             from src.infrastructure.backup_service import backup_json
             backup_json(self.data_path)
         except IOError as e:
             print(f"Error saving sequences: {e}")
+
+    def _save_data(self):
+        self._write(self.sequences)
+
+    def _find_index(self, seq_id):
+        for i, s in enumerate(self.sequences["sequences"]):
+            if str(s.get("id")) == str(seq_id):
+                return i
+        return -1
 
     def record_activity(self, now=None):
         """Stamps the first-ever activity date. Subsequent calls are no-ops."""
@@ -62,14 +96,16 @@ class SequenceService:
         now = datetime.now()
         date_str = now.strftime(DATE_FMT)
         new_seq = {
+            "id": self._next_id(),
             "label": label,
             "start_date": date_str,
             "start_value": int(start_value),
-            "current_value": int(start_value)
+            "current_value": int(start_value),
+            "actions": [],
         }
         self.sequences["sequences"].append(new_seq)
         self._save_data()
-        return f"Sequence '{label}' created starting at {start_value} on {date_str}."
+        return f"Sequence '{label}' [{new_seq['id']}] created starting at {start_value} on {date_str}."
 
     def update_sequences(self):
         """Increments each sequence by calendar days since its start_date."""
@@ -88,19 +124,47 @@ class SequenceService:
         return updated_count
 
     def get_current_sequences_str(self):
-        if not self.sequences["sequences"]:
+        seqs = self.sequences.get("sequences", [])
+        if not seqs:
             return "No sequences found."
-
         parts = []
-        for i, seq in enumerate(self.sequences["sequences"]):
-            parts.append(f"[{i}] {seq['label']}: {seq['current_value']}")
+        for seq in seqs:
+            parts.append(f"[{seq.get('id', '??')}] {seq['label']}: {seq['current_value']}")
         return " | ".join(parts)
 
-    def delete_sequence(self, index):
-        if 0 <= index < len(self.sequences["sequences"]):
-            removed = self.sequences["sequences"].pop(index)
-            self._save_data()
-            return f"Sequence '{removed['label']}' deleted."
-        return f"Index {index} out of range."
+    def get_sequences_rows(self, include_actions=False):
+        """Returns a list of row dicts suitable for table display."""
+        rows = []
+        for seq in self.sequences.get("sequences", []):
+            row = {
+                "id": seq.get("id", "??"),
+                "label": seq.get("label", "?"),
+                "value": seq.get("current_value", 0),
+            }
+            if include_actions:
+                actions = seq.get("actions", []) or []
+                row["actions"] = ", ".join(actions) if actions else "—"
+            rows.append(row)
+        return rows
+
+    def delete_sequence(self, seq_id):
+        idx = self._find_index(seq_id)
+        if idx == -1:
+            return f"Sequence id {seq_id} not found."
+        removed = self.sequences["sequences"].pop(idx)
+        self._save_data()
+        return f"Sequence '{removed['label']}' [{removed.get('id')}] deleted."
+
+    def add_action_to_sequence(self, seq_id, action_id):
+        idx = self._find_index(seq_id)
+        if idx == -1:
+            return f"Sequence id {seq_id} not found."
+        seq = self.sequences["sequences"][idx]
+        actions = seq.setdefault("actions", [])
+        if action_id in actions:
+            return f"Action {action_id} already linked to '{seq['label']}'."
+        actions.append(action_id)
+        self._save_data()
+        return f"Action {action_id} linked to sequence '{seq['label']}' [{seq_id}]."
 
 sequence_service = SequenceService()

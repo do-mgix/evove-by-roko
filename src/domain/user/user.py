@@ -606,25 +606,60 @@ class User:
 
     def list_sequences(self):
         from src.application.services.sequence_service import sequence_service
-        info = sequence_service.get_current_sequences_str()
-        self.add_message(f"Sequences: {info}")
+        from src.interfaces.cli.ui.interface import ui
+        rows = sequence_service.get_sequences_rows(include_actions=False)
+        if not rows:
+            self.add_message("No sequences.")
+            return
+        ui.show_vertical_list(
+            rows,
+            "SEQUENCES",
+            mode="table",
+            columns=[("id", "ID"), ("label", "LABEL"), ("value", "DAY")],
+        )
+
+    def list_sequences_detailed(self):
+        from src.application.services.sequence_service import sequence_service
+        from src.interfaces.cli.ui.interface import ui
+        rows = sequence_service.get_sequences_rows(include_actions=True)
+        if not rows:
+            self.add_message("No sequences.")
+            return
+        for row in rows:
+            ids = [a for a in (row["actions"].split(", ") if row["actions"] != "—" else [])]
+            names = []
+            for aid in ids:
+                a = self._actions.get(aid)
+                label = getattr(a, "_name", None) if a else None
+                names.append(f"{aid} ({label})" if label else aid)
+            row["actions"] = ", ".join(names) if names else "—"
+        ui.show_vertical_list(
+            rows,
+            "SEQUENCES + ACTIONS",
+            mode="table",
+            columns=[("id", "ID"), ("label", "LABEL"), ("value", "DAY"), ("actions", "ACTIONS")],
+        )
 
     def list_days(self):
         logs = journal_service.list_days()
         from src.interfaces.cli.ui.interface import ui
         ui.show_vertical_list(logs, "EVOVE26 FILE CONTENT", mode="plain")
 
-    def delete_sequence(self, index=None):
-        if index is None:
+    def delete_sequence(self, payloads=None):
+        seq_id = None
+        if isinstance(payloads, list) and payloads:
+            seq_id = str(payloads[0]).strip()
+        elif payloads is not None:
+            seq_id = str(payloads).strip()
+
+        if not seq_id:
             from src.interfaces.cli.ui.interface import WebInputInterrupt
-            raise WebInputInterrupt("sequence index to delete", type="numeric")
-        try:
-            from src.application.services.sequence_service import sequence_service
-            msg = sequence_service.delete_sequence(int(index))
-            self.add_message(msg)
-            self.save_user()
-        except ValueError:
-            self.add_message("Invalid index.")
+            raise WebInputInterrupt("sequence id to delete", type="numeric")
+
+        from src.application.services.sequence_service import sequence_service
+        msg = sequence_service.delete_sequence(seq_id)
+        self.add_message(msg)
+        self.save_user()
 
     def new_sequence(self, label=None, start_value=None):
         if label is None:
@@ -643,7 +678,44 @@ class User:
             self.save_user()
         except ValueError:
             self.add_message("Invalid start value. Must be an integer.")
-    
+
+    def sequence_add_action(self, payloads=None, sequence_index=None):
+        if isinstance(payloads, list):
+            seq_id = str(payloads[0]).strip() if len(payloads) > 0 else None
+            raw = str(payloads[1]).strip() if len(payloads) > 1 else ""
+        else:
+            raw = str(payloads or "").strip()
+            seq_id = str(sequence_index).strip() if sequence_index is not None else None
+
+        if not raw.isdigit() or len(raw) != 2:
+            self.add_message(f"Invalid action id '{raw}'. Need 2 digits.")
+            return
+        full_action_id = f"5{raw}"
+        if full_action_id not in self._actions:
+            self.add_message(f"Action {full_action_id} not found.")
+            return
+
+        from src.application.services.sequence_service import sequence_service
+        seqs = sequence_service.sequences.get("sequences", [])
+        if not seqs:
+            self.add_message("No sequences available. Create one first (24).")
+            return
+
+        if not seq_id:
+            if len(seqs) == 1:
+                seq_id = str(seqs[0].get("id", ""))
+            else:
+                from src.interfaces.cli.ui.interface import WebInputInterrupt
+                raise WebInputInterrupt(
+                    "sequence index for action link",
+                    type="numeric",
+                    options={"action_id_suffix": raw},
+                )
+
+        msg = sequence_service.add_action_to_sequence(seq_id, full_action_id)
+        self.add_message(msg)
+        self.save_user()
+
     def save_user(self):
         data_dir = get_evove_data_dir()
         data_file = os.path.join(data_dir, "user.json")

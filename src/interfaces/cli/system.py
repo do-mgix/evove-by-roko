@@ -210,12 +210,21 @@ def dial_start():
                                      next_step = user.agenda_wizard_next(step, data, cli_input)
                                  clear_command_buffer()
                             elif e.prompt == "sequence label":
-
-                                 print("Complex input incomplete. (Not fully supported in CLI for multi-step yet)")
+                                 label_input = cli_input
+                                 try:
+                                     user.new_sequence(label=label_input)
+                                 except WebInputInterrupt as next_e:
+                                     sv_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {next_e.prompt}")
+                                     user.new_sequence(label=label_input, start_value=sv_input)
                                  clear_command_buffer()
-                            elif e.prompt == "sequence start value (integer)":
-                                 # This implies label was somehow passed? unlikely via dial.
+                            elif e.prompt == "start value (integer)":
                                  pass
+                            elif e.prompt == "sequence index for action link":
+                                 user.sequence_add_action(
+                                     e.options.get("action_id_suffix"),
+                                     sequence_index=cli_input,
+                                 )
+                                 clear_command_buffer()
                             elif "value" in e.prompt:
                                  # action value
                                  action_id = e.options.get("action_id")
@@ -347,14 +356,28 @@ def dial_start():
                                  data = next_step.get("options", {}).get("agenda_data", {})
                                  next_step = user.agenda_wizard_next(step, data, cli_input)
                              clear_command_buffer()
+                        elif e.prompt == "sequence label":
+                             label_input = cli_input
+                             try:
+                                 user.new_sequence(label=label_input)
+                             except WebInputInterrupt as next_e:
+                                 sv_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {next_e.prompt}")
+                                 user.new_sequence(label=label_input, start_value=sv_input)
+                             clear_command_buffer()
                         elif "numeric value" in e.prompt or "value" in e.prompt:
                              action_id = e.options.get("action_id")
                              if action_id:
 
                                  user.act(list(action_id), cli_input)
                                  clear_command_buffer()
-                        elif e.prompt == "sequence index to delete":
+                        elif e.prompt == "sequence id to delete":
                             user.delete_sequence(cli_input)
+                            clear_command_buffer()
+                        elif e.prompt == "sequence index for action link":
+                            user.sequence_add_action(
+                                e.options.get("action_id_suffix"),
+                                sequence_index=cli_input,
+                            )
                             clear_command_buffer()
                 
     except KeyboardInterrupt:
