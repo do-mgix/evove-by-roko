@@ -386,14 +386,77 @@ class UI:
         start = self._agenda_scroll if total > cap else 0
         visible = items[start:start + cap]
 
+        # Build action name → id lookup
+        action_lookup = {}
+        for aid, action in self.user._actions.items():
+            if not getattr(action, "_deleted", False):
+                action_lookup[action.name.upper()] = aid
+
+        # Build block XP lookup from today's logs
+        from src.application.services.journal_service import journal_service
+        from src.application.services.evove_agenda_service import _parse_hhmm
+
+        today_str = datetime.now().strftime("%d %m %Y")
+
+        def _block_xp(label_upper, start_s, end_s):
+            start_min = _parse_hhmm(start_s)
+            end_min = _parse_hhmm(end_s)
+            if start_min is None or end_min is None:
+                return 0
+            total_xp = 0
+            for log in journal_service.logs:
+                ts = log.get("timestamp", "")
+                if not ts.startswith(today_str):
+                    continue
+                st = str(log.get("status", ""))
+                if "DELETED" in st or "PROCESSED" in st:
+                    continue
+                parsed = journal_service._parse_action_log_content(log.get("content", ""))
+                if not parsed:
+                    continue
+                if parsed.get("kind") == "value":
+                    log_action = parsed["action"].upper()
+                elif parsed.get("kind") == "note":
+                    log_action = (parsed.get("action") or "").upper()
+                else:
+                    continue
+                if log_action != label_upper:
+                    continue
+                try:
+                    dt = datetime.strptime(ts, "%d %m %Y : %H:%M:%S")
+                    lm = dt.hour * 60 + dt.minute
+                    in_block = (lm >= start_min and lm < end_min) if start_min < end_min \
+                               else (lm >= start_min or lm < end_min)
+                    if in_block:
+                        total_xp += int(log.get("xp", 0))
+                except Exception:
+                    continue
+            return total_xp
+
         body = Text(overflow="fold", no_wrap=False)
         for i, (s, e, label) in enumerate(visible):
             real_idx = start + i
-            line = f"{s}-{e} : {label}\n"
-            if real_idx == active_idx:
-                body.append(f"▶ {line}", style="bold yellow")
+            is_active = real_idx == active_idx
+            label_upper = label.upper()
+            marker = "▶ " if is_active else "  "
+
+            aid = action_lookup.get(label_upper)
+            if aid is not None:
+                xp = _block_xp(label_upper, s, e)
+                if xp > 0:
+                    suffix_str = f"({xp})"
+                    style = "bold green" if is_active else "green"
+                else:
+                    suffix_str = f"({aid})"
+                    style = "bold yellow" if is_active else "white"
             else:
-                body.append(f"  {line}", style="dim white")
+                suffix_str = ""
+                style = "bold dim" if is_active else "dim"
+
+            line = f"{marker}{s}-{e} : {label}"
+            if suffix_str:
+                line += f" {suffix_str}"
+            body.append(line + "\n", style=style)
 
         suffix = f" · {start + 1}-{start + len(visible)}/{total}" if total > cap else ""
         nav_hint = f" ◀▶" if offset != 0 else ""
