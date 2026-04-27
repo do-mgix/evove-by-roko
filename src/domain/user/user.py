@@ -23,6 +23,7 @@ class User:
         self._actions = {} 
         self._parameters = {}
         self._statuses = {}
+        self._shop_items = {}
         self._shop_action_links = {}
         self._shop_entitlements = {}
         self._shop_item_entitlements = {}
@@ -229,6 +230,15 @@ class User:
             return int(higher) + 1
         else:
             return 1
+
+    @property
+    def next_shop_item_id(self):
+        from src.application.services.shop_service import ShopService
+
+        items = ShopService.get_items_for_user(self)
+        if not items:
+            return 1
+        return max(int(item_id) for item_id in items.keys()) + 1
     
     @property
     def score(self):
@@ -341,10 +351,11 @@ class User:
         # Auto-spend shop cost if action is linked to a shop item
         linked_item = self._shop_action_links.get(action_id)
         if linked_item:
-            from src.application.services.shop_service import ShopService, SHOP_ITEMS
-            item = SHOP_ITEMS.get(str(linked_item))
+            from src.application.services.shop_service import ShopService
+            shop = ShopService(self)
+            item = shop.get_item(str(linked_item))
             if item:
-                ShopService(self).buy_item(str(linked_item))
+                shop.buy_item(str(linked_item))
 
         self._register_interaction()
         self.add_message(roko_message_service.generate())
@@ -946,6 +957,7 @@ class User:
             "statuses": {
                 k: v.to_dict() if hasattr(v, 'to_dict') else v for k, v in self._statuses.items()
             },
+            "shop_items": self._shop_items,
             "shop_action_links": self._shop_action_links,
             "shop_entitlements": self._shop_entitlements,
             "shop_item_entitlements": self._shop_item_entitlements,
@@ -1032,6 +1044,7 @@ class User:
         self._shop_action_links = data.get("shop_action_links", {}) or {}
         self._shop_entitlements = data.get("shop_entitlements", {}) or {}
         self._shop_item_entitlements = data.get("shop_item_entitlements", {}) or {}
+        self._shop_items = data.get("shop_items", {}) or {}
 
         self._statuses.clear()
         for status_id, status_data in data.get("statuses", {}).items():
@@ -1097,6 +1110,75 @@ class User:
         if shop.buy_item(target_id):
             self._grant_shop_entitlement(target_id)
             self.save_user()
+
+    def create_shop_item(self, step=None, data=None, value=None):
+        mode = self.metadata.get("mode", "progressive")
+        if mode == "semi-progressive":
+            self.add_message("[ MODE ] Manual creation disabled in semi-progressive mode.")
+            return
+
+        from src.interfaces.cli.ui.interface import WebInputInterrupt
+
+        data = data or {}
+        clean_data = {k: v for k, v in data.items() if k != "create_step"}
+        step = step or "shop_item_name"
+
+        if step == "shop_item_name":
+            name = str(value or "").strip()
+            if not name:
+                raise WebInputInterrupt(
+                    "shop item name",
+                    type="text",
+                    options={"create_step": "shop_item_name", "autocomplete": "names"},
+                )
+            clean_data["name"] = name
+            raise WebInputInterrupt(
+                "shop item cost",
+                type="numeric",
+                options={**clean_data, "create_step": "shop_item_cost"},
+            )
+
+        if step == "shop_item_cost":
+            name = str(clean_data.get("name", "")).strip()
+            if not name:
+                raise WebInputInterrupt(
+                    "shop item name",
+                    type="text",
+                    options={"create_step": "shop_item_name", "autocomplete": "names"},
+                )
+            try:
+                cost = int(value)
+            except Exception:
+                self.add_message("Invalid shop item cost.")
+                raise WebInputInterrupt(
+                    "shop item cost",
+                    type="numeric",
+                    options={**clean_data, "create_step": "shop_item_cost"},
+                )
+            if cost < 0:
+                self.add_message("Shop item cost must be 0 or greater.")
+                raise WebInputInterrupt(
+                    "shop item cost",
+                    type="numeric",
+                    options={**clean_data, "create_step": "shop_item_cost"},
+                )
+
+            nextid = self.next_shop_item_id
+            if nextid > 99:
+                self.add_message("Shop item limit reached (max ID 99).")
+                return
+
+            new_id = str(nextid)
+            self._shop_items[new_id] = {"name": name, "cost": cost}
+            self.add_message(f"shop item '{name}' created with ID {new_id}")
+            self.save_user()
+            return
+
+        raise WebInputInterrupt(
+            "shop item name",
+            type="text",
+            options={"create_step": "shop_item_name", "autocomplete": "names"},
+        )
 
     def _normalize_shop_item_id(self, shop_item_id):
         if isinstance(shop_item_id, str):
@@ -1823,7 +1905,12 @@ class User:
         if len(payloads) < 2:
             self.add_message("Invalid shop item/action IDs.")
             return
-        shop_item_id = payloads[0]
+        from src.application.services.shop_service import ShopService
+
+        shop_item_id = self._normalize_shop_item_id(payloads[0])
+        if not ShopService(self).get_item(shop_item_id):
+            self.add_message(f"Shop item {shop_item_id} not found.")
+            return
         action_id, action = self._resolve_action_payload(payloads[1])
         if not action:
             self.add_message("action not found.")

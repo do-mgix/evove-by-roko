@@ -23,6 +23,7 @@ INTERACTIONS = {
 
 SINGLE_COMMANDS = {
     "93": {"len": 0, "func": user.open_shop, "label": "list_shop"},
+    "23": {"len": 0, "func": user.create_shop_item, "label": "create_shop_item"},
     "25": {"len": 0, "func": user.create_action, "label": "create_action"},
     "28": {"len": 0, "func": user.create_attribute, "label": "create_attr"},
     "24": {"len": 0, "func": user.new_sequence, "label": "new_sequence"},

@@ -255,6 +255,23 @@ def _handle_web_input_interrupt(e, current_buffer, clear_command_buffer):
                          autocomplete = user._collect_autocomplete_names()
                      current_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}", autocomplete=autocomplete)
                      current = next_e
+        elif e.prompt in ("shop item name", "shop item cost"):
+             current = e
+             current_input = cli_input
+             while True:
+                 step = current.options.get("create_step") if current.options else None
+                 data = current.options if current.options else {}
+                 try:
+                     user.create_shop_item(step=step, data=data, value=current_input)
+                     clear_command_buffer()
+                     break
+                 except WebInputInterrupt as next_e:
+                     prompt = next_e.prompt
+                     autocomplete = None
+                     if next_e.options and next_e.options.get("autocomplete") == "names":
+                         autocomplete = user._collect_autocomplete_names()
+                     current_input = _prompt_cli_input(f"[ INPUT REQUIRED ] {prompt}", autocomplete=autocomplete)
+                     current = next_e
         elif e.prompt.startswith("parameter value"):
              user._attach_status_to_param(
                  e.options.get("param_id"),

@@ -584,7 +584,7 @@ class UI:
             raw_content = str(log.get("content", "")).strip()
             parsed = journal_service._parse_action_log_content(raw_content)
             if parsed and parsed.get("kind") == "value":
-                display = f"log {parsed['value']}"
+                display = parsed.get("action", f"log {parsed['value']}")
             elif parsed and parsed.get("kind") == "note":
                 display = parsed.get("note", raw_content) or raw_content
             else:

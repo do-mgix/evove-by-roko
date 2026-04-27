@@ -46,6 +46,7 @@ Single commands:
 - `25` → `create_action`
 - `28` → `create_attr`
 - `24` → `create_status`
+- `23` → `create_shop_item`
 - `21` → `create_tag`
 - `26` → `create_param`
 - `91` → `list_tags`

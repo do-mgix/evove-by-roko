@@ -176,6 +176,16 @@ def command():
                     user.save_user()
                     return jsonify({"completed": True, "clear": True})
 
+            elif p in ("shop item name", "shop item cost"):
+                step = options.get("create_step") if options else None
+                data = options if options else {}
+                try:
+                    user.create_shop_item(step=step, data=data, value=buffer)
+                except WebInputInterrupt as e:
+                    session.pending_input = {"prompt": e.prompt, "type": e.type, "options": e.options, "context": {"buffer": buffer}}
+                    user.save_user()
+                    return jsonify({"completed": True, "clear": True})
+
             elif p == "status name":
                 user.create_status(options.get("buffer", ""), name=buffer)
 

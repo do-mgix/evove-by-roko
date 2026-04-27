@@ -96,6 +96,16 @@
             opacity: 0.5;
         }
 
+        #display-tokens {
+            font-family: 'Courier New', monospace;
+            font-size: 0.62rem;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.68);
+            letter-spacing: 0.08em;
+            text-align: left;
+            opacity: 0.9;
+        }
+
         #display-number {
             font-size: 2.5rem;
             font-weight: 700;
@@ -182,6 +192,13 @@
             display: flex;
             align-items: center;
             gap: 0.4rem;
+        }
+
+        #topbar .stats-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.08rem;
         }
 
         #topbar .brand {
@@ -795,7 +812,10 @@
         <div id="display-messages-panel">
             <div id="topbar">
                 <div class="top-left">
-                    <div id="display-points">0</div>
+                    <div class="stats-stack">
+                        <div id="display-points">0</div>
+                        <div id="display-tokens">0/50T</div>
+                    </div>
                     <div class="brand">EVOVE</div>
                 </div>
                 <span id="conn-status">CONNECTING</span>
@@ -917,6 +937,7 @@
     <script>
         // REFS
         const displayPoints = document.getElementById('display-points');
+        const displayTokens = document.getElementById('display-tokens');
         const displayNumber = document.getElementById('display-number');
         const displayLabel  = document.getElementById('display-label');
         const displayMessages = document.getElementById('display-messages');
@@ -1706,6 +1727,13 @@
                             }
                         }
                     }
+                    const tokens = data.user.metadata && typeof data.user.metadata.tokens === 'number'
+                        ? Math.round(data.user.metadata.tokens)
+                        : 0;
+                    const maxTokens = data.user.metadata && typeof data.user.metadata.max_tokens === 'number'
+                        ? Math.round(data.user.metadata.max_tokens)
+                        : 50;
+                    displayTokens.textContent = `${tokens}/${maxTokens}T`;
                     if (!pendingType && !buffer) {
                         const level = progression.level || 1;
                         const rank = progression.rank_symbol || '⟐A';
