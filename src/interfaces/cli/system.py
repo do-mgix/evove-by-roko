@@ -195,6 +195,9 @@ def _handle_web_input_interrupt(e, current_buffer, clear_command_buffer):
         elif e.prompt == "tag name":
              user.create_tag(name=cli_input)
              clear_command_buffer()
+        elif e.prompt == "attribute name":
+             user.create_attribute(name=cli_input)
+             clear_command_buffer()
         elif e.prompt in ("unit type", "difficulty (1-5)", "action name"):
              current = e
              current_input = cli_input
