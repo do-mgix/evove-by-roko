@@ -35,7 +35,7 @@ class UI:
         self.web_mode = False
         self.web_buffer = []
         self.console = Console()
-        self.margin_x = 4
+        self.margin_x = 2
         self.command_history = []
         self.command_history_limit = 30
         self.home_input_armed = False
@@ -194,9 +194,18 @@ class UI:
     def _sorted_command_pairs(self):
         return sorted(self.SINGLE_COMMANDS.items(), key=lambda x: (len(x[0]), x[0]))
 
-    def _agenda_viewport_cap(self):
+    def _agenda_viewport_cap(self, panel_height=None):
+        if panel_height is not None:
+            return max(3, panel_height - 4)
         th = max(12, self.console.size.height)
         return max(6, th - 18)
+
+    def _agenda_panel_height(self, top_height=None):
+        if top_height is None:
+            total_height = max(24, self.console.size.height)
+            aux_height = max(5, min(8, total_height // 7))
+            top_height = max(12, total_height - aux_height - 6)
+        return max(6, top_height // 2)
 
     def _commands_viewport_cap(self):
         th = max(12, self.console.size.height)
@@ -210,7 +219,7 @@ class UI:
             target_dt = datetime.now() + timedelta(days=offset) if offset else None
             _, items, _ = get_today_schedule(now=target_dt)
             total = len(items)
-            cap = self._agenda_viewport_cap()
+            cap = self._agenda_viewport_cap(self._agenda_panel_height())
             if total <= cap:
                 return
             max_scroll = max(0, total - cap)
@@ -248,12 +257,13 @@ class UI:
             aux_height = max(5, min(8, total_height // 7))
         top_height = max(12, total_height - aux_height - 6)
         evove_height = 5
-        agenda_height = max(8, top_height - evove_height)
+        agenda_logs_height = max(6, top_height - evove_height)
         user_height = max(8, int(top_height * 0.53))
         roko_height = max(6, top_height - user_height)
 
         evove_panel = self._build_evove_panel(evove_lines or [], height=evove_height)
-        agenda_panel = self._build_agenda_panel(height=agenda_height)
+        agenda_panel = self._build_agenda_panel(height=agenda_logs_height)
+        logs_panel = self._build_logs_panel(height=agenda_logs_height)
         user_panel = self._build_user_side_panel(border, height=user_height)
         roko_panel = self._build_roko_side_panel(border, height=roko_height)
         aux_panel = Panel(
@@ -263,10 +273,14 @@ class UI:
             height=aux_height,
         )
 
-        top_grid = Table.grid(expand=True)
+        top_grid = Table.grid(expand=True, padding=(0, 0))
         top_grid.add_column(ratio=48)
         top_grid.add_column(ratio=52)
-        top_grid.add_row(Group(evove_panel, agenda_panel), Group(user_panel, roko_panel))
+        left_column = Group(
+            evove_panel,
+            Columns([agenda_panel, logs_panel], expand=True, equal=True, padding=(0, 0)),
+        )
+        top_grid.add_row(left_column, Group(user_panel, roko_panel))
         return Group(top_grid, aux_panel)
 
     def _build_evove_panel(self, lines, height):
@@ -292,32 +306,40 @@ class UI:
         filled = int(pct * bar_width)
         bar = f"\033[32m{'█' * filled}\033[2m{'░' * (bar_width - filled)}\033[0m"
 
+        tokens = self.user.metadata.get("tokens", 0)
+        max_tokens = self.user.metadata.get("max_tokens", 50)
+
         stats = [
             f"{self.CYAN}P:{self.CLR} {self.BOLD}{self.user.total_points}{self.CLR}",
             f"{self.GREEN}LEVEL:{self.CLR} {self.BOLD}{progress.get('rank_symbol', 'α')}{self.CLR} {self.WHITE}|{self.CLR} {self.BOLD}{progress.get('local_level_roman', 'I')}{self.CLR}",
             f"{self.CYAN}XP:{self.CLR} {progress.get('xp', 0)}  {self.YELLOW}NEXT:{self.CLR} {self.BOLD}{next_xp}{self.CLR}",
             f"{bar} \033[2m{int(pct * 100)}%\033[0m",
             f"{self.MAGENTA}SAT:{self.CLR} {felicity}%",
+            f"{self.YELLOW}T:{self.CLR} {self.BOLD}{tokens}{self.CLR}\033[2m/{max_tokens}\033[0m",
             f"{self.WHITE}SLEEP:{self.CLR} {sleep_text}",
             f"{self.WHITE}DAY:{self.CLR} {day_text}",
         ]
 
-        attr_lines = [f"\033[2mATTR\033[0m"]
+        left = Text.from_ansi("\n\n".join(stats))
+
+        attr_text = Text(overflow="fold", no_wrap=False)
+        attr_text.append("ATTR", style="bold cyan")
+        attr_text.append("  ")
+        attr_text.append("PWR\n", style="bold cyan")
+        attr_text.append("─" * 14 + "\n", style="dim")
         if self.user._attributes:
             for attr in self.user._attributes.values():
-                attr_lines.append(
-                    f"{self.WHITE}{attr._name}{self.CLR}\n{self.CYAN}{attr.power_display}{self.CLR}"
-                )
+                pwr = str(attr.power) if attr.power == 0 else attr.power_display
+                name = attr._name[:10]
+                attr_text.append(f"{name}\n", style="white")
+                attr_text.append(f"  {pwr}\n", style="cyan")
         else:
-            attr_lines.append("—")
+            attr_text.append("—\n", style="dim")
 
-        left = Text.from_ansi("\n\n".join(stats))
-        right = Text.from_ansi("\n\n".join(attr_lines))
-
-        grid = Table.grid(expand=True, padding=(0, 1))
+        grid = Table.grid(expand=True, padding=(0, 0))
         grid.add_column(ratio=1)
         grid.add_column(ratio=1)
-        grid.add_row(left, right)
+        grid.add_row(left, attr_text)
 
         return Panel(grid, title="[dim]user[/]", border_style=border, height=height)
 
@@ -353,10 +375,7 @@ class UI:
         focused = self.nav_focus == "agenda"
         border = "bright_magenta" if focused else "dim magenta"
 
-        from src.application.services.evove_agenda_service import (
-            get_today_schedule, parse_agenda, AGENDA_FILE,
-        )
-        from datetime import datetime, timedelta
+        from src.application.services.evove_agenda_service import AGENDA_FILE, _parse_hhmm
         import os as _os
 
         if not _os.path.isfile(AGENDA_FILE):
@@ -369,18 +388,13 @@ class UI:
             return Panel(body, title="[dim]agenda[/]", border_style=border, height=height)
 
         # In insert mode always show today; in navigation show the offset day.
-        offset = 0 if self.home_input_armed else self._agenda_day_offset
-        if offset == 0:
-            day_name, items, active_idx = get_today_schedule()
-        else:
-            target_dt = datetime.now() + timedelta(days=offset)
-            day_name, items, active_idx = get_today_schedule(now=target_dt)
+        offset, target_dt, day_name, items, active_idx, agenda = self._selected_agenda_context()
 
         if not items:
             body = Text(f"(sem blocos para {day_name})", style="dim white", overflow="fold", no_wrap=False)
             return Panel(body, title=f"[dim]agenda · {day_name}[/]", border_style=border, height=height)
 
-        cap = self._agenda_viewport_cap()
+        cap = self._agenda_viewport_cap(height)
         total = len(items)
         self._agenda_scroll = min(max(self._agenda_scroll, 0), max(0, total - cap))
         start = self._agenda_scroll if total > cap else 0
@@ -394,9 +408,8 @@ class UI:
 
         # Build block XP lookup from today's logs
         from src.application.services.journal_service import journal_service
-        from src.application.services.evove_agenda_service import _parse_hhmm
 
-        today_str = datetime.now().strftime("%d %m %Y")
+        today_str = target_dt.strftime("%d %m %Y")
 
         def _block_xp(label_upper, start_s, end_s):
             start_min = _parse_hhmm(start_s)
@@ -433,7 +446,7 @@ class UI:
                     continue
             return total_xp
 
-        body = Text(overflow="fold", no_wrap=False)
+        body = Text(overflow="ellipsis", no_wrap=True)
         for i, (s, e, label) in enumerate(visible):
             real_idx = start + i
             is_active = real_idx == active_idx
@@ -444,7 +457,7 @@ class UI:
             if aid is not None:
                 xp = _block_xp(label_upper, s, e)
                 if xp > 0:
-                    suffix_str = f"({xp})"
+                    suffix_str = f"(+{xp})"
                     style = "bold green" if is_active else "green"
                 else:
                     suffix_str = f"({aid})"
@@ -461,6 +474,118 @@ class UI:
         suffix = f" · {start + 1}-{start + len(visible)}/{total}" if total > cap else ""
         nav_hint = f" ◀▶" if offset != 0 else ""
         title = f"[dim]agenda · {day_name}{nav_hint}{suffix}[/]"
+        return Panel(body, title=title, border_style=border, height=height)
+
+    def _selected_agenda_context(self):
+        from src.application.services.evove_agenda_service import get_today_schedule, parse_agenda
+        from datetime import datetime, timedelta
+
+        offset = 0 if self.home_input_armed else self._agenda_day_offset
+        target_dt = datetime.now() + timedelta(days=offset) if offset else datetime.now()
+        agenda = parse_agenda()
+        day_name, items, active_idx = get_today_schedule(agenda=agenda, now=target_dt)
+        return offset, target_dt, day_name, items, active_idx, agenda
+
+    def _log_matches_selected_agenda(self, log, agenda_items, target_dt):
+        from src.application.services.evove_agenda_service import _parse_hhmm
+        from src.application.services.journal_service import journal_service
+        from datetime import datetime
+
+        try:
+            log_dt = datetime.strptime(str(log.get("timestamp", "")), "%d %m %Y : %H:%M:%S")
+        except Exception:
+            return False
+
+        if log_dt.date() != target_dt.date():
+            return False
+
+        parsed = journal_service._parse_action_log_content(log.get("content", ""))
+        if parsed:
+            if parsed.get("kind") in {"value", "note"}:
+                log_action = parsed.get("action", "")
+            else:
+                log_action = parsed.get("content", "")
+        else:
+            log_action = log.get("content", "")
+
+        log_action_norm = " ".join(str(log_action or "").strip().upper().split())
+        if not log_action_norm:
+            return False
+
+        current_min = log_dt.hour * 60 + log_dt.minute
+        for start_s, end_s, label in agenda_items:
+            label_norm = " ".join(str(label or "").strip().upper().split())
+            if label_norm != log_action_norm:
+                continue
+            start_min = _parse_hhmm(start_s)
+            end_min = _parse_hhmm(end_s)
+            if start_min is None or end_min is None:
+                continue
+            if start_min < end_min:
+                in_block = start_min <= current_min < end_min
+            else:
+                in_block = current_min >= start_min or current_min < end_min
+            if in_block:
+                return True
+        return False
+
+    def _build_logs_panel(self, height=None):
+        focused = self.nav_focus == "agenda"
+        border = "bright_magenta" if focused else "dim magenta"
+
+        from src.application.services.journal_service import journal_service
+
+        offset, target_dt, day_name, items, _active_idx, _agenda = self._selected_agenda_context()
+
+        journal_service._load_logs_data()
+        active_logs = []
+        for log in journal_service.logs:
+            status = str(log.get("status", "")).upper()
+            if "DELETED" in status or "PROCESSED" in status:
+                continue
+            ts = str(log.get("timestamp", ""))
+            if not ts.startswith(target_dt.strftime("%d %m %Y")):
+                continue
+            active_logs.append(log)
+
+        if not active_logs:
+            body = Text(f"(sem logs para {day_name})", style="dim white", overflow="fold", no_wrap=False)
+            return Panel(body, title=f"[dim]logs · {day_name}[/]", border_style=border, height=height)
+
+        try:
+            active_logs.sort(key=lambda log: datetime.strptime(str(log.get("timestamp", "")), "%d %m %Y : %H:%M:%S"))
+        except Exception:
+            pass
+
+        cap = max(1, (height - 3) if height else 8)
+        total = len(active_logs)
+        start = max(0, total - cap)
+        visible = active_logs[start:start + cap]
+
+        body = Text(overflow="ellipsis", no_wrap=True)
+        for log in visible:
+            planned = self._log_matches_selected_agenda(log, items, target_dt)
+            line_style = "bold green" if planned else "white"
+            raw_content = str(log.get("content", "")).strip()
+            parsed = journal_service._parse_action_log_content(raw_content)
+            if parsed and parsed.get("kind") == "value":
+                display = f"log {parsed['value']}"
+            elif parsed and parsed.get("kind") == "note":
+                display = parsed.get("note", raw_content) or raw_content
+            else:
+                display = raw_content or "—"
+            xp = int(log.get("xp", 0) or 0)
+            xp_str = f" +{xp}"
+            available = 30 - len(xp_str)
+            if len(display) > available:
+                display = "[...]" + display[-(available - 5):]
+            line = Text(style=line_style)
+            line.append(display, style=line_style)
+            line.append(xp_str, style="dim")
+            body.append_text(line)
+            body.append("\n")
+
+        title = f"[dim]logs · {day_name}[/]"
         return Panel(body, title=title, border_style=border, height=height)
 
     def show_startup_commands(self):

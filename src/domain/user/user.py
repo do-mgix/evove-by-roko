@@ -311,6 +311,15 @@ class User:
         if not self._attributes:
             current_score = self.metadata.get("score", 0) or 0
             self.metadata["score"] = current_score + action.score
+
+        # Auto-spend shop cost if action is linked to a shop item
+        linked_item = self._shop_action_links.get(action_id)
+        if linked_item:
+            from src.application.services.shop_service import ShopService, SHOP_ITEMS
+            item = SHOP_ITEMS.get(str(linked_item))
+            if item:
+                ShopService(self).buy_item(str(linked_item))
+
         self._register_interaction()
         self.add_message(roko_message_service.generate())
         self.save_user()
@@ -686,25 +695,33 @@ class User:
         self._add_agenda_payload(payload)
 
     def list_logs(self):
-        logs = journal_service.list_logs()
         from src.interfaces.cli.ui.interface import ui
-        table_rows = []
-        for line in logs:
-            text = str(line)
-            if text.startswith("[") and "]" in text:
-                first_end = text.find("]")
-                log_id = text[1:first_end].strip() or "----"
-                label = text[first_end + 1:].strip()
-            else:
-                log_id = "----"
-                label = text
-            table_rows.append({"id": log_id, "label": label})
+        table_rows = self._build_log_rows(include_xp=False)
         ui.show_vertical_list(
             table_rows,
             "CURRENT LOG BUFFER",
             mode="table",
             columns=[("id", "ID"), ("label", "HISTÓRICO")],
         )
+
+    def _build_log_rows(self, include_xp=False):
+        journal_service._load_logs_data()
+        rows = []
+        for log in journal_service.logs:
+            status = str(log.get("status", "")).upper()
+            if "DELETED" in status or "PROCESSED" in status:
+                continue
+
+            log_id = log.get("id")
+            id_str = f"{log_id}" if log_id is not None else "----"
+            raw_status = str(log.get("status", ""))
+            display_status = "[CLOUD]" if raw_status == "[CLOUD/TO PROCESS]" else raw_status
+            label = f"[{log['timestamp']} ] {log['content']} {display_status}"
+            row = {"id": id_str, "label": label}
+            if include_xp:
+                row["xp"] = str(int(log.get("xp", 0) or 0))
+            rows.append(row)
+        return rows
 
     def up_log_day(self, payloads=None):
         payload = payloads[0] if payloads else ""
@@ -797,9 +814,14 @@ class User:
         )
 
     def list_days(self):
-        logs = journal_service.list_days()
         from src.interfaces.cli.ui.interface import ui
-        ui.show_vertical_list(logs, "EVOVE26 FILE CONTENT", mode="plain")
+        table_rows = self._build_log_rows(include_xp=True)
+        ui.show_vertical_list(
+            table_rows,
+            "CURRENT LOG BUFFER XP",
+            mode="table",
+            columns=[("id", "ID"), ("label", "HISTÓRICO"), ("xp", "XP")],
+        )
 
     def delete_sequence(self, payloads=None):
         seq_id = None
