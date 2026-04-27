@@ -15,6 +15,7 @@ from src.application.services.roko_message_service import roko_message_service
 from src.application.services.agenda_service import agenda_service
 from src.application.services.tutorial_service import TutorialService
 from src.infrastructure.storage import get_evove_data_dir
+from src.application.services.boss_service import get_boss_service
 
 class User:
     def __init__(self):
@@ -64,6 +65,9 @@ class User:
 
         if now is None:
             now = datetime.now()
+
+        # Boss encounter check
+        get_boss_service(self).check_and_generate(now=now)
 
         # Try to acquire a simple inter-process lock (best-effort)
         data_dir = get_evove_data_dir()
@@ -241,19 +245,16 @@ class User:
         return max(int(item_id) for item_id in items.keys()) + 1
     
     @property
-    def score(self):
+    def attribute_average(self):
         if self._attributes:
             total = sum(attr.total_score for attr in self._attributes.values())
             return total / len(self._attributes)
-        else:
-            return self.metadata.get("score", 0)
- 
+        return 0
+
     @property
     def total_points(self):
-        action_score = sum(action.score for action in self._actions.values()) if self._actions else 0
-        log_xp = int(self.metadata.get("log_xp", 0))
-        xp_deducted = int(self.metadata.get("xp_deducted", 0))
-        return max(0, action_score + log_xp - xp_deducted)
+        """XP Global: Unificado no campo 'score' do metadata."""
+        return float(self.metadata.get("score", 0))
 
     def act(self, payloads, value=None, _group_depth=0):
         if not payloads or not payloads[0]:
@@ -338,15 +339,18 @@ class User:
 
         final_score_difference = score_difference * boost_multiplier
 
+        # Add directly to global score (XP)
+        xp_gained = int(round(final_score_difference))
+        current_score = float(self.metadata.get("score", 0))
+        self.metadata["score"] = current_score + final_score_difference
+        self.metadata["action_xp"] = int(self.metadata.get("action_xp", 0)) + xp_gained
+
         action_status = "[CLOUD/TO PROCESS]" if note_is_numeric else "[CLOUD]"
         journal_service.add_log(log_text, auto_confirm=True, custom_status=action_status,
-                                xp=int(round(final_score_difference)))
+                                xp=xp_gained)
 
         for msg in action_messages:
             self.add_message(msg)
-        if not self._attributes:
-            current_score = self.metadata.get("score", 0) or 0
-            self.metadata["score"] = current_score + action.score
 
         # Auto-spend shop cost if action is linked to a shop item
         linked_item = self._shop_action_links.get(action_id)
@@ -932,6 +936,23 @@ class User:
         self.add_message(msg)
         self.save_user()
 
+    def defeat_boss(self):
+        from src.application.services.boss_service import get_boss_service
+        get_boss_service(self).handle_win()
+
+    def reset_equipment_and_xp(self):
+        # Limpa equipamentos
+        self.metadata["equipment"] = []
+        
+        # Retrocede XP do buffer (zera action_xp acumulado nesta fase)
+        deduction = int(self.metadata.get("action_xp", 0))
+        self.metadata["action_xp"] = 0
+        self.metadata["score"] = max(0, float(self.metadata.get("score", 0)) - deduction)
+        self.metadata["xp_deducted"] = int(self.metadata.get("xp_deducted", 0)) + deduction
+        
+        self.add_message("Equipamentos removidos e XP do buffer resetado.")
+        self.save_user()
+
     def save_user(self):
         data_dir = get_evove_data_dir()
         data_file = os.path.join(data_dir, "user.json")
@@ -939,11 +960,11 @@ class User:
         # Cria o diretório se não existir
         os.makedirs(data_dir, exist_ok=True)
 
-        # Keep score mirrored in metadata for UI consumers
-        self.metadata["score"] = self.score
+        # Usamos total_points (que lê do metadata['score']) como valor de score para o JSON
+        current_score = self.total_points
             
         data = {
-            "score": self.score,
+            "score": current_score,
             "value": self._value,
             "attributes": {
                 k: v.to_dict() if hasattr(v, 'to_dict') else v for k, v in self._attributes.items()
@@ -1004,6 +1025,7 @@ class User:
         
         self._value = data.get("value", 0)
         self.metadata.update(data.get("metadata", {}))
+            
         self._ensure_tutorial_state()
         self.logic_types = data.get("logic_types", {}) or {}
         self.sublogic_types = data.get("sublogic_types", {}) or {}
@@ -1075,6 +1097,9 @@ class User:
                 self._update_statuses_for_param(param)
         if hasattr(self, "tutorial"):
             self.tutorial.maybe_show_startup()
+
+        # Boss encounter check on load
+        get_boss_service(self).check_and_generate()
 
     def _ensure_tutorial_state(self):
         tutorial = self.metadata.get("tutorial")

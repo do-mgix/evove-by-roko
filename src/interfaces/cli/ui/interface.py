@@ -249,6 +249,33 @@ class UI:
             self._agenda_day_offset = 0
             self.home_input_armed = True
 
+    def _build_boss_aux_content(self):
+        encounter = self.user.metadata.get("enemy_encounter")
+        if not encounter:
+            return Text("PAZ NO HORIZONTE. NENHUM INIMIGO DETECTADO.", style="dim")
+        
+        name = encounter.get("name", "Unknown Boss")
+        days = encounter.get("days_remaining", 0)
+        attrs = encounter.get("attributes", [])
+        attacks = encounter.get("attacks", [])
+        
+        content = Text()
+        content.append(f"⚔️ {name.upper()}   ", style="bold white")
+        
+        for attr in attrs:
+            boss_val = attr.get("value", 0)
+            user_val = attr.get("user_val", 0)
+            # Amarelo se for 3 ou mais pontos maior que o do usuário
+            color = "bold yellow" if (boss_val - user_val) >= 3 else "white"
+            content.append(f"{attr['name'].upper()}: {boss_val}   ", style=color)
+        
+        for atk in attacks:
+            content.append(f"{atk}   ", style="white")
+
+        content.append(f"({days}) DIAS RESTANTES", style="white")
+        
+        return content
+
     def _build_commands_side_panel(self, evove_lines=None, aux_height=None):
         focused = self.nav_focus == "commands"
         border = "bright_blue" if focused else "dim blue"
@@ -263,9 +290,11 @@ class UI:
         agenda_panel = self._build_agenda_panel(height=agenda_logs_height)
         logs_panel = self._build_logs_panel(height=agenda_logs_height)
         user_panel = self._build_user_side_panel(border, height=top_height)
+        
+        boss_content = self._build_boss_aux_content()
         aux_panel = Panel(
-            Text("", style="dim"),
-            title="[dim]aux[/]",
+            Align.center(boss_content, vertical="middle"),
+            title="[dim]boss[/]",
             border_style="dim blue",
             height=aux_height,
         )
@@ -309,7 +338,7 @@ class UI:
         max_tokens = self.user.metadata.get("max_tokens", 50)
 
         stats = [
-            f"{self.CYAN}P:{self.CLR} {self.BOLD}{self.user.total_points}{self.CLR}",
+            f"{self.CYAN}P:{self.CLR} {self.BOLD}{int(self.user.total_points)}{self.CLR}",
             f"{self.GREEN}LEVEL:{self.CLR} {self.BOLD}{progress.get('rank_symbol', 'α')}{self.CLR} {self.WHITE}|{self.CLR} {self.BOLD}{progress.get('local_level_roman', 'I')}{self.CLR}",
             f"{self.CYAN}XP:{self.CLR} {progress.get('xp', 0)}  {self.YELLOW}NEXT:{self.CLR} {self.BOLD}{next_xp}{self.CLR}",
             f"{bar} \033[2m{int(pct * 100)}%\033[0m",
@@ -330,10 +359,23 @@ class UI:
         )
         attr_table.add_column("ATTR", justify="left", overflow="ellipsis", no_wrap=True, style="white")
         attr_table.add_column("POWER", justify="right", overflow="ellipsis", no_wrap=True, style="cyan")
+        
+        equipment = self.user.metadata.get("equipment", [])
+        
         if self.user._attributes:
             for attr in self.user._attributes.values():
-                pwr = str(max(1, attr.power // 1000))
-                attr_table.add_row(attr._name, pwr)
+                base_pwr = attr.power // 1000
+                # Busca bônus absoluto do equipamento
+                boost_data = next((item for item in equipment if item["attribute"] == attr._name), None)
+                
+                if boost_data:
+                    # Garante valor mínimo de 1 para o bônus exibido
+                    boost_val = max(1, boost_data.get("boost_val", 0) // 1000)
+                    display_pwr = f"[green]({boost_val})[/] [white]{base_pwr}[/]"
+                else:
+                    display_pwr = str(max(1, base_pwr))
+                
+                attr_table.add_row(attr._name, display_pwr)
         else:
             attr_table.add_row("—", "—")
 
@@ -341,6 +383,18 @@ class UI:
         inner_grid.add_column(ratio=1)
         inner_grid.add_column(ratio=1)
         inner_grid.add_row(left, attr_table)
+
+        # Divisão de Equipamentos
+        equip_text = Text()
+        if equipment:
+            equip_text.append("EQUIP: ", style="bold yellow")
+            for i, item in enumerate(equipment):
+                sep = " | " if i > 0 else ""
+                # Mostra o bônus absoluto arredondado com mínimo de 1
+                val = max(1, item.get("boost_val", 0) // 1000)
+                equip_text.append(f"{sep}{item['name']} (+{val})", style="white")
+        else:
+            equip_text.append("EQUIP: [nenhum]", style="dim")
 
         current_entity = EntityManager().get_entity()
         adjective = self.user._get_roko_adjective() if hasattr(self.user, "_get_roko_adjective") else "NEUTRO"
@@ -355,7 +409,7 @@ class UI:
             f"  {self.WHITE}MOOD:\033[0m {mood}"
         )
 
-        content = Group(inner_grid, Rule(style="dim"), roko_text)
+        content = Group(inner_grid, Rule(style="dim"), equip_text, Rule(style="dim"), roko_text)
         return Panel(content, title="[dim]user[/]", border_style=border, height=height)
 
     def _build_roko_side_panel(self, border, height=None):

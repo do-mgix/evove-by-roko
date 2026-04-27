@@ -49,6 +49,8 @@ SINGLE_COMMANDS = {
     "005": {"len": 0, "func": user.drop_actions, "label": "drop_actions"},
     "008": {"len": 0, "func": user.drop_attributes, "label": "drop_attr"},
     "006": {"len": 0, "func": user.drop_parameters, "label": "drop_params"},
+    "[": {"len": 0, "func": user.defeat_boss, "label": "defeat_boss"},
+    "]": {"len": 0, "func": user.reset_equipment_and_xp, "label": "reset_all"},
 }
 
 COMMANDS = {
