@@ -277,25 +277,42 @@ class UI:
         day_text = sequence_service.days_since_first_activity()
         felicity = int(round(self.user.get_user_felicity())) if hasattr(self.user, "get_user_felicity") else 0
 
-        items = [
+        xp_cost = max(1, progress.get('xp_cost', 1))
+        next_xp = progress.get('next_xp', 0)
+        xp_earned = max(0, xp_cost - next_xp)
+        pct = xp_earned / xp_cost
+        bar_width = 14
+        filled = int(pct * bar_width)
+        bar = f"\033[32m{'█' * filled}\033[2m{'░' * (bar_width - filled)}\033[0m"
+
+        stats = [
             f"{self.CYAN}P:{self.CLR} {self.BOLD}{self.user.total_points}{self.CLR}",
             f"{self.GREEN}LEVEL:{self.CLR} {self.BOLD}{progress.get('rank_symbol', 'α')}{self.CLR} {self.WHITE}|{self.CLR} {self.BOLD}{progress.get('local_level_roman', 'I')}{self.CLR}",
-            f"{self.CYAN}XP:{self.CLR} {progress.get('xp', 0)}  {self.YELLOW}NEXT:{self.CLR} {self.BOLD}{progress.get('next_xp', 0)}{self.CLR}",
+            f"{self.CYAN}XP:{self.CLR} {progress.get('xp', 0)}  {self.YELLOW}NEXT:{self.CLR} {self.BOLD}{next_xp}{self.CLR}",
+            f"{bar} \033[2m{int(pct * 100)}%\033[0m",
             f"{self.MAGENTA}SAT:{self.CLR} {felicity}%",
             f"{self.WHITE}SLEEP:{self.CLR} {sleep_text}",
             f"{self.WHITE}DAY:{self.CLR} {day_text}",
-            "",
-            "ATTRIBUTES",
         ]
 
+        attr_lines = [f"\033[2mATTR\033[0m"]
         if self.user._attributes:
             for attr in self.user._attributes.values():
-                items.append(f"{self.WHITE}{attr._name}{self.CLR} :: {self.CYAN}{attr.power_display}{self.CLR}")
+                attr_lines.append(
+                    f"{self.WHITE}{attr._name}{self.CLR}\n{self.CYAN}{attr.power_display}{self.CLR}"
+                )
         else:
-            items.append("no attributes.")
+            attr_lines.append("—")
 
-        body = Text.from_ansi("\n".join(items))
-        return Panel(body, title="[dim]user[/]", border_style=border, height=height)
+        left = Text.from_ansi("\n\n".join(stats))
+        right = Text.from_ansi("\n\n".join(attr_lines))
+
+        grid = Table.grid(expand=True, padding=(0, 1))
+        grid.add_column(ratio=1)
+        grid.add_column(ratio=1)
+        grid.add_row(left, right)
+
+        return Panel(grid, title="[dim]user[/]", border_style=border, height=height)
 
     def _build_roko_side_panel(self, border, height=None):
         from src.domain.entities.entity_manager import EntityManager

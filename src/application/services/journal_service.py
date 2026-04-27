@@ -3,7 +3,6 @@ import json
 import subprocess
 import re
 from datetime import datetime, timedelta
-from src.application.services.sleep_service import sleep_service
 from src.application.services.sequence_service import sequence_service
 from src.infrastructure.storage import get_evove_data_dir
 
@@ -48,12 +47,17 @@ class JournalService:
         else:
             self.logs = []
 
-        # Normalize legacy statuses
+        # Migrate legacy statuses
         normalized = False
         for log in self.logs:
             status = log.get("status")
-            if isinstance(status, str) and "TO PROCESS" in status and status != "[TO PROCESS]":
-                log["status"] = "[TO PROCESS]"
+            if not isinstance(status, str):
+                continue
+            if status == "[IN WAIT]":
+                log["status"] = "[CLOUD]"
+                normalized = True
+            elif "TO PROCESS" in status and status != "[CLOUD/TO PROCESS]":
+                log["status"] = "[PROCESSED]"
                 normalized = True
         if normalized:
             self._save_logs_data()
@@ -170,7 +174,7 @@ class JournalService:
                 break
         return insert_idx
 
-    def add_log(self, text, manual_date=None, auto_confirm=False, custom_status=None, is_activity=True):
+    def add_log(self, text, manual_date=None, auto_confirm=False, custom_status=None, is_activity=True, xp=0):
         """Adds a log entry to both evove26 and logs.json."""
         if not text.strip():
             return False
@@ -189,118 +193,151 @@ class JournalService:
              # Logic matching (simplified)
              pass
 
-        # Auto sleep/wake detection: run before persisting this log so the
-        # wake-up log is not bundled into the previous-day aggregate.
         if is_activity:
-            self._auto_sleep_transition(target_date)
+            self._aggregate_previous_days(target_date)
             sequence_service.record_activity(target_date)
             sequence_service.update_sequences()
 
-        # Formats
-        # New Header Format: [dd/mm/yyyy]
         current_date_header = target_date.strftime("[%d/%m/%Y]")
         timestamp_str = target_date.strftime("%d %m %Y : %H:%M:%S")
 
-        status = custom_status if custom_status else "[IN WAIT]"
-        if isinstance(status, str) and "TO PROCESS" in status:
-            status = "[TO PROCESS]"
-        
-        # 1. Append to evove26 (Skip if it's a "TO PROCESS" system log)
-        if status != "[TO PROCESS]":
-            try:
-                os.makedirs(self.journal_dir, exist_ok=True)
-                
-                # Check if we need to write the date header
-                last_header = self._get_last_file_date_header()
-                
-                with open(self.journal_file, "a", encoding="utf-8") as f:
-                    if last_header != current_date_header:
-                        f.write(f"\n{current_date_header}\n")
-                    
-                    f.write(f"{text.strip()}\n")
-            except IOError as e:
-                return f"Error writing to file: {e}"
+        status = custom_status if custom_status else "[CLOUD]"
+
+        # 1. Append to evove26
+        try:
+            os.makedirs(self.journal_dir, exist_ok=True)
+            last_header = self._get_last_file_date_header()
+            with open(self.journal_file, "a", encoding="utf-8") as f:
+                if last_header != current_date_header:
+                    f.write(f"\n{current_date_header}\n")
+                f.write(f"{text.strip()}\n")
+        except IOError as e:
+            return f"Error writing to file: {e}"
 
         # 2. Add to logs.json
         entry = {
             "id": self._next_log_id(),
             "timestamp": timestamp_str,
             "content": text.strip(),
-            "status": status
+            "status": status,
+            "xp": int(xp),
         }
         self.logs.append(entry)
         self._save_logs_data()
-        
+
+        # 3. Push to git
+        self._git_push()
+
         return True
 
-    def process_daily_logs(self):
-        """Aggregates [TO PROCESS] logs into [IN WAIT] entries."""
-        if not self.logs:
-            return "No logs to process."
+    def _aggregate_previous_days(self, target_date):
+        """Aggregates [CLOUD/TO PROCESS] logs from previous days into single [CLOUD] entries."""
+        today_str = target_date.strftime("%d %m %Y")
 
-        to_process_indices = [i for i, log in enumerate(self.logs) if log.get("status") == "[TO PROCESS]"]
-        
-        if not to_process_indices:
-            return "No pending system logs."
+        prev_indices = [
+            i for i, log in enumerate(self.logs)
+            if log.get("status") == "[CLOUD/TO PROCESS]"
+            and not str(log.get("timestamp", "")).startswith(today_str)
+        ]
 
-        # Aggregation buckets
-        actions_agg = {}   # "ACTION NAME": value
-        purchases_agg = {} # "SHOP ITEM": qtd
-        note_logs = []
-        
-        # Helper to parse log content
-        # Expected formats: "value ACTION" or "qtd x ITEM"
-        for idx in to_process_indices:
-            content = self.logs[idx]["content"]
-            parsed = self._parse_action_log_content(content)
+        if not prev_indices:
+            return
+
+        from collections import defaultdict
+        by_date = defaultdict(list)
+        for i in prev_indices:
+            log = self.logs[i]
             try:
+                dt = datetime.strptime(log["timestamp"], "%d %m %Y : %H:%M:%S")
+                date_key = dt.strftime("%d/%m/%Y")
+            except Exception:
+                date_key = target_date.strftime("%d/%m/%Y")
+            by_date[date_key].append(i)
+
+        if not os.path.exists(self.journal_file):
+            return
+
+        with open(self.journal_file, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+        file_changed = False
+
+        for date_key, indices in by_date.items():
+            entries = [self.logs[i] for i in indices]
+
+            # Aggregate by action name
+            agg = {}  # name → [total_value, total_xp]
+            for log in entries:
+                content = str(log.get("content", "")).strip()
+                xp = int(log.get("xp", 0))
+                parsed = self._parse_action_log_content(content)
                 if parsed and parsed.get("kind") == "value":
                     name = parsed["action"]
                     value = int(parsed["value"])
-                    actions_agg[name] = actions_agg.get(name, 0) + value
-                elif parsed and parsed.get("kind") == "note":
-                    note_logs.append({
-                        "action": parsed.get("action"),
-                        "note": parsed.get("note"),
-                    })
-                elif " x " in content:
-                    # Purchase: "2 x VIDEOGAMES"
-                    parts = content.split(" x ", 1)
-                    qtd = int(parts[0])
-                    name = parts[1].strip()
-                    purchases_agg[name] = purchases_agg.get(name, 0) + qtd
-                else:
-                    # Fallback: preserve raw content
-                    note_logs.append({"action": None, "note": content})
-            except (ValueError, IndexError):
-                # Fallback: Just mark as processed but don't aggregate if format is weird? 
-                # Or maybe just leave it? Let's assume strict format from User/Shop.
-                pass
+                    if name not in agg:
+                        agg[name] = [0, 0]
+                    agg[name][0] += value
+                    agg[name][1] += xp
 
-        # Create new aggregated logs
-        for name, value in actions_agg.items():
-            self.add_log(f"{value} X {name}", auto_confirm=True, custom_status="[IN WAIT]", is_activity=False)
+            if not agg:
+                continue
 
-        for item in note_logs:
-            if item.get("action") and item.get("note"):
-                self.add_log(
-                    f"{item['action']} : {item['note']}",
-                    auto_confirm=True,
-                    custom_status="[IN WAIT]",
-                    is_activity=False,
-                )
-            elif item.get("note"):
-                self.add_log(item["note"], auto_confirm=True, custom_status="[IN WAIT]", is_activity=False)
+            # Update evove26: remove individual lines, insert aggregated
+            header = f"[{date_key}]"
+            header_indices = [j for j, line in enumerate(lines) if self._is_date_header_line(line)]
+            hidx = next((j for j in header_indices if lines[j].strip() == header), None)
 
-        for name, qtd in purchases_agg.items():
-            self.add_log(f"{qtd} x {name}", auto_confirm=True, custom_status="[IN WAIT]", is_activity=False)
+            if hidx is not None:
+                next_hidx = next((j for j in header_indices if j > hidx), len(lines))
 
-        # Mark originals as PROCESSED
-        for idx in to_process_indices:
-            self.logs[idx]["status"] = "[PROCESSED]"
-            
+                content_count = {}
+                for log in entries:
+                    c = str(log.get("content", "")).strip()
+                    content_count[c] = content_count.get(c, 0) + 1
+
+                remove_set = []
+                for j in range(hidx + 1, next_hidx):
+                    line = lines[j].strip()
+                    if line and content_count.get(line, 0) > 0:
+                        remove_set.append(j)
+                        content_count[line] -= 1
+
+                for j in reversed(remove_set):
+                    lines.pop(j)
+
+                file_changed = True
+
+                header_indices = [j for j, line in enumerate(lines) if self._is_date_header_line(line)]
+                hidx = next((j for j in header_indices if lines[j].strip() == header), None)
+                if hidx is not None:
+                    insert_pos = self._insert_under_last_log(lines, hidx)
+                    for name, (total_value, _) in agg.items():
+                        lines.insert(insert_pos, f"{total_value} X {name}\n")
+                        insert_pos += 1
+
+            # Add aggregated entries to logs.json
+            for name, (total_value, total_xp) in agg.items():
+                try:
+                    dt = datetime.strptime(date_key, "%d/%m/%Y")
+                    timestamp_str = dt.strftime("%d %m %Y") + " : 23:59:59"
+                except Exception:
+                    timestamp_str = datetime.now().strftime("%d %m %Y : %H:%M:%S")
+                self.logs.append({
+                    "id": self._next_log_id(),
+                    "timestamp": timestamp_str,
+                    "content": f"{total_value} X {name}",
+                    "status": "[CLOUD]",
+                    "xp": total_xp,
+                })
+
+            for i in indices:
+                self.logs[i]["status"] = "[PROCESSED]"
+
+        if file_changed:
+            with open(self.journal_file, "w", encoding="utf-8") as f:
+                f.writelines(lines)
+
         self._save_logs_data()
-        return f"Processed {len(to_process_indices)} entries."
 
     def list_logs(self):
         """Returns all active logs formatted."""
@@ -321,10 +358,11 @@ class JournalService:
 
         formatted = []
         for log in active_logs:
-            # Format: [dd mm yy : hh:mm:ss ] log 1 [STATUS]
             log_id = log.get("id")
             id_str = f"{log_id}" if log_id is not None else "----"
-            line = f"[{id_str}] [{log['timestamp']} ] {log['content']} {log['status']}"
+            raw_status = str(log.get("status", ""))
+            display_status = "[CLOUD]" if raw_status == "[CLOUD/TO PROCESS]" else raw_status
+            line = f"[{id_str}] [{log['timestamp']} ] {log['content']} {display_status}"
             formatted.append(line)
         return formatted
     
@@ -342,19 +380,20 @@ class JournalService:
             return [f"Error reading file: {e}"]
 
     def drop_last_buffer_entry(self):
-        """Smart delete: marks as [DELETED], removes from file, pushes if [CLOUD]."""
+        """Smart delete: marks as [DELETED], removes from file, pushes if [CLOUD].
+        Returns (message, xp) where xp is the XP stored in the dropped entry."""
         if not self.logs:
-            return "Log list is empty."
-            
+            return "Log list is empty.", 0
+
         # Find last non-deleted log
         target_index = -1
         for i in range(len(self.logs) - 1, -1, -1):
             if self.logs[i]["status"] != "[DELETED]":
                 target_index = i
                 break
-        
+
         if target_index == -1:
-            return "No active logs to delete."
+            return "No active logs to delete.", 0
             
         target_log = self.logs[target_index]
         original_status = target_log["status"]
@@ -405,7 +444,8 @@ class JournalService:
              else:
                  git_msg = f" | Cloud sync failed: {res}"
         
-        return f"Smart Delete: '{content_to_match}' -> [DELETED]. {file_msg}{git_msg}"
+        dropped_xp = int(target_log.get("xp", 0))
+        return f"Smart Delete: '{content_to_match}' -> [DELETED]. {file_msg}{git_msg}", dropped_xp
 
     def drop_last_day(self):
         """Alias for 007 - Drops last, same as 07 in this new single-file context."""
@@ -432,10 +472,6 @@ class JournalService:
         content = str(target.get("content", "")).strip()
         if not content:
             return f"Log {log_id} deleted in logs.json. Empty content in journal."
-
-        # If TO PROCESS, there's no evove26 entry
-        if status == "[TO PROCESS]":
-            return f"Log {log_id} deleted."
 
         try:
             with open(self.journal_file, "r", encoding="utf-8") as f:
@@ -487,9 +523,6 @@ class JournalService:
         status = str(target.get("status", "")).upper()
         if "DELETED" in status:
             return f"Log {log_id} already deleted."
-        if status == "[TO PROCESS]":
-            return f"Log {log_id} not moved. [TO PROCESS] logs are not in evove26."
-
         if not os.path.exists(self.journal_file):
             return "Journal file not found."
 
@@ -564,9 +597,6 @@ class JournalService:
         target["content"] = new_content
         self._save_logs_data()
 
-        if status == "[TO PROCESS]":
-            return f"Log {log_id} updated."
-
         if not os.path.exists(self.journal_file):
             return f"Log {log_id} updated in logs.json. Journal file not found."
 
@@ -634,8 +664,6 @@ class JournalService:
         status = str(target.get("status", "")).upper()
         if "DELETED" in status:
             return f"Log {log_id} moved in evove26 (deleted log)."
-        if status == "[TO PROCESS]":
-            return f"Log {log_id} moved to previous day."
         if "CLOUD" not in status:
             return f"Log {log_id} not moved. Only [CLOUD] logs can be upped."
 
@@ -817,32 +845,5 @@ class JournalService:
         except Exception as e:
             return f"Git Exception: {str(e)}"
 
-    def _sync_to_cloud(self):
-        """Pushes journal to Git and marks [IN WAIT] logs as [CLOUD]."""
-        git_res = self._git_push()
-        if git_res is True:
-            updated_count = 0
-            for log in self.logs:
-                if log["status"] == "[IN WAIT]":
-                    log["status"] = "[CLOUD]"
-                    updated_count += 1
-            self._save_logs_data()
-            return True, f"Git push successful. Marked {updated_count} logs as [CLOUD]."
-        return False, f"Git failed: {git_res}"
-
-    def _auto_sleep_transition(self, now):
-        """Records activity and, on detected wake-up, processes pending logs
-        and syncs to cloud. Returns a human-readable message or None."""
-        sleep_detected, duration, sleep_start, wake_time = sleep_service.record_activity(now)
-        if not sleep_detected:
-            return None
-
-        parts = [f"Woke up at {wake_time.strftime('%H:%M:%S')}. Slept {duration}."]
-        process_msg = self.process_daily_logs()
-        if process_msg:
-            parts.append(process_msg)
-        _, sync_msg = self._sync_to_cloud()
-        parts.append(sync_msg)
-        return " ".join(parts)
 
 journal_service = JournalService()

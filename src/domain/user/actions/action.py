@@ -6,11 +6,11 @@ class Action:
     # Progressão linear: 2.1 + (diff - 1) * 1.1
     _DIFFICULTY_MULTIPLIER_MAP = {
         0: 1,
-        1: 25,
-        2: 100,
-        3: 300,
-        4: 600,
-        5: 1200,        
+        1: 30,
+        2: 120,
+        3: 400,
+        4: 1000,
+        5: 2500,
     }
     _TYPE_MAP = {
         0: {"label": "session", "factor": 3},
@@ -90,10 +90,7 @@ class Action:
         note_info = self._manual_input(messages, label, value=manual_value)
         
         value_difference = self.value - original_value
-        messages.append(f"{self.name} increase by {value_difference:.2f}! {original_value:.2f} -> {self.value:.2f}")
-        
         score_difference = self.score - original_score
-        messages.append(f"score plus {score_difference:.2f}! {original_score:.2f} -> {self.score:.2f}")
 
         # Check for active challenge
         from src.application.services.challenge_service import ChallengeManager
@@ -157,8 +154,10 @@ class Action:
         seed = f"{self.id}:{self.name}:{normalized}"
         rng = random.Random(seed)
         words = [w for w in normalized.split(" ") if w]
-        base = max(1, min(8, len(words) + max(1, len(normalized) // 10)))
-        spread = max(1, min(6, self.diff + len(words)))
+        word_count = len(words)
+        char_count = len(normalized)
+        base = max(5, min(40, word_count * 4 + char_count // 6))
+        spread = max(3, min(25, (self.diff + 1) * 4 + word_count))
         return base + rng.randint(0, spread)
     
     def to_dict(self):

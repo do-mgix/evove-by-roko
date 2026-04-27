@@ -44,6 +44,8 @@ class User:
             "refill_cooldown": 12,
             "last_token_refill": datetime.now().strftime("%Y-%m-%d"),
             "interaction_count": 0,
+            "log_xp": 0,
+            "xp_deducted": 0,
             "tutorial": {
                 "has_created_action": {"status": False, "priority": 10},
                 "welcomed": {"status": False, "priority": 11}
@@ -238,10 +240,10 @@ class User:
  
     @property
     def total_points(self):
-        """Soma total de pontos de todas as actions."""
-        if self._actions:
-            return sum(action.score for action in self._actions.values())
-        return 0
+        action_score = sum(action.score for action in self._actions.values()) if self._actions else 0
+        log_xp = int(self.metadata.get("log_xp", 0))
+        xp_deducted = int(self.metadata.get("xp_deducted", 0))
+        return max(0, action_score + log_xp - xp_deducted)
 
     def act(self, payloads, value=None):
         if not payloads or not payloads[0]:
@@ -286,16 +288,9 @@ class User:
         else:
             log_text = self._format_action_note_log(action_name, note_text)
 
-        journal_service.add_log(log_text, auto_confirm=True, custom_status="[TO PROCESS]")
-
-        # Adiciona mensagens da action
-        for msg in action_messages:
-            self.add_message(msg)
-
         # Cálculo de Boost por Satisfação
         him = EntityManager().get_entity()
         current_sat = him.satisfaction
-        
         boost_multiplier = 1
         if current_sat > 40:
             boost_factor = min(0.5, (current_sat - 40) / 60 * 0.5)
@@ -303,6 +298,13 @@ class User:
             boost_multiplier = 1 + boost_factor
 
         final_score_difference = score_difference * boost_multiplier
+
+        action_status = "[CLOUD/TO PROCESS]" if note_is_numeric else "[CLOUD]"
+        journal_service.add_log(log_text, auto_confirm=True, custom_status=action_status,
+                                xp=int(round(final_score_difference)))
+
+        for msg in action_messages:
+            self.add_message(msg)
         if not self._attributes:
             current_score = self.metadata.get("score", 0) or 0
             self.metadata["score"] = current_score + action.score
@@ -404,7 +406,7 @@ class User:
             levels_in_rank = max(1, total_ranks - rank_index)
             rank_symbol = _GREEK[rank_index % len(_GREEK)]
             for local_level in range(1, levels_in_rank + 1):
-                xp_cost = int(round(24 * (1.11 ** (global_level - 1)) * (1 + rank_index * 0.18)))
+                xp_cost = int(round(200 * (1.06 ** (global_level - 1)) * (1.28 ** rank_index)))
                 xp_cost = max(1, xp_cost)
                 cumulative_xp += xp_cost
                 tiers.append({
@@ -461,6 +463,7 @@ class User:
             "local_level_roman": current_tier["local_level_roman"],
             "local_levels_total": current_tier["local_levels_total"],
             "next_xp": next_xp,
+            "xp_cost": current_tier["xp_cost"],
             "xp": xp,
         }
 
@@ -499,13 +502,22 @@ class User:
             return f"{int(note_value)} X {action_label}"
         return f"{str(action_name or '').strip().upper()} : {note_label}"
 
+    def _compute_log_xp(self, text):
+        import random
+        t = str(text or "").strip()
+        words = t.split()
+        base = max(3, min(30, len(words) * 3 + len(t) // 8))
+        spread = max(1, min(15, len(words) + 2))
+        return base + random.Random(t).randint(0, spread)
+
     def log(self, text):
         formatted = self._format_log_text(text)
         linked_action = journal_service.resolve_note_action(formatted)
         if linked_action:
             formatted = self._format_action_note_log(linked_action, formatted)
-        if journal_service.add_log(formatted):
-            self.add_message(f"Log buffered: {formatted}")
+        xp = self._compute_log_xp(formatted)
+        if journal_service.add_log(formatted, xp=xp):
+            self.metadata["log_xp"] = int(self.metadata.get("log_xp", 0)) + xp
             self.add_message(roko_message_service.generate())
             self._register_interaction()
         self.save_user()
@@ -734,13 +746,15 @@ class User:
         self.save_user()
 
     def drop_last_log_buffer(self):
-        result = journal_service.drop_last_buffer_entry()
-        self.add_message(result)
+        message, xp = journal_service.drop_last_buffer_entry()
+        self.metadata["xp_deducted"] = int(self.metadata.get("xp_deducted", 0)) + xp
+        self.add_message(message)
         self.save_user()
 
     def drop_last_day(self):
-        result = journal_service.drop_last_day()
-        self.add_message(result)
+        message, xp = journal_service.drop_last_day()
+        self.metadata["xp_deducted"] = int(self.metadata.get("xp_deducted", 0)) + xp
+        self.add_message(message)
         self.save_user()
 
     def list_sequences(self):
@@ -904,6 +918,7 @@ class User:
             self.add_message(f"Error saving {e}")
 
     def load_user(self):
+        self._progression_tiers_cache = None
         data_dir = get_evove_data_dir()
         data_file = os.path.join(data_dir, "user.json")
 

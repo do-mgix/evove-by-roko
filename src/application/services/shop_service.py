@@ -45,7 +45,7 @@ class ShopService:
             # Log immediately as TO PROCESS
             # Format: "qtd x ITEM" (We log 1 unit per purchase call usually, aggregation happens later)
             from src.application.services.journal_service import journal_service
-            journal_service.add_log(f"1 x {item['name'].upper()}", auto_confirm=True, custom_status="[TO PROCESS]")
+            journal_service.add_log(f"1 x {item['name'].upper()}", auto_confirm=True, custom_status="[CLOUD/TO PROCESS]")
             
             return True
         return False
