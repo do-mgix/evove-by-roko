@@ -29,7 +29,7 @@ class Action:
         if tipo not in self._TYPE_MAP:
             raise ValueError(f"Invalid action type: {tipo}")
         self._id = action_id
-        self._name = name
+        self._name = str(name).upper()
         self._tipo = tipo
         self._diff = diff
         self._value = value

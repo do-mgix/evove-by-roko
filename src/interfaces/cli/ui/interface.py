@@ -694,7 +694,9 @@ class UI:
                 self.web_buffer.append(item)
             return
 
-        if not items:
+        items_list = list(items)
+
+        if not items_list:
             self.clear_screen()
             self._print_block([
                 f"{self.CYAN}{self.BOLD}{' ' * 8}{title}{self.CLR}",
@@ -706,41 +708,73 @@ class UI:
             readchar.readkey()
             return
 
-        # Split items into pages
-        items_list = list(items)
-        pages = [items_list[i:i + limit] for i in range(0, len(items_list), limit)]
-        num_pages = len(pages)
+        query = ""
+        searching = False
         page_idx = 0
 
         try:
             while True:
+                filtered = [it for it in items_list if not query or query.lower() in str(it).lower()]
+                pages = [filtered[i:i + limit] for i in range(0, len(filtered), limit)] or [[]]
+                num_pages = len(pages)
+                page_idx = min(page_idx, max(0, num_pages - 1))
+
                 self.clear_screen()
                 current_page = pages[page_idx]
                 table, cols = self._build_excel_table(current_page)
-                rows = (len(current_page) + cols - 1) // cols
+                rows = (len(current_page) + cols - 1) // cols if current_page else 0
 
-                if num_pages > 1:
-                    footer = f"{self.YELLOW}[ h: previous | l: next | any other key: exit ]{self.CLR}"
-                    title_line = f"{self.CYAN}{self.BOLD}{' ' * 8}{title} (Page {page_idx + 1}/{num_pages}){self.CLR}"
-                    self._print_list_layout(title_line, table, footer, content_line_estimate=rows + 4)
-                    key = readchar.readkey()
-                    low_key = key.lower() if isinstance(key, str) else key
+                if searching:
+                    count_str = f" ({len(filtered)}/{len(items_list)})"
+                    title_line = f"{self.CYAN}{self.BOLD}{' ' * 8}{title}{count_str}{self.CLR}"
+                    footer = f"{self.YELLOW}/ {query}_  \033[2m[ esc: cancel | enter: confirm ]\033[0m{self.CLR}"
+                elif query:
+                    count_str = f" ({len(filtered)}/{len(items_list)})"
+                    title_line = f"{self.CYAN}{self.BOLD}{' ' * 8}{title}{count_str}{self.CLR}"
+                    footer = f"{self.YELLOW}/ {query}  \033[2m[ f: edit | esc: clear | h: prev | l: next ]\033[0m{self.CLR}"
+                else:
+                    title_line = f"{self.CYAN}{self.BOLD}{' ' * 8}{title} ({page_idx + 1}/{num_pages}){self.CLR}"
+                    if num_pages > 1:
+                        footer = f"{self.YELLOW}[ h: prev | l: next | f: search | other: exit ]{self.CLR}"
+                    else:
+                        footer = f"{self.GREEN}[ f: search | any key: exit ]{self.CLR}"
 
-                    if low_key == "h":
-                        page_idx = (page_idx - 1) % num_pages
-                        continue
-                    if low_key == "l":
-                        page_idx = (page_idx + 1) % num_pages
-                        continue
+                self._print_list_layout(title_line, table, footer, content_line_estimate=rows + 4)
+                key = readchar.readkey()
+
+                if not isinstance(key, str):
+                    if not searching and not query:
+                        return
+                    continue
+
+                if key == '\x1b':
+                    if searching or query:
+                        query = ""
+                        searching = False
+                        page_idx = 0
+                    else:
+                        return
+                elif key in ('\b', '\x7f', '\x08'):
+                    if searching:
+                        query = query[:-1]
+                    elif not query:
+                        return
+                elif key in ('\r', '\n'):
+                    searching = False
+                elif searching:
+                    if len(key) == 1 and key.isprintable():
+                        query += key
+                        page_idx = 0
+                elif key == 'f':
+                    searching = True
+                elif key == 'h':
+                    page_idx = (page_idx - 1) % num_pages
+                elif key == 'l':
+                    page_idx = (page_idx + 1) % num_pages
+                else:
                     return
 
-                title_line = f"{self.CYAN}{self.BOLD}{' ' * 8}{title} (Page {page_idx + 1}/{num_pages}){self.CLR}"
-                footer = f"{self.GREEN}[ Press any key to continue ]{self.CLR}"
-                self._print_list_layout(title_line, table, footer, content_line_estimate=rows + 4)
-                readchar.readkey()
-                return
         except Exception as e:
-            # Fallback if cycling fails (e.g. terminal issues)
             self._print_block(["", f"Error: {e}"])
             readchar.readkey()
 

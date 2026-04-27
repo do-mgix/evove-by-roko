@@ -1244,8 +1244,8 @@ class User:
             
             action = Action(new_id, name, tipo, diff, starter_value)
             self._actions[new_id] = action
-            
-            self.add_message(f"action '{name}' created with ID {new_id}")
+
+            self.add_message(f"action '{action.name}' created with ID {new_id}")
             if hasattr(self, "tutorial"):
                 self.tutorial.complete("has_created_action")
             self.save_user()
