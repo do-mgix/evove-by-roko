@@ -258,14 +258,11 @@ class UI:
         top_height = max(12, total_height - aux_height - 6)
         evove_height = 5
         agenda_logs_height = max(6, top_height - evove_height)
-        user_height = max(8, int(top_height * 0.53))
-        roko_height = max(6, top_height - user_height)
 
         evove_panel = self._build_evove_panel(evove_lines or [], height=evove_height)
         agenda_panel = self._build_agenda_panel(height=agenda_logs_height)
         logs_panel = self._build_logs_panel(height=agenda_logs_height)
-        user_panel = self._build_user_side_panel(border, height=user_height)
-        roko_panel = self._build_roko_side_panel(border, height=roko_height)
+        user_panel = self._build_user_side_panel(border, height=top_height)
         aux_panel = Panel(
             Text("", style="dim"),
             title="[dim]aux[/]",
@@ -280,7 +277,7 @@ class UI:
             evove_panel,
             Columns([agenda_panel, logs_panel], expand=True, equal=True, padding=(0, 0)),
         )
-        top_grid.add_row(left_column, Group(user_panel, roko_panel))
+        top_grid.add_row(left_column, user_panel)
         return Group(top_grid, aux_panel)
 
     def _build_evove_panel(self, lines, height):
@@ -291,6 +288,8 @@ class UI:
     def _build_user_side_panel(self, border, height=None):
         from src.application.services.sleep_service import sleep_service
         from src.application.services.sequence_service import sequence_service
+        from src.domain.entities.entity_manager import EntityManager
+        from rich.rule import Rule
 
         progress = self.user.get_progression_state() if hasattr(self.user, "get_progression_state") else {}
         sleep_info = sleep_service.get_last_sleep()
@@ -319,29 +318,45 @@ class UI:
             f"{self.WHITE}SLEEP:{self.CLR} {sleep_text}",
             f"{self.WHITE}DAY:{self.CLR} {day_text}",
         ]
-
         left = Text.from_ansi("\n\n".join(stats))
 
-        attr_text = Text(overflow="fold", no_wrap=False)
-        attr_text.append("ATTR", style="bold cyan")
-        attr_text.append("  ")
-        attr_text.append("PWR\n", style="bold cyan")
-        attr_text.append("─" * 14 + "\n", style="dim")
+        attr_table = Table(
+            show_header=True,
+            header_style="bold cyan",
+            box=box.SIMPLE,
+            pad_edge=False,
+            expand=True,
+            collapse_padding=False,
+        )
+        attr_table.add_column("ATTR", justify="left", overflow="ellipsis", no_wrap=True, style="white")
+        attr_table.add_column("POWER", justify="right", overflow="ellipsis", no_wrap=True, style="cyan")
         if self.user._attributes:
             for attr in self.user._attributes.values():
-                pwr = str(attr.power) if attr.power == 0 else attr.power_display
-                name = attr._name[:10]
-                attr_text.append(f"{name}\n", style="white")
-                attr_text.append(f"  {pwr}\n", style="cyan")
+                pwr = str(max(1, attr.power // 1000))
+                attr_table.add_row(attr._name, pwr)
         else:
-            attr_text.append("—\n", style="dim")
+            attr_table.add_row("—", "—")
 
-        grid = Table.grid(expand=True, padding=(0, 0))
-        grid.add_column(ratio=1)
-        grid.add_column(ratio=1)
-        grid.add_row(left, attr_text)
+        inner_grid = Table.grid(expand=True, padding=(0, 0))
+        inner_grid.add_column(ratio=1)
+        inner_grid.add_column(ratio=1)
+        inner_grid.add_row(left, attr_table)
 
-        return Panel(grid, title="[dim]user[/]", border_style=border, height=height)
+        current_entity = EntityManager().get_entity()
+        adjective = self.user._get_roko_adjective() if hasattr(self.user, "_get_roko_adjective") else "NEUTRO"
+        if current_entity:
+            sat = int(round(current_entity.satisfaction))
+            mood = current_entity._get_mood().upper() if hasattr(current_entity, "_get_mood") else "-"
+        else:
+            sat, mood = 0, "-"
+        roko_text = Text.from_ansi(
+            f"\033[2mROKO ({adjective})\033[0m"
+            f"  {self.WHITE}SAT:\033[0m {sat}%"
+            f"  {self.WHITE}MOOD:\033[0m {mood}"
+        )
+
+        content = Group(inner_grid, Rule(style="dim"), roko_text)
+        return Panel(content, title="[dim]user[/]", border_style=border, height=height)
 
     def _build_roko_side_panel(self, border, height=None):
         from src.domain.entities.entity_manager import EntityManager
