@@ -41,6 +41,7 @@ class UI:
         self.home_input_armed = False
         self.nav_focus = "agenda"
         self._agenda_scroll = 0
+        self._agenda_day_offset = 0
         self._commands_scroll = 0
 
         # Import from constants only
@@ -203,13 +204,16 @@ class UI:
 
     def _nav_scroll_delta(self, delta):
         if self.nav_focus == "agenda":
-            _, lines = self._load_agenda()
-            total = len(lines)
+            from src.application.services.evove_agenda_service import get_today_schedule
+            from datetime import datetime, timedelta
+            offset = self._agenda_day_offset
+            target_dt = datetime.now() + timedelta(days=offset) if offset else None
+            _, items, _ = get_today_schedule(now=target_dt)
+            total = len(items)
             cap = self._agenda_viewport_cap()
             if total <= cap:
                 return
-            data_rows = cap - 1
-            max_scroll = max(0, total - data_rows)
+            max_scroll = max(0, total - cap)
             self._agenda_scroll = min(max_scroll, max(0, self._agenda_scroll + delta))
         else:
             pairs = self._sorted_command_pairs()
@@ -223,14 +227,17 @@ class UI:
 
     def handle_idle_navigation(self, key):
         if key == "h":
-            self.nav_focus = "agenda"
+            self._agenda_day_offset = (self._agenda_day_offset - 1) % 7
+            self._agenda_scroll = 0
         elif key == "l":
-            self.nav_focus = "commands"
+            self._agenda_day_offset = (self._agenda_day_offset + 1) % 7
+            self._agenda_scroll = 0
         elif key == "j":
             self._nav_scroll_delta(1)
         elif key == "k":
             self._nav_scroll_delta(-1)
         elif key == "i":
+            self._agenda_day_offset = 0
             self.home_input_armed = True
 
     def _build_commands_side_panel(self, evove_lines=None, aux_height=None):
@@ -345,43 +352,52 @@ class UI:
     def _build_agenda_panel(self, height=None):
         focused = self.nav_focus == "agenda"
         border = "bright_magenta" if focused else "dim magenta"
-        resolved, lines = self._load_agenda()
-        cap = self._agenda_viewport_cap()
 
-        if resolved is None:
+        from src.application.services.evove_agenda_service import (
+            get_today_schedule, parse_agenda, AGENDA_FILE,
+        )
+        from datetime import datetime, timedelta
+        import os as _os
+
+        if not _os.path.isfile(AGENDA_FILE):
             body = Text(
-                f"(não encontrado: {self._AGENDA_PATHS[0]})",
+                f"(não encontrado: {AGENDA_FILE})",
                 style="dim",
                 overflow="fold",
                 no_wrap=False,
             )
-            title = "[dim]agenda[/]"
-            return Panel(body, title=title, border_style=border, height=height)
+            return Panel(body, title="[dim]agenda[/]", border_style=border, height=height)
 
-        total = len(lines)
-        if total == 0:
-            body = Text("(vazio)", style="dim white", overflow="fold", no_wrap=False)
-            title = f"[dim]agenda[/] [dim]({resolved})[/]"
-            return Panel(body, title=title, border_style=border, height=height)
+        # In insert mode always show today; in navigation show the offset day.
+        offset = 0 if self.home_input_armed else self._agenda_day_offset
+        if offset == 0:
+            day_name, items, active_idx = get_today_schedule()
+        else:
+            target_dt = datetime.now() + timedelta(days=offset)
+            day_name, items, active_idx = get_today_schedule(now=target_dt)
 
-        start = 0
-        chunk = lines
-        title_suffix = ""
-        if total > cap:
-            data_rows = cap - 1
-            max_scroll = max(0, total - data_rows)
-            self._agenda_scroll = min(max(self._agenda_scroll, 0), max_scroll)
-            start = self._agenda_scroll
-            chunk = lines[start : start + data_rows]
-            title_suffix = f" · {start + 1}-{start + len(chunk)}/{total}"
+        if not items:
+            body = Text(f"(sem blocos para {day_name})", style="dim white", overflow="fold", no_wrap=False)
+            return Panel(body, title=f"[dim]agenda · {day_name}[/]", border_style=border, height=height)
 
-        body = Text(
-            "\n".join(chunk) if chunk else "(vazio)",
-            style="dim white",
-            overflow="fold",
-            no_wrap=False,
-        )
-        title = f"[dim]agenda[/] [dim]({resolved}){title_suffix}[/]"
+        cap = self._agenda_viewport_cap()
+        total = len(items)
+        self._agenda_scroll = min(max(self._agenda_scroll, 0), max(0, total - cap))
+        start = self._agenda_scroll if total > cap else 0
+        visible = items[start:start + cap]
+
+        body = Text(overflow="fold", no_wrap=False)
+        for i, (s, e, label) in enumerate(visible):
+            real_idx = start + i
+            line = f"{s}-{e} : {label}\n"
+            if real_idx == active_idx:
+                body.append(f"▶ {line}", style="bold yellow")
+            else:
+                body.append(f"  {line}", style="dim white")
+
+        suffix = f" · {start + 1}-{start + len(visible)}/{total}" if total > cap else ""
+        nav_hint = f" ◀▶" if offset != 0 else ""
+        title = f"[dim]agenda · {day_name}{nav_hint}{suffix}[/]"
         return Panel(body, title=title, border_style=border, height=height)
 
     def show_startup_commands(self):
