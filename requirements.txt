@@ -4,3 +4,4 @@ readchar==4.0.5
 pyinstaller==5.13.2
 rich==13.9.4
 roman==5.2
+wordtriepy==0.0.3
