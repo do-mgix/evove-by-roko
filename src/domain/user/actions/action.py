@@ -19,8 +19,9 @@ class Action:
         3: {"label": "minutes", "factor": 2}, 
         4: {"label": "hours", "factor": 3}, 
         5: {"label": "letters", "factor": 0.1}, 
-        6: {"label": "lines", "factor": 0.5}, 
-        7: {"label": "words", "factor": 0.3}, 
+        6: {"label": "lines", "factor": 0.5},
+        7: {"label": "words", "factor": 0.3},
+        8: {"label": "group", "factor": 0},
     }
     
     def __init__(self, action_id, name: str, tipo: int, diff: int, value: float, deleted=False, logic_type=None, sub_logic_type=None):

@@ -167,6 +167,29 @@ def _prompt_cli_input(message, autocomplete=None, history=None):
 def _handle_web_input_interrupt(e, current_buffer, clear_command_buffer):
     from src.interfaces.cli.ui.interface import WebInputInterrupt
     try:
+        if e.prompt == "group confirm":
+             with open("/tmp/group_debug.log", "a") as _f:
+                 _f.write(f"GROUP CONFIRM HIT: parent={e.options.get('parent')} children={e.options.get('children')}\n")
+             parent = e.options.get("parent", "")
+             children = e.options.get("children", [])
+             sys.stdout.write("\033[2J\033[H")
+             sys.stdout.write(f"\n  GROUP: {parent}\n\n")
+             if not children:
+                 sys.stdout.write("  (no matching child actions found)\n\n")
+             for v, name, _cid in children:
+                 sys.stdout.write(f"    {v} x {name}\n")
+             sys.stdout.write("\n  [y] confirmar  [outro] cancelar\n\n")
+             sys.stdout.flush()
+             key = _read_cli_key()
+             if key and key.lower() == 'y' and children:
+                 for child_value, child_name, child_id in children:
+                     try:
+                         user.act([child_id[1:]], value=str(child_value), _group_depth=1)
+                     except WebInputInterrupt as next_e:
+                         _handle_web_input_interrupt(next_e, current_buffer, clear_command_buffer)
+             clear_command_buffer()
+             return True
+
         ui.render(current_buffer, force_print=True)
         guide = f"[ INPUT REQUIRED ] {e.prompt}"
         if e.type:

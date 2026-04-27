@@ -245,7 +245,7 @@ class User:
         xp_deducted = int(self.metadata.get("xp_deducted", 0))
         return max(0, action_score + log_xp - xp_deducted)
 
-    def act(self, payloads, value=None):
+    def act(self, payloads, value=None, _group_depth=0):
         if not payloads or not payloads[0]:
             self.add_message("Invalid action ID.")
             return None
@@ -255,6 +255,32 @@ class User:
             return None
         if getattr(action, "_deleted", False):
             self.add_message(f"Action {action_id} is deleted.")
+            return None
+
+        with open("/tmp/group_debug.log", "a") as _f:
+            _f.write(f"ACT CALLED: action={getattr(action, 'name', '?')} tipo={getattr(action, '_tipo', '?')} depth={_group_depth}\n")
+        if getattr(action, '_tipo', None) == 8:
+            with open("/tmp/group_debug.log", "a") as _f:
+                _f.write(f"  TIPO 8 DETECTED for {action.name}\n")
+            action_name = action.name
+            from src.application.services.evove_groups_service import get_group_children
+            resolved = []
+            for child_value, child_name in get_group_children(action_name):
+                child_id = next(
+                    (aid for aid, a in self._actions.items()
+                     if not getattr(a, "_deleted", False) and a.name.upper() == child_name),
+                    None,
+                )
+                if child_id:
+                    resolved.append((child_value, child_name, child_id))
+            if _group_depth == 0:
+                from src.interfaces.cli.ui.interface import WebInputInterrupt
+                raise WebInputInterrupt(
+                    "group confirm",
+                    options={"parent": action_name, "children": resolved},
+                )
+            for child_value, child_name, child_id in resolved:
+                self.act([child_id[1:]], value=str(child_value), _group_depth=_group_depth + 1)
             return None
 
         if self._action_connection_color(action_id) == "blue":
@@ -323,6 +349,7 @@ class User:
         self._register_interaction()
         self.add_message(roko_message_service.generate())
         self.save_user()
+
         return final_score_difference
 
     def _format_logic_id(self, value):
@@ -1208,11 +1235,12 @@ class User:
                         "5 - Letters",
                         "6 - Lines",
                         "7 - Words",
+                        "8 - Group",
                     ],
                     "UNIT TYPE",
                 )
                 raise WebInputInterrupt("unit type", type="numeric", options={"create_step": "action_type"})
-            if tipo < 1 or tipo > 7:
+            if tipo < 1 or tipo > 8:
                 self.add_message("Invalid unit type. Use 1-7.")
                 raise WebInputInterrupt("unit type", type="numeric", options={"create_step": "action_type"})
             clean_data["action_type"] = tipo
