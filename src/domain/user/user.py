@@ -256,7 +256,10 @@ class User:
         if getattr(action, "_deleted", False):
             self.add_message(f"Action {action_id} is deleted.")
             return None
-        
+
+        if self._action_connection_color(action_id) == "blue":
+            self.add_message(f"[ {action.name} ] no object connections (unlinked).")
+
         # descomente para reativar pagamento par ações de shop
         #if not self._check_shop_access(action_id):
             return None
@@ -2130,6 +2133,125 @@ class User:
 
         ui.show_vertical_list(items, "USER / ROKO")
 
+    def _action_connection_color(self, action_id):
+        """Returns 'white', 'yellow', or 'blue' based on transitive object connectivity."""
+        aid = str(action_id)
+
+        has_attr = any(
+            any(str(a.id) == aid for a in attr._related_actions)
+            for attr in self._attributes.values()
+        )
+
+        tag_links = self._action_tags.get(aid, [])
+        has_tag = bool(tag_links)
+
+        tag_ids = {str(tl.get("tag_id", "")) for tl in tag_links}
+        param_ids = set()
+        for pid, pt_list in self._param_tags.items():
+            for pt in pt_list:
+                if str(pt.get("tag_id", "")) in tag_ids:
+                    param_ids.add(pid)
+        has_param = bool(param_ids)
+
+        has_status = any(
+            any(str(pl.get("param_id", "")) in param_ids for pl in status._param_links)
+            for status in self._statuses.values()
+        )
+
+        if has_attr and has_tag and has_param and has_status:
+            return "white"
+        if has_attr or has_tag or has_param or has_status:
+            return "yellow"
+        return "blue"
+
+    def show_object_tree(self):
+        from src.interfaces.cli.ui.interface import ui
+
+        W   = "\033[97m"   # bright white
+        Y   = "\033[33m"   # yellow
+        BL  = "\033[94m"   # bright blue
+        C   = "\033[36m"   # cyan — attributes
+        DIM = "\033[2m"
+        R   = "\033[0m"
+
+        # tag_id → set of param_ids
+        tag_to_params = {}
+        for pid, pt_list in self._param_tags.items():
+            for pt in pt_list:
+                tid = str(pt.get("tag_id", ""))
+                tag_to_params.setdefault(tid, set()).add(pid)
+
+        # param_id → set of status_ids
+        param_to_statuses = {}
+        for sid, status in self._statuses.items():
+            for pl in status._param_links:
+                pid = str(pl.get("param_id", ""))
+                param_to_statuses.setdefault(pid, set()).add(sid)
+
+        # action_id → has attribute link
+        action_to_attrs = {}
+        for attr in self._attributes.values():
+            for action in attr._related_actions:
+                action_to_attrs.setdefault(str(action.id), set()).add(attr._id)
+
+        def col(action_id):
+            c = self._action_connection_color(action_id)
+            return W if c == "white" else (Y if c == "yellow" else BL)
+
+        def tag_chain(tid):
+            tag = self._tags.get(str(tid))
+            name = tag._name if tag else str(tid)
+            params = tag_to_params.get(str(tid), set())
+            pnames = [self._parameters[p]._name for p in params if p in self._parameters]
+            snames = []
+            for p in params:
+                for s in param_to_statuses.get(p, set()):
+                    if s in self._statuses:
+                        snames.append(self._statuses[s]._name)
+            parts = [f"{DIM}{tid}{R} {name}"]
+            if pnames:
+                parts.append(f"{DIM}→{R} {', '.join(pnames)}")
+            if snames:
+                parts.append(f"{DIM}→{R} {', '.join(snames)}")
+            return "  ".join(parts)
+
+        lines = []
+
+        def append_action(action, prefix, is_last):
+            aid = str(action.id)
+            conn = "└── " if is_last else "├── "
+            lines.append(f"{prefix}{conn}{col(aid)}{action.id} {action.name}{R}")
+            tag_ids = [str(tl.get("tag_id", "")) for tl in self._action_tags.get(aid, []) if tl.get("tag_id")]
+            sub = prefix + ("    " if is_last else "│   ")
+            for j, tid in enumerate(tag_ids):
+                tconn = "└── " if j == len(tag_ids) - 1 else "├── "
+                lines.append(f"{sub}{tconn}{tag_chain(tid)}")
+
+        def append_attr(attr, prefix, is_last):
+            conn = "└── " if is_last else "├── "
+            lines.append(f"{prefix}{conn}{C}{attr._id} {attr._name}{R}")
+            sub = prefix + ("    " if is_last else "│   ")
+            children = attr._children
+            actions = [a for a in attr._related_actions if not getattr(a, "_deleted", False)]
+            total = len(children) + len(actions)
+            for j, child in enumerate(children):
+                append_attr(child, sub, j == len(children) - 1 and not actions)
+            for j, action in enumerate(actions):
+                append_action(action, sub, j == len(actions) - 1)
+
+        root_attrs = [a for a in self._attributes.values() if not a._parent]
+        unlinked = [a for a in self._actions.values()
+                    if not getattr(a, "_deleted", False) and str(a.id) not in action_to_attrs]
+
+        for i, attr in enumerate(root_attrs):
+            append_attr(attr, "", i == len(root_attrs) - 1 and not unlinked)
+
+        if unlinked:
+            lines.append(f"└── {DIM}UNLINKED{R}")
+            for i, action in enumerate(unlinked):
+                append_action(action, "    ", i == len(unlinked) - 1)
+
+        ui.show_tree_scroll(lines, "OBJECTS")
 
     def _collect_autocomplete_names(self):
         import json

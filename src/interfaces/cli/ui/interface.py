@@ -637,7 +637,7 @@ class UI:
 
         items_list = list(items)
         total = len(items_list)
-        start_idx = max(0, total - window_size)
+        start_idx = 0 if mode == "raw" else max(0, total - window_size)
 
         while True:
             self.clear_screen()
@@ -653,7 +653,10 @@ class UI:
                     "",
                 ]
                 for item in current_items:
-                    lines.append(f"{self.WHITE}{item}{self.CLR}")
+                    if mode == "raw":
+                        lines.append(item)
+                    else:
+                        lines.append(f"{self.WHITE}{item}{self.CLR}")
                 lines.append("")
                 lines.append(f"{self.YELLOW}[ k: up | j: down | any other key: exit ]{self.CLR}")
                 self._print_block(lines)
@@ -686,6 +689,61 @@ class UI:
                 start_idx = min(max_start, start_idx + 1)
                 continue
             return
+
+    def show_tree_scroll(self, lines, title, window_size=30):
+        """Scrollable left-aligned tree display. Lines are ANSI strings with ├── └── │ chars."""
+        if self.web_mode:
+            self.web_buffer.append(f"--- {title} ---")
+            for line in lines:
+                self.web_buffer.append(line)
+            return
+
+        lines_list = list(lines)
+        total = len(lines_list)
+
+        if not total:
+            self.clear_screen()
+            self._print_line(f"{self.CYAN}{self.BOLD}{title}{self.CLR}", center=False)
+            self._print_line(f"{self.WHITE}No objects to display.{self.CLR}", center=False)
+            readchar.readkey()
+            return
+
+        start_idx = 0
+
+        while True:
+            self.clear_screen()
+            end_idx = min(start_idx + window_size, total)
+
+            px = self.margin_x
+            pad = " " * px
+
+            self.console.print(
+                f"{pad}{self.CYAN}{self.BOLD}{title} "
+                f"({start_idx + 1}-{end_idx}/{total}){self.CLR}",
+                highlight=False,
+            )
+            self.console.print("", highlight=False)
+
+            for item in lines_list[start_idx:end_idx]:
+                text = self._as_rich_text(item)
+                from rich.padding import Padding as _Pad
+                self.console.print(_Pad(text, (0, px)), highlight=False, soft_wrap=True)
+
+            self.console.print("", highlight=False)
+            self.console.print(
+                f"{pad}{self.YELLOW}[ k: up | j: down | any other key: exit ]{self.CLR}",
+                highlight=False,
+            )
+
+            key = readchar.readkey()
+            low = key.lower() if isinstance(key, str) else key
+
+            if low == "k":
+                start_idx = max(0, start_idx - 1)
+            elif low == "j":
+                start_idx = min(max(0, total - window_size), start_idx + 1)
+            else:
+                return
 
     def show_list(self, items, title, limit=20):
         if self.web_mode:
