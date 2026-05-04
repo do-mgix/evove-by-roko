@@ -41,8 +41,7 @@ class User:
             "unlocked_packages": ["basics"],
             "tokens": 0,
             "max_tokens": 50,
-            "daily_refill": 10,
-            "refill_cooldown": 12,
+            "daily_refill": 20,
             "refill_cooldown": 12,
             "last_token_refill": datetime.now().strftime("%Y-%m-%d"),
             "interaction_count": 0,
@@ -171,16 +170,12 @@ class User:
         self.save_user()
 
     def spend_tokens(self, amount):
-        """Spends tokens if possible. Returns True if successful."""
-        current = self.metadata.get("tokens", 0)                       
-        if current >= amount:
-            self.metadata["tokens"] = current - amount
-            self.add_message(f"Tokens spent: {amount}. Current balance: {self.metadata['tokens']}")
-            self.save_user()
-            return True
-        else:
-            self.add_message(f"Insufficient tokens! Needed: {amount}, Current: {current}")
-            return False
+        """Spends tokens, allowing negative balance."""
+        current = self.metadata.get("tokens", 0)
+        self.metadata["tokens"] = current - amount
+        self.add_message(f"Tokens spent: {amount}. Current balance: {self.metadata['tokens']}")
+        self.save_user()
+        return True
             
     def clear_messages(self):
         """Limpa o buffer de mensagens"""
