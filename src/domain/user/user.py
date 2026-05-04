@@ -15,7 +15,6 @@ from src.application.services.roko_message_service import roko_message_service
 from src.application.services.agenda_service import agenda_service
 from src.application.services.tutorial_service import TutorialService
 from src.infrastructure.storage import get_evove_data_dir
-from src.application.services.boss_service import get_boss_service
 
 class User:
     def __init__(self):
@@ -64,9 +63,6 @@ class User:
 
         if now is None:
             now = datetime.now()
-
-        # Boss encounter check
-        get_boss_service(self).check_and_generate(now=now)
 
         # Try to acquire a simple inter-process lock (best-effort)
         data_dir = get_evove_data_dir()
@@ -338,7 +334,6 @@ class User:
         xp_gained = int(round(final_score_difference))
         current_score = float(self.metadata.get("score", 0))
         self.metadata["score"] = current_score + final_score_difference
-        self.metadata["action_xp"] = int(self.metadata.get("action_xp", 0)) + xp_gained
 
         action_status = "[CLOUD/TO PROCESS]" if note_is_numeric else "[CLOUD]"
         journal_service.add_log(log_text, auto_confirm=True, custom_status=action_status,
@@ -931,23 +926,6 @@ class User:
         self.add_message(msg)
         self.save_user()
 
-    def defeat_boss(self):
-        from src.application.services.boss_service import get_boss_service
-        get_boss_service(self).handle_win()
-
-    def reset_equipment_and_xp(self):
-        # Limpa equipamentos
-        self.metadata["equipment"] = []
-        
-        # Retrocede XP do buffer (zera action_xp acumulado nesta fase)
-        deduction = int(self.metadata.get("action_xp", 0))
-        self.metadata["action_xp"] = 0
-        self.metadata["score"] = max(0, float(self.metadata.get("score", 0)) - deduction)
-        self.metadata["xp_deducted"] = int(self.metadata.get("xp_deducted", 0)) + deduction
-        
-        self.add_message("Equipamentos removidos e XP do buffer resetado.")
-        self.save_user()
-
     def save_user(self):
         data_dir = get_evove_data_dir()
         data_file = os.path.join(data_dir, "user.json")
@@ -1092,9 +1070,6 @@ class User:
                 self._update_statuses_for_param(param)
         if hasattr(self, "tutorial"):
             self.tutorial.maybe_show_startup()
-
-        # Boss encounter check on load
-        get_boss_service(self).check_and_generate()
 
     def _ensure_tutorial_state(self):
         tutorial = self.metadata.get("tutorial")
