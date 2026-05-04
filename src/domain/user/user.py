@@ -844,13 +844,17 @@ class User:
 
     def list_days(self):
         from src.interfaces.cli.ui.interface import ui
-        table_rows = self._build_log_rows(include_xp=True)
-        ui.show_vertical_list(
-            table_rows,
-            "CURRENT LOG BUFFER XP",
-            mode="table",
-            columns=[("id", "ID"), ("label", "HISTÓRICO"), ("xp", "XP")],
-        )
+        from src.application.services.journal_service import journal_service
+
+        path = journal_service.journal_file
+        if not os.path.exists(path):
+            ui.show_vertical_list([f"(empty) {path}"], "JOURNAL/EVOVE26")
+            return
+
+        with open(path, "r", encoding="utf-8") as f:
+            lines = [line.rstrip("\n") for line in f]
+
+        ui.show_vertical_list(lines or ["(empty)"], "JOURNAL/EVOVE26")
 
     def delete_sequence(self, payloads=None):
         seq_id = None
