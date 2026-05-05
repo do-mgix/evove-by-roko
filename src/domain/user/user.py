@@ -12,7 +12,6 @@ from src.domain.user.statuses.status import Status
 from src.domain.user.tags.tag import Tag
 from src.application.services.journal_service import journal_service
 from src.application.services.roko_message_service import roko_message_service
-from src.application.services.agenda_service import agenda_service
 from src.application.services.tutorial_service import TutorialService
 from src.infrastructure.storage import get_current_username, get_evove_data_dir
 

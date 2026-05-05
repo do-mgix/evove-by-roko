@@ -7,7 +7,6 @@ import readchar
 from src.interfaces.cli.ui.interface import ui
 from src.application.dial_interaction.dial_digest import dial
 from src.domain.entities.entity_manager import EntityManager
-from src.application.services.challenge_service import ChallengeManager
 from src.application.services.journal_service import journal_service
 
 from src.domain.constants import (
@@ -380,7 +379,6 @@ def dial_start():
     user.load_user()
     user.process_daily_checkpoint()
     em = EntityManager()
-    cm = ChallengeManager(user, em)
     
     try:
         buffer = ""
@@ -409,7 +407,6 @@ def dial_start():
             
             # Background checks (will run after each user interaction)
             em.check_and_spawn()
-            cm.update()
 
             key = _read_cli_key()
 
