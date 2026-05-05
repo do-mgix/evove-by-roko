@@ -393,6 +393,7 @@ def dial_start():
 
         while True:
             user.process_daily_checkpoint()
+            user.refill_daily_tokens()
             # Process any existing messages from entities BEFORE waiting for input
             current_him = em.get_entity()
             if current_him and current_him.messages:
