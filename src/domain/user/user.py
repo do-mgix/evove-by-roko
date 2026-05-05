@@ -181,20 +181,35 @@ class User:
         self.save_user()
         return True
 
-    def _normalize_agenda_label(self, text):
-        return " ".join(str(text or "").strip().upper().split())
-
-    def _active_agenda_label(self, now=None):
+    def _today_agenda_attributes(self, now=None):
         from src.application.services.evove_agenda_service import get_today_schedule, parse_agenda
-
-        day_name, items, active_idx = get_today_schedule(
+        _day, items, _idx = get_today_schedule(
             agenda=parse_agenda(),
             now=now or datetime.now(),
         )
-        if active_idx is None or active_idx >= len(items):
+        labels = {
+            " ".join(str(label or "").strip().upper().split())
+            for _s, _e, label in items
+        }
+        labels.discard("")
+        if not labels:
+            return []
+        result = []
+        for attr in self._attributes.values():
+            name_norm = " ".join(str(getattr(attr, "_name", "") or "").strip().upper().split())
+            if name_norm and name_norm in labels:
+                result.append(attr)
+        return result
+
+    def _action_belongs_to_today_attribute(self, action_id, now=None):
+        attrs = self._today_agenda_attributes(now=now)
+        if not attrs:
             return None
-        _start_s, _end_s, label = items[active_idx]
-        return self._normalize_agenda_label(label)
+        aid = str(action_id)
+        for attr in attrs:
+            if any(str(a.id) == aid for a in getattr(attr, "_related_actions", [])):
+                return True
+        return False
 
     def _is_negative_numeric_note(self, note_info):
         if not isinstance(note_info, dict) or not note_info.get("is_numeric"):
@@ -204,7 +219,7 @@ class User:
         except (TypeError, ValueError):
             return False
 
-    def _apply_energy_penalty(self, action_name, note_info=None, now=None):
+    def _apply_energy_penalty(self, action_id, note_info=None, now=None):
         current_energy = self.metadata.get("energy", 1000)
         try:
             current_energy = int(current_energy)
@@ -216,10 +231,10 @@ class User:
         penalty = 0
         reasons = []
 
-        active_label = self._active_agenda_label(now=now)
-        if self._normalize_agenda_label(action_name) != active_label:
+        belongs = self._action_belongs_to_today_attribute(action_id, now=now)
+        if belongs is False:
             penalty += 10
-            reasons.append("outside agenda")
+            reasons.append("outside today's attribute")
 
         if self._is_negative_numeric_note(note_info):
             penalty += 25
@@ -488,7 +503,7 @@ class User:
         else:
             log_text = self._format_action_note_log(action_name, note_text)
 
-        energy_depleted = self._apply_energy_penalty(action_name, note_info=energy_note_info)
+        energy_depleted = self._apply_energy_penalty(action_id, note_info=energy_note_info)
 
         # Cálculo de Boost por Satisfação
         him = EntityManager().get_entity()

@@ -420,6 +420,13 @@ class UI:
             if not getattr(action, "_deleted", False):
                 action_lookup[action.name.upper()] = aid
 
+        # Build attribute name → id lookup
+        attribute_lookup = {}
+        for attr_id, attr in self.user._attributes.items():
+            name = " ".join(str(getattr(attr, "_name", "") or "").strip().upper().split())
+            if name:
+                attribute_lookup[name] = attr_id
+
         # Build block XP lookup from today's logs
         from src.application.services.journal_service import journal_service
 
@@ -468,6 +475,7 @@ class UI:
             marker = "▶ " if is_active else "  "
 
             aid = action_lookup.get(label_upper)
+            attr_id = attribute_lookup.get(" ".join(label_upper.split()))
             if aid is not None:
                 xp = _block_xp(label_upper, s, e)
                 if xp > 0:
@@ -476,6 +484,9 @@ class UI:
                 else:
                     suffix_str = f"({aid})"
                     style = "bold yellow" if is_active else "white"
+            elif attr_id is not None:
+                suffix_str = f"({attr_id})"
+                style = "bold cyan" if is_active else "cyan"
             else:
                 suffix_str = ""
                 style = "bold dim" if is_active else "dim"
