@@ -115,16 +115,8 @@ class Action:
 
         note_info = self._manual_input(messages, label, value=manual_value)
         
-        value_difference = self.value - original_value
         score_difference = self.score - original_score
 
-        # Check for active challenge
-        from src.application.services.challenge_service import ChallengeManager
-        cm = ChallengeManager()
-        if cm.active_challenge and cm.active_challenge["action_id"] == self.id:
-            if value_difference >= cm.active_challenge["required_value"]:
-                cm.complete_challenge()
-        
         return score_difference, messages, note_info
 
     def _manual_input(self, messages, label, value=None):
