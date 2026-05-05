@@ -378,6 +378,7 @@ def _handle_web_input_interrupt(e, current_buffer, clear_command_buffer):
 def dial_start():
     journal_service.refresh_paths()
     user.load_user()
+    user.process_daily_checkpoint()
     em = EntityManager()
     cm = ChallengeManager(user, em)
     
@@ -391,6 +392,7 @@ def dial_start():
             ui.home_input_armed = True
 
         while True:
+            user.process_daily_checkpoint()
             # Process any existing messages from entities BEFORE waiting for input
             current_him = em.get_entity()
             if current_him and current_him.messages:

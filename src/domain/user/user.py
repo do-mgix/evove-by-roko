@@ -1,5 +1,5 @@
 # ==================== USER.PY ====================
-import json, os, time
+import json, os, time, math
 import roman
 from datetime import datetime, timedelta
 
@@ -42,6 +42,9 @@ class User:
             "max_score": 0,
             "max_xp": 0,
             "skill_points": 0,
+            "stage": 1,
+            "days_until_next_checkpoint": 20,
+            "last_checkpoint_check": datetime.now().strftime("%Y-%m-%d"),
             "tokens": 0,
             "max_tokens": 50,
             "daily_refill": 20,
@@ -260,6 +263,56 @@ class User:
         max_xp = float(self.metadata.get("max_xp", 0) or 0)
         self.metadata["max_score"] = max(max_score, current_score)
         self.metadata["max_xp"] = max(max_xp, current_xp)
+
+    def _checkpoint_interval_for_stage(self, stage):
+        return 19 + max(1, int(stage or 1))
+
+    def get_days_until_next_checkpoint(self, now=None):
+        days_until = int(
+            self.metadata.get(
+                "days_until_next_checkpoint",
+                self._checkpoint_interval_for_stage(self.metadata.get("stage", 1)),
+            ) or 0
+        )
+        if days_until <= 0:
+            days_until = self._checkpoint_interval_for_stage(self.metadata.get("stage", 1))
+        return days_until
+
+    def process_daily_checkpoint(self, now=None):
+        if now is None:
+            now = datetime.now()
+        today_str = now.strftime("%Y-%m-%d")
+        stage = int(self.metadata.get("stage", 1) or 1)
+        days_until = self.get_days_until_next_checkpoint(now=now)
+        last_check_str = self.metadata.get("last_checkpoint_check")
+        try:
+            last_check = datetime.fromisoformat(str(last_check_str)).date() if last_check_str else now.date()
+        except (TypeError, ValueError):
+            last_check = now.date()
+
+        elapsed_days = max(0, (now.date() - last_check).days)
+        if elapsed_days <= 0:
+            return 0
+
+        days_until = max(0, days_until - elapsed_days)
+        completed = 0
+        if days_until <= 0:
+            stage += 1
+            reward = 1 + int(math.ceil(stage / 4))
+            self.metadata["energy"] = 1000
+            self.metadata["stage"] = stage
+            self.metadata["skill_points"] = int(self.metadata.get("skill_points", 0) or 0) + reward
+            days_until = self._checkpoint_interval_for_stage(stage)
+            completed = 1
+            self.add_message(
+                f"Checkpoint reached: energy restored, stage {stage}, +{reward} skill points."
+            )
+
+        self.metadata["days_until_next_checkpoint"] = days_until
+        self.metadata["last_checkpoint_check"] = today_str
+        if completed:
+            self.save_user()
+        return completed
 
     def _award_skill_points_for_rank_progress(self, previous_rank_index):
         current_rank_index = int(self.get_progression_state().get("rank_index", 0) or 0)
@@ -1209,6 +1262,21 @@ class User:
         self.metadata["max_score"] = float(self.metadata.get("max_score", 0) or 0)
         self.metadata["max_xp"] = float(self.metadata.get("max_xp", 0) or 0)
         self.metadata["skill_points"] = int(self.metadata.get("skill_points", 0) or 0)
+        self.metadata["stage"] = max(1, int(self.metadata.get("stage", 1) or 1))
+        days_until_checkpoint = self.metadata.get("days_until_next_checkpoint")
+        if days_until_checkpoint is None:
+            legacy_next_checkpoint_day = int(self.metadata.get("next_checkpoint_day", 0) or 0)
+            if legacy_next_checkpoint_day > 0:
+                from src.application.services.sequence_service import sequence_service
+                current_day = sequence_service.days_since_first_activity()
+                if current_day > 0:
+                    days_until_checkpoint = max(0, legacy_next_checkpoint_day - current_day)
+                else:
+                    days_until_checkpoint = legacy_next_checkpoint_day
+            else:
+                days_until_checkpoint = self._checkpoint_interval_for_stage(self.metadata["stage"])
+        self.metadata["days_until_next_checkpoint"] = int(days_until_checkpoint or 0)
+        self.metadata["last_checkpoint_check"] = self.metadata.get("last_checkpoint_check") or datetime.now().strftime("%Y-%m-%d")
         if "highest_rank_rewarded" not in self.metadata:
             self.metadata["highest_rank_rewarded"] = int(self.get_progression_state().get("rank_index", 0))
         else:
@@ -2303,6 +2371,7 @@ class User:
 
         days = sequence_service.days_since_first_activity()
         day_text = str(days)
+        checkpoint_days = self.get_days_until_next_checkpoint()
         roko_satisfaction = 0
         roko_mood = "none"
         roko_name = "ROKO"
@@ -2319,6 +2388,7 @@ class User:
             "USER",
             f"SLEEP: {sleep_text}",
             f"DAY: {day_text}",
+            f"CHECKPOINT: {checkpoint_days} days",
             f"LEVEL: {progress['level']}",
             f"RANK: {progress['rank_symbol']}",
             f"NEXT: {progress['next_xp']} XP",

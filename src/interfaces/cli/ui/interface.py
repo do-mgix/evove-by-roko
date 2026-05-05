@@ -287,6 +287,7 @@ class UI:
         sleep_info = sleep_service.get_last_sleep()
         sleep_text = sleep_info.get("duration", "no data") if sleep_info else "no data"
         day_text = sequence_service.days_since_first_activity()
+        checkpoint_days = self.user.get_days_until_next_checkpoint() if hasattr(self.user, "get_days_until_next_checkpoint") else 0
         felicity = int(round(self.user.get_user_felicity())) if hasattr(self.user, "get_user_felicity") else 0
 
         xp_cost = max(1, progress.get('xp_cost', 1))
@@ -301,6 +302,7 @@ class UI:
         max_tokens = self.user.metadata.get("max_tokens", 50)
         energy = self.user.metadata.get("energy", 1000)
         skill_points = self.user.metadata.get("skill_points", 0)
+        stage = self.user.metadata.get("stage", 1)
 
         stats = [
             f"{self.CYAN}S:{self.CLR} {self.BOLD}{skill_points}{self.CLR}",
@@ -312,6 +314,8 @@ class UI:
             f"{self.YELLOW}T:{self.CLR} {self.BOLD}{tokens}{self.CLR}\033[2m/{max_tokens}\033[0m",
             f"{self.WHITE}SLEEP:{self.CLR} {sleep_text}",
             f"{self.WHITE}DAY:{self.CLR} {day_text}",
+            f"{self.WHITE}STAGE:{self.CLR} {stage}",
+            f"{self.WHITE}{checkpoint_days} Days until next checkpoint.{self.CLR}",
         ]
         left = Text.from_ansi("\n\n".join(stats))
 

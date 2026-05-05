@@ -8,11 +8,16 @@ DATE_FMT = "%d %m %Y"
 
 class SequenceService:
     def __init__(self):
-        data_dir = get_evove_data_dir()
-        self.data_path = os.path.join(data_dir, "sequences.json")
+        self.data_path = None
+        self.refresh_paths()
         self.sequences = self._load_data()
 
+    def refresh_paths(self):
+        data_dir = get_evove_data_dir()
+        self.data_path = os.path.join(data_dir, "sequences.json")
+
     def _load_data(self):
+        self.refresh_paths()
         default = {"sequences": [], "first_activity_date": None}
         data = default
         if os.path.exists(self.data_path):
@@ -51,6 +56,7 @@ class SequenceService:
         return f"{n:02d}"
 
     def _write(self, data):
+        self.refresh_paths()
         try:
             os.makedirs(os.path.dirname(self.data_path), exist_ok=True)
             with open(self.data_path, 'w', encoding='utf-8') as f:
@@ -71,6 +77,8 @@ class SequenceService:
 
     def record_activity(self, now=None):
         """Stamps the first-ever activity date. Subsequent calls are no-ops."""
+        self.refresh_paths()
+        self.sequences = self._load_data()
         if self.sequences.get("first_activity_date"):
             return
         if now is None:
@@ -81,6 +89,8 @@ class SequenceService:
     def days_since_first_activity(self, now=None):
         """Calendar days since first activity (day 1 = first activity day).
         Counts inactive days. Returns 0 if no activity yet."""
+        self.refresh_paths()
+        self.sequences = self._load_data()
         first_str = self.sequences.get("first_activity_date")
         if not first_str:
             return 0
@@ -109,6 +119,8 @@ class SequenceService:
 
     def update_sequences(self):
         """Increments each sequence by calendar days since its start_date."""
+        self.refresh_paths()
+        self.sequences = self._load_data()
         now = datetime.now()
         updated_count = 0
         for seq in self.sequences["sequences"]:
