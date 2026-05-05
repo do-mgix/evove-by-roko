@@ -41,6 +41,7 @@ class User:
             "energy": 1000,
             "max_score": 0,
             "max_xp": 0,
+            "skill_points": 0,
             "tokens": 0,
             "max_tokens": 50,
             "daily_refill": 20,
@@ -259,6 +260,20 @@ class User:
         max_xp = float(self.metadata.get("max_xp", 0) or 0)
         self.metadata["max_score"] = max(max_score, current_score)
         self.metadata["max_xp"] = max(max_xp, current_xp)
+
+    def _award_skill_points_for_rank_progress(self, previous_rank_index):
+        current_rank_index = int(self.get_progression_state().get("rank_index", 0) or 0)
+        highest_rank_rewarded = int(self.metadata.get("highest_rank_rewarded", current_rank_index) or 0)
+        previous_rank_index = int(previous_rank_index or 0)
+        baseline = max(highest_rank_rewarded, previous_rank_index)
+        if current_rank_index <= baseline:
+            return 0
+
+        gained = current_rank_index - baseline
+        self.metadata["skill_points"] = int(self.metadata.get("skill_points", 0) or 0) + gained
+        self.metadata["highest_rank_rewarded"] = current_rank_index
+        self.add_message(f"Rank up reward: +{gained} skill point{'s' if gained != 1 else ''}.")
+        return gained
             
     def clear_messages(self):
         """Limpa o buffer de mensagens"""
@@ -385,6 +400,7 @@ class User:
         if self._action_connection_color(action_id) == "blue":
             self.add_message(f"[ {action.name} ] no object connections (unlinked).")
 
+        previous_rank_index = self.get_progression_state().get("rank_index", 0)
         original_value = action.value
         score_difference, action_messages, note_info = action.execution(manual_value=value)
         value_difference = action.value - original_value
@@ -438,6 +454,7 @@ class User:
         if not energy_depleted:
             current_score = float(self.metadata.get("score", 0))
             self.metadata["score"] = current_score + final_score_difference
+            self._award_skill_points_for_rank_progress(previous_rank_index)
         else:
             xp_gained = 0
 
@@ -573,6 +590,7 @@ class User:
         if not tiers:
             return {
                 "level": 1,
+                "rank_index": 0,
                 "rank_symbol": "α",
                 "rank_name": "A",
                 "rank_letter": "A",
@@ -597,6 +615,7 @@ class User:
 
         return {
             "level": current_tier["level"],
+            "rank_index": current_tier["rank_index"],
             "rank_symbol": current_tier["rank_symbol"],
             "rank_name": current_tier["rank_name"],
             "rank_letter": current_tier["rank_letter"],
@@ -1189,6 +1208,11 @@ class User:
             self.metadata["energy"] = 1000
         self.metadata["max_score"] = float(self.metadata.get("max_score", 0) or 0)
         self.metadata["max_xp"] = float(self.metadata.get("max_xp", 0) or 0)
+        self.metadata["skill_points"] = int(self.metadata.get("skill_points", 0) or 0)
+        if "highest_rank_rewarded" not in self.metadata:
+            self.metadata["highest_rank_rewarded"] = int(self.get_progression_state().get("rank_index", 0))
+        else:
+            self.metadata["highest_rank_rewarded"] = int(self.metadata.get("highest_rank_rewarded", 0) or 0)
     
     
 
