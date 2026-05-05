@@ -14,7 +14,7 @@ from src.application.services.journal_service import journal_service
 from src.application.services.roko_message_service import roko_message_service
 from src.application.services.agenda_service import agenda_service
 from src.application.services.tutorial_service import TutorialService
-from src.infrastructure.storage import get_evove_data_dir
+from src.infrastructure.storage import get_current_username, get_evove_data_dir
 
 class User:
     def __init__(self):
@@ -37,6 +37,7 @@ class User:
             "mode": "progressive",
             "virtual_agent_active": True,
             "unlocked_packages": ["basics"],
+            "username": get_current_username(),
             "energy": 1000,
             "max_score": 0,
             "max_xp": 0,
@@ -1038,6 +1039,7 @@ class User:
         self._update_max_progress_metrics()
             
         data = {
+            "username": self.metadata.get("username") or get_current_username(),
             "score": current_score,
             "value": self._value,
             "attributes": {
@@ -1098,6 +1100,8 @@ class User:
         
         self._value = data.get("value", 0)
         self.metadata.update(data.get("metadata", {}))
+        if data.get("username"):
+            self.metadata["username"] = data.get("username")
             
         self._ensure_tutorial_state()
         self._update_max_progress_metrics()
@@ -1180,6 +1184,7 @@ class User:
         if "welcomed" not in tutorial:
             tutorial["welcomed"] = {"status": False, "priority": 11}
         self.metadata["tutorial"] = tutorial
+        self.metadata["username"] = get_current_username()
         if "energy" not in self.metadata:
             self.metadata["energy"] = 1000
         self.metadata["max_score"] = float(self.metadata.get("max_score", 0) or 0)

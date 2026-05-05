@@ -4,22 +4,23 @@ import subprocess
 import re
 from datetime import datetime, timedelta
 from src.application.services.sequence_service import sequence_service
-from src.infrastructure.storage import get_evove_data_dir
+from src.infrastructure.storage import get_current_username, get_evove_data_dir
 
 class JournalService:
     def __init__(self):
         self.log_id_prefix = 73
         self.log_id_width = 4
-        # Paths
+        self.logs_data_path = None
+        self.journal_dir = os.path.expanduser("~/journal")
+        self.journal_file = None
+        self.logs = []
+        self.refresh_paths()
+        self._load_logs_data()
+
+    def refresh_paths(self):
         data_dir = get_evove_data_dir()
         self.logs_data_path = os.path.join(data_dir, "logs.json")
-        
-        # User journal directory (Git Repo)
-        self.journal_dir = os.path.expanduser("~/journal")
-        self.journal_file = os.path.join(self.journal_dir, "evove26")
-        
-        self.logs = []
-        self._load_logs_data()
+        self.journal_file = os.path.join(self.journal_dir, f"evove26-{get_current_username()}")
 
     def _next_log_id(self):
         """Returns the next sequential log id (e.g. 470001)."""
@@ -38,6 +39,7 @@ class JournalService:
 
     def _load_logs_data(self):
         """Loads structured log data."""
+        self.refresh_paths()
         if os.path.exists(self.logs_data_path):
             try:
                 with open(self.logs_data_path, 'r', encoding='utf-8') as f:
@@ -75,6 +77,7 @@ class JournalService:
 
     def _get_last_file_date_header(self):
         """Reads the journal file backwards to find the last date header."""
+        self.refresh_paths()
         if not os.path.exists(self.journal_file):
             return None
         

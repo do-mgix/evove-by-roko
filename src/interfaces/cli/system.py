@@ -376,6 +376,7 @@ def _handle_web_input_interrupt(e, current_buffer, clear_command_buffer):
         return False
 
 def dial_start():
+    journal_service.refresh_paths()
     user.load_user()
     em = EntityManager()
     cm = ChallengeManager(user, em)
@@ -408,6 +409,10 @@ def dial_start():
             cm.update()
 
             key = _read_cli_key()
+
+            if key in ("q", "Q") and not buffer and ui.home_input_armed:
+                ui.clear_screen()
+                return "user_selection"
             
             if key == '\x1b':
                 buffer = ""
