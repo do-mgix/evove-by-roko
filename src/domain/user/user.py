@@ -37,6 +37,7 @@ class User:
             "mode": "progressive",
             "virtual_agent_active": True,
             "unlocked_packages": ["basics"],
+            "energy": 1000,
             "tokens": 0,
             "max_tokens": 50,
             "daily_refill": 20,
@@ -172,6 +173,62 @@ class User:
         self.add_message(f"Tokens spent: {amount}. Current balance: {self.metadata['tokens']}")
         self.save_user()
         return True
+
+    def _normalize_agenda_label(self, text):
+        return " ".join(str(text or "").strip().upper().split())
+
+    def _active_agenda_label(self, now=None):
+        from src.application.services.evove_agenda_service import get_today_schedule, parse_agenda
+
+        day_name, items, active_idx = get_today_schedule(
+            agenda=parse_agenda(),
+            now=now or datetime.now(),
+        )
+        if active_idx is None or active_idx >= len(items):
+            return None
+        _start_s, _end_s, label = items[active_idx]
+        return self._normalize_agenda_label(label)
+
+    def _is_negative_numeric_note(self, note_info):
+        if not isinstance(note_info, dict) or not note_info.get("is_numeric"):
+            return False
+        try:
+            return int(note_info.get("value")) < 0
+        except (TypeError, ValueError):
+            return False
+
+    def _apply_energy_penalty(self, action_name, note_info=None, now=None):
+        current_energy = self.metadata.get("energy", 1000)
+        try:
+            current_energy = int(current_energy)
+        except (TypeError, ValueError):
+            current_energy = 1000
+        current_energy = max(0, current_energy)
+        self.metadata["energy"] = current_energy
+
+        penalty = 0
+        reasons = []
+
+        active_label = self._active_agenda_label(now=now)
+        if self._normalize_agenda_label(action_name) != active_label:
+            penalty += 10
+            reasons.append("outside agenda")
+
+        if self._is_negative_numeric_note(note_info):
+            penalty += 25
+            reasons.append("negative token")
+
+        if penalty <= 0:
+            return 0
+
+        new_energy = max(0, current_energy - penalty)
+        spent = current_energy - new_energy
+        self.metadata["energy"] = new_energy
+        self.add_message(
+            f"Energy spent: {spent}. Reason: {', '.join(reasons)}. "
+            f"Current balance: {new_energy}/1000"
+        )
+        return spent
             
     def clear_messages(self):
         """Limpa o buffer de mensagens"""
@@ -316,14 +373,24 @@ class User:
 
         if not note_text:
             note_text = str(value if value is not None else "").strip()
-            note_is_numeric = note_text.isdigit()
-            if note_is_numeric:
+            try:
                 note_value = int(note_text)
+                note_is_numeric = True
+            except (TypeError, ValueError):
+                note_is_numeric = False
+
+        energy_note_info = {
+            "text": note_text,
+            "value": note_value,
+            "is_numeric": note_is_numeric,
+        }
 
         if note_is_numeric:
             log_text = self._format_action_note_log(action_name, note_text, note_value=note_value, is_numeric=True)
         else:
             log_text = self._format_action_note_log(action_name, note_text)
+
+        self._apply_energy_penalty(action_name, note_info=energy_note_info)
 
         # Cálculo de Boost por Satisfação
         him = EntityManager().get_entity()

@@ -299,6 +299,7 @@ class UI:
 
         tokens = self.user.metadata.get("tokens", 0)
         max_tokens = self.user.metadata.get("max_tokens", 50)
+        energy = self.user.metadata.get("energy", 1000)
 
         stats = [
             f"{self.CYAN}P:{self.CLR} {self.BOLD}{int(self.user.total_points)}{self.CLR}",
@@ -306,6 +307,7 @@ class UI:
             f"{self.CYAN}XP:{self.CLR} {progress.get('xp', 0)}  {self.YELLOW}NEXT:{self.CLR} {self.BOLD}{next_xp}{self.CLR}",
             f"{bar} \033[2m{int(pct * 100)}%\033[0m",
             f"{self.MAGENTA}SAT:{self.CLR} {felicity}%",
+            f"{self.GREEN}E:{self.CLR} {self.BOLD}{energy}{self.CLR}\033[2m/1000\033[0m",
             f"{self.YELLOW}T:{self.CLR} {self.BOLD}{tokens}{self.CLR}\033[2m/{max_tokens}\033[0m",
             f"{self.WHITE}SLEEP:{self.CLR} {sleep_text}",
             f"{self.WHITE}DAY:{self.CLR} {day_text}",

@@ -96,6 +96,7 @@
             opacity: 0.5;
         }
 
+        #display-energy,
         #display-tokens {
             font-family: 'Courier New', monospace;
             font-size: 0.62rem;
@@ -814,6 +815,7 @@
                 <div class="top-left">
                     <div class="stats-stack">
                         <div id="display-points">0</div>
+                        <div id="display-energy">1000E</div>
                         <div id="display-tokens">0/50T</div>
                     </div>
                     <div class="brand">EVOVE</div>
@@ -937,6 +939,7 @@
     <script>
         // REFS
         const displayPoints = document.getElementById('display-points');
+        const displayEnergy = document.getElementById('display-energy');
         const displayTokens = document.getElementById('display-tokens');
         const displayNumber = document.getElementById('display-number');
         const displayLabel  = document.getElementById('display-label');
@@ -1733,13 +1736,17 @@
                     const maxTokens = data.user.metadata && typeof data.user.metadata.max_tokens === 'number'
                         ? Math.round(data.user.metadata.max_tokens)
                         : 50;
+                    const energy = data.user.metadata && typeof data.user.metadata.energy === 'number'
+                        ? Math.round(data.user.metadata.energy)
+                        : 1000;
+                    displayEnergy.textContent = `${energy}E`;
                     displayTokens.textContent = `${tokens}/${maxTokens}T`;
                     if (!pendingType && !buffer) {
                         const level = progression.level || 1;
                         const rank = progression.rank_symbol || '⟐A';
                         const nextXp = typeof progression.next_xp === 'number' ? progression.next_xp : 0;
                         const felicity = typeof data.user.felicity === 'number' ? Math.round(data.user.felicity) : 0;
-                        displayLabel.textContent = `LEVEL ${level} | RANK ${rank} | NEXT ${nextXp} XP | SAT ${felicity}%`;
+                        displayLabel.textContent = `LEVEL ${level} | RANK ${rank} | NEXT ${nextXp} XP | SAT ${felicity}% | EN ${energy}`;
                     }
                 }
 
