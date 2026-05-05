@@ -3,7 +3,6 @@ from abc import ABC, abstractmethod
 import random
 
 class Action:
-    # Progressão linear: 2.1 + (diff - 1) * 1.1
     _DIFFICULTY_MULTIPLIER_MAP = {
         0: 1,
         1: 30,
@@ -24,7 +23,18 @@ class Action:
         8: {"label": "group", "factor": 0},
     }
     
-    def __init__(self, action_id, name: str, tipo: int, diff: int, value: float, deleted=False, logic_type=None, sub_logic_type=None):
+    def __init__(
+        self,
+        action_id,
+        name: str,
+        tipo: int,
+        diff: int,
+        value: float,
+        deleted=False,
+        logic_type=None,
+        sub_logic_type=None,
+        max_value=None,
+    ):
         if not (0 <= diff <= 5):
             raise ValueError("Difficulty 'diff' must be an integer between 0 and 5.")
         if tipo not in self._TYPE_MAP:
@@ -34,6 +44,10 @@ class Action:
         self._tipo = tipo
         self._diff = diff
         self._value = value
+        if max_value is None:
+            self._max_value = value
+        else:
+            self._max_value = max(max_value, value)
         self._deleted = bool(deleted)
         self._diff_multiplier = self._DIFFICULTY_MULTIPLIER_MAP[diff] 
         self._logic_type = logic_type
@@ -60,11 +74,22 @@ class Action:
         return self._value
 
     @property
+    def max_value(self):
+        return self._max_value
+
+    @property
     def deleted(self):
         return self._deleted
 
     def set_deleted(self, value=True):
         self._deleted = bool(value)
+
+    def reset_value(self):
+        self._value = 0
+
+    def _update_max_value(self):
+        if self._value > self._max_value:
+            self._max_value = self._value
     
     @property
     def diff_multiplier(self):
@@ -107,6 +132,7 @@ class Action:
             note_text = str(value).strip()
             added_value = self._note_to_value(note_text)
             self._value += added_value
+            self._update_max_value()
             return {
                 "text": note_text,
                 "is_numeric": self._is_integer_note(note_text),
@@ -126,6 +152,7 @@ class Action:
                 note_text = str(input_value).strip()
                 added_value = self._note_to_value(note_text)
                 self._value += added_value
+                self._update_max_value()
                 return {
                     "text": note_text,
                     "is_numeric": self._is_integer_note(note_text),
@@ -168,6 +195,7 @@ class Action:
             "type": self.type, 
             "diff": self.diff,
             "value": self.value,             
+            "max_value": self.max_value,
             "score": self.score,
             "deleted": self.deleted,
             "logic_type": self._logic_type,
@@ -185,5 +213,6 @@ class Action:
             data.get("deleted", False),
             data.get("logic_type"),
             data.get("sub_logic_type"),
+            data.get("max_value"),
         )
         return action

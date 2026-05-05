@@ -38,6 +38,8 @@ class User:
             "virtual_agent_active": True,
             "unlocked_packages": ["basics"],
             "energy": 1000,
+            "max_score": 0,
+            "max_xp": 0,
             "tokens": 0,
             "max_tokens": 50,
             "daily_refill": 20,
@@ -53,6 +55,7 @@ class User:
         }
         self.load_user()
         self._ensure_tutorial_state()
+        self._update_max_progress_metrics()
         self.tutorial = TutorialService(self)
         self.tutorial.maybe_show_startup()
 
@@ -219,7 +222,7 @@ class User:
             reasons.append("negative token")
 
         if penalty <= 0:
-            return 0
+            return False
 
         new_energy = max(0, current_energy - penalty)
         spent = current_energy - new_energy
@@ -228,7 +231,33 @@ class User:
             f"Energy spent: {spent}. Reason: {', '.join(reasons)}. "
             f"Current balance: {new_energy}/1000"
         )
-        return spent
+        depleted = current_energy > 0 and new_energy == 0
+        if depleted:
+            self._reset_progression_for_energy_depletion()
+        return depleted
+
+    def _reset_progression_for_energy_depletion(self):
+        self.metadata["score"] = 0
+        self.metadata["log_xp"] = 0
+        self.metadata["xp_deducted"] = 0
+        for action in self._actions.values():
+            if hasattr(action, "reset_value"):
+                action.reset_value()
+        self._progression_tiers_cache = None
+        self.add_message("Energy depleted: score, XP and action values reset to 0.")
+
+    def _current_xp_total(self):
+        score = float(self.metadata.get("score", 0) or 0)
+        log_xp = float(self.metadata.get("log_xp", 0) or 0)
+        return score + log_xp
+
+    def _update_max_progress_metrics(self):
+        current_score = float(self.metadata.get("score", 0) or 0)
+        current_xp = self._current_xp_total()
+        max_score = float(self.metadata.get("max_score", 0) or 0)
+        max_xp = float(self.metadata.get("max_xp", 0) or 0)
+        self.metadata["max_score"] = max(max_score, current_score)
+        self.metadata["max_xp"] = max(max_xp, current_xp)
             
     def clear_messages(self):
         """Limpa o buffer de mensagens"""
@@ -390,7 +419,7 @@ class User:
         else:
             log_text = self._format_action_note_log(action_name, note_text)
 
-        self._apply_energy_penalty(action_name, note_info=energy_note_info)
+        energy_depleted = self._apply_energy_penalty(action_name, note_info=energy_note_info)
 
         # Cálculo de Boost por Satisfação
         him = EntityManager().get_entity()
@@ -405,8 +434,11 @@ class User:
 
         # Add directly to global score (XP)
         xp_gained = int(round(final_score_difference))
-        current_score = float(self.metadata.get("score", 0))
-        self.metadata["score"] = current_score + final_score_difference
+        if not energy_depleted:
+            current_score = float(self.metadata.get("score", 0))
+            self.metadata["score"] = current_score + final_score_difference
+        else:
+            xp_gained = 0
 
         action_status = "[CLOUD/TO PROCESS]" if note_is_numeric else "[CLOUD]"
         journal_service.add_log(log_text, auto_confirm=True, custom_status=action_status,
@@ -1003,6 +1035,7 @@ class User:
 
         # Usamos total_points (que lê do metadata['score']) como valor de score para o JSON
         current_score = self.total_points
+        self._update_max_progress_metrics()
             
         data = {
             "score": current_score,
@@ -1067,6 +1100,7 @@ class User:
         self.metadata.update(data.get("metadata", {}))
             
         self._ensure_tutorial_state()
+        self._update_max_progress_metrics()
         self.logic_types = data.get("logic_types", {}) or {}
         self.sublogic_types = data.get("sublogic_types", {}) or {}
         
@@ -1146,6 +1180,10 @@ class User:
         if "welcomed" not in tutorial:
             tutorial["welcomed"] = {"status": False, "priority": 11}
         self.metadata["tutorial"] = tutorial
+        if "energy" not in self.metadata:
+            self.metadata["energy"] = 1000
+        self.metadata["max_score"] = float(self.metadata.get("max_score", 0) or 0)
+        self.metadata["max_xp"] = float(self.metadata.get("max_xp", 0) or 0)
     
     
 
@@ -2144,7 +2182,10 @@ class User:
                 name = self._tags.get(tid)._name if tid in self._tags else tid
                 tag_list.append(f"{name}({weight})")
             tags_str = ", ".join(tag_list) if tag_list else "-"
-            items.append(f"({action._id}) {action._name} | score {action.score:.2f} | tags: {tags_str}")
+            items.append(
+                f"({action._id}) {action._name} | value {action.value}/{action.max_value} | "
+                f"score {action.score:.2f} | tags: {tags_str}"
+            )
         if items:
             ui.show_list(items, "ACTIONS (DETAILED)")
         else:
