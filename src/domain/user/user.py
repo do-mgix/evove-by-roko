@@ -324,8 +324,7 @@ class User:
 
         self.metadata["days_until_next_checkpoint"] = days_until
         self.metadata["last_checkpoint_check"] = today_str
-        if completed:
-            self.save_user()
+        self.save_user()
         return completed
 
     def _award_skill_points_for_rank_progress(self, previous_rank_index):
