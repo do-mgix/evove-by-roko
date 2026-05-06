@@ -24,7 +24,6 @@ class User:
         self._statuses = {}
         self._shop_items = {}
         self._shop_action_links = {}
-        self._active_items = []
         self._tags = {}
         self._action_tags = {}
         self._param_tags = {}
@@ -111,7 +110,6 @@ class User:
             amount = self.metadata.get("daily_refill", self.metadata["daily_refill"])
             # Set date first so add_tokens save includes it
             self.metadata["last_token_refill"] = today_str
-            self._active_items = []
             self.add_tokens(amount)
             return True
         finally:
@@ -180,6 +178,66 @@ class User:
         self.add_message(f"Tokens spent: {amount}. Current balance: {self.metadata['tokens']}")
         self.save_user()
         return True
+
+    def _get_log_target_offset(self):
+        """Reads selected day offset from UI (0 = today, 1 = yesterday, ...). Safe if UI absent."""
+        try:
+            from src.interfaces.cli.ui.interface import ui
+            if getattr(ui, "home_input_armed", False):
+                return 0
+            return int(getattr(ui, "_agenda_day_offset", 0) or 0)
+        except Exception:
+            return 0
+
+    def _get_log_target_date(self, now=None):
+        from datetime import timedelta
+        if now is None:
+            now = datetime.now()
+        offset = self._get_log_target_offset()
+        # Negative offset = past. Positive (future) does not redirect logs.
+        if offset >= 0:
+            return now
+        return now + timedelta(days=offset)
+
+    def _get_log_target_day_num(self, now=None):
+        from src.application.services.sequence_service import sequence_service
+        target = self._get_log_target_date(now=now)
+        return sequence_service.days_since_first_activity(now=target)
+
+    def _shop_item_purchased_for_target_day(self, norm_item_id):
+        """True if any log on the current target day matches an action linked to this shop_item."""
+        target_day = self._get_log_target_day_num()
+        related_action_ids = {
+            aid for aid, item_id in self._shop_action_links.items()
+            if self._normalize_shop_item_id(item_id) == norm_item_id
+        }
+        if not related_action_ids:
+            return False
+        action_names = set()
+        for aid in related_action_ids:
+            action = self._actions.get(aid)
+            if action and getattr(action, "_name", None):
+                action_names.add(str(action._name).strip().upper())
+        if not action_names:
+            return False
+        journal_service._load_logs_data()
+        for log in journal_service.logs:
+            d, _o = journal_service._coord_for_log(log)
+            if d != target_day:
+                continue
+            content = str(log.get("content", "") or "").strip()
+            parsed = journal_service._parse_action_log_content(content)
+            if parsed:
+                kind = parsed.get("kind")
+                if kind in ("value", "note"):
+                    name = str(parsed.get("action") or "").strip().upper()
+                else:
+                    name = str(parsed.get("content") or "").strip().upper()
+            else:
+                name = content.upper()
+            if name in action_names:
+                return True
+        return False
 
     def _today_agenda_attributes(self, now=None):
         from src.application.services.evove_agenda_service import get_today_schedule, parse_agenda
@@ -430,11 +488,10 @@ class User:
         linked_item = self._shop_action_links.get(action_id)
         if linked_item:
             norm_item = self._normalize_shop_item_id(linked_item)
-            if norm_item not in self._active_items:
+            if not self._shop_item_purchased_for_target_day(norm_item):
                 from src.application.services.shop_service import ShopService
                 item = ShopService(self).get_item(linked_item)
                 if item:
-                    self._active_items.append(norm_item)
                     self.spend_tokens(int(item.get("cost", 0)))
 
         with open("/tmp/group_debug.log", "a") as _f:
@@ -526,7 +583,7 @@ class User:
 
         action_status = "[CLOUD/TO PROCESS]" if note_is_numeric else "[CLOUD]"
         journal_service.add_log(log_text, auto_confirm=True, custom_status=action_status,
-                                xp=xp_gained)
+                                xp=xp_gained, logged_for_date=self._get_log_target_date())
 
         for msg in action_messages:
             self.add_message(msg)
@@ -742,7 +799,7 @@ class User:
         if linked_action:
             formatted = self._format_action_note_log(linked_action, formatted)
         xp = self._compute_log_xp(formatted)
-        if journal_service.add_log(formatted, xp=xp):
+        if journal_service.add_log(formatted, xp=xp, logged_for_date=self._get_log_target_date()):
             self.metadata["log_xp"] = int(self.metadata.get("log_xp", 0)) + xp
             self.add_message(roko_message_service.generate())
             self._register_interaction()
@@ -1141,7 +1198,6 @@ class User:
             },
             "shop_items": self._shop_items,
             "shop_action_links": self._shop_action_links,
-            "active_items": self._active_items,
             "tags": {
                 k: v.to_dict() if hasattr(v, 'to_dict') else v for k, v in self._tags.items()
             },
@@ -1228,7 +1284,6 @@ class User:
 
         self._shop_action_links = data.get("shop_action_links", {}) or {}
         self._shop_items = data.get("shop_items", {}) or {}
-        self._active_items = list(data.get("active_items", []) or [])
 
         self._statuses.clear()
         for status_id, status_data in data.get("statuses", {}).items():
@@ -1317,18 +1372,14 @@ class User:
 
         norm_id = self._normalize_shop_item_id(target_id)
 
-        if norm_id in self._active_items:
+        if self.is_shop_item_purchased(target_id):
             item = shop.get_item(target_id)
             name = item["name"] if item else target_id
             self.add_message(f"{name} já ativo hoje.")
             return
 
-        self._active_items.append(norm_id)
-
         if shop.buy_item(target_id):
             self.save_user()
-        else:
-            self._active_items.remove(norm_id)
 
     def create_shop_item(self, step=None, data=None, value=None):
         mode = self.metadata.get("mode", "progressive")
@@ -1405,7 +1456,7 @@ class User:
         return str(shop_item_id).lstrip("0") or "0"
 
     def is_shop_item_purchased(self, shop_item_id):
-        return self._normalize_shop_item_id(shop_item_id) in self._active_items
+        return self._shop_item_purchased_for_target_day(self._normalize_shop_item_id(shop_item_id))
 
     def create_attribute(self, name=None):
         mode = self.metadata.get("mode", "progressive")

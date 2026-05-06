@@ -236,10 +236,10 @@ class UI:
 
     def handle_idle_navigation(self, key):
         if key == "h":
-            self._agenda_day_offset = (self._agenda_day_offset - 1) % 7
+            self._agenda_day_offset = self._agenda_day_offset - 1
             self._agenda_scroll = 0
         elif key == "l":
-            self._agenda_day_offset = (self._agenda_day_offset + 1) % 7
+            self._agenda_day_offset = self._agenda_day_offset + 1
             self._agenda_scroll = 0
         elif key == "j":
             self._nav_scroll_delta(1)
@@ -521,7 +521,9 @@ class UI:
         except Exception:
             return False
 
-        if log_dt.date() != target_dt.date():
+        target_day_num = journal_service._day_number_for(target_dt)
+        log_day_num, _ = journal_service._coord_for_log(log)
+        if log_day_num != target_day_num:
             return False
 
         parsed = journal_service._parse_action_log_content(log.get("content", ""))
@@ -563,13 +565,14 @@ class UI:
         offset, target_dt, day_name, items, _active_idx, _agenda = self._selected_agenda_context()
 
         journal_service._load_logs_data()
+        target_day_num = journal_service._day_number_for(target_dt)
         active_logs = []
         for log in journal_service.logs:
             status = str(log.get("status", "")).upper()
             if "DELETED" in status or "PROCESSED" in status:
                 continue
-            ts = str(log.get("timestamp", ""))
-            if not ts.startswith(target_dt.strftime("%d %m %Y")):
+            d, _o = journal_service._coord_for_log(log)
+            if d != target_day_num:
                 continue
             active_logs.append(log)
 
@@ -577,10 +580,7 @@ class UI:
             body = Text(f"(sem logs para {day_name})", style="dim white", overflow="fold", no_wrap=False)
             return Panel(body, title=f"[dim]logs · {day_name}[/]", border_style=border, height=height)
 
-        try:
-            active_logs.sort(key=lambda log: datetime.strptime(str(log.get("timestamp", "")), "%d %m %Y : %H:%M:%S"))
-        except Exception:
-            pass
+        active_logs.sort(key=lambda log: journal_service._coord_for_log(log)[1])
 
         cap = max(1, (height - 3) if height else 8)
         total = len(active_logs)

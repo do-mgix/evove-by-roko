@@ -37,6 +37,73 @@ class JournalService:
             return int(f"{self.log_id_prefix}{1:0{self.log_id_width}d}")
         return max_id + 1
 
+    def _day_number_for(self, dt):
+        """Maps a datetime/date to the global DAY index (sequence_service.days_since_first_activity)."""
+        from src.application.services.sequence_service import sequence_service
+        if hasattr(dt, "date"):
+            ref = datetime.combine(dt.date(), datetime.min.time())
+        else:
+            ref = datetime.combine(dt, datetime.min.time())
+        return sequence_service.days_since_first_activity(now=ref)
+
+    def _coord_for_log(self, log):
+        """Returns (day, order) for a log, computing from coord field or timestamp."""
+        coord = log.get("coord")
+        if isinstance(coord, (list, tuple)) and len(coord) >= 2:
+            try:
+                return int(coord[0]), int(coord[1])
+            except (TypeError, ValueError):
+                pass
+        try:
+            dt = datetime.strptime(str(log.get("timestamp", "")), "%d %m %Y : %H:%M:%S")
+            return self._day_number_for(dt), 0
+        except Exception:
+            return 0, 0
+
+    def _next_order_for_day(self, day_num):
+        max_order = 0
+        for log in self.logs:
+            d, o = self._coord_for_log(log)
+            if d == day_num and o > max_order:
+                max_order = o
+        return max_order + 1
+
+    def _backfill_coords(self):
+        """Assigns coord to legacy logs lacking it. Mutates self.logs but does not save."""
+        from collections import defaultdict
+        changed = False
+        # Group logs missing coord by day, sorted by timestamp
+        missing_by_day = defaultdict(list)
+        used_orders_by_day = defaultdict(set)
+        for log in self.logs:
+            coord = log.get("coord")
+            if isinstance(coord, (list, tuple)) and len(coord) >= 2:
+                try:
+                    d = int(coord[0]); o = int(coord[1])
+                    used_orders_by_day[d].add(o)
+                    continue
+                except (TypeError, ValueError):
+                    pass
+            try:
+                dt = datetime.strptime(str(log.get("timestamp", "")), "%d %m %Y : %H:%M:%S")
+            except Exception:
+                continue
+            d = self._day_number_for(dt)
+            missing_by_day[d].append((dt, log))
+
+        for d, items in missing_by_day.items():
+            items.sort(key=lambda x: x[0])
+            used = used_orders_by_day[d]
+            next_o = 1
+            for _dt, log in items:
+                while next_o in used:
+                    next_o += 1
+                log["coord"] = [d, next_o]
+                used.add(next_o)
+                next_o += 1
+                changed = True
+        return changed
+
     def _load_logs_data(self):
         """Loads structured log data."""
         self.refresh_paths()
@@ -61,6 +128,8 @@ class JournalService:
             elif "TO PROCESS" in status and status != "[CLOUD/TO PROCESS]":
                 log["status"] = "[PROCESSED]"
                 normalized = True
+        if self._backfill_coords():
+            normalized = True
         if normalized:
             self._save_logs_data()
 
@@ -177,7 +246,7 @@ class JournalService:
                 break
         return insert_idx
 
-    def add_log(self, text, manual_date=None, auto_confirm=False, custom_status=None, is_activity=True, xp=0):
+    def add_log(self, text, manual_date=None, auto_confirm=False, custom_status=None, is_activity=True, xp=0, logged_for_date=None):
         """Adds a log entry to both evove26 and logs.json."""
         if not text.strip():
             return False
@@ -196,34 +265,57 @@ class JournalService:
              # Logic matching (simplified)
              pass
 
+        # logged_for_date overrides target_date for journaling/coord, but timestamp stays "now"
+        attribution_date = logged_for_date if logged_for_date else target_date
+
         if is_activity:
-            self._aggregate_previous_days(target_date)
-            sequence_service.record_activity(target_date)
+            self._aggregate_previous_days(attribution_date)
+            sequence_service.record_activity(attribution_date)
             sequence_service.update_sequences()
 
-        current_date_header = target_date.strftime("[%d/%m/%Y]")
-        timestamp_str = target_date.strftime("%d %m %Y : %H:%M:%S")
+        current_date_header = attribution_date.strftime("[%d/%m/%Y]")
+        timestamp_str = now.strftime("%d %m %Y : %H:%M:%S")
 
         status = custom_status if custom_status else "[CLOUD]"
 
-        # 1. Append to evove26
+        # 1. Write to evove26 — append if attribution day == latest header, else insert under existing header
         try:
             os.makedirs(self.journal_dir, exist_ok=True)
-            last_header = self._get_last_file_date_header()
-            with open(self.journal_file, "a", encoding="utf-8") as f:
-                if last_header != current_date_header:
-                    f.write(f"\n{current_date_header}\n")
-                f.write(f"{text.strip()}\n")
+            inserted = False
+            if os.path.exists(self.journal_file):
+                with open(self.journal_file, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+                header_indices = [i for i, line in enumerate(lines) if self._is_date_header_line(line)]
+                hidx = next((i for i in header_indices if lines[i].strip() == current_date_header), None)
+                last_header = self._get_last_file_date_header()
+                if hidx is not None and current_date_header != last_header:
+                    next_hidx = next((i for i in header_indices if i > hidx), len(lines))
+                    insert_idx = next_hidx
+                    while insert_idx > hidx + 1 and lines[insert_idx - 1].strip() == "":
+                        insert_idx -= 1
+                    lines.insert(insert_idx, f"{text.strip()}\n")
+                    with open(self.journal_file, "w", encoding="utf-8") as f:
+                        f.writelines(lines)
+                    inserted = True
+            if not inserted:
+                last_header = self._get_last_file_date_header()
+                with open(self.journal_file, "a", encoding="utf-8") as f:
+                    if last_header != current_date_header:
+                        f.write(f"\n{current_date_header}\n")
+                    f.write(f"{text.strip()}\n")
         except IOError as e:
             return f"Error writing to file: {e}"
 
         # 2. Add to logs.json
+        day_num = self._day_number_for(attribution_date)
+        order = self._next_order_for_day(day_num)
         entry = {
             "id": self._next_log_id(),
             "timestamp": timestamp_str,
             "content": text.strip(),
             "status": status,
             "xp": int(xp),
+            "coord": [day_num, order],
         }
         self.logs.append(entry)
         self._save_logs_data()
@@ -723,21 +815,23 @@ class JournalService:
         return f"Log {log_id} moved to previous day."
 
     def up_current_day(self):
-        """Moves all today's [CLOUD] logs to the previous day in evove26."""
+        """Moves all today's [CLOUD] logs to the previous day in evove26 and shifts their coord day-1."""
         self._load_logs_data()
-        today_str = datetime.now().strftime("%d %m %Y")
+        today_day_num = self._day_number_for(datetime.now())
         candidates = {}
+        moved_logs = []
         for log in self.logs:
             status = str(log.get("status", "")).upper()
             if "CLOUD" not in status:
                 continue
-            ts = str(log.get("timestamp", ""))
-            if not ts.startswith(today_str):
+            d, _o = self._coord_for_log(log)
+            if d != today_day_num:
                 continue
             content = str(log.get("content", "")).strip()
             if not content:
                 continue
             candidates[content] = candidates.get(content, 0) + 1
+            moved_logs.append(log)
 
         if not candidates:
             return "No [CLOUD] logs for today."
@@ -792,6 +886,14 @@ class JournalService:
 
         except Exception as e:
             return f"Failed to move logs: {e}"
+
+        # Reassign coord day for moved logs (today_day_num -1) and re-order within target day
+        target_day = today_day_num - 1
+        next_order = self._next_order_for_day(target_day)
+        for log in moved_logs:
+            log["coord"] = [target_day, next_order]
+            next_order += 1
+        self._save_logs_data()
 
         return f"Moved {len(moved_lines)} logs to previous day."
 
