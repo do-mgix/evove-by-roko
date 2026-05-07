@@ -796,6 +796,17 @@ def _load_packages():
     return result
 
 
+def _lookup_token_cost(action_name: str) -> int:
+    if not action_name:
+        return 0
+    target = action_name.strip().upper()
+    for pkg in _load_packages():
+        for a in pkg.get("actions", []) or []:
+            if str(a.get("name", "")).strip().upper() == target:
+                return int(a.get("token_cost", 0) or 0)
+    return 0
+
+
 @app.get("/shop/packages")
 def shop_packages():
     return _load_packages()
@@ -1089,7 +1100,13 @@ def act_on_action(action_id: str, payload: dict | None = None, x_evove_username:
     metadata = data.setdefault("metadata", {})
 
     # Token cost: actions of leisure-style cost tokens. Allows negative balance.
-    token_cost = int(action.get("token_cost", 0) or 0) * max(1, abs(delta))
+    per_unit_cost = action.get("token_cost")
+    if per_unit_cost is None:
+        per_unit_cost = _lookup_token_cost(action.get("name", ""))
+        if per_unit_cost > 0:
+            action["token_cost"] = per_unit_cost
+    per_unit_cost = int(per_unit_cost or 0)
+    token_cost = per_unit_cost * max(1, abs(delta))
     if token_cost > 0:
         cur_tokens = int(metadata.get("tokens", 0) or 0)
         metadata["tokens"] = cur_tokens - token_cost
