@@ -22,7 +22,12 @@ from rich.panel import Panel
 from rich.table import Table
 from rich import box
 
-from src.domain.action import Action
+from src.domain.act import apply_act, ActError
+from src.domain.agenda import collect_labels, DAY_NAMES
+from src.infrastructure.static_data import (
+    skill_nodes_by_id,
+    lookup_token_cost,
+)
 from src.infrastructure.storage import (
     get_current_username,
     get_user_data_dir,
@@ -122,6 +127,23 @@ def cmd_list_actions(data: dict) -> None:
     console.print(table)
 
 
+def _agenda_path() -> Path:
+    return _data_dir() / "agenda.json"
+
+
+def _today_agenda_labels() -> set[str]:
+    p = _agenda_path()
+    if not p.exists():
+        return set()
+    try:
+        with p.open("r", encoding="utf-8") as f:
+            items = (json.load(f) or {}).get("items", [])
+    except Exception:
+        return set()
+    now = datetime.now()
+    return collect_labels(items, day_name=DAY_NAMES[now.weekday()], iso_date=now.strftime("%Y-%m-%d"))
+
+
 def cmd_act(data: dict) -> None:
     aid = console.input("[cyan]action id:[/cyan] ").strip()
     action = (data.get("actions") or {}).get(aid)
@@ -131,36 +153,35 @@ def cmd_act(data: dict) -> None:
     note = console.input(f"[cyan]nota para {action.get('name')} (vazio=1):[/cyan] ").strip()
     manual_value = note if note else 1
 
-    domain_action = Action.from_dict(action)
-    raw_diff, _msgs, note_info = domain_action.execution(manual_value=manual_value)
-    state = domain_action.to_dict()
-    action["value"] = state["value"]
-    action["max_value"] = state["max_value"]
-    action["score"] = state["score"]
-
-    data["score"] = float(data.get("score", 0) or 0) + raw_diff
-    data.setdefault("metadata", {})["score"] = data["score"]
-
-    for attr in (data.get("attributes") or {}).values():
-        if aid in (attr.get("related_actions") or []):
-            attr["total_score"] = float(attr.get("total_score", 0) or 0) + raw_diff
+    try:
+        outcome = apply_act(
+            data,
+            aid,
+            manual_value=manual_value,
+            today_agenda_labels=_today_agenda_labels(),
+            token_cost_lookup=lookup_token_cost,
+            skill_nodes_by_id=skill_nodes_by_id(),
+        )
+    except ActError as e:
+        console.print(f"[red]{e}[/red]")
+        return
 
     save_user(data)
+    append_log(outcome.log_content, int(round(outcome.score_diff)))
 
-    is_numeric = bool((note_info or {}).get("is_numeric"))
-    text = (note_info or {}).get("text") or ""
-    units = int((note_info or {}).get("value", 1)) if is_numeric else 1
-    if text and not is_numeric:
-        log_content = f"{action.get('name', '')} : {text}".strip()
-    else:
-        log_content = f"{units} X {action.get('name', '')}".strip()
-    append_log(log_content, int(round(raw_diff)))
-
-    console.print(
-        f"[green]+{int(round(raw_diff))} xp[/green] · "
-        f"[bold]{action.get('name')}[/bold] "
-        f"value={action['value']:g} score={action['score']:g}"
-    )
+    parts = [
+        f"[green]+{int(round(outcome.score_diff))} xp[/green]",
+        f"[bold]{action.get('name')}[/bold]",
+        f"value={action['value']:g}",
+    ]
+    if outcome.token_cost > 0:
+        parts.append(f"[yellow]-{outcome.token_cost} tokens[/yellow]")
+    if outcome.energy_penalty > 0:
+        parts.append(f"[red]-{outcome.energy_penalty} energy[/red] (fora da agenda)")
+    mult = outcome.bonuses.get("xp_multiplier", 1.0)
+    if mult and abs(mult - 1.0) > 1e-9:
+        parts.append(f"[dim]×{mult:g}[/dim]")
+    console.print(" · ".join(parts))
 
 
 def cmd_logs() -> None:

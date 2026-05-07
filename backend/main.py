@@ -14,6 +14,19 @@ if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
 
 from src.domain.action import Action  # noqa: E402
+from src.domain.act import apply_act, ActError  # noqa: E402
+from src.domain.agenda import collect_labels, DAY_NAMES as _DOMAIN_DAY_NAMES  # noqa: E402
+from src.domain.skills import (  # noqa: E402
+    aggregate_bonuses,
+    acquire_skill as _acquire_skill,
+    SkillError,
+)
+from src.infrastructure.static_data import (  # noqa: E402
+    load_skill_tree,
+    skill_nodes_by_id,
+    load_packages,
+    lookup_token_cost as _lookup_token_cost_static,
+)
 from src.infrastructure.storage import (  # noqa: E402
     get_evove_root_dir,
     get_user_data_dir,
@@ -716,56 +729,17 @@ def agenda_remove(item_id: str, x_evove_username: str | None = Header(None)):
     if not ok:
         raise HTTPException(status_code=404, detail="item not found")
     return {"ok": True}
-_PACKAGES_DIR = Path(__file__).parent / "data" / "packages"
-_SKILLS_FILE = Path(__file__).parent / "data" / "skills.json"
-
-
-def _load_skill_tree():
-    if not _SKILLS_FILE.exists():
-        return {"nodes": []}
-    try:
-        with _SKILLS_FILE.open("r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {"nodes": []}
-
-
-def _skill_bonuses(data: dict) -> dict:
-    """Aggregates skill effects from data['skills'] (list of acquired ids)."""
-    bonuses = {"max_energy": 0, "max_tokens": 0, "xp_multiplier": 1.0, "points_multiplier": 1.0}
-    acquired = set(data.get("skills") or [])
-    if not acquired:
-        return bonuses
-    by_id = {n["id"]: n for n in _load_skill_tree().get("nodes", [])}
-    for sid in acquired:
-        node = by_id.get(sid)
-        if not node or not node.get("effect"):
-            continue
-        eff = node["effect"]
-        t = eff.get("type")
-        v = eff.get("value", 0)
-        if t == "max_energy":
-            bonuses["max_energy"] += v
-        elif t == "max_tokens":
-            bonuses["max_tokens"] += v
-        elif t == "xp_multiplier":
-            bonuses["xp_multiplier"] *= v
-        elif t == "points_multiplier":
-            bonuses["points_multiplier"] *= v
-    return bonuses
-
-
 @app.get("/skills/tree")
 def skills_tree(x_evove_username: str | None = Header(None)):
     username = _resolve_username(x_evove_username)
     data = _load_user_json(username)
-    tree = _load_skill_tree()
+    tree = load_skill_tree()
     acquired = set(data.get("skills") or [])
     return {
         "nodes": tree.get("nodes", []),
         "acquired": sorted(acquired),
         "skill_points": int((data.get("metadata") or {}).get("skill_points", 0) or 0),
-        "bonuses": _skill_bonuses(data),
+        "bonuses": aggregate_bonuses(acquired, skill_nodes_by_id()),
     }
 
 
@@ -777,57 +751,20 @@ def acquire_skill(skill_id: str, x_evove_username: str | None = Header(None)):
         raise HTTPException(status_code=404, detail="user.json not found")
     with user_path.open("r", encoding="utf-8") as f:
         data = json.load(f)
-    tree = _load_skill_tree()
-    by_id = {n["id"]: n for n in tree.get("nodes", [])}
-    node = by_id.get(skill_id)
-    if not node:
-        raise HTTPException(status_code=404, detail=f"skill '{skill_id}' not found")
-    acquired = set(data.get("skills") or [])
-    if skill_id in acquired:
-        raise HTTPException(status_code=409, detail="already acquired")
-    parent = node.get("parent")
-    if parent and parent not in acquired and parent != "root":
-        raise HTTPException(status_code=400, detail=f"requires parent '{parent}'")
-    metadata = data.setdefault("metadata", {})
-    sp = int(metadata.get("skill_points", 0) or 0)
-    cost = int(node.get("cost", 0))
-    if sp < cost:
-        raise HTTPException(status_code=400, detail=f"need {cost} sp (have {sp})")
-    acquired.add(skill_id)
-    data["skills"] = sorted(acquired)
-    metadata["skill_points"] = sp - cost
+    try:
+        result = _acquire_skill(data, skill_id, skill_nodes_by_id())
+    except SkillError as e:
+        msg = str(e)
+        status = 404 if "not found" in msg else 409 if "already" in msg else 400
+        raise HTTPException(status_code=status, detail=msg)
     with user_path.open("w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
-    return {"acquired": data["skills"], "skill_points": metadata["skill_points"], "bonuses": _skill_bonuses(data)}
-
-
-def _load_packages():
-    if not _PACKAGES_DIR.is_dir():
-        return []
-    result = []
-    for path in sorted(_PACKAGES_DIR.glob("*.json")):
-        try:
-            with path.open("r", encoding="utf-8") as f:
-                result.append(json.load(f))
-        except Exception:
-            continue
     return result
-
-
-def _lookup_token_cost(action_name: str) -> int:
-    if not action_name:
-        return 0
-    target = action_name.strip().upper()
-    for pkg in _load_packages():
-        for a in pkg.get("actions", []) or []:
-            if str(a.get("name", "")).strip().upper() == target:
-                return int(a.get("token_cost", 0) or 0)
-    return 0
 
 
 @app.get("/shop/packages")
 def shop_packages():
-    return _load_packages()
+    return load_packages()
 
 
 @app.post("/shop/actions/buy")
@@ -844,7 +781,7 @@ def buy_action(payload: dict, x_evove_username: str | None = Header(None)):
     if not name or not attr_name:
         raise HTTPException(status_code=400, detail="missing name or attribute")
 
-    pkg = next((p for p in _load_packages() if p.get("attribute") == attr_name), None)
+    pkg = next((p for p in load_packages() if p.get("attribute") == attr_name), None)
     if not pkg:
         raise HTTPException(status_code=404, detail=f"package '{attr_name}' not found")
     template = next((a for a in pkg.get("actions", []) if str(a.get("name", "")).upper() == name), None)
@@ -1062,34 +999,12 @@ _LOG_ID_PREFIX = 73
 _LOG_ID_WIDTH = 4
 
 
-def _is_action_in_today_agenda(username: str, action_name: str, user_data: dict) -> bool:
-    """True if action name matches any of today's agenda labels, OR if any agenda label matches an attribute that contains this action."""
-    if not action_name:
-        return False
-    name_norm = " ".join(str(action_name).strip().upper().split())
-    if not name_norm:
-        return False
-    day_name = _DAY_NAMES[datetime.now().weekday()]
-    items = Agenda(username).for_day(day_name)
-    labels = {" ".join(str(it.get("label", "")).strip().upper().split()) for it in items}
-    labels.discard("")
-    if name_norm in labels:
-        return True
-    # Match via attribute name → related_actions
-    attributes = (user_data.get("attributes") or {})
-    # Find action_id of given name
-    action_id = None
-    for aid, a in (user_data.get("actions") or {}).items():
-        if str(a.get("name", "")).strip().upper() == name_norm:
-            action_id = str(aid)
-            break
-    if not action_id:
-        return False
-    for attr in attributes.values():
-        attr_label = " ".join(str(attr.get("name", "")).strip().upper().split())
-        if attr_label in labels and action_id in (attr.get("related_actions") or []):
-            return True
-    return False
+def _today_agenda_labels(username: str) -> set[str]:
+    """Build the set of today's agenda labels (normalized) for this user."""
+    now = datetime.now()
+    day_name = _DAY_NAMES[now.weekday()]
+    iso = now.strftime("%Y-%m-%d")
+    return collect_labels(Agenda(username).items, day_name=day_name, iso_date=iso)
 
 
 def _append_log(username: str, content: str, xp: int) -> dict | None:
@@ -1159,67 +1074,31 @@ def act_on_action(action_id: str, payload: dict | None = None, x_evove_username:
             except (TypeError, ValueError):
                 manual_value = 1
 
-    metadata = data.setdefault("metadata", {})
-
-    # Delegate score and value mutation to domain Action.
-    domain_action = Action.from_dict(action)
-    raw_diff, _msgs, note_info = domain_action.execution(manual_value=manual_value)
-    domain_state = domain_action.to_dict()
-    # Persist domain-managed fields back, preserving extras like token_cost.
-    action["value"] = domain_state["value"]
-    action["max_value"] = domain_state["max_value"]
-    action["score"] = domain_state["score"]
-
-    note_text = (note_info or {}).get("text") if isinstance(note_info, dict) else None
-    note_is_numeric = bool((note_info or {}).get("is_numeric")) if isinstance(note_info, dict) else False
-    note_value = (note_info or {}).get("value") if isinstance(note_info, dict) else None
-
-    # Token cost: leisure-style actions cost tokens. Allows negative balance.
-    per_unit_cost = action.get("token_cost")
-    if per_unit_cost is None:
-        per_unit_cost = _lookup_token_cost(action.get("name", ""))
-        if per_unit_cost > 0:
-            action["token_cost"] = per_unit_cost
-    per_unit_cost = int(per_unit_cost or 0)
-    units = int(note_value) if note_is_numeric and note_value is not None else 1
-    token_cost = per_unit_cost * max(1, abs(units))
-    if token_cost > 0:
-        cur_tokens = int(metadata.get("tokens", 0) or 0)
-        metadata["tokens"] = cur_tokens - token_cost
-
-    bonuses = _skill_bonuses(data)
-    score_diff = raw_diff * bonuses["xp_multiplier"]
-    data["score"] = float(data.get("score", 0) or 0) + score_diff
-    metadata["score"] = data["score"]
-
-    # Energy penalty when acting outside today's agenda.
-    in_agenda = _is_action_in_today_agenda(username, action.get("name", ""), data)
-    if not in_agenda:
-        cur_energy = int(metadata.get("energy", 0) or 0)
-        metadata["energy"] = max(0, cur_energy - 10)
-
-    # Update related attribute total_score
-    for attr in (data.get("attributes") or {}).values():
-        if action_id in (attr.get("related_actions") or []):
-            attr["total_score"] = float(attr.get("total_score", 0) or 0) + score_diff
+    today_labels = _today_agenda_labels(username)
+    try:
+        outcome = apply_act(
+            data,
+            action_id,
+            manual_value=manual_value,
+            today_agenda_labels=today_labels,
+            token_cost_lookup=_lookup_token_cost_static,
+            skill_nodes_by_id=skill_nodes_by_id(),
+        )
+    except ActError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
     with user_path.open("w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
     _record_activity(username)
-    name = action.get("name", "")
-    if note_text and not note_is_numeric:
-        log_content = f"{name} : {note_text}".strip()
-    else:
-        log_content = f"{int(units)} X {name}".strip()
-    log_entry = _append_log(username, log_content, int(round(score_diff)))
+    log_entry = _append_log(username, outcome.log_content, int(round(outcome.score_diff)))
 
     return {
         "id": action_id,
         "name": action.get("name"),
         "value": action["value"],
         "score": action["score"],
-        "score_diff": score_diff,
+        "score_diff": outcome.score_diff,
         "user_score": data["score"],
         "log": log_entry,
     }
