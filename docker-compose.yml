@@ -1,16 +1,21 @@
 services:
-  web:
-    build: .
-    command: ["python", "apps/web/run_web.py"]
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: roko-backend
     ports:
-      - "5000:5000"
-    environment:
-      - PYTHONPATH=/app
+      - "8000:8000"
+    volumes:
+      - ${HOME}/.local/share/evove:/root/.local/share/evove:ro
 
   cli:
-    build: .
-    command: ["python", "apps/cli/main.py"]
+    build:
+      context: .
+      dockerfile: apps/cli/Dockerfile
+    image: roko-cli
     stdin_open: true
     tty: true
-    environment:
-      - PYTHONPATH=/app
+    volumes:
+      - ${HOME}/.local/share/evove:/root/.local/share/evove
+      - ${HOME}/journal:/root/journal

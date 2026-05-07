@@ -1,0 +1,15 @@
+{
+  "attribute": "Lazer",
+  "color": "#a855f7",
+  "actions": [
+    { "name": "INSTAGRAM", "type": 3, "diff": 0, "cost": 1, "token_cost": 5 },
+    { "name": "TWITTER", "type": 3, "diff": 0, "cost": 1, "token_cost": 5 },
+    { "name": "TIKTOK", "type": 3, "diff": 0, "cost": 1, "token_cost": 5 },
+    { "name": "YOUTUBE", "type": 3, "diff": 0, "cost": 1, "token_cost": 5 },
+    { "name": "WATCH FILM", "type": 0, "diff": 1, "cost": 2, "token_cost": 10 },
+    { "name": "WATCH SERIES", "type": 0, "diff": 1, "cost": 2, "token_cost": 10 },
+    { "name": "VIDEO GAMES", "type": 3, "diff": 1, "cost": 3, "token_cost": 30 },
+    { "name": "BOARD GAME", "type": 0, "diff": 1, "cost": 2, "token_cost": 5 },
+    { "name": "READ", "type": 6, "diff": 2, "cost": 2, "token_cost": 0 }
+  ]
+}
