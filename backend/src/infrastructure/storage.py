@@ -53,8 +53,23 @@ def migrate_legacy_root_data():
 
 
 def get_evove_data_dir():
-    """Return the active user directory under ~/.local/share/evove/<username>."""
+    """Return the active user directory under ~/.local/share/evove/<username>.
+
+    Uses the process-wide current username (CLI-style). For multi-user web
+    contexts, prefer get_user_data_dir(username).
+    """
     migrate_legacy_root_data()
     path = os.path.join(get_evove_root_dir(), get_current_username())
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def get_user_data_dir(username: str):
+    """Return the per-user data directory without touching process globals.
+
+    Safe for concurrent multi-user requests (e.g., FastAPI handlers).
+    """
+    name = normalize_username(username) or _DEFAULT_USERNAME
+    path = os.path.join(get_evove_root_dir(), name)
     os.makedirs(path, exist_ok=True)
     return path

@@ -1,12 +1,23 @@
 import json
 import os
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
 
 import roman
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
+
+_BACKEND_DIR = Path(__file__).parent
+if str(_BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(_BACKEND_DIR))
+
+from src.domain.action import Action  # noqa: E402
+from src.infrastructure.storage import (  # noqa: E402
+    get_evove_root_dir,
+    get_user_data_dir,
+)
 
 _GREEK = ['α','β','γ','δ','ε','ζ','η','θ','ι','κ','λ','μ','ν','ξ','ο','π','ρ','σ','τ','υ','φ','χ','ψ','ω']
 _LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -26,7 +37,8 @@ _USERNAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,24}$")
 
 
 def _root_dir() -> Path:
-    return Path(os.environ.get("EVOVE_DATA_DIR", Path.home() / ".local" / "share" / "evove"))
+    override = os.environ.get("EVOVE_DATA_DIR")
+    return Path(override) if override else Path(get_evove_root_dir())
 
 
 def _resolve_username(x_evove_username: str | None) -> str:
@@ -37,7 +49,13 @@ def _resolve_username(x_evove_username: str | None) -> str:
 
 
 def _data_dir(username: str | None = None) -> Path:
-    return _root_dir() / _resolve_username(username)
+    name = _resolve_username(username)
+    override = os.environ.get("EVOVE_DATA_DIR")
+    if override:
+        path = Path(override) / name
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+    return Path(get_user_data_dir(name))
 
 
 _INITIAL_BUILD_POINTS = 100
@@ -929,6 +947,60 @@ def reorder_logs(payload: dict, x_evove_username: str | None = Header(None)):
     return {"ok": True, "count": len(ids)}
 
 
+@app.delete("/logs/{log_id}")
+def delete_log(log_id: int, x_evove_username: str | None = Header(None)):
+    username = _resolve_username(x_evove_username)
+    path = _data_dir(username) / "logs.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="logs.json not found")
+    with path.open("r", encoding="utf-8") as f:
+        logs = json.load(f)
+    idx = next((i for i, l in enumerate(logs) if int(l.get("id", -1)) == int(log_id)), -1)
+    if idx < 0:
+        raise HTTPException(status_code=404, detail=f"log {log_id} not found")
+    removed = logs.pop(idx)
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(logs, f, indent=4)
+    return {"ok": True, "id": int(log_id), "removed": removed}
+
+
+@app.patch("/logs/{log_id}")
+def update_log(log_id: int, payload: dict, x_evove_username: str | None = Header(None)):
+    """Body: {note?: str, content?: str}. Replaces the note part (after ' : ') or full content."""
+    username = _resolve_username(x_evove_username)
+    path = _data_dir(username) / "logs.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="logs.json not found")
+    with path.open("r", encoding="utf-8") as f:
+        logs = json.load(f)
+    log = next((l for l in logs if int(l.get("id", -1)) == int(log_id)), None)
+    if not log:
+        raise HTTPException(status_code=404, detail=f"log {log_id} not found")
+
+    if "content" in payload and payload["content"] is not None:
+        log["content"] = str(payload["content"])
+    elif "note" in payload:
+        note = (payload.get("note") or "").strip()
+        cur = str(log.get("content", ""))
+        # Determine action label: text before ' : ' or after 'N X '
+        head = cur
+        m = re.match(r"^(.+?)\s*:\s*(.+)$", cur)
+        if m:
+            head = m.group(1).strip()
+        else:
+            m2 = re.match(r"^(\d+)\s*[xX]\s*(.+)$", cur)
+            if m2:
+                head = m2.group(2).strip()
+        if note:
+            log["content"] = f"{head} : {note}"
+        else:
+            log["content"] = head
+
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(logs, f, indent=4)
+    return log
+
+
 @app.get("/logs")
 def list_logs(offset: int = 0, x_evove_username: str | None = Header(None)):
     """offset: 0 = today, -1 = yesterday, +1 = tomorrow."""
@@ -986,8 +1058,6 @@ def list_attributes(x_evove_username: str | None = Header(None)):
     return result
 
 
-_DIFF_MULTIPLIER = {0: 1, 1: 30, 2: 120, 3: 400, 4: 1000, 5: 2500}
-_TYPE_FACTOR = {0: 3, 1: 1, 2: 1, 3: 2, 4: 3, 5: 0.1, 6: 0.5, 7: 0.3, 8: 0}
 _LOG_ID_PREFIX = 73
 _LOG_ID_WIDTH = 4
 
@@ -1020,10 +1090,6 @@ def _is_action_in_today_agenda(username: str, action_name: str, user_data: dict)
         if attr_label in labels and action_id in (attr.get("related_actions") or []):
             return True
     return False
-
-
-def _action_score(action: dict) -> float:
-    return float(action.get("value", 0) or 0) * _TYPE_FACTOR.get(int(action.get("type", 0)), 0) * _DIFF_MULTIPLIER.get(int(action.get("diff", 0)), 0)
 
 
 def _append_log(username: str, content: str, xp: int) -> dict | None:
@@ -1080,45 +1146,47 @@ def act_on_action(action_id: str, payload: dict | None = None, x_evove_username:
     if not action or action.get("deleted"):
         raise HTTPException(status_code=404, detail=f"action {action_id} not found")
 
-    delta = 1
-    note = None
+    # Determine note input: explicit note, or numeric value, or default 1.
+    manual_value: str | int = 1
     if payload:
-        if "value" in payload and payload["value"] is not None:
-            try:
-                delta = int(payload["value"])
-            except (TypeError, ValueError):
-                delta = 1
-        if "note" in payload and payload["note"]:
+        if "note" in payload and payload["note"] is not None:
             note_text = str(payload["note"]).strip()
             if note_text:
-                # Numeric notes act as the delta value
-                try:
-                    delta = int(note_text)
-                except ValueError:
-                    note = note_text
+                manual_value = note_text
+        elif "value" in payload and payload["value"] is not None:
+            try:
+                manual_value = int(payload["value"])
+            except (TypeError, ValueError):
+                manual_value = 1
 
     metadata = data.setdefault("metadata", {})
 
-    # Token cost: actions of leisure-style cost tokens. Allows negative balance.
+    # Delegate score and value mutation to domain Action.
+    domain_action = Action.from_dict(action)
+    raw_diff, _msgs, note_info = domain_action.execution(manual_value=manual_value)
+    domain_state = domain_action.to_dict()
+    # Persist domain-managed fields back, preserving extras like token_cost.
+    action["value"] = domain_state["value"]
+    action["max_value"] = domain_state["max_value"]
+    action["score"] = domain_state["score"]
+
+    note_text = (note_info or {}).get("text") if isinstance(note_info, dict) else None
+    note_is_numeric = bool((note_info or {}).get("is_numeric")) if isinstance(note_info, dict) else False
+    note_value = (note_info or {}).get("value") if isinstance(note_info, dict) else None
+
+    # Token cost: leisure-style actions cost tokens. Allows negative balance.
     per_unit_cost = action.get("token_cost")
     if per_unit_cost is None:
         per_unit_cost = _lookup_token_cost(action.get("name", ""))
         if per_unit_cost > 0:
             action["token_cost"] = per_unit_cost
     per_unit_cost = int(per_unit_cost or 0)
-    token_cost = per_unit_cost * max(1, abs(delta))
+    units = int(note_value) if note_is_numeric and note_value is not None else 1
+    token_cost = per_unit_cost * max(1, abs(units))
     if token_cost > 0:
         cur_tokens = int(metadata.get("tokens", 0) or 0)
         metadata["tokens"] = cur_tokens - token_cost
 
-    old_score = _action_score(action)
-    action["value"] = float(action.get("value", 0) or 0) + delta
-    if action["value"] > float(action.get("max_value", 0) or 0):
-        action["max_value"] = action["value"]
-    new_score = _action_score(action)
-    action["score"] = new_score
-
-    raw_diff = new_score - old_score
     bonuses = _skill_bonuses(data)
     score_diff = raw_diff * bonuses["xp_multiplier"]
     data["score"] = float(data.get("score", 0) or 0) + score_diff
@@ -1139,17 +1207,18 @@ def act_on_action(action_id: str, payload: dict | None = None, x_evove_username:
         json.dump(data, f, indent=2)
 
     _record_activity(username)
-    if note:
-        log_content = f"{action.get('name', '')} : {note}".strip()
+    name = action.get("name", "")
+    if note_text and not note_is_numeric:
+        log_content = f"{name} : {note_text}".strip()
     else:
-        log_content = f"{int(delta)} X {action.get('name', '')}".strip()
+        log_content = f"{int(units)} X {name}".strip()
     log_entry = _append_log(username, log_content, int(round(score_diff)))
 
     return {
         "id": action_id,
         "name": action.get("name"),
         "value": action["value"],
-        "score": new_score,
+        "score": action["score"],
         "score_diff": score_diff,
         "user_score": data["score"],
         "log": log_entry,

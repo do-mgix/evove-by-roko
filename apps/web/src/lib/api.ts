@@ -117,6 +117,27 @@ export async function fetchLogs(offset: number = 0): Promise<LogsResponse> {
   return res.json();
 }
 
+export async function deleteLog(id: number): Promise<{ ok: boolean; id: number }> {
+  const res = await request(`/logs/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(detail.detail || `Failed to delete log (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function updateLogNote(id: number, note: string): Promise<LogEntry> {
+  const res = await request(`/logs/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ note }),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(detail.detail || `Failed to update log (${res.status})`);
+  }
+  return res.json();
+}
+
 export async function reorderLogs(day: number, ids: number[]): Promise<{ ok: boolean; count: number }> {
   const res = await request("/logs/reorder", {
     method: "POST",

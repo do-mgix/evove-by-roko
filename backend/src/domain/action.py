@@ -131,7 +131,7 @@ class Action:
                 "value": added_value,
             }
 
-        from src.interfaces.cli.ui.interface import ui, WebInputInterrupt
+        from src.domain.ports import ui, WebInputInterrupt
         if ui.web_mode:
             raise WebInputInterrupt("action note", type="text", options={"action_id": self.id})
 
