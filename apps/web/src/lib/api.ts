@@ -138,6 +138,18 @@ export async function updateLogNote(id: number, note: string): Promise<LogEntry>
   return res.json();
 }
 
+export async function shiftLogDay(id: number, delta: number): Promise<LogEntry> {
+  const res = await request(`/logs/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ day_delta: delta }),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(detail.detail || `Failed to shift log day (${res.status})`);
+  }
+  return res.json();
+}
+
 export async function reorderLogs(day: number, ids: number[]): Promise<{ ok: boolean; count: number }> {
   const res = await request("/logs/reorder", {
     method: "POST",

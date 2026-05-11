@@ -455,6 +455,37 @@ def update_log_content(username: str, log_id: int, content: str) -> dict | None:
         s.close()
 
 
+def shift_log_day(username: str, log_id: int, delta: int) -> dict | None:
+    """Move a log's day_num by `delta` days and append it to the target day's order."""
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        if not u:
+            return None
+        row = s.execute(
+            select(orm.Log).where(orm.Log.user_id == u.id, orm.Log.log_id == int(log_id))
+        ).scalar_one_or_none()
+        if not row:
+            return None
+        new_day = row.day_num + int(delta)
+        if new_day < 0:
+            return None
+        max_order = s.execute(
+            select(orm.Log.order_in_day)
+            .where(orm.Log.user_id == u.id, orm.Log.day_num == new_day)
+            .order_by(orm.Log.order_in_day.desc())
+        ).scalars().first() or 0
+        row.day_num = new_day
+        row.order_in_day = max_order + 1
+        s.commit()
+        return _log_to_dict(row)
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
 # ---------- agenda ----------
 
 def load_agenda_items(username: str) -> list[dict]:

@@ -784,8 +784,16 @@ def delete_log(log_id: int, x_evove_username: str | None = Header(None)):
 
 @app.patch("/logs/{log_id}")
 def update_log(log_id: int, payload: dict, x_evove_username: str | None = Header(None)):
-    """Body: {note?: str, content?: str}. Replaces the note part (after ' : ') or full content."""
+    """Body: {note?: str, content?: str, day_delta?: int}."""
     username = _resolve_username(x_evove_username)
+
+    if "day_delta" in payload and payload["day_delta"] is not None:
+        delta = int(payload["day_delta"])
+        updated = repos.shift_log_day(username, int(log_id), delta)
+        if updated is None:
+            raise HTTPException(status_code=404, detail=f"log {log_id} not found or invalid day")
+        return updated
+
     logs = repos.load_logs(username)
     log = next((l for l in logs if int(l.get("id", -1)) == int(log_id)), None)
     if not log:

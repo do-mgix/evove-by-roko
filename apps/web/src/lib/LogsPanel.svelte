@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { flip } from "svelte/animate";
-  import { fetchLogs, reorderLogs, deleteLog, updateLogNote, type LogEntry } from "./api";
+  import { fetchLogs, reorderLogs, deleteLog, updateLogNote, shiftLogDay, type LogEntry } from "./api";
   import { logsVersion } from "./store";
   import Modal from "./Modal.svelte";
 
@@ -189,6 +189,20 @@
     }
   }
 
+  async function shiftDay() {
+    if (!selected || saving) return;
+    saving = true;
+    try {
+      await shiftLogDay(selected.id, -1);
+      logs = logs.filter((l) => l.id !== selected!.id);
+      closeModal();
+    } catch (e: any) {
+      error = e?.message ?? "erro ao mover log";
+    } finally {
+      saving = false;
+    }
+  }
+
   function onEditKey(e: KeyboardEvent) {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -284,6 +298,7 @@
       </div>
     {:else}
       <div class="row-btns">
+        <button class="shift-day" on:click={shiftDay} disabled={saving} title="mover para o dia anterior">←</button>
         <button class="ghost" on:click={startEdit}>editar nota</button>
         <button class="danger-ghost" on:click={() => (confirmingDelete = true)}>apagar</button>
       </div>
@@ -530,6 +545,18 @@
   .row-btns .danger-ghost:hover {
     border-color: #f66;
     background: #1a0a0a;
+  }
+  .row-btns .shift-day {
+    background: transparent;
+    color: #6cf;
+    border-color: #1a3a4a;
+    font-size: 1rem;
+    padding: 0.45rem 0.7rem;
+    margin-right: auto;
+  }
+  .row-btns .shift-day:hover:not(:disabled) {
+    background: #0a1a28;
+    border-color: #6cf;
   }
   .row-btns button:disabled {
     opacity: 0.4;
