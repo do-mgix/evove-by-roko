@@ -44,6 +44,7 @@
     <div><span class="label">attrs</span><span class="value">{user.attributes_count}</span></div>
     <div class="span-2"><span class="label">tokens</span><span class="value">{user.tokens}/{user.max_tokens}</span></div>
     <div class="span-2"><span class="label">checkpoint</span><span class="value">{user.days_until_next_checkpoint}d</span></div>
+    <div class="span-2"><span class="label">today</span><span class="value">{new Date(user.date + 'T00:00:00').toLocaleDateString('pt-BR')}</span></div>
     <div class="span-2"><span class="label">skill points</span><span class="value">{user.skill_points}</span></div>
   </div>
 

@@ -66,6 +66,23 @@ def _date_iso(d: date | None) -> str | None:
     return d.isoformat() if d else None
 
 
+# ---------- helpers (shared with CLI) ----------
+
+def day_for_user(username: str, date_obj) -> int:
+    """Return the day number for this user given a date (1-indexed from first_activity_date)."""
+    data = load_sequences(username)
+    first = data.get("first_activity_date")
+    if not first:
+        return 0
+    try:
+        if hasattr(date_obj, "date"):
+            date_obj = date_obj.date()
+        first_dt = datetime.strptime(str(first), "%d %m %Y").date()
+        return (date_obj - first_dt).days + 1
+    except Exception:
+        return 0
+
+
 # ---------- users ----------
 
 def list_usernames() -> list[str]:
@@ -165,6 +182,7 @@ def _user_to_dict(s: Session, u: orm.User) -> dict:
         "days_until_next_checkpoint": state.days_until_next_checkpoint if state else 20,
         "last_checkpoint_check": _date_iso(state.last_checkpoint_check) if state else None,
         "last_token_refill": _date_iso(state.last_token_refill) if state else None,
+        "date": _date_iso(state.date) if state else None,
         "tutorial": {
             t.key: {"status": t.status, "priority": t.priority} for t in tutorial_rows
         },
@@ -222,6 +240,7 @@ def _write_state(s: Session, u: orm.User, data: dict):
     state.skill_points = int(md.get("skill_points", 0) or 0)
     state.stage = int(md.get("stage", 1) or 1)
     state.mode = str(md.get("mode", "progressive") or "progressive")
+    state.date = _parse_date(md.get("date")) or state.date
     state.days_until_next_checkpoint = int(md.get("days_until_next_checkpoint", 20) or 20)
     state.last_checkpoint_check = _parse_date(md.get("last_checkpoint_check"))
     state.last_token_refill = _parse_date(md.get("last_token_refill"))

@@ -20,6 +20,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -60,7 +61,7 @@ class UserState(Base):
     last_checkpoint_check: Mapped[date | None] = mapped_column(Date, nullable=True)
     last_token_refill: Mapped[date | None] = mapped_column(Date, nullable=True)
     daily_refill: Mapped[int] = mapped_column(Integer, default=20, nullable=False)
-
+    date: Mapped[date] = mapped_column(Date, server_default=text("(CURRENT_DATE)"), nullable=False)
     user: Mapped[User] = relationship(back_populates="state")
 
 

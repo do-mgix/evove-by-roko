@@ -1,4 +1,3 @@
-import json
 import os
 import re
 import sys
@@ -16,6 +15,7 @@ if str(_BACKEND_DIR) not in sys.path:
 from src.domain.action import Action  # noqa: E402
 from src.domain.act import apply_act, ActError  # noqa: E402
 from src.domain.agenda import collect_labels, DAY_NAMES as _DOMAIN_DAY_NAMES  # noqa: E402
+from src.domain.daily import apply_daily_tick  # noqa: E402
 from src.domain.skills import (  # noqa: E402
     aggregate_bonuses,
     acquire_skill as _acquire_skill,
@@ -31,6 +31,7 @@ from src.infrastructure.storage import (  # noqa: E402
     get_evove_root_dir,
     get_user_data_dir,
 )
+from src.infrastructure import repos  # noqa: E402
 
 _GREEK = ['α','β','γ','δ','ε','ζ','η','θ','ι','κ','λ','μ','ν','ξ','ο','π','ρ','σ','τ','υ','φ','χ','ψ','ω']
 _LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -96,16 +97,19 @@ def _apply_initial_grants(data: dict) -> bool:
     return True
 
 
-def _load_user_json(username: str) -> dict:
-    path = _data_dir(username) / "user.json"
-    if not path.exists():
-        raise HTTPException(status_code=404, detail=f"user.json not found at {path}")
-    with path.open("r", encoding="utf-8") as f:
-        data = json.load(f)
-    if _apply_initial_grants(data):
-        with path.open("w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+def _load_user(username: str) -> dict:
+    data = repos.load_user_dict(username)
+    if data is None:
+        raise HTTPException(status_code=404, detail=f"user '{username}' not found")
+    dirty = _apply_initial_grants(data)
+    dirty = apply_daily_tick(data) or dirty
+    if dirty:
+        repos.save_user_dict(username, data)
     return data
+
+
+def _save_user(username: str, data: dict) -> None:
+    repos.save_user_dict(username, data)
 
 
 def _build_tiers():
@@ -160,21 +164,11 @@ def _progression_state(xp: int):
 
 
 def _load_sequences(username: str) -> dict:
-    path = _data_dir(username) / "sequences.json"
-    if not path.exists():
-        return {}
-    try:
-        with path.open("r", encoding="utf-8") as f:
-            return json.load(f) or {}
-    except Exception:
-        return {}
+    return repos.load_sequences(username)
 
 
 def _save_sequences(username: str, data: dict):
-    path = _data_dir(username) / "sequences.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+    repos.save_sequences(username, data)
 
 
 def _ensure_sequences(username: str, now: datetime | None = None) -> dict:
@@ -244,7 +238,7 @@ def _checkpoint_interval_for_stage(stage: int) -> int:
 def journey(x_evove_username: str | None = Header(None)):
     from datetime import timedelta
     username = _resolve_username(x_evove_username)
-    data = _load_user_json(username)
+    data = _load_user(username)
     metadata = data.get("metadata", {}) or {}
     stage = int(metadata.get("stage", 1) or 1)
     days_until = int(metadata.get("days_until_next_checkpoint", _checkpoint_interval_for_stage(stage)) or _checkpoint_interval_for_stage(stage))
@@ -275,9 +269,7 @@ def journey(x_evove_username: str | None = Header(None)):
 @app.get("/users")
 def list_users():
     root = _root_dir()
-    if not root.exists():
-        return []
-    return sorted([p.name for p in root.iterdir() if p.is_dir() and (p / "user.json").exists()])
+    return repos.list_usernames()
 
 
 @app.post("/users")
@@ -285,11 +277,8 @@ def create_user(payload: dict):
     name = (payload or {}).get("name", "").strip()
     if not _USERNAME_RE.match(name):
         raise HTTPException(status_code=400, detail="invalid username (a-z, 0-9, _ -, max 24)")
-    user_dir = _root_dir() / name
-    user_file = user_dir / "user.json"
-    if user_file.exists():
+    if repos.user_exists(name):
         raise HTTPException(status_code=409, detail=f"user '{name}' already exists")
-    user_dir.mkdir(parents=True, exist_ok=True)
     today = datetime.now().strftime("%Y-%m-%d")
     initial = {
         "username": name,
@@ -306,6 +295,7 @@ def create_user(payload: dict):
         "param_tags": {},
         "logic_types": {},
         "sublogic_types": {},
+        "skills": [],
         "metadata": {
             "mode": "progressive",
             "username": name,
@@ -325,38 +315,32 @@ def create_user(payload: dict):
             "last_token_refill": today,
         },
     }
-    with user_file.open("w", encoding="utf-8") as f:
-        json.dump(initial, f, indent=2)
-
-    # Initialize sequences: first activity date = today, consecutive days = 1
-    seq_path = user_dir / "sequences.json"
     today_seq = datetime.now().strftime("%d %m %Y")
-    seq_data = {
+    initial_sequences = {
         "first_activity_date": today_seq,
         "last_active_date": today_seq,
         "consecutive_days": 1,
-        "sequences": [],
     }
-    with seq_path.open("w", encoding="utf-8") as f:
-        json.dump(seq_data, f, indent=2)
+    repos.create_user(name, initial, initial_sequences)
     return {"name": name}
 
 
 @app.get("/user")
 def user_state(x_evove_username: str | None = Header(None)):
     username = _resolve_username(x_evove_username)
-    data = _load_user_json(username)
+    data = _load_user(username)
     metadata = data.get("metadata", {}) or {}
     xp = int(round(float(data.get("score", 0) or 0)))
     progression = _progression_state(xp)
     attributes = data.get("attributes", {}) or {}
     active_attrs = [a for a in attributes.values() if not a.get("deleted")]
-    bonuses = _skill_bonuses(data)
+    bonuses = aggregate_bonuses(set(data.get("skills") or []), skill_nodes_by_id())
     base_max_tokens = int(metadata.get("max_tokens", 50) or 50)
     base_max_energy = 1000
     seq = _ensure_sequences(username)
     return {
         "username": metadata.get("username") or data.get("username"),
+        "date": metadata.get("date"),
         "day": _day_number(username),
         "consecutive_days": int(seq.get("consecutive_days", 0) or 0),
         "xp": xp,
@@ -381,73 +365,21 @@ def user_state(x_evove_username: str | None = Header(None)):
 
 
 _DAY_NAMES = ("SEG", "TER", "QUA", "QUI", "SEX", "SAB", "DOM")
-_LEGACY_AGENDA_FILE = Path(os.environ.get("EVOVE_AGENDA_FILE", Path.home() / "journal" / "evove-agenda"))
 
 
 class Agenda:
-    """Per-user agenda persisted at <data_dir>/agenda.json."""
+    """Per-user agenda backed by the DB."""
 
     def __init__(self, username: str):
         self.username = username
-        self.path = _data_dir(username) / "agenda.json"
         self.items: list[dict] = []
         self._load()
 
     def _load(self):
-        if self.path.exists():
-            try:
-                with self.path.open("r", encoding="utf-8") as f:
-                    self.items = (json.load(f) or {}).get("items", [])
-                return
-            except Exception:
-                self.items = []
-        self.items = []
-        self._save()
-
-    def _migrate_legacy(self):
-        if not _LEGACY_AGENDA_FILE.exists():
-            return
-        items: list[dict] = []
-        next_id = 1
-        current_day = None
-        try:
-            with _LEGACY_AGENDA_FILE.open("r", encoding="utf-8") as f:
-                for raw in f:
-                    line = raw.strip()
-                    if not line:
-                        continue
-                    upper = line.upper()
-                    if upper in _DAY_NAMES:
-                        current_day = upper
-                        continue
-                    if current_day is None or "-" not in line:
-                        continue
-                    colon = line.find(":", line.index("-"))
-                    if colon == -1:
-                        continue
-                    time_part = line[:colon].strip()
-                    label = line[colon + 1:].strip()
-                    if "-" not in time_part:
-                        continue
-                    start, end = (s.strip() for s in time_part.split("-", 1))
-                    items.append({
-                        "id": f"ag_{next_id:04d}",
-                        "day": current_day,
-                        "start": start,
-                        "end": end,
-                        "label": label,
-                        "label_kind": "text",
-                        "label_id": None,
-                    })
-                    next_id += 1
-        except OSError:
-            return
-        self.items = items
+        self.items = repos.load_agenda_items(self.username)
 
     def _save(self):
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("w", encoding="utf-8") as f:
-            json.dump({"items": self.items}, f, indent=2)
+        repos.save_agenda_items(self.username, self.items)
 
     def _next_id(self) -> str:
         max_n = 0
@@ -495,29 +427,18 @@ class Agenda:
 
 
 class Projects:
-    """Per-user projects/goals at <data_dir>/projects.json."""
+    """Per-user projects/goals backed by the DB."""
 
     def __init__(self, username: str):
         self.username = username
-        self.path = _data_dir(username) / "projects.json"
         self.items: list[dict] = []
         self._load()
 
     def _load(self):
-        if self.path.exists():
-            try:
-                with self.path.open("r", encoding="utf-8") as f:
-                    self.items = (json.load(f) or {}).get("items", [])
-                return
-            except Exception:
-                self.items = []
-        self.items = []
-        self._save()
+        self.items = repos.load_projects(self.username)
 
     def _save(self):
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("w", encoding="utf-8") as f:
-            json.dump({"items": self.items}, f, indent=2)
+        repos.save_projects(self.username, self.items)
 
     def _next_id(self) -> str:
         max_n = 0
@@ -636,14 +557,9 @@ def calendar(year: int, month: int, x_evove_username: str | None = Header(None))
         first_dt = None
 
     # Load logs and group by attribution date (via coord)
-    logs_path = _data_dir(username) / "logs.json"
     by_date: dict[str, int] = {}
-    if logs_path.exists() and first_dt:
-        try:
-            with logs_path.open("r", encoding="utf-8") as f:
-                logs = json.load(f)
-        except Exception:
-            logs = []
+    if first_dt:
+        logs = repos.load_logs(username)
         for log in logs:
             status = str(log.get("status", "")).upper()
             if "DELETED" in status or "PROCESSED" in status:
@@ -698,11 +614,7 @@ def logs_by_date(date: str, x_evove_username: str | None = Header(None)):
     except (ValueError, TypeError):
         return {"date": date, "logs": []}
     target_day = (target - first_dt).days + 1
-    logs_path = _data_dir(username) / "logs.json"
-    if not logs_path.exists():
-        return {"date": date, "day": target_day, "logs": []}
-    with logs_path.open("r", encoding="utf-8") as f:
-        logs = json.load(f)
+    logs = repos.load_logs(username)
     result = []
     for log in logs:
         status = str(log.get("status", "")).upper()
@@ -732,7 +644,7 @@ def agenda_remove(item_id: str, x_evove_username: str | None = Header(None)):
 @app.get("/skills/tree")
 def skills_tree(x_evove_username: str | None = Header(None)):
     username = _resolve_username(x_evove_username)
-    data = _load_user_json(username)
+    data = _load_user(username)
     tree = load_skill_tree()
     acquired = set(data.get("skills") or [])
     return {
@@ -746,19 +658,14 @@ def skills_tree(x_evove_username: str | None = Header(None)):
 @app.post("/skills/{skill_id}/acquire")
 def acquire_skill(skill_id: str, x_evove_username: str | None = Header(None)):
     username = _resolve_username(x_evove_username)
-    user_path = _data_dir(username) / "user.json"
-    if not user_path.exists():
-        raise HTTPException(status_code=404, detail="user.json not found")
-    with user_path.open("r", encoding="utf-8") as f:
-        data = json.load(f)
+    data = _load_user(username)
     try:
         result = _acquire_skill(data, skill_id, skill_nodes_by_id())
     except SkillError as e:
         msg = str(e)
         status = 404 if "not found" in msg else 409 if "already" in msg else 400
         raise HTTPException(status_code=status, detail=msg)
-    with user_path.open("w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+    _save_user(username, data)
     return result
 
 
@@ -770,11 +677,7 @@ def shop_packages():
 @app.post("/shop/actions/buy")
 def buy_action(payload: dict, x_evove_username: str | None = Header(None)):
     username = _resolve_username(x_evove_username)
-    user_path = _data_dir(username) / "user.json"
-    if not user_path.exists():
-        raise HTTPException(status_code=404, detail="user.json not found")
-    with user_path.open("r", encoding="utf-8") as f:
-        data = json.load(f)
+    data = _load_user(username)
 
     name = (payload or {}).get("name", "").strip().upper()
     attr_name = (payload or {}).get("attribute", "").strip()
@@ -839,22 +742,13 @@ def buy_action(payload: dict, x_evove_username: str | None = Header(None)):
 
     metadata["build_points"] = bp - cost
 
-    with user_path.open("w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+    _save_user(username, data)
 
     return {"id": new_id, "name": name, "build_points": metadata["build_points"]}
 
 
-def _day_for(username: str, date_obj):
-    data = _ensure_sequences(username)
-    first = data.get("first_activity_date")
-    if not first:
-        return 0
-    try:
-        first_dt = datetime.strptime(first, "%d %m %Y").date()
-        return (date_obj - first_dt).days + 1
-    except Exception:
-        return 0
+def _day_for(username: str, date_obj) -> int:
+    return repos.day_for_user(username, date_obj)
 
 
 @app.post("/logs/reorder")
@@ -865,11 +759,7 @@ def reorder_logs(payload: dict, x_evove_username: str | None = Header(None)):
     ids = payload.get("ids") or []
     if day < 0 or not isinstance(ids, list):
         raise HTTPException(status_code=400, detail="invalid payload")
-    path = _data_dir(username) / "logs.json"
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="logs.json not found")
-    with path.open("r", encoding="utf-8") as f:
-        logs = json.load(f)
+    logs = repos.load_logs(username)
     by_id = {int(l.get("id")): l for l in logs if l.get("id") is not None}
     for new_idx, lid in enumerate(ids, start=1):
         log = by_id.get(int(lid))
@@ -879,25 +769,16 @@ def reorder_logs(payload: dict, x_evove_username: str | None = Header(None)):
         if int(coord[0]) != day:
             continue
         log["coord"] = [day, new_idx]
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(logs, f, indent=4)
+    repos.save_logs(username, logs)
     return {"ok": True, "count": len(ids)}
 
 
 @app.delete("/logs/{log_id}")
 def delete_log(log_id: int, x_evove_username: str | None = Header(None)):
     username = _resolve_username(x_evove_username)
-    path = _data_dir(username) / "logs.json"
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="logs.json not found")
-    with path.open("r", encoding="utf-8") as f:
-        logs = json.load(f)
-    idx = next((i for i, l in enumerate(logs) if int(l.get("id", -1)) == int(log_id)), -1)
-    if idx < 0:
+    removed = repos.delete_log(username, int(log_id))
+    if removed is None:
         raise HTTPException(status_code=404, detail=f"log {log_id} not found")
-    removed = logs.pop(idx)
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(logs, f, indent=4)
     return {"ok": True, "id": int(log_id), "removed": removed}
 
 
@@ -905,21 +786,17 @@ def delete_log(log_id: int, x_evove_username: str | None = Header(None)):
 def update_log(log_id: int, payload: dict, x_evove_username: str | None = Header(None)):
     """Body: {note?: str, content?: str}. Replaces the note part (after ' : ') or full content."""
     username = _resolve_username(x_evove_username)
-    path = _data_dir(username) / "logs.json"
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="logs.json not found")
-    with path.open("r", encoding="utf-8") as f:
-        logs = json.load(f)
+    logs = repos.load_logs(username)
     log = next((l for l in logs if int(l.get("id", -1)) == int(log_id)), None)
     if not log:
         raise HTTPException(status_code=404, detail=f"log {log_id} not found")
 
+    new_content = None
     if "content" in payload and payload["content"] is not None:
-        log["content"] = str(payload["content"])
+        new_content = str(payload["content"])
     elif "note" in payload:
         note = (payload.get("note") or "").strip()
         cur = str(log.get("content", ""))
-        # Determine action label: text before ' : ' or after 'N X '
         head = cur
         m = re.match(r"^(.+?)\s*:\s*(.+)$", cur)
         if m:
@@ -928,13 +805,11 @@ def update_log(log_id: int, payload: dict, x_evove_username: str | None = Header
             m2 = re.match(r"^(\d+)\s*[xX]\s*(.+)$", cur)
             if m2:
                 head = m2.group(2).strip()
-        if note:
-            log["content"] = f"{head} : {note}"
-        else:
-            log["content"] = head
+        new_content = f"{head} : {note}" if note else head
 
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(logs, f, indent=4)
+    if new_content is not None:
+        updated = repos.update_log_content(username, int(log_id), new_content)
+        return updated or log
     return log
 
 
@@ -943,13 +818,9 @@ def list_logs(offset: int = 0, x_evove_username: str | None = Header(None)):
     """offset: 0 = today, -1 = yesterday, +1 = tomorrow."""
     from datetime import timedelta
     username = _resolve_username(x_evove_username)
-    path = _data_dir(username) / "logs.json"
     target_date = (datetime.now() + timedelta(days=offset)).date()
     target_day = _day_for(username, target_date)
-    if not path.exists():
-        return {"day": target_day, "offset": offset, "date": target_date.isoformat(), "logs": []}
-    with path.open("r", encoding="utf-8") as f:
-        logs = json.load(f)
+    logs = repos.load_logs(username)
     result = []
     for log in logs:
         status = str(log.get("status", "")).upper()
@@ -979,7 +850,7 @@ def agenda_today(x_evove_username: str | None = Header(None)):
 
 @app.get("/attributes")
 def list_attributes(x_evove_username: str | None = Header(None)):
-    data = _load_user_json(_resolve_username(x_evove_username))
+    data = _load_user(_resolve_username(x_evove_username))
     attributes = data.get("attributes", {}) or {}
     result = []
     for attr_id, attr in attributes.items():
@@ -1008,14 +879,7 @@ def _today_agenda_labels(username: str) -> set[str]:
 
 
 def _append_log(username: str, content: str, xp: int) -> dict | None:
-    path = _data_dir(username) / "logs.json"
-    logs = []
-    if path.exists():
-        try:
-            with path.open("r", encoding="utf-8") as f:
-                logs = json.load(f)
-        except Exception:
-            logs = []
+    logs = repos.load_logs(username)
     today_day = _day_for(username, datetime.now().date())
     max_id = 0
     next_order = 0
@@ -1042,20 +906,14 @@ def _append_log(username: str, content: str, xp: int) -> dict | None:
         "xp": int(xp),
         "coord": [today_day, next_order + 1],
     }
-    logs.append(entry)
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(logs, f, indent=4)
+    repos.append_log(username, entry)
     return entry
 
 
 @app.post("/actions/{action_id}/act")
 def act_on_action(action_id: str, payload: dict | None = None, x_evove_username: str | None = Header(None)):
     username = _resolve_username(x_evove_username)
-    user_path = _data_dir(username) / "user.json"
-    if not user_path.exists():
-        raise HTTPException(status_code=404, detail="user.json not found")
-    with user_path.open("r", encoding="utf-8") as f:
-        data = json.load(f)
+    data = _load_user(username)
 
     action = (data.get("actions") or {}).get(action_id)
     if not action or action.get("deleted"):
@@ -1087,8 +945,7 @@ def act_on_action(action_id: str, payload: dict | None = None, x_evove_username:
     except ActError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    with user_path.open("w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+    _save_user(username, data)
 
     _record_activity(username)
     log_entry = _append_log(username, outcome.log_content, int(round(outcome.score_diff)))
@@ -1106,7 +963,7 @@ def act_on_action(action_id: str, payload: dict | None = None, x_evove_username:
 
 @app.get("/actions")
 def list_actions(x_evove_username: str | None = Header(None)):
-    data = _load_user_json(_resolve_username(x_evove_username))
+    data = _load_user(_resolve_username(x_evove_username))
     actions = data.get("actions", {}) or {}
     result = []
     for action_id, action in actions.items():

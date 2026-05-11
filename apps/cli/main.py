@@ -24,55 +24,34 @@ from rich import box
 
 from src.domain.act import apply_act, ActError
 from src.domain.agenda import collect_labels, DAY_NAMES
+from src.domain.daily import apply_daily_tick
 from src.infrastructure.static_data import (
     skill_nodes_by_id,
     lookup_token_cost,
 )
-from src.infrastructure.storage import (
-    get_current_username,
-    get_user_data_dir,
-)
+from src.infrastructure.storage import get_current_username
+from src.infrastructure import repos
 from user_selector import select_user_profile
 
 console = Console()
 
 
-def _data_dir() -> Path:
-    return Path(get_user_data_dir(get_current_username()))
-
-
-def _user_path() -> Path:
-    return _data_dir() / "user.json"
-
-
-def _logs_path() -> Path:
-    return _data_dir() / "logs.json"
-
-
 def load_user() -> dict:
-    p = _user_path()
-    if not p.exists():
+    username = get_current_username()
+    data = repos.load_user_dict(username)
+    if data is None:
         return {"actions": {}, "metadata": {}, "score": 0}
-    with p.open("r", encoding="utf-8") as f:
-        return json.load(f)
+    if apply_daily_tick(data):
+        repos.save_user_dict(username, data)
+    return data
 
 
 def save_user(data: dict) -> None:
-    with _user_path().open("w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+    repos.save_user_dict(get_current_username(), data)
 
 
 def load_logs() -> list:
-    p = _logs_path()
-    if not p.exists():
-        return []
-    with p.open("r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def save_logs(logs: list) -> None:
-    with _logs_path().open("w", encoding="utf-8") as f:
-        json.dump(logs, f, indent=4)
+    return repos.load_logs(get_current_username())
 
 
 _LOG_ID_PREFIX = 73
@@ -80,27 +59,37 @@ _LOG_ID_WIDTH = 4
 
 
 def append_log(content: str, xp: int) -> dict:
+    username = get_current_username()
     logs = load_logs()
-    prefix = str(_LOG_ID_PREFIX)
-    nums = []
-    for log in logs:
-        s = str(log.get("id", ""))
-        if s.startswith(prefix):
-            try:
-                nums.append(int(s[len(prefix):]))
-            except ValueError:
-                pass
-    next_num = (max(nums) + 1) if nums else 1
-    next_id = int(f"{prefix}{next_num:0{_LOG_ID_WIDTH}d}")
     today = datetime.now()
+    today_day = repos.day_for_user(username, today.date())
+
+    max_id = 0
+    next_order = 0
+    for log in logs:
+        try:
+            v = int(log.get("id", 0) or 0)
+        except (TypeError, ValueError):
+            v = 0
+        if v > max_id:
+            max_id = v
+        coord = log.get("coord")
+        if isinstance(coord, list) and len(coord) >= 2:
+            try:
+                if int(coord[0]) == today_day and int(coord[1]) > next_order:
+                    next_order = int(coord[1])
+            except (TypeError, ValueError):
+                pass
+
+    next_id = max_id + 1 if max_id else int(f"{_LOG_ID_PREFIX}{1:0{_LOG_ID_WIDTH}d}")
     entry = {
         "id": next_id,
         "timestamp": today.strftime("%d %m %Y : %H:%M:%S"),
         "content": content,
         "xp": int(xp),
+        "coord": [today_day, next_order + 1],
     }
-    logs.append(entry)
-    save_logs(logs)
+    repos.append_log(username, entry)
     return entry
 
 
@@ -127,19 +116,8 @@ def cmd_list_actions(data: dict) -> None:
     console.print(table)
 
 
-def _agenda_path() -> Path:
-    return _data_dir() / "agenda.json"
-
-
 def _today_agenda_labels() -> set[str]:
-    p = _agenda_path()
-    if not p.exists():
-        return set()
-    try:
-        with p.open("r", encoding="utf-8") as f:
-            items = (json.load(f) or {}).get("items", [])
-    except Exception:
-        return set()
+    items = repos.load_agenda_items(get_current_username())
     now = datetime.now()
     return collect_labels(items, day_name=DAY_NAMES[now.weekday()], iso_date=now.strftime("%Y-%m-%d"))
 

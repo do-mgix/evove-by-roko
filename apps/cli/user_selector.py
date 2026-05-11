@@ -1,18 +1,11 @@
-import os
-import shutil
-
 import readchar
 from rich.align import Align
 from rich.console import Console, Group
 from rich.panel import Panel
 from rich.text import Text
 
-from src.infrastructure.storage import (
-    get_evove_root_dir,
-    migrate_legacy_root_data,
-    normalize_username,
-    set_current_username,
-)
+from src.infrastructure.storage import normalize_username, set_current_username
+from src.infrastructure import repos
 
 MAX_USER_SLOTS = 4
 
@@ -23,24 +16,7 @@ class UserSelector:
         self.selected_index = 0
 
     def _list_profiles(self):
-        migrate_legacy_root_data()
-        root = get_evove_root_dir()
-        profiles = []
-        for entry in os.scandir(root):
-            if not entry.is_dir():
-                continue
-            if entry.name.startswith("."):
-                continue
-            user_json = os.path.join(entry.path, "user.json")
-            if not os.path.exists(user_json):
-                continue
-            profiles.append({
-                "username": entry.name,
-                "path": entry.path,
-                "mtime": os.path.getmtime(user_json),
-            })
-        profiles.sort(key=lambda item: (-item["mtime"], item["username"].lower()))
-        return profiles[:MAX_USER_SLOTS]
+        return [{"username": u} for u in repos.list_usernames()][:MAX_USER_SLOTS]
 
     def _build_slot_panel(self, label, body, selected=False, style="white"):
         border = "bright_green" if selected else style
@@ -96,11 +72,27 @@ class UserSelector:
             if not normalized:
                 self.console.print("[red]Invalid username.[/red]")
                 continue
-            target = os.path.join(get_evove_root_dir(), normalized)
-            if os.path.exists(target):
+            if repos.user_exists(normalized):
                 self.console.print("[red]User already exists.[/red]")
                 continue
-            os.makedirs(target, exist_ok=True)
+            initial = {
+                "username": normalized,
+                "score": 0,
+                "actions": {},
+                "attributes": {},
+                "skills": [],
+                "metadata": {
+                    "username": normalized,
+                    "energy": 1000,
+                    "tokens": 50,
+                    "max_tokens": 50,
+                    "build_points": 0,
+                    "skill_points": 0,
+                    "stage": 1,
+                    "tutorial": {"received_start_build_points": {"status": False, "priority": 12}},
+                },
+            }
+            repos.create_user(normalized, initial, None)
             return normalized
 
     def _confirm_delete(self, username):
@@ -145,7 +137,7 @@ class UserSelector:
             if key in ("d", "D") and self.selected_index < len(profiles):
                 username = profiles[self.selected_index]["username"]
                 if self._confirm_delete(username):
-                    shutil.rmtree(profiles[self.selected_index]["path"], ignore_errors=True)
+                    repos.delete_user(username)
                     self.selected_index = max(0, self.selected_index - 1)
                 continue
             if key in ("q", "Q"):
