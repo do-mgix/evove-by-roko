@@ -72,7 +72,7 @@ def apply_act(
 
     # Token cost (per unit × units), allows negative balance
     per_unit = action.get("token_cost")
-    if per_unit is None and token_cost_lookup:
+    if not per_unit and token_cost_lookup:
         per_unit = token_cost_lookup(action.get("name", "")) or 0
         if per_unit > 0:
             action["token_cost"] = per_unit

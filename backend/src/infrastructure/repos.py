@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, date
 
-from sqlalchemy import select
+from sqlalchemy import select, update, func
 from sqlalchemy.orm import Session
 
 from src.infrastructure.db import SessionLocal
@@ -471,14 +471,27 @@ def shift_log_day(username: str, log_id: int, delta: int) -> dict | None:
         if new_day < 0:
             return None
         max_order = s.execute(
-            select(orm.Log.order_in_day)
+            select(func.max(orm.Log.order_in_day))
             .where(orm.Log.user_id == u.id, orm.Log.day_num == new_day)
-            .order_by(orm.Log.order_in_day.desc())
-        ).scalars().first() or 0
-        row.day_num = new_day
-        row.order_in_day = max_order + 1
+        ).scalar() or 0
+        new_order = max_order + 1
+        # Use a direct UPDATE to avoid identity-map stale-read with expire_on_commit=False.
+        s.execute(
+            update(orm.Log)
+            .where(orm.Log.user_id == u.id, orm.Log.log_id == int(log_id))
+            .values(day_num=new_day, order_in_day=new_order)
+            .execution_options(synchronize_session=False)
+        )
         s.commit()
-        return _log_to_dict(row)
+        # Build the result from already-known values; no re-read needed.
+        return {
+            "id": row.log_id,
+            "timestamp": _fmt_log_dt(row.timestamp),
+            "content": row.content,
+            "status": row.status,
+            "xp": row.xp,
+            "coord": [new_day, new_order],
+        }
     except Exception:
         s.rollback()
         raise
