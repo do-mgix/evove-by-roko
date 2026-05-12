@@ -1002,6 +1002,7 @@ def list_actions(x_evove_username: str | None = Header(None)):
             "diff": action.get("diff"),
             "value": action.get("value"),
             "score": action.get("score"),
+            "token_cost": int(action.get("token_cost") or 0),
         })
     result.sort(key=lambda a: (a.get("name") or "").upper())
     return result

@@ -323,7 +323,7 @@
                           <button class="row" on:click={() => (selectedAction = a)}>
                             <span class="id">{a.id}</span>
                             <span class="name">{a.name}</span>
-                            <span class="meta">d{a.diff} · {a.score} xp</span>
+                            <span class="meta">d{a.diff}{a.token_cost ? ` · ${a.token_cost}t` : ""}</span>
                           </button>
                           <button
                             class="act-btn"
@@ -390,6 +390,7 @@
       <dt>diff</dt><dd>d{selectedAction.diff}</dd>
       <dt>value</dt><dd>{selectedAction.value}</dd>
       <dt>score</dt><dd>{selectedAction.score} xp</dd>
+      {#if selectedAction.token_cost}<dt>custo</dt><dd>{selectedAction.token_cost} tokens</dd>{/if}
     </dl>
     <div class="confirm-row">
       <button class="ghost" on:click={() => (selectedAction = null)}>fechar</button>

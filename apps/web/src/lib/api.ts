@@ -27,6 +27,7 @@ export type Action = {
   diff: number;
   value: number;
   score: number;
+  token_cost: number;
 };
 
 export async function fetchActions(): Promise<Action[]> {
