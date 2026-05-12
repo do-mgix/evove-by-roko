@@ -44,15 +44,29 @@
     return parseInt(m[1]) * 60 + parseInt(m[2]);
   }
 
-  function checkState(start: string, end: string | null | undefined, nextStart?: string): 0 | 1 | 2 {
-    if (todayLogs.length === 0) return 0;
+  function logMatches(log: LogEntry, label: string): boolean {
+    if (!label) return false;
+    return (log.content || "").toUpperCase().includes(label.toUpperCase());
+  }
+
+  function logInWindow(t: number, s: number | null, e: number | null): boolean {
+    if (s == null || t < s) return false;
+    if (e == null) return true;
+    if (e <= s) return true;
+    return t < e;
+  }
+
+  function checkState(logs: LogEntry[], label: string, start: string, end: string | null | undefined, nextStart?: string): 0 | 1 | 2 {
+    if (logs.length === 0) return 0;
+    const matches = logs.filter((l) => logMatches(l, label));
+    if (matches.length === 0) return 0;
     const s = parseHHMM(start);
     const effectiveEnd = end || nextStart || null;
     const e = effectiveEnd ? parseHHMM(effectiveEnd) : null;
-    for (const log of todayLogs) {
+    for (const log of matches) {
       const t = logTimeMin(log.timestamp);
       if (t == null) continue;
-      if (s != null && e != null && e > s && t >= s && t < e) return 2;
+      if (logInWindow(t, s, e)) return 2;
     }
     return 1;
   }
@@ -137,7 +151,7 @@
   {:else}
     <ul>
       {#each sortedItems as item, i (i)}
-        {@const cs = checkState(item.start, item.end, sortedItems[i + 1]?.start)}
+        {@const cs = checkState(todayLogs, item.label, item.start, item.end, sortedItems[i + 1]?.start)}
         <li class:active={isActive(item.start, item.end, sortedItems[i + 1]?.start)}>
           <button class="row" on:click={() => (selected = item)}>
             <span class="time">{item.start}{item.end ? `-${item.end}` : ""}</span>
