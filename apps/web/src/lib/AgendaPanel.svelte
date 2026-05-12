@@ -1,6 +1,8 @@
 <script lang="ts">
-  import type { AgendaItem, AgendaToday } from "./api";
-  import { fetchAgendaToday, deleteAgendaItem } from "./api";
+  import { onMount } from "svelte";
+  import type { AgendaItem, AgendaToday, LogEntry } from "./api";
+  import { fetchAgendaToday, deleteAgendaItem, fetchLogs } from "./api";
+  import { logsVersion } from "./store";
   import Modal from "./Modal.svelte";
   import AgendaForm from "./AgendaForm.svelte";
   export let agenda: AgendaToday;
@@ -11,13 +13,48 @@
   let confirmingDelete = false;
   let saving = false;
   let error: string | null = null;
+  let todayLogs: LogEntry[] = [];
+  let lastLogsVersion = 0;
 
   $: sortedItems = [...agenda.items].sort((a, b) => a.start.localeCompare(b.start));
+
+  $: if ($logsVersion !== lastLogsVersion) {
+    lastLogsVersion = $logsVersion;
+    refreshLogs();
+  }
+
+  async function refreshLogs() {
+    try {
+      const res = await fetchLogs(0);
+      todayLogs = res.logs;
+    } catch {}
+  }
 
   async function refresh() {
     try {
       agenda = await fetchAgendaToday();
     } catch {}
+  }
+
+  onMount(refreshLogs);
+
+  function logTimeMin(ts: string): number | null {
+    const m = ts.match(/:\s*(\d{2}):(\d{2}):/);
+    if (!m) return null;
+    return parseInt(m[1]) * 60 + parseInt(m[2]);
+  }
+
+  function checkState(start: string, end: string | null | undefined, nextStart?: string): 0 | 1 | 2 {
+    if (todayLogs.length === 0) return 0;
+    const s = parseHHMM(start);
+    const effectiveEnd = end || nextStart || null;
+    const e = effectiveEnd ? parseHHMM(effectiveEnd) : null;
+    for (const log of todayLogs) {
+      const t = logTimeMin(log.timestamp);
+      if (t == null) continue;
+      if (s != null && e != null && e > s && t >= s && t < e) return 2;
+    }
+    return 1;
   }
 
   function onCreated() {
@@ -100,10 +137,12 @@
   {:else}
     <ul>
       {#each sortedItems as item, i (i)}
+        {@const cs = checkState(item.start, item.end, sortedItems[i + 1]?.start)}
         <li class:active={isActive(item.start, item.end, sortedItems[i + 1]?.start)}>
           <button class="row" on:click={() => (selected = item)}>
             <span class="time">{item.start}{item.end ? `-${item.end}` : ""}</span>
             <span class="label">{item.label}</span>
+            {#if cs === 2}<span class="check check2">✓✓</span>{:else if cs === 1}<span class="check check1">✓</span>{/if}
           </button>
         </li>
       {/each}
@@ -199,7 +238,7 @@
   }
   .row {
     display: grid;
-    grid-template-columns: 6.5rem 1fr;
+    grid-template-columns: 6.5rem 1fr auto;
     gap: 0.6rem;
     align-items: baseline;
     width: 100%;
@@ -225,6 +264,12 @@
   li.active .time {
     color: #6cf;
   }
+  .check {
+    font-size: 0.7rem;
+    align-self: center;
+  }
+  .check1 { color: #555; }
+  .check2 { color: #6cf; }
   .details {
     display: grid;
     grid-template-columns: max-content 1fr;
