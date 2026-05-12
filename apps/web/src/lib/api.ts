@@ -223,6 +223,23 @@ export async function createAgendaItem(item: {
   return res.json();
 }
 
+export async function updateAgendaItem(id: string, patch: Partial<AgendaItem>): Promise<AgendaItem> {
+  const res = await request(`/agenda/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(detail.detail || `Failed to update agenda item (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function deleteAgendaItem(id: string): Promise<void> {
+  const res = await request(`/agenda/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(detail.detail || `Failed to delete agenda item (${res.status})`);
+  }
+}
+
 export async function fetchUsers(): Promise<string[]> {
   const res = await request("/users");
   if (!res.ok) throw new Error(`Failed to fetch users (${res.status})`);

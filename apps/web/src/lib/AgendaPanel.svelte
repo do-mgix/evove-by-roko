@@ -1,12 +1,18 @@
 <script lang="ts">
   import type { AgendaItem, AgendaToday } from "./api";
-  import { fetchAgendaToday } from "./api";
+  import { fetchAgendaToday, deleteAgendaItem } from "./api";
   import Modal from "./Modal.svelte";
   import AgendaForm from "./AgendaForm.svelte";
   export let agenda: AgendaToday;
 
   let selected: AgendaItem | null = null;
   let showForm = false;
+  let editingItem: AgendaItem | null = null;
+  let confirmingDelete = false;
+  let saving = false;
+  let error: string | null = null;
+
+  $: sortedItems = [...agenda.items].sort((a, b) => a.start.localeCompare(b.start));
 
   async function refresh() {
     try {
@@ -16,6 +22,36 @@
 
   function onCreated() {
     refresh();
+  }
+
+  function closeModal() {
+    selected = null;
+    confirmingDelete = false;
+    error = null;
+  }
+
+  function startEdit() {
+    editingItem = selected;
+    closeModal();
+  }
+
+  function onUpdated() {
+    editingItem = null;
+    refresh();
+  }
+
+  async function doDelete() {
+    if (!selected || saving) return;
+    saving = true;
+    try {
+      await deleteAgendaItem(selected.id!);
+      agenda = { ...agenda, items: agenda.items.filter((it) => it.id !== selected!.id) };
+      closeModal();
+    } catch (e: any) {
+      error = e?.message ?? "erro ao apagar";
+    } finally {
+      saving = false;
+    }
   }
 
   function fmtTime(s: string): string {
@@ -41,15 +77,16 @@
     if (Number.isNaN(h) || Number.isNaN(m)) return null;
     return h * 60 + m;
   }
-  function isActive(start: string, end: string | null | undefined): boolean {
+  function isActive(start: string, end: string | null | undefined, nextStart?: string): boolean {
     const s = parseHHMM(start);
     const cur = nowMin();
-    if (s == null) return false;
-    if (!end) return cur >= s && cur < s + 60;
-    const e = parseHHMM(end);
-    if (e == null) return false;
-    if (s < e) return s <= cur && cur < e;
-    return cur >= s || cur < e;
+    if (s == null || cur < s) return false;
+    const effectiveEnd = end || nextStart || null;
+    if (!effectiveEnd) return true;
+    const e = parseHHMM(effectiveEnd);
+    if (e == null) return true;
+    if (e <= s) return true;
+    return cur < e;
   }
 </script>
 
@@ -62,8 +99,8 @@
     <p class="empty">sem agenda</p>
   {:else}
     <ul>
-      {#each agenda.items as item, i (i)}
-        <li class:active={isActive(item.start, item.end)}>
+      {#each sortedItems as item, i (i)}
+        <li class:active={isActive(item.start, item.end, sortedItems[i + 1]?.start)}>
           <button class="row" on:click={() => (selected = item)}>
             <span class="time">{item.start}{item.end ? `-${item.end}` : ""}</span>
             <span class="label">{item.label}</span>
@@ -75,7 +112,7 @@
 </div>
 
 {#if selected}
-  <Modal title="agenda" onClose={() => (selected = null)}>
+  <Modal title="agenda" onClose={closeModal}>
     <dl class="details">
       <dt>label</dt><dd class="hl">{selected.label}</dd>
       <dt>start</dt><dd>{fmtTime(selected.start)}</dd>
@@ -84,11 +121,36 @@
       {#if selected.day}<dt>day</dt><dd>{selected.day === "*" ? "diário" : selected.day}</dd>{/if}
       <dt>active</dt><dd>{isActive(selected.start, selected.end) ? "yes" : "no"}</dd>
     </dl>
+
+    {#if confirmingDelete}
+      <div class="action-block">
+        <p class="confirm-msg">apagar este item?</p>
+        <div class="row-btns">
+          <button class="ghost" on:click={() => (confirmingDelete = false)} disabled={saving}>não</button>
+          <button class="danger" on:click={doDelete} disabled={saving}>{saving ? "..." : "apagar"}</button>
+        </div>
+      </div>
+    {:else}
+      {#if error}<p class="err">{error}</p>{/if}
+      <div class="row-btns">
+        <button class="ghost" on:click={startEdit}>editar</button>
+        <button class="danger-ghost" on:click={() => (confirmingDelete = true)}>apagar</button>
+      </div>
+    {/if}
   </Modal>
 {/if}
 
 {#if showForm}
   <AgendaForm onClose={() => (showForm = false)} {onCreated} />
+{/if}
+
+{#if editingItem}
+  <AgendaForm
+    initialItem={editingItem}
+    onClose={() => (editingItem = null)}
+    onCreated={onCreated}
+    {onUpdated}
+  />
 {/if}
 
 <style>
@@ -187,5 +249,67 @@
   .empty {
     color: #555;
     font-size: 0.85rem;
+  }
+  .action-block {
+    margin-top: 0.8rem;
+  }
+  .confirm-msg {
+    color: #ccc;
+    font-size: 0.85rem;
+    margin: 0 0 0.6rem;
+  }
+  .row-btns {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .ghost {
+    background: transparent;
+    border: 1px solid #2a2a2a;
+    color: #888;
+    padding: 0.3rem 0.8rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.82rem;
+  }
+  .ghost:hover:not(:disabled) {
+    border-color: #6cf;
+    color: #6cf;
+  }
+  .danger {
+    background: transparent;
+    border: 1px solid #622;
+    color: #c66;
+    padding: 0.3rem 0.8rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.82rem;
+  }
+  .danger:hover:not(:disabled) {
+    border-color: #c44;
+    color: #f88;
+  }
+  .danger-ghost {
+    background: transparent;
+    border: 1px solid transparent;
+    color: #855;
+    padding: 0.3rem 0.8rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.82rem;
+  }
+  .danger-ghost:hover {
+    color: #c66;
+  }
+  .err {
+    color: #c66;
+    font-size: 0.8rem;
+    margin: 0.4rem 0 0;
+  }
+  button:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
 </style>

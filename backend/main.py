@@ -422,6 +422,18 @@ class Agenda:
         self._save()
         return True
 
+    def update(self, item_id: str, payload: dict) -> dict:
+        idx = next((i for i, it in enumerate(self.items) if it.get("id") == item_id), -1)
+        if idx == -1:
+            raise HTTPException(status_code=404, detail="item not found")
+        item = dict(self.items[idx])
+        for key in ("start", "end", "day", "label", "label_kind", "label_id"):
+            if key in payload:
+                item[key] = payload[key] or None if key in ("end", "label_id") else payload[key]
+        self.items[idx] = item
+        self._save()
+        return item
+
     def for_day(self, day_name: str) -> list[dict]:
         return [it for it in self.items if it.get("day") == day_name or it.get("day") == "*"]
 
@@ -632,6 +644,12 @@ def logs_by_date(date: str, x_evove_username: str | None = Header(None)):
         })
     result.sort(key=lambda l: l.get("order", 0))
     return {"date": date, "day": target_day, "logs": result}
+
+
+@app.patch("/agenda/{item_id}")
+def agenda_update(item_id: str, payload: dict, x_evove_username: str | None = Header(None)):
+    username = _resolve_username(x_evove_username)
+    return Agenda(username).update(item_id, payload or {})
 
 
 @app.delete("/agenda/{item_id}")

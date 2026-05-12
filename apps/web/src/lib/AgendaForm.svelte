@@ -1,16 +1,36 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import Modal from "./Modal.svelte";
-  import { fetchActions, fetchAttributes, createAgendaItem, type AgendaItem } from "./api";
+  import { fetchActions, fetchAttributes, createAgendaItem, updateAgendaItem, type AgendaItem } from "./api";
 
   export let onClose: () => void;
   export let onCreated: (item: AgendaItem) => void;
+  export let initialItem: AgendaItem | null = null;
+  export let onUpdated: ((item: AgendaItem) => void) | null = null;
 
-  let startH: number | null = null, startM: number | null = null;
-  let endEnabled = false;
-  let endH: number | null = null, endM: number | null = null;
-  let selectedDays: Set<string> = new Set(["*"]);
-  let label = "";
+  const editMode = initialItem != null;
+
+  function parseHMFromStr(s: string | null | undefined): [number | null, number | null] {
+    if (!s || s.length < 4) return [null, null];
+    const t = s.replace(":", "");
+    const h = parseInt(t.slice(0, 2), 10);
+    const m = parseInt(t.slice(2, 4), 10);
+    if (isNaN(h) || isNaN(m)) return [null, null];
+    return [h, m];
+  }
+
+  const [initStartH, initStartM] = parseHMFromStr(initialItem?.start ?? null);
+  const [initEndH, initEndM] = parseHMFromStr(initialItem?.end ?? null);
+
+  let startH: number | null = initStartH;
+  let startM: number | null = initStartM;
+  let endEnabled = initEndH != null;
+  let endH: number | null = initEndH;
+  let endM: number | null = initEndM;
+  let selectedDays: Set<string> = initialItem?.day
+    ? new Set([initialItem.day])
+    : new Set(["*"]);
+  let label = initialItem?.label ?? "";
   let suggestions: { kind: "action" | "attribute"; id: string; name: string }[] = [];
   let busy = false;
   let error: string | null = null;
@@ -127,38 +147,42 @@
   async function submit() {
     if (busy) return;
     error = null;
-    if (!label.trim()) {
-      error = "label obrigatório";
-      return;
-    }
-    if (startH === null || startM === null) {
-      error = "horário de início obrigatório";
-      return;
-    }
-    if (endEnabled && (endH === null || endM === null)) {
-      error = "horário de fim incompleto";
-      return;
-    }
+    if (!label.trim()) { error = "label obrigatório"; return; }
+    if (startH === null || startM === null) { error = "horário de início obrigatório"; return; }
+    if (endEnabled && (endH === null || endM === null)) { error = "horário de fim incompleto"; return; }
     const startStr = pad(startH) + pad(startM);
     const endStr = endEnabled ? pad(endH!) + pad(endM!) : null;
+    const matched = suggestions.find((s) => s.name.toLowerCase() === label.trim().toLowerCase());
     busy = true;
     try {
-      const matched = suggestions.find((s) => s.name.toLowerCase() === label.trim().toLowerCase());
-      const days = Array.from(selectedDays);
-      const created: AgendaItem[] = [];
-      for (const d of days) {
-        const item = await createAgendaItem({
+      if (editMode && initialItem?.id) {
+        const updated = await updateAgendaItem(initialItem.id, {
           start: startStr,
           end: endStr,
-          day: d,
+          day: Array.from(selectedDays)[0] ?? "*",
           label: matched?.name ?? label.trim(),
-          label_kind: matched?.kind ?? "text",
+          label_kind: matched?.kind ?? initialItem.label_kind ?? "text",
           label_id: matched?.id ?? null,
         });
-        created.push(item);
+        onUpdated?.(updated);
+        onClose();
+      } else {
+        const days = Array.from(selectedDays);
+        const created: AgendaItem[] = [];
+        for (const d of days) {
+          const item = await createAgendaItem({
+            start: startStr,
+            end: endStr,
+            day: d,
+            label: matched?.name ?? label.trim(),
+            label_kind: matched?.kind ?? "text",
+            label_id: matched?.id ?? null,
+          });
+          created.push(item);
+        }
+        created.forEach(onCreated);
+        onClose();
       }
-      created.forEach(onCreated);
-      onClose();
     } catch (e: any) {
       error = e?.message ?? "erro";
     } finally {
@@ -167,7 +191,7 @@
   }
 </script>
 
-<Modal title="novo item de agenda" {onClose}>
+<Modal title={editMode ? "editar item" : "novo item de agenda"} {onClose}>
   <div class="form">
     <div class="row">
       <span class="row-label">início</span>
@@ -307,7 +331,7 @@
     {#if error}<p class="err">{error}</p>{/if}
     <div class="actions">
       <button class="ghost" on:click={onClose}>cancelar</button>
-      <button class="primary" on:click={submit} disabled={busy}>{busy ? "..." : "adicionar"}</button>
+      <button class="primary" on:click={submit} disabled={busy}>{busy ? "..." : editMode ? "salvar" : "adicionar"}</button>
     </div>
   </div>
 </Modal>
