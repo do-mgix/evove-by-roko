@@ -303,6 +303,61 @@
     { "action": "TEA", "leaf": "hidratacao", "weight": 0.40 },
     { "action": "TEA", "leaf": "foco", "weight": 0.20 },
 
-    { "action": "WATER", "leaf": "hidratacao", "weight": 1.00 }
+    { "action": "WATER", "leaf": "hidratacao", "weight": 1.00 },
+
+    { "action": "BUG FIX", "leaf": "foco", "weight": 0.30 },
+    { "action": "BUG FIX", "leaf": "executiva", "weight": 0.25 },
+    { "action": "BUG FIX", "leaf": "hipocampo", "weight": 0.20 },
+    { "action": "BUG FIX", "leaf": "wernicke", "weight": 0.15 },
+    { "action": "BUG FIX", "leaf": "broca", "weight": 0.10 },
+
+    { "action": "BUG FIX (AI)", "leaf": "foco", "weight": 0.30 },
+    { "action": "BUG FIX (AI)", "leaf": "executiva", "weight": 0.35 },
+    { "action": "BUG FIX (AI)", "leaf": "recompensa", "weight": 0.20 },
+    { "action": "BUG FIX (AI)", "leaf": "hipocampo", "weight": 0.10 },
+    { "action": "BUG FIX (AI)", "leaf": "wernicke", "weight": 0.05 },
+
+    { "action": "FEATURE", "leaf": "foco", "weight": 0.20 },
+    { "action": "FEATURE", "leaf": "executiva", "weight": 0.30 },
+    { "action": "FEATURE", "leaf": "broca", "weight": 0.20 },
+    { "action": "FEATURE", "leaf": "hipocampo", "weight": 0.15 },
+    { "action": "FEATURE", "leaf": "wernicke", "weight": 0.10 },
+    { "action": "FEATURE", "leaf": "somatossensorial", "weight": 0.05 },
+
+    { "action": "FEATURE (AI)", "leaf": "foco", "weight": 0.25 },
+    { "action": "FEATURE (AI)", "leaf": "executiva", "weight": 0.40 },
+    { "action": "FEATURE (AI)", "leaf": "recompensa", "weight": 0.20 },
+    { "action": "FEATURE (AI)", "leaf": "broca", "weight": 0.10 },
+    { "action": "FEATURE (AI)", "leaf": "hipocampo", "weight": 0.05 },
+
+    { "action": "REFACTOR", "leaf": "foco", "weight": 0.25 },
+    { "action": "REFACTOR", "leaf": "executiva", "weight": 0.30 },
+    { "action": "REFACTOR", "leaf": "wernicke", "weight": 0.20 },
+    { "action": "REFACTOR", "leaf": "broca", "weight": 0.15 },
+    { "action": "REFACTOR", "leaf": "hipocampo", "weight": 0.10 },
+
+    { "action": "REFACTOR (AI)", "leaf": "foco", "weight": 0.30 },
+    { "action": "REFACTOR (AI)", "leaf": "executiva", "weight": 0.40 },
+    { "action": "REFACTOR (AI)", "leaf": "recompensa", "weight": 0.20 },
+    { "action": "REFACTOR (AI)", "leaf": "wernicke", "weight": 0.10 },
+
+    { "action": "CODE REVIEW", "leaf": "wernicke", "weight": 0.40 },
+    { "action": "CODE REVIEW", "leaf": "executiva", "weight": 0.30 },
+    { "action": "CODE REVIEW", "leaf": "foco", "weight": 0.20 },
+    { "action": "CODE REVIEW", "leaf": "hipocampo", "weight": 0.10 },
+
+    { "action": "WRITE TESTS", "leaf": "executiva", "weight": 0.30 },
+    { "action": "WRITE TESTS", "leaf": "broca", "weight": 0.25 },
+    { "action": "WRITE TESTS", "leaf": "foco", "weight": 0.25 },
+    { "action": "WRITE TESTS", "leaf": "wernicke", "weight": 0.20 },
+
+    { "action": "WRITE DOCS", "leaf": "broca", "weight": 0.45 },
+    { "action": "WRITE DOCS", "leaf": "wernicke", "weight": 0.20 },
+    { "action": "WRITE DOCS", "leaf": "executiva", "weight": 0.20 },
+    { "action": "WRITE DOCS", "leaf": "foco", "weight": 0.15 },
+
+    { "action": "ARCHITECTURE", "leaf": "executiva", "weight": 0.50 },
+    { "action": "ARCHITECTURE", "leaf": "foco", "weight": 0.30 },
+    { "action": "ARCHITECTURE", "leaf": "hipocampo", "weight": 0.20 }
   ]
 }

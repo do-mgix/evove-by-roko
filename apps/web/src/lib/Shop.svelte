@@ -124,7 +124,7 @@
               {#each v.actions as a (a.name)}
                 {@const acquired = owned.has(a.name.toUpperCase())}
                 <li class:owned={acquired}>
-                  <button class="info" on:click={() => (selected = { group: v.group, action: a })} disabled={acquired}>
+                  <button class="info" on:click={() => (selected = { group: v.group, action: a })}>
                     <span class="a-name">{a.name}</span>
                     <span class="a-meta">
                       {TYPE_LABEL[a.type] ?? a.type} · d{a.diff}{a.token_cost ? ` · ${a.token_cost}t` : ""}
@@ -152,17 +152,24 @@
 </section>
 
 {#if selected}
-  <Modal title="comprar ação" onClose={() => (selected = null)}>
+  {@const selectedAcquired = owned.has(selected.action.name.toUpperCase())}
+  <Modal title={selectedAcquired ? "ação" : "comprar ação"} onClose={() => (selected = null)}>
     <dl class="details">
       <dt>nome</dt><dd class="hl">{selected.action.name}</dd>
       <dt>zona</dt><dd>{selected.group.name}</dd>
       <dt>tipo</dt><dd>{TYPE_LABEL[selected.action.type] ?? selected.action.type}</dd>
       <dt>dificuldade</dt><dd>d{selected.action.diff}</dd>
-      <dt>custo (bp)</dt><dd>{selected.action.cost}</dd>
+      {#if !selectedAcquired}
+        <dt>custo (bp)</dt><dd>{selected.action.cost}</dd>
+      {/if}
       {#if selected.action.token_cost && selected.action.token_cost > 0}
         <dt>custo por uso</dt><dd>{selected.action.token_cost} tokens</dd>
       {/if}
-      <dt>saldo (bp)</dt><dd>{buildPoints}</dd>
+      {#if !selectedAcquired}
+        <dt>saldo (bp)</dt><dd>{buildPoints}</dd>
+      {:else}
+        <dt>status</dt><dd class="hl">owned</dd>
+      {/if}
     </dl>
     {#if selected.action.leaves && selected.action.leaves.length > 0}
       <div class="leaves-block">
@@ -175,14 +182,16 @@
       </div>
     {/if}
     <div class="confirm-row">
-      <button class="ghost" on:click={() => (selected = null)}>cancelar</button>
-      <button
-        class="primary"
-        on:click={() => buy(selected!.group, selected!.action)}
-        disabled={busy !== null || buildPoints < selected.action.cost}
-      >
-        {busy ? "..." : "confirmar compra"}
-      </button>
+      <button class="ghost" on:click={() => (selected = null)}>fechar</button>
+      {#if !selectedAcquired}
+        <button
+          class="primary"
+          on:click={() => buy(selected!.group, selected!.action)}
+          disabled={busy !== null || buildPoints < selected.action.cost}
+        >
+          {busy ? "..." : "confirmar compra"}
+        </button>
+      {/if}
     </div>
   </Modal>
 {/if}
