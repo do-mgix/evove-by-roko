@@ -85,15 +85,35 @@ export async function fetchUser(): Promise<UserState> {
 }
 
 export type Attribute = {
-  id: string;
+  key: string;
   name: string;
-  total_score: number;
-  related_actions_count: number;
+  score: number;
+  half_life_hours: number;
+  floor: number;
 };
 
 export async function fetchAttributes(): Promise<Attribute[]> {
   const res = await request("/attributes");
   if (!res.ok) throw new Error(`Failed to fetch attributes (${res.status})`);
+  return res.json();
+}
+
+export type AttrTreeNode = {
+  key: string;
+  name: string;
+  is_leaf: boolean;
+  score: number;
+  weight?: number;
+  half_life_hours?: number;
+  floor?: number;
+  children?: AttrTreeNode[];
+};
+
+export type AttrTree = { roots: AttrTreeNode[] };
+
+export async function fetchAttributeTree(): Promise<AttrTree> {
+  const res = await request("/attributes/tree");
+  if (!res.ok) throw new Error(`Failed to fetch tree (${res.status})`);
   return res.json();
 }
 
@@ -264,6 +284,24 @@ export type Package = {
 export async function fetchPackages(): Promise<Package[]> {
   const res = await request("/shop/packages");
   if (!res.ok) throw new Error(`Failed to fetch packages (${res.status})`);
+  return res.json();
+}
+
+export type CatalogLeaf = { key: string; name: string; weight: number };
+export type CatalogAction = {
+  name: string;
+  type: number;
+  diff: number;
+  cost: number;
+  token_cost: number;
+  package_attribute: string;
+  leaves: CatalogLeaf[];
+};
+export type CatalogGroup = { key: string; name: string; actions: CatalogAction[] };
+
+export async function fetchShopCatalog(): Promise<CatalogGroup[]> {
+  const res = await request("/shop/catalog");
+  if (!res.ok) throw new Error(`Failed to fetch catalog (${res.status})`);
   return res.json();
 }
 

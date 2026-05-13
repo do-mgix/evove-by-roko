@@ -8,7 +8,7 @@
       ? Math.max(0, Math.min(100, ((user.xp_cost - user.next_xp) / user.xp_cost) * 100))
       : 100;
 
-  $: maxAttrScore = attributes.reduce((m, a) => Math.max(m, a.total_score), 1);
+  $: maxAttrScore = attributes.reduce((m, a) => Math.max(m, a.score), 1) || 1;
 </script>
 
 <aside class="user-panel">
@@ -51,14 +51,14 @@
   {#if attributes.length > 0}
     <div class="attrs-title">attributes</div>
     <ul class="attrs">
-      {#each attributes as a (a.id)}
+      {#each attributes as a (a.key)}
         <li>
           <div class="attr-row">
             <span class="attr-name">{a.name}</span>
-            <span class="attr-score">{a.total_score.toLocaleString()}</span>
+            <span class="attr-score">{Math.round(a.score).toLocaleString()}</span>
           </div>
           <div class="attr-bar">
-            <div class="attr-fill" style="width: {(a.total_score / maxAttrScore) * 100}%"></div>
+            <div class="attr-fill" style="width: {(a.score / maxAttrScore) * 100}%"></div>
           </div>
         </li>
       {/each}

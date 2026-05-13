@@ -60,6 +60,7 @@ class UserState(Base):
     days_until_next_checkpoint: Mapped[int] = mapped_column(Integer, default=20, nullable=False)
     last_checkpoint_check: Mapped[date | None] = mapped_column(Date, nullable=True)
     last_token_refill: Mapped[date | None] = mapped_column(Date, nullable=True)
+    last_decay_check: Mapped[date | None] = mapped_column(Date, nullable=True)
     daily_refill: Mapped[int] = mapped_column(Integer, default=20, nullable=False)
     date: Mapped[date] = mapped_column(Date, server_default=text("(CURRENT_DATE)"), nullable=False)
     user: Mapped[User] = relationship(back_populates="state")
@@ -128,6 +129,53 @@ class AttributeAction(Base):
 
     attribute_pk: Mapped[int] = mapped_column(BigInteger, ForeignKey("attributes.id", ondelete="CASCADE"), primary_key=True)
     action_id: Mapped[str] = mapped_column(String(16), primary_key=True)
+
+
+class AttrNode(Base):
+    """Static anatomical/neurological tree node. Seeded from attributes_tree.json."""
+    __tablename__ = "attr_nodes"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    is_leaf: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    half_life_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
+    floor: Mapped[float | None] = mapped_column(Float, nullable=True)
+    threshold: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+class AttrEdge(Base):
+    """Weighted parent → child edge in the static tree."""
+    __tablename__ = "attr_edges"
+    __table_args__ = (UniqueConstraint("parent_id", "child_id", name="uq_attr_edge_parent_child"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    parent_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("attr_nodes.id", ondelete="CASCADE"), nullable=False, index=True)
+    child_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("attr_nodes.id", ondelete="CASCADE"), nullable=False, index=True)
+    weight: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+
+
+class ActionContribution(Base):
+    """Maps an action (by UPPER-cased name) to a leaf node with weight."""
+    __tablename__ = "action_contributions"
+    __table_args__ = (UniqueConstraint("action_name", "leaf_id", name="uq_action_contrib_name_leaf"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    action_name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    leaf_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("attr_nodes.id", ondelete="CASCADE"), nullable=False, index=True)
+    weight: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+
+
+class UserLeafScore(Base):
+    """Per-user accumulated score for each leaf, with last update timestamp for decay."""
+    __tablename__ = "user_leaf_scores"
+    __table_args__ = (UniqueConstraint("user_id", "leaf_id", name="uq_user_leaf"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    leaf_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("attr_nodes.id", ondelete="CASCADE"), nullable=False, index=True)
+    score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    last_updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
 class AcquiredSkill(Base):

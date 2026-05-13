@@ -1,0 +1,308 @@
+{
+  "nodes": [
+    { "key": "corpo", "name": "Corpo", "is_leaf": false },
+    { "key": "musculatura", "name": "Musculatura", "is_leaf": false },
+    { "key": "memb_sup", "name": "Membros Superiores", "is_leaf": false },
+    { "key": "tronco", "name": "Tronco", "is_leaf": false },
+    { "key": "memb_inf", "name": "Membros Inferiores", "is_leaf": false },
+    { "key": "cardiovascular", "name": "Cardiovascular", "is_leaf": false },
+    { "key": "mobilidade", "name": "Mobilidade", "is_leaf": false },
+    { "key": "nutricao", "name": "Nutrição", "is_leaf": false },
+
+    { "key": "mente", "name": "Mente", "is_leaf": false },
+    { "key": "pre_frontal", "name": "Pré-Frontal", "is_leaf": false },
+    { "key": "limbico", "name": "Sistema Límbico", "is_leaf": false },
+    { "key": "sensorial", "name": "Sensorial", "is_leaf": false },
+    { "key": "linguagem", "name": "Linguagem", "is_leaf": false },
+    { "key": "cerebelo", "name": "Cerebelo", "is_leaf": false },
+
+    { "key": "biceps", "name": "Bíceps", "is_leaf": true, "half_life_hours": 504, "floor": 0, "threshold": 1 },
+    { "key": "triceps", "name": "Tríceps", "is_leaf": true, "half_life_hours": 504, "floor": 0, "threshold": 1 },
+    { "key": "deltoide", "name": "Deltoide", "is_leaf": true, "half_life_hours": 504, "floor": 0, "threshold": 1 },
+    { "key": "antebraco", "name": "Antebraço", "is_leaf": true, "half_life_hours": 504, "floor": 0, "threshold": 1 },
+    { "key": "peitoral", "name": "Peitoral", "is_leaf": true, "half_life_hours": 504, "floor": 0, "threshold": 1 },
+    { "key": "dorsal", "name": "Dorsal", "is_leaf": true, "half_life_hours": 504, "floor": 0, "threshold": 1 },
+    { "key": "core", "name": "Core", "is_leaf": true, "half_life_hours": 1080, "floor": 0, "threshold": 1 },
+    { "key": "lombar", "name": "Lombar", "is_leaf": true, "half_life_hours": 1080, "floor": 0, "threshold": 1 },
+    { "key": "quadriceps", "name": "Quadríceps", "is_leaf": true, "half_life_hours": 720, "floor": 0, "threshold": 1 },
+    { "key": "posterior_coxa", "name": "Posterior de Coxa", "is_leaf": true, "half_life_hours": 720, "floor": 0, "threshold": 1 },
+    { "key": "gluteo", "name": "Glúteo", "is_leaf": true, "half_life_hours": 720, "floor": 0, "threshold": 1 },
+    { "key": "panturrilha", "name": "Panturrilha", "is_leaf": true, "half_life_hours": 1080, "floor": 0, "threshold": 1 },
+
+    { "key": "aerobico", "name": "Aeróbico (VO₂)", "is_leaf": true, "half_life_hours": 336, "floor": 0, "threshold": 1 },
+    { "key": "anaerobico", "name": "Anaeróbico", "is_leaf": true, "half_life_hours": 240, "floor": 0, "threshold": 1 },
+
+    { "key": "flexibilidade", "name": "Flexibilidade", "is_leaf": true, "half_life_hours": 720, "floor": 0, "threshold": 1 },
+    { "key": "estabilidade", "name": "Estabilidade", "is_leaf": true, "half_life_hours": 720, "floor": 0, "threshold": 1 },
+
+    { "key": "macros", "name": "Macros", "is_leaf": true, "half_life_hours": 72, "floor": 0, "threshold": 1 },
+    { "key": "hidratacao", "name": "Hidratação", "is_leaf": true, "half_life_hours": 24, "floor": 0, "threshold": 1 },
+    { "key": "estimulantes", "name": "Estimulantes", "is_leaf": true, "half_life_hours": 24, "floor": 0, "threshold": 1 },
+
+    { "key": "foco", "name": "Foco", "is_leaf": true, "half_life_hours": 168, "floor": 0, "threshold": 1 },
+    { "key": "executiva", "name": "Função Executiva", "is_leaf": true, "half_life_hours": 168, "floor": 0, "threshold": 1 },
+
+    { "key": "hipocampo", "name": "Hipocampo", "is_leaf": true, "half_life_hours": 72, "floor": 0, "threshold": 1 },
+    { "key": "amigdala", "name": "Amígdala", "is_leaf": true, "half_life_hours": 336, "floor": 0, "threshold": 1 },
+    { "key": "recompensa", "name": "Recompensa", "is_leaf": true, "half_life_hours": 72, "floor": 0, "threshold": 1 },
+
+    { "key": "visual", "name": "Visual", "is_leaf": true, "half_life_hours": 336, "floor": 0, "threshold": 1 },
+    { "key": "auditivo", "name": "Auditivo", "is_leaf": true, "half_life_hours": 336, "floor": 0, "threshold": 1 },
+    { "key": "somatossensorial", "name": "Somatossensorial", "is_leaf": true, "half_life_hours": 336, "floor": 0, "threshold": 1 },
+
+    { "key": "broca", "name": "Broca (produção)", "is_leaf": true, "half_life_hours": 336, "floor": 0, "threshold": 1 },
+    { "key": "wernicke", "name": "Wernicke (compreensão)", "is_leaf": true, "half_life_hours": 336, "floor": 0, "threshold": 1 },
+
+    { "key": "coordenacao", "name": "Coordenação Motora", "is_leaf": true, "half_life_hours": 8760, "floor": 0, "threshold": 1 },
+    { "key": "equilibrio", "name": "Equilíbrio", "is_leaf": true, "half_life_hours": 8760, "floor": 0, "threshold": 1 }
+  ],
+  "edges": [
+    { "parent": "corpo", "child": "musculatura", "weight": 0.40 },
+    { "parent": "corpo", "child": "cardiovascular", "weight": 0.25 },
+    { "parent": "corpo", "child": "mobilidade", "weight": 0.15 },
+    { "parent": "corpo", "child": "nutricao", "weight": 0.20 },
+
+    { "parent": "musculatura", "child": "memb_sup", "weight": 0.33 },
+    { "parent": "musculatura", "child": "tronco", "weight": 0.33 },
+    { "parent": "musculatura", "child": "memb_inf", "weight": 0.34 },
+
+    { "parent": "memb_sup", "child": "biceps", "weight": 0.30 },
+    { "parent": "memb_sup", "child": "triceps", "weight": 0.30 },
+    { "parent": "memb_sup", "child": "deltoide", "weight": 0.25 },
+    { "parent": "memb_sup", "child": "antebraco", "weight": 0.15 },
+
+    { "parent": "tronco", "child": "peitoral", "weight": 0.30 },
+    { "parent": "tronco", "child": "dorsal", "weight": 0.30 },
+    { "parent": "tronco", "child": "core", "weight": 0.20 },
+    { "parent": "tronco", "child": "lombar", "weight": 0.20 },
+
+    { "parent": "memb_inf", "child": "quadriceps", "weight": 0.30 },
+    { "parent": "memb_inf", "child": "posterior_coxa", "weight": 0.25 },
+    { "parent": "memb_inf", "child": "gluteo", "weight": 0.25 },
+    { "parent": "memb_inf", "child": "panturrilha", "weight": 0.20 },
+
+    { "parent": "cardiovascular", "child": "aerobico", "weight": 0.60 },
+    { "parent": "cardiovascular", "child": "anaerobico", "weight": 0.40 },
+
+    { "parent": "mobilidade", "child": "flexibilidade", "weight": 0.50 },
+    { "parent": "mobilidade", "child": "estabilidade", "weight": 0.50 },
+
+    { "parent": "nutricao", "child": "macros", "weight": 0.50 },
+    { "parent": "nutricao", "child": "hidratacao", "weight": 0.35 },
+    { "parent": "nutricao", "child": "estimulantes", "weight": 0.15 },
+
+    { "parent": "mente", "child": "pre_frontal", "weight": 0.25 },
+    { "parent": "mente", "child": "limbico", "weight": 0.20 },
+    { "parent": "mente", "child": "sensorial", "weight": 0.20 },
+    { "parent": "mente", "child": "linguagem", "weight": 0.15 },
+    { "parent": "mente", "child": "cerebelo", "weight": 0.20 },
+
+    { "parent": "pre_frontal", "child": "foco", "weight": 0.50 },
+    { "parent": "pre_frontal", "child": "executiva", "weight": 0.50 },
+
+    { "parent": "limbico", "child": "hipocampo", "weight": 0.50 },
+    { "parent": "limbico", "child": "amigdala", "weight": 0.30 },
+    { "parent": "limbico", "child": "recompensa", "weight": 0.20 },
+
+    { "parent": "sensorial", "child": "visual", "weight": 0.40 },
+    { "parent": "sensorial", "child": "auditivo", "weight": 0.40 },
+    { "parent": "sensorial", "child": "somatossensorial", "weight": 0.20 },
+
+    { "parent": "linguagem", "child": "broca", "weight": 0.50 },
+    { "parent": "linguagem", "child": "wernicke", "weight": 0.50 },
+
+    { "parent": "cerebelo", "child": "coordenacao", "weight": 0.50 },
+    { "parent": "cerebelo", "child": "equilibrio", "weight": 0.50 }
+  ],
+  "contributions": [
+    { "action": "AGACHAMENTO", "leaf": "quadriceps", "weight": 0.40 },
+    { "action": "AGACHAMENTO", "leaf": "gluteo", "weight": 0.30 },
+    { "action": "AGACHAMENTO", "leaf": "posterior_coxa", "weight": 0.20 },
+    { "action": "AGACHAMENTO", "leaf": "core", "weight": 0.10 },
+
+    { "action": "FLEXÃO", "leaf": "peitoral", "weight": 0.50 },
+    { "action": "FLEXÃO", "leaf": "triceps", "weight": 0.30 },
+    { "action": "FLEXÃO", "leaf": "deltoide", "weight": 0.15 },
+    { "action": "FLEXÃO", "leaf": "core", "weight": 0.05 },
+
+    { "action": "ABDOMINAL", "leaf": "core", "weight": 0.70 },
+    { "action": "ABDOMINAL", "leaf": "lombar", "weight": 0.30 },
+
+    { "action": "AFUNDO", "leaf": "quadriceps", "weight": 0.35 },
+    { "action": "AFUNDO", "leaf": "gluteo", "weight": 0.30 },
+    { "action": "AFUNDO", "leaf": "posterior_coxa", "weight": 0.20 },
+    { "action": "AFUNDO", "leaf": "core", "weight": 0.15 },
+
+    { "action": "ELEVAÇÃO LATERAL", "leaf": "deltoide", "weight": 0.80 },
+    { "action": "ELEVAÇÃO LATERAL", "leaf": "triceps", "weight": 0.10 },
+    { "action": "ELEVAÇÃO LATERAL", "leaf": "core", "weight": 0.10 },
+
+    { "action": "PRANCHA", "leaf": "core", "weight": 0.60 },
+    { "action": "PRANCHA", "leaf": "lombar", "weight": 0.20 },
+    { "action": "PRANCHA", "leaf": "deltoide", "weight": 0.10 },
+    { "action": "PRANCHA", "leaf": "gluteo", "weight": 0.10 },
+
+    { "action": "BARRA FIXA", "leaf": "dorsal", "weight": 0.45 },
+    { "action": "BARRA FIXA", "leaf": "biceps", "weight": 0.25 },
+    { "action": "BARRA FIXA", "leaf": "antebraco", "weight": 0.15 },
+    { "action": "BARRA FIXA", "leaf": "deltoide", "weight": 0.15 },
+
+    { "action": "BURPEE", "leaf": "peitoral", "weight": 0.15 },
+    { "action": "BURPEE", "leaf": "triceps", "weight": 0.10 },
+    { "action": "BURPEE", "leaf": "quadriceps", "weight": 0.20 },
+    { "action": "BURPEE", "leaf": "gluteo", "weight": 0.15 },
+    { "action": "BURPEE", "leaf": "core", "weight": 0.10 },
+    { "action": "BURPEE", "leaf": "aerobico", "weight": 0.20 },
+    { "action": "BURPEE", "leaf": "anaerobico", "weight": 0.10 },
+
+    { "action": "DESENVOLVIMENTO", "leaf": "deltoide", "weight": 0.50 },
+    { "action": "DESENVOLVIMENTO", "leaf": "triceps", "weight": 0.25 },
+    { "action": "DESENVOLVIMENTO", "leaf": "core", "weight": 0.15 },
+    { "action": "DESENVOLVIMENTO", "leaf": "peitoral", "weight": 0.10 },
+
+    { "action": "REMADA", "leaf": "dorsal", "weight": 0.45 },
+    { "action": "REMADA", "leaf": "biceps", "weight": 0.25 },
+    { "action": "REMADA", "leaf": "deltoide", "weight": 0.15 },
+    { "action": "REMADA", "leaf": "core", "weight": 0.15 },
+
+    { "action": "FUTEBOL", "leaf": "aerobico", "weight": 0.35 },
+    { "action": "FUTEBOL", "leaf": "anaerobico", "weight": 0.15 },
+    { "action": "FUTEBOL", "leaf": "quadriceps", "weight": 0.15 },
+    { "action": "FUTEBOL", "leaf": "gluteo", "weight": 0.10 },
+    { "action": "FUTEBOL", "leaf": "panturrilha", "weight": 0.10 },
+    { "action": "FUTEBOL", "leaf": "coordenacao", "weight": 0.10 },
+    { "action": "FUTEBOL", "leaf": "equilibrio", "weight": 0.05 },
+
+    { "action": "BASQUETE", "leaf": "aerobico", "weight": 0.30 },
+    { "action": "BASQUETE", "leaf": "anaerobico", "weight": 0.20 },
+    { "action": "BASQUETE", "leaf": "quadriceps", "weight": 0.15 },
+    { "action": "BASQUETE", "leaf": "panturrilha", "weight": 0.15 },
+    { "action": "BASQUETE", "leaf": "coordenacao", "weight": 0.10 },
+    { "action": "BASQUETE", "leaf": "equilibrio", "weight": 0.10 },
+
+    { "action": "VÔLEI", "leaf": "anaerobico", "weight": 0.25 },
+    { "action": "VÔLEI", "leaf": "panturrilha", "weight": 0.15 },
+    { "action": "VÔLEI", "leaf": "deltoide", "weight": 0.15 },
+    { "action": "VÔLEI", "leaf": "core", "weight": 0.10 },
+    { "action": "VÔLEI", "leaf": "coordenacao", "weight": 0.20 },
+    { "action": "VÔLEI", "leaf": "equilibrio", "weight": 0.15 },
+
+    { "action": "TÊNIS", "leaf": "anaerobico", "weight": 0.25 },
+    { "action": "TÊNIS", "leaf": "antebraco", "weight": 0.20 },
+    { "action": "TÊNIS", "leaf": "deltoide", "weight": 0.15 },
+    { "action": "TÊNIS", "leaf": "core", "weight": 0.10 },
+    { "action": "TÊNIS", "leaf": "coordenacao", "weight": 0.20 },
+    { "action": "TÊNIS", "leaf": "equilibrio", "weight": 0.10 },
+
+    { "action": "CORRIDA", "leaf": "aerobico", "weight": 0.55 },
+    { "action": "CORRIDA", "leaf": "quadriceps", "weight": 0.15 },
+    { "action": "CORRIDA", "leaf": "posterior_coxa", "weight": 0.10 },
+    { "action": "CORRIDA", "leaf": "panturrilha", "weight": 0.15 },
+    { "action": "CORRIDA", "leaf": "gluteo", "weight": 0.05 },
+
+    { "action": "CICLISMO", "leaf": "aerobico", "weight": 0.50 },
+    { "action": "CICLISMO", "leaf": "quadriceps", "weight": 0.25 },
+    { "action": "CICLISMO", "leaf": "gluteo", "weight": 0.15 },
+    { "action": "CICLISMO", "leaf": "panturrilha", "weight": 0.10 },
+
+    { "action": "NATAÇÃO", "leaf": "aerobico", "weight": 0.40 },
+    { "action": "NATAÇÃO", "leaf": "peitoral", "weight": 0.15 },
+    { "action": "NATAÇÃO", "leaf": "dorsal", "weight": 0.15 },
+    { "action": "NATAÇÃO", "leaf": "deltoide", "weight": 0.10 },
+    { "action": "NATAÇÃO", "leaf": "core", "weight": 0.10 },
+    { "action": "NATAÇÃO", "leaf": "coordenacao", "weight": 0.10 },
+
+    { "action": "CAMINHADA", "leaf": "aerobico", "weight": 0.50 },
+    { "action": "CAMINHADA", "leaf": "panturrilha", "weight": 0.20 },
+    { "action": "CAMINHADA", "leaf": "quadriceps", "weight": 0.15 },
+    { "action": "CAMINHADA", "leaf": "gluteo", "weight": 0.15 },
+
+    { "action": "SURF", "leaf": "aerobico", "weight": 0.15 },
+    { "action": "SURF", "leaf": "anaerobico", "weight": 0.15 },
+    { "action": "SURF", "leaf": "core", "weight": 0.20 },
+    { "action": "SURF", "leaf": "equilibrio", "weight": 0.25 },
+    { "action": "SURF", "leaf": "coordenacao", "weight": 0.15 },
+    { "action": "SURF", "leaf": "deltoide", "weight": 0.10 },
+
+    { "action": "ESCALADA", "leaf": "antebraco", "weight": 0.25 },
+    { "action": "ESCALADA", "leaf": "biceps", "weight": 0.20 },
+    { "action": "ESCALADA", "leaf": "dorsal", "weight": 0.15 },
+    { "action": "ESCALADA", "leaf": "core", "weight": 0.15 },
+    { "action": "ESCALADA", "leaf": "coordenacao", "weight": 0.15 },
+    { "action": "ESCALADA", "leaf": "foco", "weight": 0.10 },
+
+    { "action": "INSTAGRAM", "leaf": "visual", "weight": 0.50 },
+    { "action": "INSTAGRAM", "leaf": "recompensa", "weight": 0.50 },
+
+    { "action": "TWITTER", "leaf": "visual", "weight": 0.30 },
+    { "action": "TWITTER", "leaf": "wernicke", "weight": 0.30 },
+    { "action": "TWITTER", "leaf": "recompensa", "weight": 0.40 },
+
+    { "action": "TIKTOK", "leaf": "visual", "weight": 0.50 },
+    { "action": "TIKTOK", "leaf": "auditivo", "weight": 0.20 },
+    { "action": "TIKTOK", "leaf": "recompensa", "weight": 0.30 },
+
+    { "action": "YOUTUBE", "leaf": "visual", "weight": 0.40 },
+    { "action": "YOUTUBE", "leaf": "auditivo", "weight": 0.30 },
+    { "action": "YOUTUBE", "leaf": "recompensa", "weight": 0.20 },
+    { "action": "YOUTUBE", "leaf": "hipocampo", "weight": 0.10 },
+
+    { "action": "WATCH FILM", "leaf": "visual", "weight": 0.40 },
+    { "action": "WATCH FILM", "leaf": "auditivo", "weight": 0.30 },
+    { "action": "WATCH FILM", "leaf": "amigdala", "weight": 0.20 },
+    { "action": "WATCH FILM", "leaf": "hipocampo", "weight": 0.10 },
+
+    { "action": "WATCH SERIES", "leaf": "visual", "weight": 0.40 },
+    { "action": "WATCH SERIES", "leaf": "auditivo", "weight": 0.30 },
+    { "action": "WATCH SERIES", "leaf": "amigdala", "weight": 0.15 },
+    { "action": "WATCH SERIES", "leaf": "hipocampo", "weight": 0.15 },
+
+    { "action": "VIDEO GAMES", "leaf": "visual", "weight": 0.25 },
+    { "action": "VIDEO GAMES", "leaf": "auditivo", "weight": 0.15 },
+    { "action": "VIDEO GAMES", "leaf": "recompensa", "weight": 0.20 },
+    { "action": "VIDEO GAMES", "leaf": "executiva", "weight": 0.15 },
+    { "action": "VIDEO GAMES", "leaf": "coordenacao", "weight": 0.15 },
+    { "action": "VIDEO GAMES", "leaf": "foco", "weight": 0.10 },
+
+    { "action": "BOARD GAME", "leaf": "executiva", "weight": 0.30 },
+    { "action": "BOARD GAME", "leaf": "hipocampo", "weight": 0.20 },
+    { "action": "BOARD GAME", "leaf": "foco", "weight": 0.20 },
+    { "action": "BOARD GAME", "leaf": "wernicke", "weight": 0.15 },
+    { "action": "BOARD GAME", "leaf": "amigdala", "weight": 0.15 },
+
+    { "action": "READ", "leaf": "wernicke", "weight": 0.40 },
+    { "action": "READ", "leaf": "hipocampo", "weight": 0.30 },
+    { "action": "READ", "leaf": "foco", "weight": 0.20 },
+    { "action": "READ", "leaf": "executiva", "weight": 0.10 },
+
+    { "action": "MUSIC", "leaf": "auditivo", "weight": 0.50 },
+    { "action": "MUSIC", "leaf": "recompensa", "weight": 0.30 },
+    { "action": "MUSIC", "leaf": "amigdala", "weight": 0.20 },
+
+    { "action": "BREAKFAST", "leaf": "macros", "weight": 0.90 },
+    { "action": "BREAKFAST", "leaf": "hidratacao", "weight": 0.10 },
+
+    { "action": "LUNCH", "leaf": "macros", "weight": 0.90 },
+    { "action": "LUNCH", "leaf": "hidratacao", "weight": 0.10 },
+
+    { "action": "DINNER", "leaf": "macros", "weight": 0.90 },
+    { "action": "DINNER", "leaf": "hidratacao", "weight": 0.10 },
+
+    { "action": "SNACK", "leaf": "macros", "weight": 0.70 },
+    { "action": "SNACK", "leaf": "hidratacao", "weight": 0.10 },
+    { "action": "SNACK", "leaf": "estimulantes", "weight": 0.20 },
+
+    { "action": "GULOSEIMA", "leaf": "recompensa", "weight": 0.70 },
+    { "action": "GULOSEIMA", "leaf": "macros", "weight": 0.30 },
+
+    { "action": "COFFEE", "leaf": "estimulantes", "weight": 0.70 },
+    { "action": "COFFEE", "leaf": "foco", "weight": 0.20 },
+    { "action": "COFFEE", "leaf": "hidratacao", "weight": 0.10 },
+
+    { "action": "TEA", "leaf": "estimulantes", "weight": 0.40 },
+    { "action": "TEA", "leaf": "hidratacao", "weight": 0.40 },
+    { "action": "TEA", "leaf": "foco", "weight": 0.20 },
+
+    { "action": "WATER", "leaf": "hidratacao", "weight": 1.00 }
+  ]
+}

@@ -101,10 +101,8 @@ def apply_act(
         metadata["energy"] = max(0, cur - energy_penalty)
         applied_energy_penalty = energy_penalty
 
-    # Attribute total_score
-    for attr in (data.get("attributes") or {}).values():
-        if action_id in (attr.get("related_actions") or []):
-            attr["total_score"] = float(attr.get("total_score", 0) or 0) + score_diff
+    # Note: leaf score contributions are applied by the host (web/CLI) after this call
+    # since they require DB I/O. apply_act stays pure.
 
     # Log content
     name = action.get("name", "")

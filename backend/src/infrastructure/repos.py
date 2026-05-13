@@ -182,6 +182,7 @@ def _user_to_dict(s: Session, u: orm.User) -> dict:
         "days_until_next_checkpoint": state.days_until_next_checkpoint if state else 20,
         "last_checkpoint_check": _date_iso(state.last_checkpoint_check) if state else None,
         "last_token_refill": _date_iso(state.last_token_refill) if state else None,
+        "last_decay_check": _date_iso(state.last_decay_check) if state else None,
         "date": _date_iso(state.date) if state else None,
         "tutorial": {
             t.key: {"status": t.status, "priority": t.priority} for t in tutorial_rows
@@ -244,6 +245,7 @@ def _write_state(s: Session, u: orm.User, data: dict):
     state.days_until_next_checkpoint = int(md.get("days_until_next_checkpoint", 20) or 20)
     state.last_checkpoint_check = _parse_date(md.get("last_checkpoint_check"))
     state.last_token_refill = _parse_date(md.get("last_token_refill"))
+    state.last_decay_check = _parse_date(md.get("last_decay_check"))
     state.daily_refill = int(md.get("daily_refill", 20) or 20)
 
 
@@ -698,3 +700,201 @@ def create_user(username: str, initial_user: dict, initial_sequences: dict | Non
         raise
     finally:
         s.close()
+
+
+# ---------- attribute tree ----------
+
+_TREE_CACHE: dict | None = None
+
+
+def load_attr_tree():
+    """Load and cache the static tree (nodes/edges/contributions) from DB.
+
+    Returns a domain.attributes.Tree instance.
+    """
+    global _TREE_CACHE
+    if _TREE_CACHE is not None:
+        return _TREE_CACHE
+
+    from src.domain.attributes import Tree, NodeMeta, LeafMeta
+
+    s = SessionLocal()
+    try:
+        node_rows = s.execute(select(orm.AttrNode)).scalars().all()
+        edge_rows = s.execute(select(orm.AttrEdge)).scalars().all()
+
+        nodes_by_key: dict[str, NodeMeta] = {}
+        leaves_by_key: dict[str, LeafMeta] = {}
+        leaves_by_id: dict[int, LeafMeta] = {}
+        id_to_key: dict[int, str] = {}
+
+        for n in node_rows:
+            nodes_by_key[n.key] = NodeMeta(id=n.id, key=n.key, name=n.name, is_leaf=bool(n.is_leaf))
+            id_to_key[n.id] = n.key
+            if n.is_leaf:
+                leaf = LeafMeta(
+                    id=n.id, key=n.key, name=n.name,
+                    half_life_hours=float(n.half_life_hours or 0),
+                    floor=float(n.floor or 0),
+                    threshold=float(n.threshold or 0),
+                )
+                leaves_by_key[n.key] = leaf
+                leaves_by_id[n.id] = leaf
+
+        children: dict[str, list[tuple[str, float]]] = {}
+        child_ids: set[int] = set()
+        for e in edge_rows:
+            parent_key = id_to_key.get(e.parent_id)
+            child_key = id_to_key.get(e.child_id)
+            if parent_key is None or child_key is None:
+                continue
+            children.setdefault(parent_key, []).append((child_key, float(e.weight)))
+            child_ids.add(e.child_id)
+
+        roots = [n.key for n in node_rows if n.id not in child_ids]
+
+        _TREE_CACHE = Tree(
+            nodes_by_key=nodes_by_key,
+            leaves_by_key=leaves_by_key,
+            leaves_by_id=leaves_by_id,
+            children=children,
+            roots=roots,
+        )
+        return _TREE_CACHE
+    finally:
+        s.close()
+
+
+def load_action_contributions(action_name: str) -> list[tuple[int, str, float]]:
+    """Return [(leaf_id, leaf_key, weight)] for the given action name (case-insensitive)."""
+    if not action_name:
+        return []
+    s = SessionLocal()
+    try:
+        rows = s.execute(
+            select(orm.ActionContribution, orm.AttrNode.key)
+            .join(orm.AttrNode, orm.ActionContribution.leaf_id == orm.AttrNode.id)
+            .where(orm.ActionContribution.action_name == action_name.strip().upper())
+        ).all()
+        return [(r[0].leaf_id, r[1], float(r[0].weight)) for r in rows]
+    finally:
+        s.close()
+
+
+def load_all_contributions() -> dict[str, list[tuple[str, float]]]:
+    """Return {action_name_upper: [(leaf_key, weight)]} for the entire catalog."""
+    s = SessionLocal()
+    try:
+        rows = s.execute(
+            select(orm.ActionContribution, orm.AttrNode.key)
+            .join(orm.AttrNode, orm.ActionContribution.leaf_id == orm.AttrNode.id)
+        ).all()
+        out: dict[str, list[tuple[str, float]]] = {}
+        for ac, leaf_key in rows:
+            out.setdefault(ac.action_name, []).append((leaf_key, float(ac.weight)))
+        for k in out:
+            out[k].sort(key=lambda x: -x[1])
+        return out
+    finally:
+        s.close()
+
+
+def get_user_leaf_scores(username: str) -> dict[str, dict]:
+    """Returns {leaf_key: {'score': float, 'last_updated_at': datetime, 'leaf_id': int}}."""
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        if not u:
+            return {}
+        rows = s.execute(
+            select(orm.UserLeafScore, orm.AttrNode.key)
+            .join(orm.AttrNode, orm.UserLeafScore.leaf_id == orm.AttrNode.id)
+            .where(orm.UserLeafScore.user_id == u.id)
+        ).all()
+        out: dict[str, dict] = {}
+        for ls, key in rows:
+            out[key] = {
+                "score": float(ls.score),
+                "last_updated_at": ls.last_updated_at,
+                "leaf_id": ls.leaf_id,
+            }
+        return out
+    finally:
+        s.close()
+
+
+def upsert_user_leaf_score(username: str, leaf_id: int, score: float, last_updated_at: datetime) -> None:
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        if not u:
+            return
+        existing = s.execute(
+            select(orm.UserLeafScore).where(
+                orm.UserLeafScore.user_id == u.id,
+                orm.UserLeafScore.leaf_id == int(leaf_id),
+            )
+        ).scalar_one_or_none()
+        if existing is None:
+            s.add(orm.UserLeafScore(
+                user_id=u.id, leaf_id=int(leaf_id),
+                score=float(score), last_updated_at=last_updated_at,
+            ))
+        else:
+            s.execute(
+                update(orm.UserLeafScore)
+                .where(
+                    orm.UserLeafScore.user_id == u.id,
+                    orm.UserLeafScore.leaf_id == int(leaf_id),
+                )
+                .values(score=float(score), last_updated_at=last_updated_at)
+                .execution_options(synchronize_session=False)
+            )
+        s.commit()
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+def apply_decay_to_all_leaves(username: str, now: datetime) -> int:
+    """Apply decay to every user leaf score and stamp last_updated_at = now.
+
+    Called by daily tick. Returns count of leaves touched.
+    """
+    from src.domain.attributes import apply_decay
+
+    tree = load_attr_tree()
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        if not u:
+            return 0
+        rows = s.execute(
+            select(orm.UserLeafScore).where(orm.UserLeafScore.user_id == u.id)
+        ).scalars().all()
+        touched = 0
+        for ls in rows:
+            leaf = tree.leaves_by_id.get(ls.leaf_id)
+            if leaf is None:
+                continue
+            new_score = apply_decay(
+                float(ls.score), ls.last_updated_at, now,
+                leaf.half_life_hours, leaf.floor,
+            )
+            s.execute(
+                update(orm.UserLeafScore)
+                .where(orm.UserLeafScore.id == ls.id)
+                .values(score=new_score, last_updated_at=now)
+                .execution_options(synchronize_session=False)
+            )
+            touched += 1
+        s.commit()
+        return touched
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+

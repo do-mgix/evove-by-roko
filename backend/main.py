@@ -16,6 +16,8 @@ from src.domain.action import Action  # noqa: E402
 from src.domain.act import apply_act, ActError  # noqa: E402
 from src.domain.agenda import collect_labels, DAY_NAMES as _DOMAIN_DAY_NAMES  # noqa: E402
 from src.domain.daily import apply_daily_tick  # noqa: E402
+from src.domain.contributions import apply_action_contributions  # noqa: E402
+from src.domain.attributes import apply_decay  # noqa: E402
 from src.domain.skills import (  # noqa: E402
     aggregate_bonuses,
     acquire_skill as _acquire_skill,
@@ -105,7 +107,20 @@ def _load_user(username: str) -> dict:
     dirty = apply_daily_tick(data) or dirty
     if dirty:
         repos.save_user_dict(username, data)
+    _apply_leaf_decay_if_due(username, data)
     return data
+
+
+def _apply_leaf_decay_if_due(username: str, data: dict) -> None:
+    """Once per day, decay every user leaf score with hour precision."""
+    now = datetime.now()
+    today_str = now.date().isoformat()
+    metadata = data.setdefault("metadata", {})
+    if metadata.get("last_decay_check") == today_str:
+        return
+    repos.apply_decay_to_all_leaves(username, now)
+    metadata["last_decay_check"] = today_str
+    repos.save_user_dict(username, data)
 
 
 def _save_user(username: str, data: dict) -> None:
@@ -332,8 +347,8 @@ def user_state(x_evove_username: str | None = Header(None)):
     metadata = data.get("metadata", {}) or {}
     xp = int(round(float(data.get("score", 0) or 0)))
     progression = _progression_state(xp)
-    attributes = data.get("attributes", {}) or {}
-    active_attrs = [a for a in attributes.values() if not a.get("deleted")]
+    user_leaf_scores = repos.get_user_leaf_scores(username)
+    active_attrs = [s for s in user_leaf_scores.values() if float(s.get("score", 0) or 0) > 0]
     bonuses = aggregate_bonuses(set(data.get("skills") or []), skill_nodes_by_id())
     base_max_tokens = int(metadata.get("max_tokens", 50) or 50)
     base_max_energy = 1000
@@ -692,6 +707,64 @@ def shop_packages():
     return load_packages()
 
 
+@app.get("/shop/catalog")
+def shop_catalog():
+    """Group action templates by their primary anatomical/neurological zone.
+
+    For each action, find the leaf with highest contribution weight, then
+    group by that leaf's parent node. Returns flat list of groups in tree order.
+    """
+    packages = load_packages()
+    tree = repos.load_attr_tree()
+    contributions = repos.load_all_contributions()
+
+    leaf_to_parent: dict[str, str] = {}
+    for parent_key, children in tree.children.items():
+        for child_key, _w in children:
+            if child_key in tree.leaves_by_key:
+                leaf_to_parent[child_key] = parent_key
+
+    grouped: dict[str, dict] = {}
+    unmapped: list[dict] = []
+
+    for pkg in packages:
+        for action in pkg.get("actions", []) or []:
+            name_upper = str(action.get("name", "")).upper()
+            contribs = contributions.get(name_upper, [])
+            entry = {
+                "name": action.get("name"),
+                "type": action.get("type"),
+                "diff": action.get("diff"),
+                "cost": action.get("cost"),
+                "token_cost": int(action.get("token_cost", 0) or 0),
+                "package_attribute": pkg.get("attribute"),
+                "leaves": [
+                    {
+                        "key": leaf_key,
+                        "name": tree.leaves_by_key[leaf_key].name,
+                        "weight": w,
+                    }
+                    for leaf_key, w in contribs
+                ],
+            }
+            if not contribs:
+                unmapped.append(entry)
+                continue
+            primary_leaf = contribs[0][0]
+            group_key = leaf_to_parent.get(primary_leaf)
+            if not group_key:
+                unmapped.append(entry)
+                continue
+            group_name = tree.nodes_by_key[group_key].name
+            grouped.setdefault(group_key, {"key": group_key, "name": group_name, "actions": []})
+            grouped[group_key]["actions"].append(entry)
+
+    result = sorted(grouped.values(), key=lambda g: g["name"])
+    if unmapped:
+        result.append({"key": "_unmapped", "name": "Outros", "actions": unmapped})
+    return result
+
+
 @app.post("/shop/actions/buy")
 def buy_action(payload: dict, x_evove_username: str | None = Header(None)):
     username = _resolve_username(x_evove_username)
@@ -736,27 +809,8 @@ def buy_action(payload: dict, x_evove_username: str | None = Header(None)):
         "token_cost": int(template.get("token_cost", 0) or 0),
     }
 
-    # Ensure attribute exists; link the new action to it
-    attributes = data.setdefault("attributes", {})
-    target_attr = next(
-        (a for a in attributes.values() if str(a.get("name", "")).strip().lower() == attr_name.lower()),
-        None,
-    )
-    if target_attr is None:
-        attr_ids = [int(aid) for aid in attributes.keys() if aid.isdigit()]
-        new_attr_id = str((max(attr_ids) + 1) if attr_ids else 801)
-        target_attr = {
-            "id": new_attr_id,
-            "name": attr_name,
-            "related_actions": [],
-            "children": [],
-            "parent": [],
-            "total_score": 0,
-        }
-        attributes[new_attr_id] = target_attr
-    related = target_attr.setdefault("related_actions", [])
-    if new_id not in related:
-        related.append(new_id)
+    # Attribute scoring is now driven by the action_contributions tree (DB-side),
+    # not the legacy per-user attribute table. No attribute row created on buy.
 
     metadata["build_points"] = bp - cost
 
@@ -876,20 +930,74 @@ def agenda_today(x_evove_username: str | None = Header(None)):
 
 @app.get("/attributes")
 def list_attributes(x_evove_username: str | None = Header(None)):
-    data = _load_user(_resolve_username(x_evove_username))
-    attributes = data.get("attributes", {}) or {}
+    """Flat list of leaves with current (decay-applied) user scores."""
+    username = _resolve_username(x_evove_username)
+    _load_user(username)  # triggers daily decay if due
+    tree = repos.load_attr_tree()
+    user_scores = repos.get_user_leaf_scores(username)
+    now = datetime.now()
     result = []
-    for attr_id, attr in attributes.items():
-        if attr.get("deleted"):
-            continue
+    for key, leaf in tree.leaves_by_key.items():
+        ls = user_scores.get(key)
+        if ls is None:
+            score = leaf.floor
+        else:
+            score = apply_decay(ls["score"], ls["last_updated_at"], now,
+                                leaf.half_life_hours, leaf.floor)
         result.append({
-            "id": attr_id,
-            "name": attr.get("name"),
-            "total_score": int(round(float(attr.get("total_score", 0) or 0))),
-            "related_actions_count": len(attr.get("related_actions") or []),
+            "key": key,
+            "name": leaf.name,
+            "score": round(score, 2),
+            "half_life_hours": leaf.half_life_hours,
+            "floor": leaf.floor,
         })
-    result.sort(key=lambda a: a.get("total_score", 0), reverse=True)
+    result.sort(key=lambda a: a["score"], reverse=True)
     return result
+
+
+@app.get("/attributes/tree")
+def attributes_tree(x_evove_username: str | None = Header(None)):
+    """Hierarchical tree with computed (decay-applied) scores at every node."""
+    from src.domain.attributes import compute_node_score
+
+    username = _resolve_username(x_evove_username)
+    _load_user(username)
+    tree = repos.load_attr_tree()
+    user_scores = repos.get_user_leaf_scores(username)
+    now = datetime.now()
+
+    leaf_scores: dict[str, float] = {}
+    for key, leaf in tree.leaves_by_key.items():
+        ls = user_scores.get(key)
+        if ls is None:
+            leaf_scores[key] = leaf.floor
+        else:
+            leaf_scores[key] = apply_decay(
+                ls["score"], ls["last_updated_at"], now,
+                leaf.half_life_hours, leaf.floor,
+            )
+
+    def render(key: str) -> dict:
+        node = tree.nodes_by_key[key]
+        score = compute_node_score(key, leaf_scores, tree)
+        out: dict = {
+            "key": key,
+            "name": node.name,
+            "is_leaf": node.is_leaf,
+            "score": round(score, 2),
+        }
+        if node.is_leaf:
+            leaf = tree.leaves_by_key[key]
+            out["half_life_hours"] = leaf.half_life_hours
+            out["floor"] = leaf.floor
+        else:
+            out["children"] = [
+                {"weight": w, **render(ck)}
+                for ck, w in tree.children.get(key, [])
+            ]
+        return out
+
+    return {"roots": [render(r) for r in tree.roots]}
 
 
 _LOG_ID_PREFIX = 73
@@ -972,6 +1080,8 @@ def act_on_action(action_id: str, payload: dict | None = None, x_evove_username:
         raise HTTPException(status_code=404, detail=str(e))
 
     _save_user(username, data)
+
+    apply_action_contributions(username, action.get("name", ""), float(outcome.score_diff), datetime.now())
 
     _record_activity(username)
     log_entry = _append_log(username, outcome.log_content, int(round(outcome.score_diff)))

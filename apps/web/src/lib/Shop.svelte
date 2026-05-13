@@ -1,12 +1,12 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import {
-    fetchPackages,
+    fetchShopCatalog,
     fetchUser,
     fetchActions,
     buyPackageAction,
-    type Package,
-    type PackageAction,
+    type CatalogGroup,
+    type CatalogAction,
   } from "./api";
   import { userVersion, bumpUser } from "./store";
   import Modal from "./Modal.svelte";
@@ -14,13 +14,13 @@
   export let initialSection: string | null = null;
   void initialSection;
 
-  let packages: Package[] = [];
+  let groups: CatalogGroup[] = [];
   let buildPoints = 0;
   let owned: Set<string> = new Set();
   let loading = true;
   let error: string | null = null;
   let busy: string | null = null;
-  let selected: { pkg: Package; action: PackageAction } | null = null;
+  let selected: { group: CatalogGroup; action: CatalogAction } | null = null;
   let query = "";
   let openSet: Set<string> = new Set();
   let lastUserVersion = 0;
@@ -32,12 +32,12 @@
 
   async function load() {
     try {
-      const [pkgs, user, userActions] = await Promise.all([
-        fetchPackages(),
+      const [cat, user, userActions] = await Promise.all([
+        fetchShopCatalog(),
         fetchUser().catch(() => null),
         fetchActions().catch(() => []),
       ]);
-      packages = pkgs;
+      groups = cat;
       buildPoints = user?.build_points ?? 0;
       owned = new Set(userActions.map((a) => a.name.toUpperCase()));
     } catch (e: any) {
@@ -54,33 +54,32 @@
     if (lastUserVersion > 0) load();
   }
 
-  function toggle(attr: string) {
+  function toggle(key: string) {
     const next = new Set(openSet);
-    if (next.has(attr)) next.delete(attr);
-    else next.add(attr);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
     openSet = next;
   }
 
   $: q = query.trim().toLowerCase();
-  $: filteredView = packages.map((p) => {
+  $: filteredView = groups.map((g) => {
     const matches = q
-      ? p.actions.filter((a) => a.name.toLowerCase().includes(q))
-      : p.actions;
-    return { pkg: p, actions: matches };
+      ? g.actions.filter((a) => a.name.toLowerCase().includes(q))
+      : g.actions;
+    return { group: g, actions: matches };
   });
   $: if (q) {
-    // expand all packages with matching items when searching
     const next = new Set<string>();
-    for (const v of filteredView) if (v.actions.length > 0) next.add(v.pkg.attribute);
+    for (const v of filteredView) if (v.actions.length > 0) next.add(v.group.key);
     openSet = next;
   }
 
-  async function buy(pkg: Package, action: PackageAction) {
+  async function buy(group: CatalogGroup, action: CatalogAction) {
     if (busy) return;
-    busy = `${pkg.attribute}:${action.name}`;
+    busy = `${group.key}:${action.name}`;
     error = null;
     try {
-      const res = await buyPackageAction(pkg.attribute, action.name);
+      const res = await buyPackageAction(action.package_attribute, action.name);
       buildPoints = res.build_points;
       owned = new Set([...owned, action.name.toUpperCase()]);
       bumpUser();
@@ -112,41 +111,40 @@
     <p class="error">{error}</p>
   {:else}
     <div class="list">
-      {#each filteredView as v (v.pkg.attribute)}
+      {#each filteredView as v (v.group.key)}
         {#if !q || v.actions.length > 0}
-          <div class="package" style="--accent: {v.pkg.color ?? '#6cf'};">
-            <button class="pkg-head" on:click={() => toggle(v.pkg.attribute)}>
-              <span class="caret">{openSet.has(v.pkg.attribute) ? "▾" : "▸"}</span>
-              <span class="pkg-name">{v.pkg.attribute}</span>
-              <span class="pkg-count">{v.actions.length}</span>
-            </button>
-            {#if openSet.has(v.pkg.attribute)}
-              <ul class="actions">
-                {#each v.actions as a (a.name)}
-                  {@const acquired = owned.has(a.name.toUpperCase())}
-                  <li class:owned={acquired}>
-                    <button class="info" on:click={() => (selected = { pkg: v.pkg, action: a })} disabled={acquired}>
-                      <span class="a-name">{a.name}</span>
-                      <span class="a-meta">
-                        {TYPE_LABEL[a.type] ?? a.type} · d{a.diff}{a.token_cost ? ` · ${a.token_cost}t` : ""}
-                      </span>
+          {@const open = openSet.has(v.group.key)}
+          <button class="pkg-head" on:click={() => toggle(v.group.key)}>
+            <span class="caret">{open ? "▾" : "▸"}</span>
+            <span class="pkg-name">{v.group.name}</span>
+            <span class="pkg-count">{v.actions.length}</span>
+          </button>
+          {#if open}
+            <ul class="actions">
+              {#each v.actions as a (a.name)}
+                {@const acquired = owned.has(a.name.toUpperCase())}
+                <li class:owned={acquired}>
+                  <button class="info" on:click={() => (selected = { group: v.group, action: a })} disabled={acquired}>
+                    <span class="a-name">{a.name}</span>
+                    <span class="a-meta">
+                      {TYPE_LABEL[a.type] ?? a.type} · d{a.diff}{a.token_cost ? ` · ${a.token_cost}t` : ""}
+                    </span>
+                  </button>
+                  {#if acquired}
+                    <span class="owned-tag">owned</span>
+                  {:else}
+                    <button
+                      class="buy"
+                      on:click|stopPropagation={() => buy(v.group, a)}
+                      disabled={busy === `${v.group.key}:${a.name}` || buildPoints < a.cost}
+                    >
+                      {busy === `${v.group.key}:${a.name}` ? "..." : `${a.cost} bp`}
                     </button>
-                    {#if acquired}
-                      <span class="owned-tag">owned</span>
-                    {:else}
-                      <button
-                        class="buy"
-                        on:click|stopPropagation={() => buy(v.pkg, a)}
-                        disabled={busy === `${v.pkg.attribute}:${a.name}` || buildPoints < a.cost}
-                      >
-                        {busy === `${v.pkg.attribute}:${a.name}` ? "..." : `${a.cost} bp`}
-                      </button>
-                    {/if}
-                  </li>
-                {/each}
-              </ul>
-            {/if}
-          </div>
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          {/if}
         {/if}
       {/each}
     </div>
@@ -157,7 +155,7 @@
   <Modal title="comprar ação" onClose={() => (selected = null)}>
     <dl class="details">
       <dt>nome</dt><dd class="hl">{selected.action.name}</dd>
-      <dt>atributo</dt><dd>{selected.pkg.attribute}</dd>
+      <dt>zona</dt><dd>{selected.group.name}</dd>
       <dt>tipo</dt><dd>{TYPE_LABEL[selected.action.type] ?? selected.action.type}</dd>
       <dt>dificuldade</dt><dd>d{selected.action.diff}</dd>
       <dt>custo (bp)</dt><dd>{selected.action.cost}</dd>
@@ -166,11 +164,21 @@
       {/if}
       <dt>saldo (bp)</dt><dd>{buildPoints}</dd>
     </dl>
+    {#if selected.action.leaves && selected.action.leaves.length > 0}
+      <div class="leaves-block">
+        <div class="leaves-title">estimula</div>
+        <ul class="leaves">
+          {#each selected.action.leaves as l}
+            <li><span class="leaf-name">{l.name}</span><span class="leaf-weight">{Math.round(l.weight * 100)}%</span></li>
+          {/each}
+        </ul>
+      </div>
+    {/if}
     <div class="confirm-row">
       <button class="ghost" on:click={() => (selected = null)}>cancelar</button>
       <button
         class="primary"
-        on:click={() => buy(selected!.pkg, selected!.action)}
+        on:click={() => buy(selected!.group, selected!.action)}
         disabled={busy !== null || buildPoints < selected.action.cost}
       >
         {busy ? "..." : "confirmar compra"}
@@ -240,20 +248,13 @@
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
-  }
-  .package {
-    background: #0d0d0d;
-    border: 1px solid color-mix(in srgb, var(--accent) 20%, #1f1f1f);
-    border-radius: 6px;
-    overflow: hidden;
   }
   .pkg-head {
     display: flex;
     align-items: center;
     gap: 0.6rem;
     width: 100%;
-    padding: 0.7rem 0.95rem;
+    padding: 0.5rem 0.95rem;
     background: transparent;
     border: none;
     color: inherit;
@@ -261,14 +262,14 @@
     cursor: pointer;
     text-align: left;
   }
-  .pkg-head:hover { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+  .pkg-head:hover { background: #141414; }
   .caret {
     color: #555;
     font-size: 0.75rem;
     width: 1em;
   }
   .pkg-name {
-    color: var(--accent);
+    color: #ddd;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     font-size: 0.88rem;
@@ -282,15 +283,12 @@
     list-style: none;
     margin: 0;
     padding: 0;
-    border-top: 1px solid color-mix(in srgb, var(--accent) 18%, #1a1a1a);
   }
   .actions li {
     display: flex;
     align-items: center;
-    padding: 0.45rem 0.95rem;
-    border-bottom: 1px solid #161616;
+    padding: 0.45rem 0.95rem 0.45rem 2.1rem;
   }
-  .actions li:last-child { border-bottom: none; }
   .actions li.owned { opacity: 0.4; }
   .info {
     display: flex;
@@ -306,7 +304,7 @@
     cursor: pointer;
     padding: 0.2rem 0;
   }
-  .info:hover .a-name { color: var(--accent); }
+  .info:hover .a-name { color: #6cf; }
   .info:disabled { cursor: default; }
   .a-name { color: #ddd; font-size: 0.88rem; }
   .a-meta { color: #555; font-size: 0.7rem; }
@@ -323,8 +321,8 @@
     min-width: 60px;
   }
   .buy:hover:not(:disabled) {
-    border-color: var(--accent);
-    color: var(--accent);
+    border-color: #6cf;
+    color: #6cf;
   }
   .buy:disabled { opacity: 0.4; cursor: not-allowed; }
   .owned-tag {
@@ -352,6 +350,35 @@
   }
   .details dd { color: #ddd; margin: 0; font-size: 0.9rem; }
   .hl { color: #6cf; }
+  .leaves-block {
+    margin: 0 0 1.25rem;
+    padding: 0.6rem 0.75rem;
+    background: #0a0a0a;
+    border: 1px solid #1a1a1a;
+    border-radius: 4px;
+  }
+  .leaves-title {
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.65rem;
+    margin-bottom: 0.4rem;
+  }
+  .leaves {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+  .leaves li {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.78rem;
+  }
+  .leaf-name { color: #bbb; }
+  .leaf-weight { color: #6cf; font-variant-numeric: tabular-nums; }
   .confirm-row { display: flex; gap: 0.5rem; justify-content: flex-end; }
   .ghost, .primary {
     padding: 0.5rem 1rem;
