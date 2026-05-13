@@ -142,6 +142,7 @@ class AttrNode(Base):
     half_life_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
     floor: Mapped[float | None] = mapped_column(Float, nullable=True)
     threshold: Mapped[float | None] = mapped_column(Float, nullable=True)
+    max_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class AttrEdge(Base):
@@ -176,6 +177,7 @@ class UserLeafScore(Base):
     leaf_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("attr_nodes.id", ondelete="CASCADE"), nullable=False, index=True)
     score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     last_updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    permanent_level: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
 
 class AttributeTag(Base):

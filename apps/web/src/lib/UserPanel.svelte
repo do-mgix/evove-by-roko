@@ -65,10 +65,18 @@
         <li>
           <div class="attr-row">
             <span class="attr-name">{t.name}</span>
-            <span class="attr-score">{Math.round(t.score).toLocaleString()}</span>
+            {#if t.level != null && t.max_level != null}
+              <span class="attr-score">lvl {t.level.toFixed(1)}/{t.max_level}</span>
+            {:else}
+              <span class="attr-score">{Math.round(t.score).toLocaleString()}</span>
+            {/if}
           </div>
           <div class="attr-bar">
-            <div class="attr-fill" style="width: {(t.score / maxTagScore) * 100}%"></div>
+            {#if t.progress_to_next != null}
+              <div class="attr-fill" style="width: {t.progress_to_next * 100}%"></div>
+            {:else}
+              <div class="attr-fill" style="width: {(t.score / maxTagScore) * 100}%"></div>
+            {/if}
           </div>
         </li>
       {/each}

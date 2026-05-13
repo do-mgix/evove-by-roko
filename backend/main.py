@@ -930,7 +930,9 @@ def agenda_today(x_evove_username: str | None = Header(None)):
 
 @app.get("/attributes")
 def list_attributes(x_evove_username: str | None = Header(None)):
-    """Flat list of leaves with current (decay-applied) user scores."""
+    """Flat list of leaves with current (decay-applied) user scores + permanent levels."""
+    from src.domain.attributes import level_threshold
+
     username = _resolve_username(x_evove_username)
     _load_user(username)  # triggers daily decay if due
     tree = repos.load_attr_tree()
@@ -941,23 +943,46 @@ def list_attributes(x_evove_username: str | None = Header(None)):
         ls = user_scores.get(key)
         if ls is None:
             score = leaf.floor
+            perm = 0
         else:
             score = apply_decay(ls["score"], ls["last_updated_at"], now,
                                 leaf.half_life_hours, leaf.floor)
+            perm = int(ls.get("permanent_level", 0) or 0)
+
+        next_thr = None
+        progress = 0.0
+        if leaf.max_level is not None:
+            if perm >= leaf.max_level:
+                next_thr = None
+                progress = 1.0
+            else:
+                next_thr = level_threshold(perm + 1)
+                progress = max(0.0, min(1.0, score / next_thr))
+
         result.append({
             "key": key,
             "name": leaf.name,
             "score": round(score, 2),
+            "permanent_level": perm,
+            "max_level": leaf.max_level,
+            "next_threshold": next_thr,
+            "progress_to_next": round(progress, 4),
             "half_life_hours": leaf.half_life_hours,
             "floor": leaf.floor,
         })
-    result.sort(key=lambda a: a["score"], reverse=True)
+    result.sort(key=lambda a: (a["permanent_level"], a["score"]), reverse=True)
     return result
 
 
 @app.get("/attributes/tags")
 def attribute_tags(x_evove_username: str | None = Header(None)):
-    """Curated composite tags computed from weighted leaves."""
+    """Curated composite tags computed from weighted leaves.
+
+    Tags whose sources are ≥80% (by weight) on physical leaves (max_level != null)
+    also expose a weighted-average permanent level and progress-to-next bar.
+    """
+    from src.domain.attributes import level_threshold
+
     username = _resolve_username(x_evove_username)
     _load_user(username)
     tags = repos.load_attr_tags()
@@ -966,21 +991,61 @@ def attribute_tags(x_evove_username: str | None = Header(None)):
     now = datetime.now()
 
     leaf_scores: dict[str, float] = {}
+    leaf_perm: dict[str, int] = {}
     for key, leaf in tree.leaves_by_key.items():
         ls = leaf_scores_raw.get(key)
-        leaf_scores[key] = leaf.floor if ls is None else apply_decay(
-            ls["score"], ls["last_updated_at"], now,
-            leaf.half_life_hours, leaf.floor,
-        )
+        if ls is None:
+            leaf_scores[key] = leaf.floor
+            leaf_perm[key] = 0
+        else:
+            leaf_scores[key] = apply_decay(
+                ls["score"], ls["last_updated_at"], now,
+                leaf.half_life_hours, leaf.floor,
+            )
+            leaf_perm[key] = int(ls.get("permanent_level", 0) or 0)
 
     out = []
     for t in tags:
         score = sum(w * leaf_scores.get(lk, 0.0) for lk, w in t["sources"])
+
+        # Physical tag: ≥80% of source weight on leaves with max_level
+        max_level_global = 0
+        weighted_level = 0.0
+        weighted_progress = 0.0
+        physical_w = 0.0
+        for lk, w in t["sources"]:
+            leaf = tree.leaves_by_key.get(lk)
+            if leaf is None or leaf.max_level is None:
+                continue
+            physical_w += w
+            perm = leaf_perm.get(lk, 0)
+            weighted_level += w * perm
+            if perm >= leaf.max_level:
+                weighted_progress += w * 1.0
+            else:
+                thr = level_threshold(perm + 1)
+                weighted_progress += w * max(0.0, min(1.0, leaf_scores.get(lk, 0.0) / thr))
+            max_level_global = max(max_level_global, leaf.max_level)
+
+        if physical_w >= 0.8:
+            level = weighted_level / physical_w
+            progress = weighted_progress / physical_w
+            level_field = round(level, 2)
+            progress_field = round(progress, 4)
+            max_level_field = max_level_global
+        else:
+            level_field = None
+            progress_field = None
+            max_level_field = None
+
         out.append({
             "key": t["key"],
             "name": t["name"],
             "category": t["category"],
             "score": round(score, 2),
+            "level": level_field,
+            "max_level": max_level_field,
+            "progress_to_next": progress_field,
         })
     return out
 

@@ -5,6 +5,25 @@ from dataclasses import dataclass
 from datetime import datetime
 
 
+LEVEL_BASE = 100
+
+
+def level_threshold(next_level: int) -> float:
+    """Superficial score required to advance from (next_level - 1) into next_level."""
+    return LEVEL_BASE * next_level * next_level
+
+
+def apply_level_ups(score: float, permanent_level: int, max_level: int) -> tuple[float, int]:
+    """Consume superficial score into permanent levels until insufficient or capped.
+
+    Returns (remaining_score, new_permanent_level). Multiple level-ups possible in one call.
+    """
+    while permanent_level < max_level and score >= level_threshold(permanent_level + 1):
+        score -= level_threshold(permanent_level + 1)
+        permanent_level += 1
+    return score, permanent_level
+
+
 @dataclass(frozen=True)
 class LeafMeta:
     id: int
@@ -13,6 +32,7 @@ class LeafMeta:
     half_life_hours: float
     floor: float
     threshold: float
+    max_level: int | None = None
 
 
 @dataclass(frozen=True)

@@ -88,6 +88,10 @@ export type Attribute = {
   key: string;
   name: string;
   score: number;
+  permanent_level: number;
+  max_level: number | null;
+  next_threshold: number | null;
+  progress_to_next: number;
   half_life_hours: number;
   floor: number;
 };
@@ -122,6 +126,9 @@ export type AttrTag = {
   name: string;
   category: string;
   score: number;
+  level: number | null;
+  max_level: number | null;
+  progress_to_next: number | null;
 };
 
 export async function fetchAttributeTags(): Promise<AttrTag[]> {

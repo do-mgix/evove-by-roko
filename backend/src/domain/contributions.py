@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from src.domain.attributes import apply_decay
+from src.domain.attributes import apply_decay, apply_level_ups
 from src.infrastructure import repos
 
 
@@ -29,14 +29,16 @@ def apply_action_contributions(username: str, action_name: str, score_diff: floa
         cur = current.get(leaf_key)
         if cur is None:
             base_score = leaf.floor
-            last = now
+            perm = 0
         else:
             base_score = apply_decay(
                 cur["score"], cur["last_updated_at"], now,
                 leaf.half_life_hours, leaf.floor,
             )
-            last = now
+            perm = int(cur.get("permanent_level", 0) or 0)
         new_score = base_score + stimulus
-        repos.upsert_user_leaf_score(username, leaf_id, new_score, last)
+        if leaf.max_level is not None:
+            new_score, perm = apply_level_ups(new_score, perm, leaf.max_level)
+        repos.upsert_user_leaf_score(username, leaf_id, new_score, now, perm)
         touched += 1
     return touched

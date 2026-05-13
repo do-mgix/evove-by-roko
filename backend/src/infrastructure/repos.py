@@ -737,6 +737,7 @@ def load_attr_tree():
                     half_life_hours=float(n.half_life_hours or 0),
                     floor=float(n.floor or 0),
                     threshold=float(n.threshold or 0),
+                    max_level=(int(n.max_level) if n.max_level is not None else None),
                 )
                 leaves_by_key[n.key] = leaf
                 leaves_by_id[n.id] = leaf
@@ -860,13 +861,14 @@ def get_user_leaf_scores(username: str) -> dict[str, dict]:
                 "score": float(ls.score),
                 "last_updated_at": ls.last_updated_at,
                 "leaf_id": ls.leaf_id,
+                "permanent_level": int(ls.permanent_level or 0),
             }
         return out
     finally:
         s.close()
 
 
-def upsert_user_leaf_score(username: str, leaf_id: int, score: float, last_updated_at: datetime) -> None:
+def upsert_user_leaf_score(username: str, leaf_id: int, score: float, last_updated_at: datetime, permanent_level: int = 0) -> None:
     s = SessionLocal()
     try:
         u = _get_user(s, username)
@@ -882,6 +884,7 @@ def upsert_user_leaf_score(username: str, leaf_id: int, score: float, last_updat
             s.add(orm.UserLeafScore(
                 user_id=u.id, leaf_id=int(leaf_id),
                 score=float(score), last_updated_at=last_updated_at,
+                permanent_level=int(permanent_level),
             ))
         else:
             s.execute(
@@ -890,7 +893,7 @@ def upsert_user_leaf_score(username: str, leaf_id: int, score: float, last_updat
                     orm.UserLeafScore.user_id == u.id,
                     orm.UserLeafScore.leaf_id == int(leaf_id),
                 )
-                .values(score=float(score), last_updated_at=last_updated_at)
+                .values(score=float(score), last_updated_at=last_updated_at, permanent_level=int(permanent_level))
                 .execution_options(synchronize_session=False)
             )
         s.commit()

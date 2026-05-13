@@ -1,19 +1,21 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { fetchUser, fetchAttributes, type UserState, type Attribute } from "./api";
+  import { fetchUser, fetchAttributes, fetchAttributeTags, type UserState, type Attribute, type AttrTag } from "./api";
   import { userVersion } from "./store";
 
   let user: UserState | null = null;
   let attributes: Attribute[] = [];
+  let tags: AttrTag[] = [];
   let loading = true;
   let error: string | null = null;
   let lastVersion = 0;
 
   async function load() {
     try {
-      const [u, a] = await Promise.all([fetchUser(), fetchAttributes()]);
+      const [u, a, t] = await Promise.all([fetchUser(), fetchAttributes(), fetchAttributeTags()]);
       user = u;
       attributes = a;
+      tags = t;
     } catch (e: any) {
       error = e?.message ?? "erro";
     } finally {
@@ -29,6 +31,13 @@
   }
 
   $: maxAttrScore = attributes.reduce((m, a) => Math.max(m, a.score), 1) || 1;
+  $: maxTagScore = tags.reduce((m, t) => Math.max(m, t.score), 1) || 1;
+  $: tagsByCategory = (() => {
+    const groups: Record<string, AttrTag[]> = {};
+    for (const t of tags) (groups[t.category] ||= []).push(t);
+    return groups;
+  })();
+  $: categoryOrder = ["Físico", "Mental"].filter((c) => tagsByCategory[c]?.length);
   $: xpProgress = user && user.xp_cost > 0
     ? Math.max(0, Math.min(100, ((user.xp_cost - user.next_xp) / user.xp_cost) * 100))
     : 100;
@@ -108,18 +117,69 @@
       </div>
     </section>
 
+    {#if tags.length > 0}
+      <section class="attrs-section">
+        <h2>tags</h2>
+        {#each categoryOrder as cat (cat)}
+          <h3 class="cat-title">{cat}</h3>
+          <ul class="attrs">
+            {#each tagsByCategory[cat] as t (t.key)}
+              <li>
+                <div class="attr-row">
+                  <span class="attr-name">{t.name}</span>
+                  {#if t.level != null && t.max_level != null}
+                    <span class="attr-meta">
+                      <span class="lvl">lvl {t.level.toFixed(1)}/{t.max_level}</span>
+                      <span class="muted">· {Math.round((t.progress_to_next ?? 0) * 100)}% → próx</span>
+                    </span>
+                  {:else}
+                    <span class="attr-score">{Math.round(t.score).toLocaleString()}</span>
+                  {/if}
+                </div>
+                <div class="attr-bar">
+                  {#if t.progress_to_next != null}
+                    <div class="attr-fill" style="width: {t.progress_to_next * 100}%"></div>
+                  {:else}
+                    <div class="attr-fill" style="width: {(t.score / maxTagScore) * 100}%"></div>
+                  {/if}
+                </div>
+              </li>
+            {/each}
+          </ul>
+        {/each}
+      </section>
+    {/if}
+
     {#if attributes.length > 0}
       <section class="attrs-section">
-        <h2>atributos</h2>
+        <h2>folhas</h2>
         <ul class="attrs">
           {#each attributes as a (a.key)}
             <li>
               <div class="attr-row">
                 <span class="attr-name">{a.name}</span>
-                <span class="attr-score">{Math.round(a.score).toLocaleString()}</span>
+                {#if a.max_level != null}
+                  <span class="attr-meta">
+                    <span class="lvl">lvl {a.permanent_level}/{a.max_level}</span>
+                    {#if a.next_threshold != null}
+                      <span class="muted">· {Math.round(a.score)}/{Math.round(a.next_threshold)}</span>
+                    {:else}
+                      <span class="hl">· MAX</span>
+                    {/if}
+                  </span>
+                {:else}
+                  <span class="attr-score">{Math.round(a.score).toLocaleString()}</span>
+                {/if}
               </div>
               <div class="attr-bar">
-                <div class="attr-fill" style="width: {(a.score / maxAttrScore) * 100}%"></div>
+                {#if a.max_level != null}
+                  <div class="attr-fill" style="width: {a.progress_to_next * 100}%"></div>
+                {:else}
+                  <div class="attr-fill" style="width: {(a.score / maxAttrScore) * 100}%"></div>
+                {/if}
+              </div>
+              <div class="attr-sub">
+                <span class="muted">half-life: {(a.half_life_hours / 24).toFixed(0)}d</span>
               </div>
             </li>
           {/each}
@@ -247,6 +307,14 @@
     border: 1px solid #1f1f1f;
     border-radius: 6px;
     padding: 0.95rem 1.1rem;
+    margin-bottom: 1rem;
+  }
+  .cat-title {
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.7rem;
+    margin: 0.5rem 0 0.4rem;
   }
   .attrs {
     list-style: none;
@@ -264,6 +332,10 @@
   }
   .attr-name { color: #ddd; }
   .attr-score { color: #777; font-size: 0.78rem; }
+  .attr-meta { color: #777; font-size: 0.75rem; display: flex; gap: 0.35rem; align-items: baseline; }
+  .lvl { color: #6cf; font-weight: bold; }
+  .attr-meta .hl { color: #6cf; font-size: 0.7rem; letter-spacing: 0.05em; }
+  .attr-meta .muted { color: #555; font-size: 0.7rem; }
   .attr-bar {
     height: 3px;
     background: #1a1a1a;
@@ -276,4 +348,9 @@
     background: #6cf;
     opacity: 0.6;
   }
+  .attr-sub {
+    margin-top: 0.15rem;
+    font-size: 0.65rem;
+  }
+  .attr-sub .muted { color: #444; }
 </style>
