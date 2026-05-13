@@ -26,7 +26,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.infrastructure.db import Base
 
-
+# username - id
 class User(Base):
     __tablename__ = "users"
 
@@ -44,7 +44,7 @@ class User(Base):
     logs: Mapped[list["Log"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     projects: Mapped[list["Project"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
-
+# user generic info
 class UserState(Base):
     __tablename__ = "user_state"
 
@@ -65,7 +65,7 @@ class UserState(Base):
     date: Mapped[date] = mapped_column(Date, server_default=text("(CURRENT_DATE)"), nullable=False)
     user: Mapped[User] = relationship(back_populates="state")
 
-
+# user tutorial check status - priority - status
 class UserTutorial(Base):
     __tablename__ = "user_tutorial"
 
@@ -76,7 +76,7 @@ class UserTutorial(Base):
 
     user: Mapped[User] = relationship(back_populates="tutorial")
 
-
+# user sequences
 class SequencesState(Base):
     __tablename__ = "sequences_state"
 
@@ -87,7 +87,7 @@ class SequencesState(Base):
 
     user: Mapped[User] = relationship(back_populates="sequences_state")
 
-
+# user action relation - diff score token cost : basic info
 class Action(Base):
     __tablename__ = "actions"
     __table_args__ = (UniqueConstraint("user_id", "action_id", name="uq_actions_user_action"),)
@@ -108,7 +108,7 @@ class Action(Base):
 
     user: Mapped[User] = relationship(back_populates="actions")
 
-
+# user attribute relation 
 class Attribute(Base):
     __tablename__ = "attributes"
     __table_args__ = (UniqueConstraint("user_id", "attr_id", name="uq_attributes_user_attr"),)
@@ -122,7 +122,7 @@ class Attribute(Base):
     user: Mapped[User] = relationship(back_populates="attributes")
     related_actions: Mapped[list["AttributeAction"]] = relationship(cascade="all, delete-orphan")
 
-
+# unimplemented - attribute action relation 
 class AttributeAction(Base):
     """Link table: attribute → action (per-user attribute id refers to per-user action id)."""
     __tablename__ = "attribute_actions"
@@ -130,7 +130,7 @@ class AttributeAction(Base):
     attribute_pk: Mapped[int] = mapped_column(BigInteger, ForeignKey("attributes.id", ondelete="CASCADE"), primary_key=True)
     action_id: Mapped[str] = mapped_column(String(16), primary_key=True)
 
-
+# sub anatomical / conceptual attributes(nodes) decay and level info 
 class AttrNode(Base):
     """Static anatomical/neurological tree node. Seeded from attributes_tree.json."""
     __tablename__ = "attr_nodes"
@@ -145,7 +145,7 @@ class AttrNode(Base):
     max_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tree_kind: Mapped[str] = mapped_column(String(16), default="anatomical", nullable=False)
 
-
+# attribute node relation and weight 
 class AttrEdge(Base):
     """Weighted parent → child edge in the static tree."""
     __tablename__ = "attr_edges"
@@ -156,7 +156,7 @@ class AttrEdge(Base):
     child_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("attr_nodes.id", ondelete="CASCADE"), nullable=False, index=True)
     weight: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
 
-
+# action node(leaf) relation and weight
 class ActionContribution(Base):
     """Maps an action (by UPPER-cased name) to a leaf node with weight."""
     __tablename__ = "action_contributions"
@@ -167,7 +167,7 @@ class ActionContribution(Base):
     leaf_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("attr_nodes.id", ondelete="CASCADE"), nullable=False, index=True)
     weight: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
 
-
+# user leaf relation - level and score
 class UserLeafScore(Base):
     """Per-user accumulated score for each leaf, with last update timestamp for decay."""
     __tablename__ = "user_leaf_scores"
@@ -180,7 +180,7 @@ class UserLeafScore(Base):
     last_updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     permanent_level: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-
+# attribute display tags
 class AttributeTag(Base):
     """Curated composite tag (e.g. Força, Memória) derived from weighted leaves."""
     __tablename__ = "attribute_tags"
@@ -191,7 +191,7 @@ class AttributeTag(Base):
     category: Mapped[str] = mapped_column(String(32), nullable=False)
     display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-
+# leaf tag relation and weight
 class AttributeTagSource(Base):
     """Edge from tag to leaf with weight."""
     __tablename__ = "attribute_tag_sources"
@@ -202,7 +202,7 @@ class AttributeTagSource(Base):
     leaf_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("attr_nodes.id", ondelete="CASCADE"), nullable=False, index=True)
     weight: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
 
-
+# user skills relation
 class AcquiredSkill(Base):
     __tablename__ = "skills_acquired"
 
@@ -212,7 +212,7 @@ class AcquiredSkill(Base):
 
     user: Mapped[User] = relationship(back_populates="skills")
 
-
+# user agenda items
 class AgendaItem(Base):
     __tablename__ = "agenda_items"
     __table_args__ = (UniqueConstraint("user_id", "item_id", name="uq_agenda_user_item"),)
@@ -230,7 +230,7 @@ class AgendaItem(Base):
 
     user: Mapped[User] = relationship(back_populates="agenda_items")
 
-
+# user logs
 class Log(Base):
     __tablename__ = "logs"
     __table_args__ = (UniqueConstraint("user_id", "log_id", name="uq_logs_user_log"),)
@@ -247,7 +247,7 @@ class Log(Base):
 
     user: Mapped[User] = relationship(back_populates="logs")
 
-
+# user projects (unimplemented)
 class Project(Base):
     __tablename__ = "projects"
     __table_args__ = (UniqueConstraint("user_id", "project_id", name="uq_projects_user_project"),)
@@ -264,14 +264,14 @@ class Project(Base):
     related_actions: Mapped[list["ProjectAction"]] = relationship(cascade="all, delete-orphan")
     related_attributes: Mapped[list["ProjectAttribute"]] = relationship(cascade="all, delete-orphan")
 
-
+# action project relation (unimplemented)
 class ProjectAction(Base):
     __tablename__ = "project_actions"
 
     project_pk: Mapped[int] = mapped_column(BigInteger, ForeignKey("projects.id", ondelete="CASCADE"), primary_key=True)
     action_id: Mapped[str] = mapped_column(String(16), primary_key=True)
 
-
+# attribute project relation (unimplemented)
 class ProjectAttribute(Base):
     __tablename__ = "project_attributes"
 
