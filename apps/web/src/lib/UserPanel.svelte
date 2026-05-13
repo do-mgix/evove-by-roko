@@ -1,7 +1,8 @@
 <script lang="ts">
-  import type { UserState, AttrTag } from "./api";
+  import type { UserState, AttrTag, ConceptualRoot } from "./api";
   export let user: UserState;
   export let tags: AttrTag[] = [];
+  export let conceptualRoots: ConceptualRoot[] = [];
 
   $: xpProgress =
     user.xp_cost > 0
@@ -57,6 +58,23 @@
     <div class="span-2"><span class="label">today</span><span class="value">{new Date(user.date + 'T00:00:00').toLocaleDateString('pt-BR')}</span></div>
     <div class="span-2"><span class="label">skill points</span><span class="value">{user.skill_points}</span></div>
   </div>
+
+  {#if conceptualRoots.length > 0}
+    <div class="attrs-title">Conceitual</div>
+    <ul class="attrs">
+      {#each conceptualRoots as r (r.key)}
+        <li>
+          <div class="attr-row">
+            <span class="attr-name">{r.name}</span>
+            <span class="attr-score">lvl {r.level.toFixed(1)}/{r.max_level}</span>
+          </div>
+          <div class="attr-bar">
+            <div class="attr-fill" style="width: {r.progress_to_next * 100}%"></div>
+          </div>
+        </li>
+      {/each}
+    </ul>
+  {/if}
 
   {#each categoryOrder as cat (cat)}
     <div class="attrs-title">{cat}</div>

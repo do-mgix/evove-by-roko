@@ -729,7 +729,8 @@ def load_attr_tree():
         id_to_key: dict[int, str] = {}
 
         for n in node_rows:
-            nodes_by_key[n.key] = NodeMeta(id=n.id, key=n.key, name=n.name, is_leaf=bool(n.is_leaf))
+            kind = getattr(n, "tree_kind", "anatomical") or "anatomical"
+            nodes_by_key[n.key] = NodeMeta(id=n.id, key=n.key, name=n.name, is_leaf=bool(n.is_leaf), tree_kind=kind)
             id_to_key[n.id] = n.key
             if n.is_leaf:
                 leaf = LeafMeta(
@@ -738,6 +739,7 @@ def load_attr_tree():
                     floor=float(n.floor or 0),
                     threshold=float(n.threshold or 0),
                     max_level=(int(n.max_level) if n.max_level is not None else None),
+                    tree_kind=kind,
                 )
                 leaves_by_key[n.key] = leaf
                 leaves_by_id[n.id] = leaf
@@ -753,6 +755,12 @@ def load_attr_tree():
             child_ids.add(e.child_id)
 
         roots = [n.key for n in node_rows if n.id not in child_ids]
+        roots_by_kind: dict[str, list[str]] = {"anatomical": [], "conceptual": []}
+        for r in roots:
+            nm = nodes_by_key.get(r)
+            if nm is None:
+                continue
+            roots_by_kind.setdefault(nm.tree_kind, []).append(r)
 
         _TREE_CACHE = Tree(
             nodes_by_key=nodes_by_key,
@@ -760,6 +768,7 @@ def load_attr_tree():
             leaves_by_id=leaves_by_id,
             children=children,
             roots=roots,
+            roots_by_kind=roots_by_kind,
         )
         return _TREE_CACHE
     finally:

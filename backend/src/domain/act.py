@@ -39,6 +39,7 @@ def apply_act(
     manual_value=1,
     *,
     today_agenda_labels: set[str] | None = None,
+    in_agenda_extra: bool = False,
     token_cost_lookup=None,
     skill_nodes_by_id: dict | None = None,
     energy_penalty: int = ENERGY_PENALTY_OUT_OF_AGENDA,
@@ -94,7 +95,7 @@ def apply_act(
         action.get("name", ""),
         data.get("attributes") or {},
         today_agenda_labels or set(),
-    )
+    ) or bool(in_agenda_extra)
     applied_energy_penalty = 0
     if not in_agenda:
         cur = int(metadata.get("energy", 0) or 0)

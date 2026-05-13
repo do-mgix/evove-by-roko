@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import Modal from "./Modal.svelte";
-  import { fetchActions, fetchAttributes, createAgendaItem, updateAgendaItem, type AgendaItem } from "./api";
+  import { fetchActions, fetchAttributes, fetchAttributeTree, flattenConceptualNodes, createAgendaItem, updateAgendaItem, type AgendaItem } from "./api";
 
   export let onClose: () => void;
   export let onCreated: (item: AgendaItem) => void;
@@ -31,7 +31,7 @@
     ? new Set([initialItem.day])
     : new Set(["*"]);
   let label = initialItem?.label ?? "";
-  let suggestions: { kind: "action" | "attribute"; id: string; name: string }[] = [];
+  let suggestions: { kind: "action" | "attribute" | "concept"; id: string; name: string; path?: string }[] = [];
   let busy = false;
   let error: string | null = null;
 
@@ -123,13 +123,16 @@
 
   onMount(async () => {
     try {
-      const [actions, attrs] = await Promise.all([
+      const [actions, attrs, tree] = await Promise.all([
         fetchActions().catch(() => []),
         fetchAttributes().catch(() => []),
+        fetchAttributeTree().catch(() => ({ roots: [] as any })),
       ]);
+      const conceptNodes = flattenConceptualNodes(tree as any);
       suggestions = [
+        ...conceptNodes.map((c) => ({ kind: "concept" as const, id: c.key, name: c.name, path: c.path })),
         ...actions.map((a) => ({ kind: "action" as const, id: a.id, name: a.name })),
-        ...attrs.map((a) => ({ kind: "attribute" as const, id: a.id, name: a.name })),
+        ...attrs.map((a) => ({ kind: "attribute" as const, id: a.key, name: a.name })),
       ];
     } catch {}
   });
@@ -312,14 +315,14 @@
     <div class="row label-row">
       <span class="row-label">label</span>
       <div class="autocomplete">
-        <input type="text" placeholder="ação, atributo ou texto" bind:value={label} />
+        <input type="text" placeholder="ação, conceitual ou texto" bind:value={label} />
         {#if filteredSuggestions.length > 0 && label.trim()}
           <ul class="dropdown">
             {#each filteredSuggestions as s (s.kind + ':' + s.id)}
               <li>
                 <button type="button" on:click={() => pick(s)}>
-                  <span class="kind {s.kind}">{s.kind === "action" ? "act" : "atr"}</span>
-                  <span class="name">{s.name}</span>
+                  <span class="kind {s.kind}">{s.kind === "action" ? "act" : s.kind === "concept" ? "cnc" : "atr"}</span>
+                  <span class="name">{s.kind === "concept" && s.path ? s.path : s.name}</span>
                 </button>
               </li>
             {/each}
@@ -521,6 +524,7 @@
   }
   .kind.action { color: #6cf; background: #0a1820; }
   .kind.attribute { color: #cf6; background: #15200a; }
+  .kind.concept { color: #a78bfa; background: #1a1525; }
   .name { color: #ddd; }
   .err {
     color: #f66;

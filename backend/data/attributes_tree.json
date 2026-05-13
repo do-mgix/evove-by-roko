@@ -54,7 +54,31 @@
     { "key": "wernicke", "name": "Wernicke (compreensão)", "is_leaf": true, "half_life_hours": 336, "floor": 0, "threshold": 1 },
 
     { "key": "coordenacao", "name": "Coordenação Motora", "is_leaf": true, "half_life_hours": 8760, "floor": 0, "threshold": 1 },
-    { "key": "equilibrio", "name": "Equilíbrio", "is_leaf": true, "half_life_hours": 8760, "floor": 0, "threshold": 1 }
+    { "key": "equilibrio", "name": "Equilíbrio", "is_leaf": true, "half_life_hours": 8760, "floor": 0, "threshold": 1 },
+
+    { "key": "c_treino", "name": "Treino", "is_leaf": false, "tree_kind": "conceptual" },
+    { "key": "c_calistenia", "name": "Calistenia", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 1440, "floor": 0, "threshold": 1, "max_level": 10 },
+    { "key": "c_cardio", "name": "Cardio", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 720, "floor": 0, "threshold": 1, "max_level": 10 },
+    { "key": "c_esportes", "name": "Esportes", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 720, "floor": 0, "threshold": 1, "max_level": 10 },
+    { "key": "c_mobilidade", "name": "Mobilidade", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 1440, "floor": 0, "threshold": 1, "max_level": 10 },
+
+    { "key": "c_literacia", "name": "Literacia", "is_leaf": false, "tree_kind": "conceptual" },
+    { "key": "c_leitura", "name": "Leitura", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 2160, "floor": 0, "threshold": 1, "max_level": 10 },
+    { "key": "c_escrita", "name": "Escrita", "is_leaf": false, "tree_kind": "conceptual" },
+    { "key": "c_dialogos", "name": "Diálogos", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 2880, "floor": 0, "threshold": 1, "max_level": 10 },
+    { "key": "c_descricoes", "name": "Descrições", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 2880, "floor": 0, "threshold": 1, "max_level": 10 },
+    { "key": "c_narrativa", "name": "Narrativa", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 2880, "floor": 0, "threshold": 1, "max_level": 10 },
+    { "key": "c_tecnica", "name": "Técnica", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 2160, "floor": 0, "threshold": 1, "max_level": 10 },
+    { "key": "c_argumentacao", "name": "Argumentação", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 2160, "floor": 0, "threshold": 1, "max_level": 10 },
+
+    { "key": "c_programacao", "name": "Programação", "is_leaf": false, "tree_kind": "conceptual" },
+    { "key": "c_bug_fix", "name": "Bug Fix", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 2160, "floor": 0, "threshold": 1, "max_level": 10 },
+    { "key": "c_feature", "name": "Feature", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 2160, "floor": 0, "threshold": 1, "max_level": 10 },
+    { "key": "c_refactor", "name": "Refactor", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 2160, "floor": 0, "threshold": 1, "max_level": 10 },
+    { "key": "c_architecture", "name": "Architecture", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 2880, "floor": 0, "threshold": 1, "max_level": 10 },
+    { "key": "c_tests", "name": "Tests", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 2160, "floor": 0, "threshold": 1, "max_level": 10 },
+    { "key": "c_docs", "name": "Docs", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 2160, "floor": 0, "threshold": 1, "max_level": 10 },
+    { "key": "c_review", "name": "Review", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 2160, "floor": 0, "threshold": 1, "max_level": 10 }
   ],
   "edges": [
     { "parent": "corpo", "child": "musculatura", "weight": 0.40 },
@@ -112,7 +136,29 @@
     { "parent": "linguagem", "child": "wernicke", "weight": 0.50 },
 
     { "parent": "cerebelo", "child": "coordenacao", "weight": 0.50 },
-    { "parent": "cerebelo", "child": "equilibrio", "weight": 0.50 }
+    { "parent": "cerebelo", "child": "equilibrio", "weight": 0.50 },
+
+    { "parent": "c_treino", "child": "c_calistenia", "weight": 0.30 },
+    { "parent": "c_treino", "child": "c_cardio", "weight": 0.25 },
+    { "parent": "c_treino", "child": "c_esportes", "weight": 0.25 },
+    { "parent": "c_treino", "child": "c_mobilidade", "weight": 0.20 },
+
+    { "parent": "c_literacia", "child": "c_leitura", "weight": 0.50 },
+    { "parent": "c_literacia", "child": "c_escrita", "weight": 0.50 },
+
+    { "parent": "c_escrita", "child": "c_dialogos", "weight": 0.20 },
+    { "parent": "c_escrita", "child": "c_descricoes", "weight": 0.20 },
+    { "parent": "c_escrita", "child": "c_narrativa", "weight": 0.20 },
+    { "parent": "c_escrita", "child": "c_tecnica", "weight": 0.20 },
+    { "parent": "c_escrita", "child": "c_argumentacao", "weight": 0.20 },
+
+    { "parent": "c_programacao", "child": "c_bug_fix", "weight": 0.20 },
+    { "parent": "c_programacao", "child": "c_feature", "weight": 0.20 },
+    { "parent": "c_programacao", "child": "c_refactor", "weight": 0.15 },
+    { "parent": "c_programacao", "child": "c_architecture", "weight": 0.15 },
+    { "parent": "c_programacao", "child": "c_tests", "weight": 0.10 },
+    { "parent": "c_programacao", "child": "c_docs", "weight": 0.10 },
+    { "parent": "c_programacao", "child": "c_review", "weight": 0.10 }
   ],
   "contributions": [
     { "action": "AGACHAMENTO", "leaf": "quadriceps", "weight": 0.40 },
@@ -358,6 +404,73 @@
 
     { "action": "ARCHITECTURE", "leaf": "executiva", "weight": 0.50 },
     { "action": "ARCHITECTURE", "leaf": "foco", "weight": 0.30 },
-    { "action": "ARCHITECTURE", "leaf": "hipocampo", "weight": 0.20 }
+    { "action": "ARCHITECTURE", "leaf": "hipocampo", "weight": 0.20 },
+
+    { "action": "AGACHAMENTO", "leaf": "c_calistenia", "weight": 1.0 },
+    { "action": "FLEXÃO", "leaf": "c_calistenia", "weight": 1.0 },
+    { "action": "ABDOMINAL", "leaf": "c_calistenia", "weight": 1.0 },
+    { "action": "AFUNDO", "leaf": "c_calistenia", "weight": 1.0 },
+    { "action": "ELEVAÇÃO LATERAL", "leaf": "c_calistenia", "weight": 1.0 },
+    { "action": "PRANCHA", "leaf": "c_calistenia", "weight": 1.0 },
+    { "action": "BARRA FIXA", "leaf": "c_calistenia", "weight": 1.0 },
+    { "action": "BURPEE", "leaf": "c_calistenia", "weight": 0.7 },
+    { "action": "BURPEE", "leaf": "c_cardio", "weight": 0.3 },
+    { "action": "DESENVOLVIMENTO", "leaf": "c_calistenia", "weight": 1.0 },
+    { "action": "REMADA", "leaf": "c_calistenia", "weight": 1.0 },
+
+    { "action": "FUTEBOL", "leaf": "c_esportes", "weight": 1.0 },
+    { "action": "BASQUETE", "leaf": "c_esportes", "weight": 1.0 },
+    { "action": "VÔLEI", "leaf": "c_esportes", "weight": 1.0 },
+    { "action": "TÊNIS", "leaf": "c_esportes", "weight": 1.0 },
+    { "action": "CORRIDA", "leaf": "c_cardio", "weight": 1.0 },
+    { "action": "CICLISMO", "leaf": "c_cardio", "weight": 1.0 },
+    { "action": "NATAÇÃO", "leaf": "c_cardio", "weight": 0.7 },
+    { "action": "NATAÇÃO", "leaf": "c_esportes", "weight": 0.3 },
+    { "action": "CAMINHADA", "leaf": "c_cardio", "weight": 1.0 },
+    { "action": "SURF", "leaf": "c_esportes", "weight": 1.0 },
+    { "action": "ESCALADA", "leaf": "c_esportes", "weight": 0.6 },
+    { "action": "ESCALADA", "leaf": "c_calistenia", "weight": 0.4 },
+
+    { "action": "READ", "leaf": "c_leitura", "weight": 1.0 },
+
+    { "action": "BUG FIX", "leaf": "c_bug_fix", "weight": 1.0 },
+    { "action": "BUG FIX (AI)", "leaf": "c_bug_fix", "weight": 1.0 },
+    { "action": "FEATURE", "leaf": "c_feature", "weight": 1.0 },
+    { "action": "FEATURE (AI)", "leaf": "c_feature", "weight": 1.0 },
+    { "action": "REFACTOR", "leaf": "c_refactor", "weight": 1.0 },
+    { "action": "REFACTOR (AI)", "leaf": "c_refactor", "weight": 1.0 },
+    { "action": "CODE REVIEW", "leaf": "c_review", "weight": 1.0 },
+    { "action": "WRITE TESTS", "leaf": "c_tests", "weight": 1.0 },
+    { "action": "WRITE DOCS", "leaf": "c_docs", "weight": 0.5 },
+    { "action": "WRITE DOCS", "leaf": "c_tecnica", "weight": 0.5 },
+    { "action": "ARCHITECTURE", "leaf": "c_architecture", "weight": 1.0 },
+
+    { "action": "ESCREVER DIÁLOGOS", "leaf": "broca", "weight": 0.40 },
+    { "action": "ESCREVER DIÁLOGOS", "leaf": "foco", "weight": 0.20 },
+    { "action": "ESCREVER DIÁLOGOS", "leaf": "executiva", "weight": 0.20 },
+    { "action": "ESCREVER DIÁLOGOS", "leaf": "hipocampo", "weight": 0.10 },
+    { "action": "ESCREVER DIÁLOGOS", "leaf": "wernicke", "weight": 0.10 },
+    { "action": "ESCREVER DIÁLOGOS", "leaf": "c_dialogos", "weight": 1.0 },
+
+    { "action": "ESCREVER DESCRIÇÕES", "leaf": "broca", "weight": 0.40 },
+    { "action": "ESCREVER DESCRIÇÕES", "leaf": "visual", "weight": 0.20 },
+    { "action": "ESCREVER DESCRIÇÕES", "leaf": "foco", "weight": 0.20 },
+    { "action": "ESCREVER DESCRIÇÕES", "leaf": "executiva", "weight": 0.10 },
+    { "action": "ESCREVER DESCRIÇÕES", "leaf": "hipocampo", "weight": 0.10 },
+    { "action": "ESCREVER DESCRIÇÕES", "leaf": "c_descricoes", "weight": 1.0 },
+
+    { "action": "ESCREVER NARRATIVA", "leaf": "broca", "weight": 0.35 },
+    { "action": "ESCREVER NARRATIVA", "leaf": "executiva", "weight": 0.25 },
+    { "action": "ESCREVER NARRATIVA", "leaf": "foco", "weight": 0.20 },
+    { "action": "ESCREVER NARRATIVA", "leaf": "hipocampo", "weight": 0.15 },
+    { "action": "ESCREVER NARRATIVA", "leaf": "wernicke", "weight": 0.05 },
+    { "action": "ESCREVER NARRATIVA", "leaf": "c_narrativa", "weight": 1.0 },
+
+    { "action": "ESCREVER ARGUMENTAÇÃO", "leaf": "broca", "weight": 0.30 },
+    { "action": "ESCREVER ARGUMENTAÇÃO", "leaf": "executiva", "weight": 0.35 },
+    { "action": "ESCREVER ARGUMENTAÇÃO", "leaf": "foco", "weight": 0.20 },
+    { "action": "ESCREVER ARGUMENTAÇÃO", "leaf": "wernicke", "weight": 0.10 },
+    { "action": "ESCREVER ARGUMENTAÇÃO", "leaf": "hipocampo", "weight": 0.05 },
+    { "action": "ESCREVER ARGUMENTAÇÃO", "leaf": "c_argumentacao", "weight": 1.0 }
   ]
 }

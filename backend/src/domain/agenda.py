@@ -57,3 +57,35 @@ def is_action_in_agenda(action_id: str, action_name: str, attributes: dict, labe
         if attr_label and attr_label in labels and action_id in (attr.get("related_actions") or []):
             return True
     return False
+
+
+def conceptual_leaves_for_labels(
+    labels: set[str],
+    concept_node_by_name: dict[str, str],
+    children: dict[str, list],
+) -> set[str]:
+    """For each agenda label that matches a conceptual node name (normalized),
+    return the union of all leaf keys reachable downward.
+
+    Args:
+      labels: already normalized labels.
+      concept_node_by_name: {NORMALIZED_DISPLAY_NAME: node_key} for conceptual nodes.
+      children: {parent_key: [(child_key, weight), ...]} from the tree.
+
+    Returns the set of leaf keys covered by those labels.
+    """
+    out: set[str] = set()
+
+    def _descend(key: str) -> None:
+        kids = children.get(key, [])
+        if not kids:
+            out.add(key)
+            return
+        for child_key, _w in kids:
+            _descend(child_key)
+
+    for label in labels:
+        node_key = concept_node_by_name.get(label)
+        if node_key:
+            _descend(node_key)
+    return out

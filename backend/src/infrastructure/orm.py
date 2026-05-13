@@ -143,6 +143,7 @@ class AttrNode(Base):
     floor: Mapped[float | None] = mapped_column(Float, nullable=True)
     threshold: Mapped[float | None] = mapped_column(Float, nullable=True)
     max_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tree_kind: Mapped[str] = mapped_column(String(16), default="anatomical", nullable=False)
 
 
 class AttrEdge(Base):

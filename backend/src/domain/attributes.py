@@ -33,6 +33,7 @@ class LeafMeta:
     floor: float
     threshold: float
     max_level: int | None = None
+    tree_kind: str = "anatomical"
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,7 @@ class NodeMeta:
     key: str
     name: str
     is_leaf: bool
+    tree_kind: str = "anatomical"
 
 
 @dataclass
@@ -50,6 +52,7 @@ class Tree:
     leaves_by_id: dict[int, LeafMeta]
     children: dict[str, list[tuple[str, float]]]  # parent_key -> [(child_key, weight)]
     roots: list[str]
+    roots_by_kind: dict[str, list[str]] = None  # type: ignore[assignment]
 
 
 def apply_decay(score: float, last_updated: datetime, now: datetime,

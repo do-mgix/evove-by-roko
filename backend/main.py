@@ -929,17 +929,22 @@ def agenda_today(x_evove_username: str | None = Header(None)):
 
 
 @app.get("/attributes")
-def list_attributes(x_evove_username: str | None = Header(None)):
-    """Flat list of leaves with current (decay-applied) user scores + permanent levels."""
+def list_attributes(tree: str | None = None, x_evove_username: str | None = Header(None)):
+    """Flat list of leaves with current (decay-applied) user scores + permanent levels.
+
+    Query param `tree` filters by tree_kind: 'anatomical' | 'conceptual' | None (= both).
+    """
     from src.domain.attributes import level_threshold
 
     username = _resolve_username(x_evove_username)
     _load_user(username)  # triggers daily decay if due
-    tree = repos.load_attr_tree()
+    tree_data = repos.load_attr_tree()
     user_scores = repos.get_user_leaf_scores(username)
     now = datetime.now()
     result = []
-    for key, leaf in tree.leaves_by_key.items():
+    for key, leaf in tree_data.leaves_by_key.items():
+        if tree and leaf.tree_kind != tree:
+            continue
         ls = user_scores.get(key)
         if ls is None:
             score = leaf.floor
@@ -1092,7 +1097,94 @@ def attributes_tree(x_evove_username: str | None = Header(None)):
             ]
         return out
 
-    return {"roots": [render(r) for r in tree.roots]}
+    rbk = tree.roots_by_kind or {}
+    return {
+        "anatomical": [render(r) for r in rbk.get("anatomical", [])],
+        "conceptual": [render(r) for r in rbk.get("conceptual", [])],
+        "roots": [render(r) for r in tree.roots],  # legacy combined
+    }
+
+
+@app.get("/attributes/conceptual/roots")
+def conceptual_roots(x_evove_username: str | None = Header(None)):
+    """Roots of the conceptual tree with weighted level/progress + score.
+
+    Same pattern as physical tags: aggregate over all descendant leaves.
+    """
+    from src.domain.attributes import compute_node_score, level_threshold
+
+    username = _resolve_username(x_evove_username)
+    _load_user(username)
+    tree = repos.load_attr_tree()
+    user_scores = repos.get_user_leaf_scores(username)
+    now = datetime.now()
+
+    leaf_scores: dict[str, float] = {}
+    leaf_perm: dict[str, int] = {}
+    for key, leaf in tree.leaves_by_key.items():
+        ls = user_scores.get(key)
+        if ls is None:
+            leaf_scores[key] = leaf.floor
+            leaf_perm[key] = 0
+        else:
+            leaf_scores[key] = apply_decay(
+                ls["score"], ls["last_updated_at"], now,
+                leaf.half_life_hours, leaf.floor,
+            )
+            leaf_perm[key] = int(ls.get("permanent_level", 0) or 0)
+
+    def descend_leaves(node_key: str, accum_weight: float, out: list):
+        node = tree.nodes_by_key.get(node_key)
+        if node is None:
+            return
+        if node.is_leaf:
+            out.append((node_key, accum_weight))
+            return
+        for child_key, w in tree.children.get(node_key, []):
+            descend_leaves(child_key, accum_weight * w, out)
+
+    out = []
+    rbk = tree.roots_by_kind or {}
+    for root_key in rbk.get("conceptual", []):
+        node = tree.nodes_by_key[root_key]
+        score = compute_node_score(root_key, leaf_scores, tree)
+
+        leaves: list[tuple[str, float]] = []
+        descend_leaves(root_key, 1.0, leaves)
+        total_w = 0.0
+        weighted_level = 0.0
+        weighted_progress = 0.0
+        max_lvl = 0
+        for lk, lw in leaves:
+            leaf = tree.leaves_by_key.get(lk)
+            if leaf is None or leaf.max_level is None:
+                continue
+            total_w += lw
+            perm = leaf_perm.get(lk, 0)
+            weighted_level += lw * perm
+            if perm >= leaf.max_level:
+                weighted_progress += lw * 1.0
+            else:
+                thr = level_threshold(perm + 1)
+                weighted_progress += lw * max(0.0, min(1.0, leaf_scores.get(lk, 0.0) / thr))
+            max_lvl = max(max_lvl, leaf.max_level)
+
+        if total_w > 0:
+            level = weighted_level / total_w
+            progress = weighted_progress / total_w
+        else:
+            level = 0.0
+            progress = 0.0
+
+        out.append({
+            "key": root_key,
+            "name": node.name,
+            "score": round(score, 2),
+            "level": round(level, 2),
+            "max_level": max_lvl or 10,
+            "progress_to_next": round(progress, 4),
+        })
+    return out
 
 
 _LOG_ID_PREFIX = 73
@@ -1162,12 +1254,28 @@ def act_on_action(action_id: str, payload: dict | None = None, x_evove_username:
                 manual_value = 1
 
     today_labels = _today_agenda_labels(username)
+
+    # Conceptual agenda match: if any of today's labels names a conceptual node,
+    # the action counts as "in agenda" when it contributes to that node's subtree.
+    from src.domain.agenda import conceptual_leaves_for_labels, normalize as _norm
+    _tree = repos.load_attr_tree()
+    concept_by_name = {
+        _norm(n.name): n.key
+        for n in _tree.nodes_by_key.values()
+        if n.tree_kind == "conceptual"
+    }
+    concept_leaves_today = conceptual_leaves_for_labels(today_labels, concept_by_name, _tree.children)
+    action_contribs = repos.load_action_contributions(action.get("name", ""))
+    action_leaf_keys = {lk for _id, lk, _w in action_contribs}
+    in_agenda_extra = bool(action_leaf_keys & concept_leaves_today)
+
     try:
         outcome = apply_act(
             data,
             action_id,
             manual_value=manual_value,
             today_agenda_labels=today_labels,
+            in_agenda_extra=in_agenda_extra,
             token_cost_lookup=_lookup_token_cost_static,
             skill_nodes_by_id=skill_nodes_by_id(),
         )

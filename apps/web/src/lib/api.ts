@@ -113,12 +113,28 @@ export type AttrTreeNode = {
   children?: AttrTreeNode[];
 };
 
-export type AttrTree = { roots: AttrTreeNode[] };
+export type AttrTree = {
+  roots: AttrTreeNode[];
+  anatomical?: AttrTreeNode[];
+  conceptual?: AttrTreeNode[];
+};
 
 export async function fetchAttributeTree(): Promise<AttrTree> {
   const res = await request("/attributes/tree");
   if (!res.ok) throw new Error(`Failed to fetch tree (${res.status})`);
   return res.json();
+}
+
+/** Flatten the conceptual subtree into [{key, name, path}], including non-leaves. */
+export function flattenConceptualNodes(tree: AttrTree): { key: string; name: string; path: string }[] {
+  const out: { key: string; name: string; path: string }[] = [];
+  const walk = (n: AttrTreeNode, parentPath: string) => {
+    const path = parentPath ? `${parentPath} › ${n.name}` : n.name;
+    out.push({ key: n.key, name: n.name, path });
+    if (n.children) for (const c of n.children) walk(c, path);
+  };
+  for (const r of tree.conceptual ?? []) walk(r, "");
+  return out;
 }
 
 export type AttrTag = {
@@ -130,6 +146,21 @@ export type AttrTag = {
   max_level: number | null;
   progress_to_next: number | null;
 };
+
+export type ConceptualRoot = {
+  key: string;
+  name: string;
+  score: number;
+  level: number;
+  max_level: number;
+  progress_to_next: number;
+};
+
+export async function fetchConceptualRoots(): Promise<ConceptualRoot[]> {
+  const res = await request("/attributes/conceptual/roots");
+  if (!res.ok) throw new Error(`Failed to fetch conceptual roots (${res.status})`);
+  return res.json();
+}
 
 export async function fetchAttributeTags(): Promise<AttrTag[]> {
   const res = await request("/attributes/tags");
