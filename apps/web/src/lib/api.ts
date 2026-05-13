@@ -117,6 +117,19 @@ export async function fetchAttributeTree(): Promise<AttrTree> {
   return res.json();
 }
 
+export type AttrTag = {
+  key: string;
+  name: string;
+  category: string;
+  score: number;
+};
+
+export async function fetchAttributeTags(): Promise<AttrTag[]> {
+  const res = await request("/attributes/tags");
+  if (!res.ok) throw new Error(`Failed to fetch tags (${res.status})`);
+  return res.json();
+}
+
 export type LogEntry = {
   id: number;
   timestamp: string;

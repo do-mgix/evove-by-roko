@@ -4,12 +4,12 @@
   import {
     fetchActions,
     fetchUser,
-    fetchAttributes,
+    fetchAttributeTags,
     fetchAgendaToday,
     actOnAction,
     type Action,
     type UserState,
-    type Attribute,
+    type AttrTag,
     type AgendaToday,
   } from "./api";
   import UserPanel from "./UserPanel.svelte";
@@ -24,7 +24,7 @@
 
   // ---- data fetching (existing) ----
   let actions: Action[] = [];
-  let attributes: Attribute[] = [];
+  let tags: AttrTag[] = [];
   let user: UserState | null = null;
   let agenda: AgendaToday = { day: null, items: [] };
   let query = "";
@@ -56,24 +56,24 @@
 
   async function refreshUserAndAttrs() {
     try {
-      const [u, a] = await Promise.all([fetchUser(), fetchAttributes()]);
+      const [u, a] = await Promise.all([fetchUser(), fetchAttributeTags()]);
       user = u;
-      attributes = a;
+      tags = a;
     } catch {}
   }
 
   onMount(async () => {
     inputEl?.focus();
     try {
-      const [actionsRes, userRes, attrsRes, agendaRes] = await Promise.all([
+      const [actionsRes, userRes, tagsRes, agendaRes] = await Promise.all([
         fetchActions(),
         fetchUser(),
-        fetchAttributes(),
+        fetchAttributeTags(),
         fetchAgendaToday(),
       ]);
       actions = actionsRes;
       user = userRes;
-      attributes = attrsRes;
+      tags = tagsRes;
       agenda = agendaRes;
     } catch (e: any) {
       error = e?.message ?? "Erro ao carregar dados";
@@ -356,7 +356,7 @@
 
   <aside class="sidebar">
     {#if user}
-      <UserPanel {user} {attributes} />
+      <UserPanel {user} {tags} />
     {/if}
   </aside>
 </div>

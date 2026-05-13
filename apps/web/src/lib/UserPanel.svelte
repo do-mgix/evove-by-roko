@@ -1,14 +1,24 @@
 <script lang="ts">
-  import type { UserState, Attribute } from "./api";
+  import type { UserState, AttrTag } from "./api";
   export let user: UserState;
-  export let attributes: Attribute[] = [];
+  export let tags: AttrTag[] = [];
 
   $: xpProgress =
     user.xp_cost > 0
       ? Math.max(0, Math.min(100, ((user.xp_cost - user.next_xp) / user.xp_cost) * 100))
       : 100;
 
-  $: maxAttrScore = attributes.reduce((m, a) => Math.max(m, a.score), 1) || 1;
+  $: maxTagScore = tags.reduce((m, t) => Math.max(m, t.score), 1) || 1;
+
+  $: tagsByCategory = (() => {
+    const groups: Record<string, AttrTag[]> = {};
+    for (const t of tags) {
+      (groups[t.category] ||= []).push(t);
+    }
+    return groups;
+  })();
+
+  $: categoryOrder = ["Físico", "Mental"].filter((c) => tagsByCategory[c]?.length);
 </script>
 
 <aside class="user-panel">
@@ -48,22 +58,22 @@
     <div class="span-2"><span class="label">skill points</span><span class="value">{user.skill_points}</span></div>
   </div>
 
-  {#if attributes.length > 0}
-    <div class="attrs-title">attributes</div>
+  {#each categoryOrder as cat (cat)}
+    <div class="attrs-title">{cat}</div>
     <ul class="attrs">
-      {#each attributes as a (a.key)}
+      {#each tagsByCategory[cat] as t (t.key)}
         <li>
           <div class="attr-row">
-            <span class="attr-name">{a.name}</span>
-            <span class="attr-score">{Math.round(a.score).toLocaleString()}</span>
+            <span class="attr-name">{t.name}</span>
+            <span class="attr-score">{Math.round(t.score).toLocaleString()}</span>
           </div>
           <div class="attr-bar">
-            <div class="attr-fill" style="width: {(a.score / maxAttrScore) * 100}%"></div>
+            <div class="attr-fill" style="width: {(t.score / maxTagScore) * 100}%"></div>
           </div>
         </li>
       {/each}
     </ul>
-  {/if}
+  {/each}
 
   <div class="user-name">{user.username}</div>
 </aside>

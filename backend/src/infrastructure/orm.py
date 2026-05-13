@@ -178,6 +178,28 @@ class UserLeafScore(Base):
     last_updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class AttributeTag(Base):
+    """Curated composite tag (e.g. Força, Memória) derived from weighted leaves."""
+    __tablename__ = "attribute_tags"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    category: Mapped[str] = mapped_column(String(32), nullable=False)
+    display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
+class AttributeTagSource(Base):
+    """Edge from tag to leaf with weight."""
+    __tablename__ = "attribute_tag_sources"
+    __table_args__ = (UniqueConstraint("tag_id", "leaf_id", name="uq_tag_source"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    tag_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("attribute_tags.id", ondelete="CASCADE"), nullable=False, index=True)
+    leaf_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("attr_nodes.id", ondelete="CASCADE"), nullable=False, index=True)
+    weight: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+
+
 class AcquiredSkill(Base):
     __tablename__ = "skills_acquired"
 

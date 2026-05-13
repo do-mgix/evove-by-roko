@@ -781,6 +781,49 @@ def load_action_contributions(action_name: str) -> list[tuple[int, str, float]]:
         s.close()
 
 
+_TAGS_CACHE: list[dict] | None = None
+
+
+def load_attr_tags() -> list[dict]:
+    """Returns ordered list of tag definitions.
+
+    Each entry: {key, name, category, display_order, sources: [(leaf_key, weight)]}.
+    Order: Físico < Mental, then by display_order asc.
+    """
+    global _TAGS_CACHE
+    if _TAGS_CACHE is not None:
+        return _TAGS_CACHE
+
+    s = SessionLocal()
+    try:
+        tag_rows = s.execute(select(orm.AttributeTag)).scalars().all()
+        src_rows = s.execute(
+            select(orm.AttributeTagSource, orm.AttrNode.key)
+            .join(orm.AttrNode, orm.AttributeTagSource.leaf_id == orm.AttrNode.id)
+        ).all()
+
+        sources_by_tag: dict[int, list[tuple[str, float]]] = {}
+        for src, leaf_key in src_rows:
+            sources_by_tag.setdefault(src.tag_id, []).append((leaf_key, float(src.weight)))
+
+        category_order = {"Físico": 0, "Mental": 1}
+        tags = [
+            {
+                "key": t.key,
+                "name": t.name,
+                "category": t.category,
+                "display_order": int(t.display_order),
+                "sources": sources_by_tag.get(t.id, []),
+            }
+            for t in tag_rows
+        ]
+        tags.sort(key=lambda t: (category_order.get(t["category"], 99), t["display_order"]))
+        _TAGS_CACHE = tags
+        return _TAGS_CACHE
+    finally:
+        s.close()
+
+
 def load_all_contributions() -> dict[str, list[tuple[str, float]]]:
     """Return {action_name_upper: [(leaf_key, weight)]} for the entire catalog."""
     s = SessionLocal()

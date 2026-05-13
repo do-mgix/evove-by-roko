@@ -955,6 +955,36 @@ def list_attributes(x_evove_username: str | None = Header(None)):
     return result
 
 
+@app.get("/attributes/tags")
+def attribute_tags(x_evove_username: str | None = Header(None)):
+    """Curated composite tags computed from weighted leaves."""
+    username = _resolve_username(x_evove_username)
+    _load_user(username)
+    tags = repos.load_attr_tags()
+    leaf_scores_raw = repos.get_user_leaf_scores(username)
+    tree = repos.load_attr_tree()
+    now = datetime.now()
+
+    leaf_scores: dict[str, float] = {}
+    for key, leaf in tree.leaves_by_key.items():
+        ls = leaf_scores_raw.get(key)
+        leaf_scores[key] = leaf.floor if ls is None else apply_decay(
+            ls["score"], ls["last_updated_at"], now,
+            leaf.half_life_hours, leaf.floor,
+        )
+
+    out = []
+    for t in tags:
+        score = sum(w * leaf_scores.get(lk, 0.0) for lk, w in t["sources"])
+        out.append({
+            "key": t["key"],
+            "name": t["name"],
+            "category": t["category"],
+            "score": round(score, 2),
+        })
+    return out
+
+
 @app.get("/attributes/tree")
 def attributes_tree(x_evove_username: str | None = Header(None)):
     """Hierarchical tree with computed (decay-applied) scores at every node."""
