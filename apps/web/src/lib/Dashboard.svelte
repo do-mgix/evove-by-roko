@@ -17,6 +17,7 @@
   import UserPanel from "./UserPanel.svelte";
   import LogsPanel from "./LogsPanel.svelte";
   import AgendaPanel from "./AgendaPanel.svelte";
+  import ProjectPanel from "./ProjectsPanel.svelte";
   import EmptySlot from "./EmptySlot.svelte";
   import WidgetTray from "./WidgetTray.svelte";
   import Modal from "./Modal.svelte";
@@ -150,13 +151,14 @@
     { id: "actions", label: "action", icon: "◆" },
     { id: "agenda", label: "agenda", icon: "▤" },
     { id: "logs", label: "logs", icon: "≡" },
+    { id: "projects", label: "projects", icon: "≡" },
   ];
   const SLOT_POS: Record<number, { row: number; col: number }> = {
     0: { row: 0, col: 0 }, 1: { row: 0, col: 1 },
     2: { row: 1, col: 0 }, 3: { row: 1, col: 1 },
   };
 
-  let slots: (string | null)[] = ["actions", "agenda", null, "logs"];
+  let slots: (string | null)[] = ["actions", "agenda", "projects", "logs"];
   let dragSource: { kind: "tray" | "slot"; widgetId: string; from?: number } | null = null;
   let dragOverIdx: number | null = null;
   let dragOverPos: { x: number; y: number } | null = null; // 0..1 in slot
@@ -370,7 +372,7 @@
 {#if pendingNoteFor}
   <Modal title="nota" onClose={() => (pendingNoteFor = null)}>
     <p class="note-target">para <span class="hl">{pendingNoteFor.name}</span></p>
-    <p class="note-hint">número ou texto · Enter para confirmar</p>
+    <p class="note-hint">número ou texto · Valor padrão 1 · Enter para confirmar</p>
     <input
       class="note-input"
       type="text"

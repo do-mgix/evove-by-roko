@@ -263,6 +263,22 @@ export async function fetchLogsByDate(isoDate: string): Promise<{ date: string; 
   return res.json();
 }
 
+export type ProjectItem = {
+  id?: string;
+  label: string;
+  deadline: string | null;
+  active: string;
+  created_at: string | null;
+};
+
+export type Projects = {items: ProjectItem[], label: string}
+
+export async function fetchProjects(): Promise<ProjectItem[]> {
+  const res = await request("/projects");
+  if (!res.ok) throw new Error('Failed to fetch projects ($(res.status))');
+  return res.json();
+}
+
 export type JourneyState = {
   stage: number;
   days_until_next_checkpoint: number;
