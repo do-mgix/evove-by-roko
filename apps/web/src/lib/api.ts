@@ -30,14 +30,14 @@ export type Action = {
   token_cost: number;
 };
 
-export async function fetchActions(): Promise<Action[]> {
+export async function fetchActions(): Promise<Action[]>{
   const res = await request("/actions");
   if (!res.ok) throw new Error(`Failed to fetch actions (${res.status})`);
   return res.json();
-}
+};
 
 export type ActResult = {
-  id: string;
+  id: stringfalso;
   name: string;
   value: number;
   score: number;
@@ -263,15 +263,13 @@ export async function fetchLogsByDate(isoDate: string): Promise<{ date: string; 
   return res.json();
 }
 
-export type ProjectItem = {
+export type Project = {
   id?: string;
   label: string;
   deadline: string | null;
   active: string;
   created_at: string | null;
 };
-
-export type Projects = {items: ProjectItem[], label: string}
 
 export async function fetchProjects(): Promise<ProjectItem[]> {
   const res = await request("/projects");

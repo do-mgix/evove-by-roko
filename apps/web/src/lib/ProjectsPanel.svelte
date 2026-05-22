@@ -1,8 +1,11 @@
 <script lang="ts">
     import {onMount} from "svelte";
-    import type {ProjectItem, Projects} from "./api";
-    import type {fetchProjects} from "./api";
-    export let projects: Projects;
+    import type {
+        Project,
+        fetchProjects
+    } from "./api";
+
+    export let projects: Projects[] = [];
     
     let selected: ProjectItem | null = null;    
     let showForm = false;
@@ -15,14 +18,17 @@
         <span class="panel-title">projetos</span>
         <button class="add-btn" on:click={() => (showForm = true)} title="adicionar-item">+</button>
     </header>
-    {#if projects.items.length === 0 }
+    <ul>
+        <li><span>EVOVE</span></li>
+    </ul>
+    {#if projects.length === 0 }
         <p class="empty">sem projetos</p>
     {:else}         
-        <ul>
+        <ul>            
             {#each sortedItems as item, i (i)}               
                 <li>
                     <button class="row">
-                        <span class="label">{item}</span>
+                        <span class="label">{item.label}</span>                 
                     </button>
                 </li>
             {/each}            

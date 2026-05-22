@@ -17,7 +17,7 @@
   import UserPanel from "./UserPanel.svelte";
   import LogsPanel from "./LogsPanel.svelte";
   import AgendaPanel from "./AgendaPanel.svelte";
-  import ProjectPanel from "./ProjectsPanel.svelte";
+  import ProjectsPanel from "./ProjectsPanel.svelte";
   import EmptySlot from "./EmptySlot.svelte";
   import WidgetTray from "./WidgetTray.svelte";
   import Modal from "./Modal.svelte";
@@ -351,7 +351,9 @@
                 {:else if widgetId === "agenda"}
                   <AgendaPanel {agenda} />
                 {:else if widgetId === "logs"}
-                  <LogsPanel />
+                    <LogsPanel />
+                {:else if widgetId === "projects"}
+                    <ProjectsPanel />
                 {/if}
               </div>
             </div>
