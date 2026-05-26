@@ -15,6 +15,7 @@ src/infrastructure/data/user_history.json
 src/infrastructure/data/fountain.json
 
 implement.md
+trouble.md
 node_modules/
 
 tests/
