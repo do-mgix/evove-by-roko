@@ -1,37 +1,49 @@
 <script lang="ts">
-    import {onMount} from "svelte";
-    import type {
-        Project,
-        fetchProjects
-    } from "./api";
+  import {onMount} from "svelte";
+  import{
+      type Project,
+      fetchProjects,
+  } from "./api";
 
-    export let projects: Projects[] = [];
-    
-    let selected: ProjectItem | null = null;    
-    let showForm = false;
+  let projects: Project[] = [];
+  let loading = true;
+  let error: string | null = null;
+  let showForm = false;
+  
+  async function load() {
+    try {
+      const res =  await fetchProjects();
+      projects = res.items ?? [];
+    } catch (e: any) {
+      error = e?.message ?? "erro";
+      projects = [];
+    } finally {
+      loading = false;
+    }
+  }
 
-    $: sortedItems = [projects.items];
+  onMount(load);
 
 </script>
+
 <div class="panel">
     <header class="head">
         <span class="panel-title">projetos</span>
         <button class="add-btn" on:click={() => (showForm = true)} title="adicionar-item">+</button>
     </header>
-    <ul>
-        <li><span>EVOVE</span></li>
-    </ul>
-    {#if projects.length === 0 }
+    {#if loading}
+        <p class="empty">carregando...</p>
+    {:else if error}
+        <p class="empty">{error}</p>
+    {:else if projects.length === 0 }
         <p class="empty">sem projetos</p>
     {:else}         
         <ul>            
-            {#each sortedItems as item, i (i)}               
+           {#each projects as p}               
                 <li>
-                    <button class="row">
-                        <span class="label">{item.label}</span>                 
-                    </button>
+                  <span class="label">{p.name}</span>                 
                 </li>
-            {/each}            
+           {/each}            
         </ul>
     {/if}
 </div>
