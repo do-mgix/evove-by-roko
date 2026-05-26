@@ -1,3 +1,3 @@
 # EVOVE
-- Evove multirepo repository.
+- Evove monorepo repository.
 
