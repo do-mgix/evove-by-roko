@@ -34,6 +34,11 @@ def upgrade() -> None:
 
     conceptual_nodes = [n for n in tree["nodes"] if n.get("tree_kind") == "conceptual"]
     conceptual_keys = {n["key"] for n in conceptual_nodes}
+    conn = op.get_bind()
+    existing_node_keys = {
+        r[0]
+        for r in conn.execute(sa.text("SELECT `key` FROM attr_nodes")).fetchall()
+    }
 
     nodes_tbl = sa.table(
         "attr_nodes",
@@ -58,11 +63,19 @@ def upgrade() -> None:
             "tree_kind": "conceptual",
         }
         for n in conceptual_nodes
+        if n["key"] not in existing_node_keys
     ])
 
-    conn = op.get_bind()
+    if conceptual_keys:
+        keys_csv = ",".join(f"'{k}'" for k in conceptual_keys)
+        op.execute(f"UPDATE attr_nodes SET tree_kind = 'conceptual' WHERE `key` IN ({keys_csv})")
+
     rows = conn.execute(sa.text("SELECT id, `key` FROM attr_nodes")).fetchall()
     id_by_key = {r[1]: r[0] for r in rows}
+    existing_edges = {
+        (r[0], r[1])
+        for r in conn.execute(sa.text("SELECT parent_id, child_id FROM attr_edges")).fetchall()
+    }
 
     edges_tbl = sa.table(
         "attr_edges",
@@ -81,6 +94,7 @@ def upgrade() -> None:
             "weight": float(e["weight"]),
         }
         for e in new_edges
+        if (id_by_key[e["parent"]], id_by_key[e["child"]]) not in existing_edges
     ])
 
     contribs_tbl = sa.table(
@@ -92,6 +106,10 @@ def upgrade() -> None:
     # Insert: any contribution mentioning a conceptual leaf, OR for the 4 new escrita actions
     new_actions = {"ESCREVER DIÁLOGOS", "ESCREVER DESCRIÇÕES", "ESCREVER NARRATIVA", "ESCREVER ARGUMENTAÇÃO"}
     rows_to_insert = []
+    existing_contribs = {
+        (r[0], r[1])
+        for r in conn.execute(sa.text("SELECT action_name, leaf_id FROM action_contributions")).fetchall()
+    }
     for c in tree["contributions"]:
         action = c["action"]
         leaf = c["leaf"]
@@ -99,11 +117,13 @@ def upgrade() -> None:
         is_new_action = action in new_actions
         if not (is_conceptual_leaf or is_new_action):
             continue
-        rows_to_insert.append({
+        row = {
             "action_name": action.upper(),
             "leaf_id": id_by_key[leaf],
             "weight": float(c["weight"]),
-        })
+        }
+        if (row["action_name"], row["leaf_id"]) not in existing_contribs:
+            rows_to_insert.append(row)
     if rows_to_insert:
         op.bulk_insert(contribs_tbl, rows_to_insert)
 

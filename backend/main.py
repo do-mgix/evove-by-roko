@@ -23,20 +23,48 @@ from src.domain.skills import (  # noqa: E402
     acquire_skill as _acquire_skill,
     SkillError,
 )
-from src.infrastructure.static_data import (  # noqa: E402
-    load_skill_tree,
-    skill_nodes_by_id,
-    load_packages,
-    lookup_token_cost as _lookup_token_cost_static,
-)
 from src.infrastructure.storage import (  # noqa: E402
     get_evove_root_dir,
     get_user_data_dir,
+)
+from src.infrastructure.static_data import (  # noqa: E402
+    load_skill_tree,
+    skill_nodes_by_id,
+    lookup_token_cost as _lookup_token_cost_static,
 )
 from src.infrastructure import repos  # noqa: E402
 
 _GREEK = ['α','β','γ','δ','ε','ζ','η','θ','ι','κ','λ','μ','ν','ξ','ο','π','ρ','σ','τ','υ','φ','χ','ψ','ω']
 _LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+
+def load_packages() -> list[dict]:
+    tree = repos.load_attr_tree()
+    contributions = repos.load_all_contributions()
+
+    leaf_to_parent: dict[str, str] = {}
+    for parent_key, children in tree.children.items():
+        for child_key, _w in children:
+            if child_key in tree.leaves_by_key:
+                leaf_to_parent[child_key] = parent_key
+
+    packages: dict[str, dict] = {}
+    unmapped = {"attribute": "_unmapped", "name": "Outros", "actions": []}
+    for action_name, contribs in sorted(contributions.items()):
+        primary_leaf = contribs[0][0] if contribs else None
+        group_key = leaf_to_parent.get(primary_leaf or "")
+        group_name = tree.nodes_by_key[group_key].name if group_key and group_key in tree.nodes_by_key else None
+        action = {"name": action_name, "type": 0, "diff": 1, "cost": 0, "token_cost": 0}
+        if group_key and group_name:
+            pkg = packages.setdefault(group_key, {"attribute": group_key, "name": group_name, "actions": []})
+            pkg["actions"].append(action)
+        else:
+            unmapped["actions"].append(action)
+
+    out = sorted(packages.values(), key=lambda p: p["name"])
+    if unmapped["actions"]:
+        out.append(unmapped)
+    return out
 
 
 app = FastAPI(title="Roko API")

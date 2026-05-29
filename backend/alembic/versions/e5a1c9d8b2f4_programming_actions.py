@@ -37,6 +37,10 @@ def upgrade() -> None:
     conn = op.get_bind()
     leaf_rows = conn.execute(sa.text("SELECT id, `key` FROM attr_nodes WHERE is_leaf=1")).fetchall()
     leaf_id = {r[1]: r[0] for r in leaf_rows}
+    existing = {
+        (r[0], r[1])
+        for r in conn.execute(sa.text("SELECT action_name, leaf_id FROM action_contributions")).fetchall()
+    }
 
     contribs_tbl = sa.table(
         "action_contributions",
@@ -52,6 +56,7 @@ def upgrade() -> None:
         }
         for c in seed["contributions"]
         if c["action"] in NEW_ACTIONS
+        and (c["action"].upper(), leaf_id[c["leaf"]]) not in existing
     ]
     if rows:
         op.bulk_insert(contribs_tbl, rows)
