@@ -55,7 +55,11 @@ services:
     image: roko-cli
     stdin_open: true
     tty: true
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-roko}:${MYSQL_PASSWORD:-rokopass}@db:3306/${MYSQL_DATABASE:-roko}?charset=utf8mb4
       TZ: America/Sao_Paulo
     volumes:
       - ${HOME}/.local/share/evove:/root/.local/share/evove

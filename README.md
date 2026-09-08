@@ -52,12 +52,18 @@ There is no login. The first screen asks for a profile name, which is stored in
 ### 3. Terminal client
 
 ```bash
+docker compose run --rm cli
+```
+
+Or on the host, against the same database:
+
+```bash
 export DATABASE_URL='mysql+pymysql://roko:rokopass@127.0.0.1:3306/roko?charset=utf8mb4'
 python apps/cli/main.py
 ```
 
-Needs `rich` and `readchar` (`pip install -r apps/cli/requirements.txt`) plus the backend
-requirements, since it imports the same domain code.
+That needs `rich` and `readchar` (`pip install -r apps/cli/requirements.txt`) plus the
+backend requirements, since it imports the same domain code.
 
 ### Development loop
 
@@ -361,11 +367,8 @@ Known rough edges, for whoever touches this next:
 
 - **The root `.env` is stale.** It still describes Postgres (`POSTGRES_*` and a
   `DATABASE_URL` pointing at `postgresql://…`), while `docker-compose.yml` brings up MySQL
-  and sets the backend's `DATABASE_URL` itself. Nothing on the current path reads that
+  and sets `DATABASE_URL` on both services itself. Nothing on the current path reads that
   file.
-- **The compose `cli` service gets no `DATABASE_URL`.** Inside the container it falls back
-  to `127.0.0.1:3306`, which cannot reach the `db` service. When running
-  `docker compose run --rm cli`, pass a URL pointing at the `db` host.
 - **`npm run check` reports 5 type errors** under `apps/web/src/lib/` — `api.ts:40`
   (`stringfalso`), `api.ts:274` (`ProjectItem` does not exist; the declared type is
   `Project`, and `/projects` returns `{items: [...]}` rather than an array),
