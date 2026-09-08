@@ -32,8 +32,8 @@ docker compose exec backend alembic upgrade head   # the container does not migr
 | Adminer | `http://localhost:8080` | server `db`, user `roko`, password `rokopass` |
 | MySQL | `localhost:3306` | database `roko` |
 
-The migration step is not optional on a fresh database: four of the revisions also seed
-the attribute tree and the tags the API reads on every request.
+The migration step is not optional on a fresh database: five of the revisions also seed
+the attribute tree, the tags and the shop catalog that the API reads on every request.
 
 ### 2. Web client
 
@@ -193,7 +193,7 @@ Content tables also keep the logical id from the JSON era (`action_id`, `attr_id
 
 ### Migrations
 
-Seven revisions in a chain:
+Eight revisions in a chain:
 
 ```
 5638fb2a1810  initial schema
@@ -203,10 +203,31 @@ c8d2e5f7a3b1  attribute tags
 d3f9a8b4c6e2  permanent level
 e5a1c9d8b2f4  programming actions contributions
 f7b3e9c1d4a8  conceptual attribute tree
+b2e7d9c4a6f1  routine actions contributions
 ```
 
-Four of them (`b7c1`, `c8d2`, `e5a1`, `f7b3`) read `backend/data/*.json` to seed. Those
-files exist only for that: nothing opens them at runtime.
+Five of them (`b7c1`, `c8d2`, `e5a1`, `f7b3`, `b2e7`) read `backend/data/*.json` to seed.
+Those files exist only for that: nothing opens them at runtime.
+
+### Adding actions to the catalog
+
+The shop has no admin screen. `/shop/packages` and `/shop/catalog` are derived from
+`action_contributions`, so a new shop item is really a new set of contribution rows, and
+for now a migration is how you add them:
+
+1. Add the contributions to `backend/data/attributes_tree.json` — one entry per leaf, the
+   action name in caps. Anatomical weights sum to `1.0` per action and conceptual weights
+   sum to `1.0` separately; an action with neither never reaches an attribute.
+2. Copy `b2e7d9c4a6f1_routine_actions.py`, put the new names in `NEW_ACTIONS` and chain
+   `down_revision` to the current head. Keep its guard against rows that already exist:
+   on a fresh database `b7c1` seeds the whole file, so without the guard the migration
+   hits the unique constraint on `(action_name, leaf_id)`.
+3. Migrating through the container? Run `docker compose build backend` first. The image
+   carries a copy of `backend/data/` from build time, not the file in your working tree.
+
+Everything acquired from the shop comes out as type `session`, difficulty 1, costing 0
+build points — `load_packages()` (`backend/main.py`) hardcodes those fields, because
+there is nowhere to keep per-action metadata since the static catalog was removed.
 
 ### API
 
@@ -274,11 +295,11 @@ Known rough edges, for whoever touches this next:
 - **The compose `cli` service gets no `DATABASE_URL`.** Inside the container it falls back
   to `127.0.0.1:3306`, which cannot reach the `db` service. When running
   `docker compose run --rm cli`, pass a URL pointing at the `db` host.
-- **`npm run check` reports 6 type errors** under `apps/web/src/lib/` — `api.ts:40`
+- **`npm run check` reports 5 type errors** under `apps/web/src/lib/` — `api.ts:40`
   (`stringfalso`), `api.ts:274` (`ProjectItem` does not exist; the declared type is
   `Project`, and `/projects` returns `{items: [...]}` rather than an array),
-  `UserPanel.svelte:58`, `ProjectsPanel.svelte:16` and `:44`, `Shop.svelte:31`. The app
-  still runs — Vite does not type-check in `dev` — but `check` is red.
+  `UserPanel.svelte:58`, `ProjectsPanel.svelte:16` and `:44`. The app still runs — Vite
+  does not type-check in `dev` — but `check` is red.
 - `attribute_actions`, `project_actions` and `project_attributes` exist in the ORM and are
   marked as unimplemented; attribute scoring currently comes from the contribution tree,
   not from the per-user `attributes` table.
