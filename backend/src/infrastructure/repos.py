@@ -178,7 +178,7 @@ def _user_to_dict(s: Session, u: orm.User) -> dict:
         "skill_points": state.skill_points if state else 0,
         "build_points": state.build_points if state else 0,
         "tokens": state.tokens if state else 0,
-        "max_tokens": state.max_tokens if state else 50,
+        "max_tokens": state.max_tokens if state else 100,
         "days_until_next_checkpoint": state.days_until_next_checkpoint if state else 20,
         "last_checkpoint_check": _date_iso(state.last_checkpoint_check) if state else None,
         "last_decay_check": _date_iso(state.last_decay_check) if state else None,
@@ -235,7 +235,7 @@ def _write_state(s: Session, u: orm.User, data: dict):
     state.score = float(data.get("score", 0) or 0)
     state.energy = int(md.get("energy", 1000) or 0)
     state.tokens = int(md.get("tokens", 50) or 0)
-    state.max_tokens = int(md.get("max_tokens", 50) or 50)
+    state.max_tokens = int(md.get("max_tokens", 100) or 100)
     state.build_points = int(md.get("build_points", 0) or 0)
     state.skill_points = int(md.get("skill_points", 0) or 0)
     state.stage = int(md.get("stage", 1) or 1)

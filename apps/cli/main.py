@@ -188,7 +188,7 @@ def cmd_status(data: dict) -> None:
         f"[cyan]user[/cyan]   {get_current_username()}",
         f"[cyan]score[/cyan]  {data.get('score', 0):g}",
         f"[cyan]energy[/cyan] {md.get('energy', 0)}",
-        f"[cyan]tokens[/cyan] {md.get('tokens', 0)}/{md.get('max_tokens', 50)}",
+        f"[cyan]tokens[/cyan] {md.get('tokens', 0)}/{md.get('max_tokens', 100)}",
         f"[cyan]bp[/cyan]     {md.get('build_points', 0)}",
         f"[cyan]sp[/cyan]     {md.get('skill_points', 0)}",
         f"[cyan]stage[/cyan]  {md.get('stage', 1)}",

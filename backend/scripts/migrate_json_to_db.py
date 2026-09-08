@@ -85,7 +85,7 @@ def _import_user_state(session, user: orm.User, data: dict):
     state.score = float(data.get("score", 0) or 0)
     state.energy = int(metadata.get("energy", 1000) or 1000)
     state.tokens = int(metadata.get("tokens", 50) or 0)
-    state.max_tokens = int(metadata.get("max_tokens", 50) or 50)
+    state.max_tokens = int(metadata.get("max_tokens", 100) or 100)
     state.build_points = int(metadata.get("build_points", 0) or 0)
     state.skill_points = int(metadata.get("skill_points", 0) or 0)
     state.stage = int(metadata.get("stage", 1) or 1)

@@ -252,7 +252,7 @@ Content tables also keep the logical id from the JSON era (`action_id`, `attr_id
 
 ### Migrations
 
-Ten revisions in a chain:
+Eleven revisions in a chain:
 
 ```
 5638fb2a1810  initial schema
@@ -265,6 +265,7 @@ f7b3e9c1d4a8  conceptual attribute tree
 b2e7d9c4a6f1  routine actions contributions
 c4a8e2f6b9d3  action templates (unit, difficulty and prices)
 d6b1f4a9c8e2  token economy: earned by productivity, spent on leisure
+e8c2a5d7b1f3  raise the token stock cap to 100
 ```
 
 Seven of them (`b7c1`, `c8d2`, `e5a1`, `f7b3`, `b2e7`, `c4a8`, `d6b1`) read
@@ -333,10 +334,11 @@ Nutrition sits at zero on both sides: eating is maintenance, not production. A p
 starts with an empty stock, so the first leisure act runs a debt — spending is never
 blocked, the balance simply goes negative until productivity covers it.
 
-The stock caps at `max_tokens` (50, plus 5 per Tokens node in the skill tree) and anything
-past the cap is dropped: a productive day earns around 70, so tokens do not accumulate
-across days. `ActOutcome.tokens_wasted` reports how much a given act threw away, and both
-clients show it.
+The stock caps at `max_tokens` (100, plus 5 per Tokens node in the skill tree) and
+anything past the cap is dropped. A productive day releases around 70, so a good day lands
+whole and roughly a day and a half can be banked, but a run of them still overflows.
+`ActOutcome.tokens_wasted` reports how much a given act threw away, and both clients show
+it.
 
 ### API
 

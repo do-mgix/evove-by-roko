@@ -85,7 +85,7 @@ class UserSelector:
                     "username": normalized,
                     "energy": 1000,
                     "tokens": 0,
-                    "max_tokens": 50,
+                    "max_tokens": 100,
                     "build_points": 0,
                     "skill_points": 0,
                     "stage": 1,

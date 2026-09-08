@@ -359,7 +359,7 @@ def create_user(payload: dict):
                 "received_start_build_points": {"status": False, "priority": 12},
             },
             "tokens": 0,
-            "max_tokens": 50,
+            "max_tokens": 100,
             "days_until_next_checkpoint": 20,
             "last_checkpoint_check": today,
         },
@@ -384,7 +384,7 @@ def user_state(x_evove_username: str | None = Header(None)):
     user_leaf_scores = repos.get_user_leaf_scores(username)
     active_attrs = [s for s in user_leaf_scores.values() if float(s.get("score", 0) or 0) > 0]
     bonuses = aggregate_bonuses(set(data.get("skills") or []), skill_nodes_by_id())
-    base_max_tokens = int(metadata.get("max_tokens", 50) or 50)
+    base_max_tokens = int(metadata.get("max_tokens", 100) or 100)
     base_max_energy = 1000
     seq = _ensure_sequences(username)
     return {

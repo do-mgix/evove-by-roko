@@ -98,7 +98,7 @@ def apply_act(
     if token_cost > 0:
         tokens -= token_cost          # may go negative: spending is not gated here
     if token_gain > 0:
-        cap = int(metadata.get("max_tokens", 50) or 50) + int(bonuses.get("max_tokens", 0) or 0)
+        cap = int(metadata.get("max_tokens", 100) or 100) + int(bonuses.get("max_tokens", 0) or 0)
         room = max(0, cap - tokens)
         tokens_wasted = max(0, token_gain - room)
         tokens += token_gain - tokens_wasted
