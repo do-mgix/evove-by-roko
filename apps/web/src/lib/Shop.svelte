@@ -5,8 +5,7 @@
     fetchActions,
     type Action,
   } from "./api";
-  import { userVersion, bumpUser } from "./store";
-  import Modal from "./Modal.svelte";
+  import { userVersion } from "./store";
 
   export let initialSection: string | null = null;
   void initialSection;
@@ -15,20 +14,18 @@
   let buildPoints = 0;
   let loading = true;
   let error: string | null = null;
-  let busy: string | null = null;
-  let selected: { action: Action } | null = null;
   let query = "";
-  let openSet: Set<string> = new Set();
   let lastUserVersion = 0;
 
   async function load() {
+    error = null;
     try {
       const [userActions, user] = await Promise.all([
-          fetchActions().catch(() => []),
-          fetchUser().catch(() => []),
+        fetchActions(),
+        fetchUser().catch(() => null),
       ]);
-          actions = userActions;
-          buildPoints = user.build_points;
+      actions = userActions;
+      buildPoints = user?.build_points ?? 0;
     } catch (e: any) {
       error = e?.message ?? "erro";
     } finally {
@@ -37,11 +34,15 @@
   }
 
   onMount(load);
-    
+
+  $: if ($userVersion !== lastUserVersion) {
+    lastUserVersion = $userVersion;
+    if (lastUserVersion > 0) load();
+  }
+
   $: filtered = actions.filter((a) =>
     a.name.toLowerCase().includes(query.trim().toLowerCase())
   );
-
 </script>
 
 <section class="page">
@@ -56,16 +57,26 @@
   <div class="search-row">
     <input type="text" placeholder="Buscar ação..." bind:value={query} />
   </div>
-  <div class="list">
-    <ul class="actions">
-      {#each filtered as a}
-        <li>
-          <span class="a-name">{a.name}</span>
-          <span class="owned-tag">adquirida!</span>
-        </li>
-      {/each}
-    </ul>
-  </div>
+
+  {#if loading}
+    <p class="muted">…</p>
+  {:else if error}
+    <p class="error">{error}</p>
+  {:else}
+    <div class="list">
+      <ul class="actions">
+        {#each filtered as a (a.id)}
+          <li>
+            <span class="a-name">{a.name}</span>
+            <span class="owned-tag">adquirida!</span>
+          </li>
+        {/each}
+        {#if filtered.length === 0}
+          <li class="muted">nenhuma ação</li>
+        {/if}
+      </ul>
+    </div>
+  {/if}
 </section>
 
 <style>
@@ -130,36 +141,6 @@
     display: flex;
     flex-direction: column;
   }
-  .pkg-head {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    width: 100%;
-    padding: 0.5rem 0.95rem;
-    background: transparent;
-    border: none;
-    color: inherit;
-    font: inherit;
-    cursor: pointer;
-    text-align: left;
-  }
-  .pkg-head:hover { background: #141414; }
-  .caret {
-    color: #555;
-    font-size: 0.75rem;
-    width: 1em;
-  }
-  .pkg-name {
-    color: #ddd;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    font-size: 0.88rem;
-    flex: 1;
-  }
-  .pkg-count {
-    color: #555;
-    font-size: 0.78rem;
-  }
   .actions {
     list-style: none;
     margin: 0;
@@ -170,42 +151,7 @@
     align-items: center;
     padding: 0.45rem 0.95rem 0.45rem 2.1rem;
   }
-  .actions li.owned { opacity: 0.4; }
-  .info {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.15rem;
-    flex: 1;
-    background: transparent;
-    border: none;
-    color: inherit;
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-    padding: 0.2rem 0;
-  }
-  .info:hover .a-name { color: #6cf; }
-  .info:disabled { cursor: default; }
-  .a-name { color: #ddd; font-size: 0.88rem; }
-  .a-meta { color: #555; font-size: 0.7rem; }
-  .buy {
-    background: transparent;
-    border: 1px solid #2a2a2a;
-    color: #888;
-    padding: 0.32rem 0.65rem;
-    border-radius: 4px;
-    font: inherit;
-    font-size: 0.75rem;
-    cursor: pointer;
-    transition: all 0.15s;
-    min-width: 60px;
-  }
-  .buy:hover:not(:disabled) {
-    border-color: #6cf;
-    color: #6cf;
-  }
-  .buy:disabled { opacity: 0.4; cursor: not-allowed; }
+  .a-name { color: #ddd; font-size: 0.88rem; flex: 1; }
   .owned-tag {
     color: #555;
     font-size: 0.7rem;
@@ -216,62 +162,4 @@
 
   .muted { color: #555; }
   .error { color: #f66; }
-
-  .details {
-    display: grid;
-    grid-template-columns: max-content 1fr;
-    gap: 0.5rem 1rem;
-    margin: 0 0 1.25rem;
-  }
-  .details dt {
-    color: #555;
-    text-transform: uppercase;
-    font-size: 0.7rem;
-    letter-spacing: 0.05em;
-  }
-  .details dd { color: #ddd; margin: 0; font-size: 0.9rem; }
-  .hl { color: #6cf; }
-  .leaves-block {
-    margin: 0 0 1.25rem;
-    padding: 0.6rem 0.75rem;
-    background: #0a0a0a;
-    border: 1px solid #1a1a1a;
-    border-radius: 4px;
-  }
-  .leaves-title {
-    color: #555;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-size: 0.65rem;
-    margin-bottom: 0.4rem;
-  }
-  .leaves {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-  }
-  .leaves li {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.78rem;
-  }
-  .leaf-name { color: #bbb; }
-  .leaf-weight { color: #6cf; font-variant-numeric: tabular-nums; }
-  .confirm-row { display: flex; gap: 0.5rem; justify-content: flex-end; }
-  .ghost, .primary {
-    padding: 0.5rem 1rem;
-    border: 1px solid;
-    border-radius: 4px;
-    font: inherit;
-    font-size: 0.85rem;
-    cursor: pointer;
-  }
-  .ghost { background: transparent; color: #888; border-color: #333; }
-  .ghost:hover { color: #ccc; border-color: #555; }
-  .primary { background: #6cf; color: #0a0a0a; border-color: #6cf; }
-  .primary:hover:not(:disabled) { background: #4ad; }
-  .primary:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>
