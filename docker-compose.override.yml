@@ -1,0 +1,26 @@
+# Development overrides.
+#
+# Compose reads this file automatically and merges it into docker-compose.yml,
+# so plain `docker compose up -d` already picks it up. It mounts the working
+# tree over the paths the images baked in, which means editing backend code
+# takes effect without rebuilding — and alembic inside the container sees the
+# revisions you just wrote.
+#
+# To run the images exactly as built, which is what a deploy would serve,
+# bypass this file by naming only the base one:
+#
+#   docker compose -f docker-compose.yml up -d --build backend
+
+services:
+  backend:
+    volumes:
+      - ${HOME}/.local/share/evove:/root/.local/share/evove:ro
+      - ./backend:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  cli:
+    volumes:
+      - ${HOME}/.local/share/evove:/root/.local/share/evove
+      - ${HOME}/journal:/root/journal
+      - ./backend/src:/app/backend/src
+      - ./apps/cli:/app/apps/cli

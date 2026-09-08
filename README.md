@@ -61,44 +61,53 @@ requirements, since it imports the same domain code.
 
 ### Development loop
 
-Not everything picks up an edit on its own:
+Editing source is enough — nothing needs a rebuild:
 
 | You changed | What picks it up |
 | --- | --- |
-| `apps/web/src/**` | Vite, nothing to do |
-| `backend/**`, running `uvicorn --reload` on the host | the reloader |
-| `backend/**`, running in the container | **nothing — rebuild the image** |
+| `apps/web/src/**` | Vite |
+| `backend/**` | uvicorn `--reload`, inside the container |
+| `backend/alembic/versions/**` | `docker compose exec backend alembic …`, right away |
 
-The backend image copies `src/`, `main.py`, `data/` and `alembic/` at build time
-(`backend/Dockerfile`), so a container started before your edit keeps serving the old
-code. Same for the CLI image, which copies `backend/src` and `apps/cli`.
+That comes from `docker-compose.override.yml`, which Compose merges into
+`docker-compose.yml` on its own — plain `docker compose up -d` already applies it. It
+mounts `./backend` over `/app` and replaces the command with `uvicorn --reload`, so the
+container reads your working tree instead of the copy `backend/Dockerfile` took at build
+time. The `cli` service gets the same for `backend/src` and `apps/cli`.
+
+Dependencies are the exception: `requirements.txt` is installed into the image, so a new
+package still means
 
 ```bash
 docker compose up -d --build backend
 ```
 
-A stale image shows up in two ways, neither of which points at the image:
+**Running the images as built.** Name only the base file and the override is skipped,
+which is worth doing before you ship anything, since that is what a deploy would serve:
 
-- **The API answers fine, with old values.** The database has your new rows, because
-  migrations run against MySQL and not through the application, but the Python that reads
-  them is the version in the image. A seed you just added appears in Adminer and not in
-  the API.
+```bash
+docker compose -f docker-compose.yml up -d --build backend
+```
+
+In that mode a forgotten `--build` comes back, and it shows up in two ways that do not
+point at the image:
+
+- **The API answers fine, with old values.** Migrations run against MySQL directly, not
+  through the application, so the database has your new rows while the Python reading them
+  is the version in the image. A seed you just added shows up in Adminer and not in the
+  API.
 - **`alembic: Can't locate revision identified by '<hash>'`.** You migrated from the host,
-  so `alembic_version` names a revision whose file only exists in your working tree, not
-  in the image's `alembic/versions/`. Rebuild and it reappears — the database is already
-  at head, so the upgrade then does nothing.
+  so `alembic_version` names a revision whose file only exists in your working tree.
+  Rebuild and it reappears; the database is already at head, so the upgrade then does
+  nothing.
 
-Migrating from the host avoids the second one entirely and hits the same database:
+Migrating from the host works in either mode and hits the same database:
 
 ```bash
 cd backend
 DATABASE_URL='mysql+pymysql://roko:rokopass@127.0.0.1:3306/roko?charset=utf8mb4' \
   alembic upgrade head
 ```
-
-If the rebuild cycle gets tiring, bind-mounting `./backend` over `/app` in the `backend`
-service and running uvicorn with `--reload` removes it. The compose file does not do that
-today: it builds an image on purpose, so what you run locally matches what you would ship.
 
 ### Backend outside Docker
 
@@ -170,6 +179,7 @@ apps/cli/
   main.py                      single-key menu
   user_selector.py             profile picker (up to 4)
 docker-compose.yml             MySQL + Adminer + backend + CLI
+docker-compose.override.yml    dev bind mounts + uvicorn --reload (auto-merged)
 CHANGELOG.md                   release history (conventional commits)
 ```
 
