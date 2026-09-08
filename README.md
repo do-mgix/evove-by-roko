@@ -1,3 +1,286 @@
 # EVOVE
-- Evove monorepo repository.
 
+Personal progression tracking system. Actions you log daily turn into experience, levels
+and scores spread across a tree of attributes.
+
+The repository is a monorepo with three applications sharing one domain layer and one
+database:
+
+| Application | Path | Stack |
+| --- | --- | --- |
+| HTTP API | `backend/` | FastAPI · SQLAlchemy 2 · Alembic · MySQL 8.4 |
+| Web client | `apps/web/` | Svelte 5 · TypeScript · Vite |
+| Terminal client | `apps/cli/` | Rich · readchar |
+
+---
+
+## Running the project
+
+Requirements: Docker with Compose, Node 20+ and Python 3.10+ if you want to run anything
+outside the containers.
+
+### 1. Backend stack
+
+```bash
+docker compose up -d db adminer backend
+docker compose exec backend alembic upgrade head   # the container does not migrate itself
+```
+
+| Service | URL | Notes |
+| --- | --- | --- |
+| API | `http://localhost:8000` | interactive docs at `/docs` |
+| Adminer | `http://localhost:8080` | server `db`, user `roko`, password `rokopass` |
+| MySQL | `localhost:3306` | database `roko` |
+
+The migration step is not optional on a fresh database: four of the revisions also seed
+the attribute tree and the tags the API reads on every request.
+
+### 2. Web client
+
+```bash
+cd apps/web
+npm install
+npm run dev        # http://localhost:5173
+```
+
+It talks to `http://localhost:8000` by default — set `VITE_API_BASE` to point somewhere
+else. `npm run build` writes `dist/`, `npm run check` runs `svelte-check` and `tsc`.
+
+There is no login. The first screen asks for a profile name, which is stored in
+`localStorage` and sent on every request as the `X-Evove-Username` header.
+
+### 3. Terminal client
+
+```bash
+export DATABASE_URL='mysql+pymysql://roko:rokopass@127.0.0.1:3306/roko?charset=utf8mb4'
+python apps/cli/main.py
+```
+
+Needs `rich` and `readchar` (`pip install -r apps/cli/requirements.txt`) plus the backend
+requirements, since it imports the same domain code.
+
+### Backend outside Docker
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r backend/requirements.txt
+
+export DATABASE_URL='mysql+pymysql://roko:rokopass@127.0.0.1:3306/roko?charset=utf8mb4'
+cd backend
+alembic upgrade head
+uvicorn main:app --reload --port 8000
+```
+
+Both `alembic` and `uvicorn` expect to be run from inside `backend/`.
+
+### Importing legacy JSON data
+
+```bash
+DATABASE_URL='mysql+pymysql://...' python backend/scripts/migrate_json_to_db.py [user ...]
+```
+
+Reads `~/.local/share/evove/<user>/{user,logs,agenda,sequences,projects}.json` and upserts
+by username. Idempotent: running it again replaces that user's state with whatever is in
+the files.
+
+### Environment variables
+
+| Variable | Used by | Default | Purpose |
+| --- | --- | --- | --- |
+| `MYSQL_ROOT_PASSWORD` | compose | `rokoroot` | MySQL root password |
+| `MYSQL_DATABASE` | compose | `roko` | database name |
+| `MYSQL_USER` / `MYSQL_PASSWORD` | compose | `roko` / `rokopass` | application user |
+| `DATABASE_URL` | backend, CLI, alembic, importer | `mysql+pymysql://roko:rokopass@127.0.0.1:3306/roko?charset=utf8mb4` | SQLAlchemy connection |
+| `EVOVE_USERNAME` | backend, CLI | `default` | profile used when no header is sent |
+| `EVOVE_DATA_DIR` | backend | `~/.local/share/evove` | on-disk data root (legacy) |
+| `TZ` | containers | `America/Sao_Paulo` | timezone |
+| `VITE_API_BASE` | web (build time) | `http://localhost:8000` | API base URL |
+
+---
+
+## Repository structure
+
+```
+backend/
+  main.py                      the whole FastAPI app (routes + presentation rules)
+  src/domain/                  pure rules, no I/O — shared with the CLI
+    action.py                  the Action class and the score formula
+    act.py                     the "execute an action" flow (single source of truth)
+    agenda.py                  matching an action against the day's agenda
+    attributes.py              decay, levels and aggregated tree scores
+    contributions.py           applies an action's stimulus to the leaves
+    daily.py                   daily tick (token refill, checkpoint countdown)
+    skills.py                  skill tree rules and bonus aggregation
+    ports.py                   WebInputInterrupt — how the domain asks the host for input
+  src/infrastructure/
+    db.py                      SQLAlchemy engine, session and Base
+    orm.py                     table models
+    repos.py                   repositories: dicts in, dicts out — never ORM entities
+    storage.py                 per-user directory under ~/.local/share/evove (legacy)
+    static_data.py             skill tree hardcoded in Python
+  data/                        migration seeds (never read at runtime)
+  alembic/                     migrations
+  scripts/migrate_json_to_db.py  legacy JSON importer
+apps/web/src/
+  App.svelte                   screen switching by state, no router
+  lib/api.ts                   HTTP client and API types
+  lib/*.svelte                 screens and panels
+apps/cli/
+  main.py                      single-key menu
+  user_selector.py             profile picker (up to 4)
+docker-compose.yml             MySQL + Adminer + backend + CLI
+CHANGELOG.md                   release history (conventional commits)
+```
+
+The CLI imports `backend/src/domain` directly — through `sys.path` in `apps/cli/main.py`
+and `PYTHONPATH` in `apps/cli/Dockerfile`. That is why scoring, token cost and energy
+penalties behave identically in both clients: there is only one implementation.
+
+---
+
+## Concepts
+
+Enough vocabulary to read the code:
+
+| Term | What it is |
+| --- | --- |
+| **action** | something you log, with a unit type and a difficulty; executing it is called an *act* |
+| **attribute tree** | a static weighted tree; each action feeds a set of leaves |
+| **leaf score** | per-user score on a leaf, decaying over time unless it is converted into a permanent level |
+| **tag** | a curated combination of leaves, shown as a single bar |
+| **tokens / energy** | consumable resources spent by acting |
+| **build points / skill points** | currencies for buying actions in the shop and nodes in the skill tree |
+| **stage / checkpoint** | a countdown that advances the profile and hands out rewards |
+
+The numbers behind all of this (score formula, decay half-lives, level thresholds,
+progression curve) live in `backend/src/domain/` and in `backend/data/*.json`.
+
+---
+
+## Backend
+
+### Layers
+
+`src/domain` imports nothing outside the standard library, except `contributions.py`,
+which needs the repositories. When the domain needs interactive input it raises
+`WebInputInterrupt` and lets the host decide how to ask.
+
+`src/infrastructure/repos.py` is the boundary: it takes and returns dicts shaped like the
+JSON files that predated the database, so `main.py` never sees an ORM object. Each
+function opens and closes its own session.
+
+### User identification
+
+There is no authentication. The user comes in the `X-Evove-Username` header, validated
+against `^[A-Za-z0-9_-]{1,24}$`; without it the request falls back to `EVOVE_USERNAME` or
+to `default`. CORS is open to every origin. **This is meant for local use — do not expose
+this API to a network.**
+
+### Database
+
+Nineteen tables. Profile and content tables have an FK to `users` with delete cascade; the
+attribute tree and the tags are global and shared by everyone:
+
+- profile — `users`, `user_state`, `user_tutorial`, `sequences_state`
+- user content — `actions`, `attributes`, `attribute_actions`, `skills_acquired`,
+  `agenda_items`, `logs`, `projects`, `project_actions`, `project_attributes`
+- static tree — `attr_nodes`, `attr_edges`, `action_contributions`
+- per-user derived data — `user_leaf_scores`
+- tags — `attribute_tags`, `attribute_tag_sources`
+
+Content tables also keep the logical id from the JSON era (`action_id`, `attr_id`,
+`item_id`), preserved so ids already used by the front end keep working.
+
+### Migrations
+
+Seven revisions in a chain:
+
+```
+5638fb2a1810  initial schema
+a844b8c6e2c0  add date to user_state
+b7c1d4e3f2a9  attribute tree (anatomy + neurology) with decay
+c8d2e5f7a3b1  attribute tags
+d3f9a8b4c6e2  permanent level
+e5a1c9d8b2f4  programming actions contributions
+f7b3e9c1d4a8  conceptual attribute tree
+```
+
+Four of them (`b7c1`, `c8d2`, `e5a1`, `f7b3`) read `backend/data/*.json` to seed. Those
+files exist only for that: nothing opens them at runtime.
+
+### API
+
+Every user route reads the `X-Evove-Username` header.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/health` | ping |
+| GET | `/users` | list profiles |
+| POST | `/users` | create a profile (`{name}`) |
+| GET | `/user` | full state: xp, level, rank, resources, bonuses |
+| GET | `/journey` | stage and time left until the next checkpoint |
+| GET | `/actions` | the profile's actions |
+| POST | `/actions/{id}/act` | execute an action (`{note}` or `{value}`) |
+| GET | `/attributes` | leaves with score and level — filter with `?tree=anatomical\|conceptual` |
+| GET | `/attributes/tags` | the composite tags |
+| GET | `/attributes/tree` | hierarchical tree with a computed score on every node |
+| GET | `/attributes/conceptual/roots` | conceptual roots with aggregated level |
+| GET | `/shop/packages` | available actions grouped by attribute |
+| GET | `/shop/catalog` | the same, with each action's leaves and weights |
+| POST | `/shop/actions/buy` | buy an action (`{attribute, name}`) |
+| GET | `/skills/tree` | nodes, acquired ids, skill point balance and bonuses |
+| POST | `/skills/{id}/acquire` | acquire a node |
+| GET | `/logs` | logs for one day — `?offset=0` today, `-1` yesterday, `+1` tomorrow |
+| GET | `/logs/by-date` | logs for a date (`?date=YYYY-MM-DD`) |
+| PATCH | `/logs/{id}` | edit the note (`{note}`) or move it across days (`{day_delta}`) |
+| DELETE | `/logs/{id}` | delete |
+| POST | `/logs/reorder` | reorder within a day (`{day, ids}`) |
+| GET | `/agenda` · `/agenda/today` | full agenda · today's agenda |
+| POST | `/agenda` | create an item |
+| PATCH · DELETE | `/agenda/{id}` | edit · remove |
+| GET | `/calendar` | month view with log counts and events (`?year=&month=`) |
+| GET · POST | `/projects` | list · create |
+| PATCH · DELETE | `/projects/{id}` | edit · remove |
+
+---
+
+## Web client
+
+Svelte 5 with TypeScript and no router: `App.svelte` keeps the current screen in a
+variable and the sidebar switches between `home`, `agenda`, `journey`, `shop`, `skills`
+and `user`. The theme is dark and monospaced.
+
+The home screen is a grid of windows you can drag between slots and the bottom tray —
+`actions`, `agenda`, `logs` and `projects`. The profile name lives in `localStorage` under
+the key `roko_username`; without it the user picker takes over. Two stores (`logsVersion`,
+`userVersion`) act as signals telling panels to refetch after an act.
+
+## Terminal client
+
+A single-key menu over the same database: `l` lists actions, `a` executes one, `g` shows
+today's logs, `s` shows status, `u` switches profile, `q` quits. The profile picker holds
+up to four users and can create and delete them.
+
+---
+
+## Current state
+
+Known rough edges, for whoever touches this next:
+
+- **The root `.env` is stale.** It still describes Postgres (`POSTGRES_*` and a
+  `DATABASE_URL` pointing at `postgresql://…`), while `docker-compose.yml` brings up MySQL
+  and sets the backend's `DATABASE_URL` itself. Nothing on the current path reads that
+  file.
+- **The compose `cli` service gets no `DATABASE_URL`.** Inside the container it falls back
+  to `127.0.0.1:3306`, which cannot reach the `db` service. When running
+  `docker compose run --rm cli`, pass a URL pointing at the `db` host.
+- **`npm run check` reports 6 type errors** under `apps/web/src/lib/` — `api.ts:40`
+  (`stringfalso`), `api.ts:274` (`ProjectItem` does not exist; the declared type is
+  `Project`, and `/projects` returns `{items: [...]}` rather than an array),
+  `UserPanel.svelte:58`, `ProjectsPanel.svelte:16` and `:44`, `Shop.svelte:31`. The app
+  still runs — Vite does not type-check in `dev` — but `check` is red.
+- `attribute_actions`, `project_actions` and `project_attributes` exist in the ORM and are
+  marked as unimplemented; attribute scoring currently comes from the contribution tree,
+  not from the per-user `attributes` table.
+- `storage.py` and `EVOVE_DATA_DIR` are leftovers from the JSON era. State lives in the
+  database; the per-user directory is only used to locate legacy files.
