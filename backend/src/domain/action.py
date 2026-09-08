@@ -1,6 +1,5 @@
 # ==================== ACTION.PY ====================
 from abc import ABC, abstractmethod
-import random
 
 class Action:
     _DIFFICULTY_MULTIPLIER_MAP = {
@@ -164,21 +163,18 @@ class Action:
             return False
 
     def _note_to_value(self, note_text):
+        """How much a note adds to the action's value.
+
+        Only a numeric note carries volume. Free text is an annotation worth
+        one execution, same as no note: the unit and the difficulty decide the
+        score, not how much you typed.
+        """
         text = str(note_text or "").strip()
         if not text:
             return 1
         if self._is_integer_note(text):
             return int(text)
-
-        normalized = " ".join(text.lower().split())
-        seed = f"{self.id}:{self.name}:{normalized}"
-        rng = random.Random(seed)
-        words = [w for w in normalized.split(" ") if w]
-        word_count = len(words)
-        char_count = len(normalized)
-        base = max(5, min(40, word_count * 4 + char_count // 6))
-        spread = max(3, min(25, (self.diff + 1) * 4 + word_count))
-        return base + rng.randint(0, spread)
+        return 1
     
     def to_dict(self):
         return {

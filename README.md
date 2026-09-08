@@ -241,6 +241,9 @@ a `session` whose value is 1 per act, so the difficulty alone sets the reward â€
 xp, d2 is 360, d3 is 1200. Only `WATER`, `COFFEE` and `TEA` use a counted unit, where you
 log how many.
 
+A note on an act is an annotation, not a quantity: free text always adds one execution,
+and only a numeric note adds volume (`3` on a session action counts as three of them).
+
 Prices assume build points stay scarce: 100 at profile creation plus
 `BUILD_POINTS_PER_CHECKPOINT` (10) every checkpoint, against 240 bp to own the whole
 catalog. Consumption actions (social apps, games, treats) are free to acquire and charge
