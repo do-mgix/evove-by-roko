@@ -1,7 +1,10 @@
-"""Daily tick: checkpoint countdown and token refill.
+"""Daily tick: checkpoint countdown.
 
 Pure logic on dicts — no I/O. Call once per day (idempotent within the same day).
 Returns True if `data` was mutated and needs to be persisted.
+
+Tokens are not refilled here: they are earned by executing productivity actions
+and spent on leisure ones (see `src/domain/act.py`).
 """
 from __future__ import annotations
 
@@ -19,7 +22,7 @@ def _checkpoint_interval_for_stage(stage: int) -> int:
 def apply_daily_tick(data: dict, now: datetime | None = None) -> bool:
     """Mutates `data` in-place with daily state transitions.
 
-    Idempotent: exits early if both checkpoint and refill already ran today.
+    Idempotent: the checkpoint countdown only moves once per day.
     Returns True if any field was changed.
     """
     now = now or datetime.now()
@@ -35,15 +38,6 @@ def apply_daily_tick(data: dict, now: datetime | None = None) -> bool:
             return datetime.fromisoformat(str(s)).date()
         except (TypeError, ValueError):
             return None
-
-    # ---- token refill (once per day) ----
-    last_refill = _to_date(metadata.get("last_token_refill"))
-    if last_refill is None or last_refill < today:
-        daily_refill = int(metadata.get("daily_refill", 20) or 20)
-        max_tokens = int(metadata.get("max_tokens", 50) or 50)
-        metadata["tokens"] = min(max_tokens, int(metadata.get("tokens", 0) or 0) + daily_refill)
-        metadata["last_token_refill"] = today_str
-        mutated = True
 
     # ---- checkpoint countdown ----
     last_check = _to_date(metadata.get("last_checkpoint_check"))

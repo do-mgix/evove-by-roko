@@ -92,8 +92,6 @@ def _import_user_state(session, user: orm.User, data: dict):
     state.mode = str(metadata.get("mode", "progressive") or "progressive")
     state.days_until_next_checkpoint = int(metadata.get("days_until_next_checkpoint", 20) or 20)
     state.last_checkpoint_check = _parse_date(metadata.get("last_checkpoint_check"))
-    state.last_token_refill = _parse_date(metadata.get("last_token_refill"))
-    state.daily_refill = int(metadata.get("daily_refill", 20) or 20)
 
 
 def _import_tutorial(session, user: orm.User, data: dict):
@@ -128,6 +126,7 @@ def _import_actions(session, user: orm.User, data: dict):
             logic_type=a.get("logic_type") or None,
             sub_logic_type=a.get("sub_logic_type") or None,
             token_cost=int(a.get("token_cost", 0) or 0),
+            token_gain=int(a.get("token_gain", 0) or 0),
         ))
 
 

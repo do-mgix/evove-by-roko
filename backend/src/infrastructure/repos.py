@@ -152,6 +152,7 @@ def _user_to_dict(s: Session, u: orm.User) -> dict:
             "logic_type": a.logic_type,
             "sub_logic_type": a.sub_logic_type,
             "token_cost": a.token_cost,
+            "token_gain": a.token_gain,
         }
 
     attributes: dict = {}
@@ -178,10 +179,8 @@ def _user_to_dict(s: Session, u: orm.User) -> dict:
         "build_points": state.build_points if state else 0,
         "tokens": state.tokens if state else 0,
         "max_tokens": state.max_tokens if state else 50,
-        "daily_refill": state.daily_refill if state else 20,
         "days_until_next_checkpoint": state.days_until_next_checkpoint if state else 20,
         "last_checkpoint_check": _date_iso(state.last_checkpoint_check) if state else None,
-        "last_token_refill": _date_iso(state.last_token_refill) if state else None,
         "last_decay_check": _date_iso(state.last_decay_check) if state else None,
         "date": _date_iso(state.date) if state else None,
         "tutorial": {
@@ -244,9 +243,7 @@ def _write_state(s: Session, u: orm.User, data: dict):
     state.date = _parse_date(md.get("date")) or state.date
     state.days_until_next_checkpoint = int(md.get("days_until_next_checkpoint", 20) or 20)
     state.last_checkpoint_check = _parse_date(md.get("last_checkpoint_check"))
-    state.last_token_refill = _parse_date(md.get("last_token_refill"))
     state.last_decay_check = _parse_date(md.get("last_decay_check"))
-    state.daily_refill = int(md.get("daily_refill", 20) or 20)
 
 
 def _write_tutorial(s: Session, u: orm.User, data: dict):
@@ -283,6 +280,7 @@ def _write_actions(s: Session, u: orm.User, data: dict):
             logic_type=a.get("logic_type") or None,
             sub_logic_type=a.get("sub_logic_type") or None,
             token_cost=int(a.get("token_cost", 0) or 0),
+            token_gain=int(a.get("token_gain", 0) or 0),
         ))
 
 
@@ -852,11 +850,11 @@ def load_all_contributions() -> dict[str, list[tuple[str, float]]]:
         s.close()
 
 
-TEMPLATE_FALLBACK = {"type": 0, "diff": 1, "cost": 0, "token_cost": 0}
+TEMPLATE_FALLBACK = {"type": 0, "diff": 1, "cost": 0, "token_cost": 0, "token_gain": 0}
 
 
 def load_action_templates() -> dict[str, dict]:
-    """Return {action_name_upper: {type, diff, cost, token_cost}} for the catalog."""
+    """Return {action_name_upper: {type, diff, cost, token_cost, token_gain}}."""
     s = SessionLocal()
     try:
         rows = s.execute(select(orm.ActionTemplate)).scalars().all()
@@ -866,6 +864,7 @@ def load_action_templates() -> dict[str, dict]:
                 "diff": int(t.diff),
                 "cost": int(t.cost),
                 "token_cost": int(t.token_cost),
+                "token_gain": int(t.token_gain),
             }
             for t in rows
         }
@@ -873,19 +872,28 @@ def load_action_templates() -> dict[str, dict]:
         s.close()
 
 
-def lookup_token_cost(action_name: str) -> int:
-    """Per-unit token cost for an action name, or 0 when it has no template."""
+def _lookup_template_field(column, action_name: str) -> int:
     name = str(action_name or "").upper()
     if not name:
         return 0
     s = SessionLocal()
     try:
         row = s.execute(
-            select(orm.ActionTemplate.token_cost).where(orm.ActionTemplate.action_name == name)
+            select(column).where(orm.ActionTemplate.action_name == name)
         ).scalar_one_or_none()
         return int(row or 0)
     finally:
         s.close()
+
+
+def lookup_token_cost(action_name: str) -> int:
+    """Tokens an execution of this action spends, or 0 without a template."""
+    return _lookup_template_field(orm.ActionTemplate.token_cost, action_name)
+
+
+def lookup_token_gain(action_name: str) -> int:
+    """Tokens an execution of this action releases, or 0 without a template."""
+    return _lookup_template_field(orm.ActionTemplate.token_gain, action_name)
 
 
 def get_user_leaf_scores(username: str) -> dict[str, dict]:

@@ -28,6 +28,7 @@ export type Action = {
   value: number;
   score: number;
   token_cost: number;
+  token_gain: number;
 };
 
 export async function fetchActions(): Promise<Action[]>{
@@ -43,6 +44,10 @@ export type ActResult = {
   score: number;
   score_diff: number;
   user_score: number;
+  token_gain: number;
+  token_cost: number;
+  tokens_wasted: number;
+  tokens: number;
 };
 
 export async function actOnAction(id: string, opts: { value?: number; note?: string } = {}): Promise<ActResult> {
@@ -338,6 +343,7 @@ export type PackageAction = {
   diff: number;
   cost: number;
   token_cost?: number;
+  token_gain?: number;
 };
 export type Package = {
   attribute: string;
@@ -359,6 +365,7 @@ export type CatalogAction = {
   diff: number;
   cost: number;
   token_cost: number;
+  token_gain: number;
   package_attribute: string;
   leaves: CatalogLeaf[];
 };

@@ -34,6 +34,13 @@
     return cost > 0 ? `${cost} bp` : "adquirir";
   }
 
+  /** " · +20t" for productivity, " · -15t" for leisure, "" for neutral. */
+  function tokenLabel(a: { token_cost?: number; token_gain?: number }) {
+    if (a.token_gain) return ` · +${a.token_gain}t`;
+    if (a.token_cost) return ` · -${a.token_cost}t`;
+    return "";
+  }
+
   async function load() {
     error = null;
     try {
@@ -139,7 +146,7 @@
                   <button class="info" on:click={() => (selected = { group: v.group, action: a })}>
                     <span class="a-name">{a.name}</span>
                     <span class="a-meta">
-                      {TYPE_LABEL[a.type] ?? a.type} · d{a.diff}{a.token_cost ? ` · ${a.token_cost}t` : ""}
+                      {TYPE_LABEL[a.type] ?? a.type} · d{a.diff}{tokenLabel(a)}
                     </span>
                   </button>
                   {#if acquired}
@@ -171,8 +178,10 @@
       <dt>zona</dt><dd>{selected.group.name}</dd>
       <dt>tipo</dt><dd>{TYPE_LABEL[selected.action.type] ?? selected.action.type}</dd>
       <dt>dificuldade</dt><dd>d{selected.action.diff}</dd>
-      {#if selected.action.token_cost && selected.action.token_cost > 0}
-        <dt>custo por uso</dt><dd>{selected.action.token_cost} tokens</dd>
+      {#if selected.action.token_gain}
+        <dt>rende</dt><dd class="hl">+{selected.action.token_gain} tokens por execução</dd>
+      {:else if selected.action.token_cost}
+        <dt>consome</dt><dd>{selected.action.token_cost} tokens por execução</dd>
       {/if}
       {#if selectedAcquired}
         <dt>status</dt><dd class="hl">adquirida</dd>

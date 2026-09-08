@@ -61,6 +61,7 @@ def load_packages() -> list[dict]:
             "diff": meta["diff"],
             "cost": meta["cost"],
             "token_cost": meta["token_cost"],
+            "token_gain": meta["token_gain"],
         }
         if group_key and group_name:
             pkg = packages.setdefault(group_key, {"attribute": group_key, "name": group_name, "actions": []})
@@ -357,12 +358,10 @@ def create_user(payload: dict):
             "tutorial": {
                 "received_start_build_points": {"status": False, "priority": 12},
             },
-            "tokens": 50,
+            "tokens": 0,
             "max_tokens": 50,
-            "daily_refill": 20,
             "days_until_next_checkpoint": 20,
             "last_checkpoint_check": today,
-            "last_token_refill": today,
         },
     }
     today_seq = datetime.now().strftime("%d %m %Y")
@@ -842,6 +841,7 @@ def buy_action(payload: dict, x_evove_username: str | None = Header(None)):
         "logic_type": None,
         "sub_logic_type": None,
         "token_cost": int(template.get("token_cost", 0) or 0),
+        "token_gain": int(template.get("token_gain", 0) or 0),
     }
 
     # Attribute scoring is now driven by the action_contributions tree (DB-side),
@@ -1312,6 +1312,7 @@ def act_on_action(action_id: str, payload: dict | None = None, x_evove_username:
             today_agenda_labels=today_labels,
             in_agenda_extra=in_agenda_extra,
             token_cost_lookup=repos.lookup_token_cost,
+            token_gain_lookup=repos.lookup_token_gain,
             skill_nodes_by_id=skill_nodes_by_id(),
         )
     except ActError as e:
@@ -1331,6 +1332,10 @@ def act_on_action(action_id: str, payload: dict | None = None, x_evove_username:
         "score": action["score"],
         "score_diff": outcome.score_diff,
         "user_score": data["score"],
+        "token_gain": outcome.token_gain,
+        "token_cost": outcome.token_cost,
+        "tokens_wasted": outcome.tokens_wasted,
+        "tokens": int(data.get("metadata", {}).get("tokens", 0) or 0),
         "log": log_entry,
     }
 
@@ -1351,6 +1356,7 @@ def list_actions(x_evove_username: str | None = Header(None)):
             "value": action.get("value"),
             "score": action.get("score"),
             "token_cost": int(action.get("token_cost") or 0),
+            "token_gain": int(action.get("token_gain") or 0),
         })
     result.sort(key=lambda a: (a.get("name") or "").upper())
     return result

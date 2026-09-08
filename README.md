@@ -32,7 +32,7 @@ docker compose exec backend alembic upgrade head   # the container does not migr
 | Adminer | `http://localhost:8080` | server `db`, user `roko`, password `rokopass` |
 | MySQL | `localhost:3306` | database `roko` |
 
-The migration step is not optional on a fresh database: six of the revisions also seed
+The migration step is not optional on a fresh database: seven of the revisions also seed
 the attribute tree, the tags and the shop catalog that the API reads on every request.
 
 ### 2. Web client
@@ -205,7 +205,8 @@ Enough vocabulary to read the code:
 | **attribute tree** | a static weighted tree; each action feeds a set of leaves |
 | **leaf score** | per-user score on a leaf, decaying over time unless it is converted into a permanent level |
 | **tag** | a curated combination of leaves, shown as a single bar |
-| **tokens / energy** | consumable resources spent by acting |
+| **tokens** | earned by executing productivity actions, spent on leisure ones, capped in stock |
+| **energy** | drained by acting outside today's agenda, refilled at each checkpoint |
 | **build points / skill points** | currencies for buying actions in the shop and nodes in the skill tree; both are paid out at checkpoints |
 | **stage / checkpoint** | a countdown that advances the profile and hands out rewards |
 
@@ -251,7 +252,7 @@ Content tables also keep the logical id from the JSON era (`action_id`, `attr_id
 
 ### Migrations
 
-Nine revisions in a chain:
+Ten revisions in a chain:
 
 ```
 5638fb2a1810  initial schema
@@ -263,10 +264,11 @@ e5a1c9d8b2f4  programming actions contributions
 f7b3e9c1d4a8  conceptual attribute tree
 b2e7d9c4a6f1  routine actions contributions
 c4a8e2f6b9d3  action templates (unit, difficulty and prices)
+d6b1f4a9c8e2  token economy: earned by productivity, spent on leisure
 ```
 
-Six of them (`b7c1`, `c8d2`, `e5a1`, `f7b3`, `b2e7`, `c4a8`) read `backend/data/*.json` to
-seed. Those files exist only for that: nothing opens them at runtime.
+Seven of them (`b7c1`, `c8d2`, `e5a1`, `f7b3`, `b2e7`, `c4a8`, `d6b1`) read
+`backend/data/*.json` to seed. Those files exist only for that: nothing opens them at runtime.
 
 ### Adding actions to the catalog
 
@@ -280,8 +282,9 @@ a migration is how you add them. Both blocks live in
    `1.0` per action and conceptual weights sum to `1.0` separately; an action with neither
    never reaches an attribute.
 2. `action_templates` — one entry per action: `type` (the unit, see `Action._TYPE_MAP`),
-   `diff` 0–5, `cost` in build points, `token_cost` charged per unit on every act. An
-   action with contributions but no template falls back to `repos.TEMPLATE_FALLBACK`.
+   `diff` 0–5, `cost` in build points to acquire it, and then either `token_gain` or
+   `token_cost` — never both. An action with contributions but no template falls back to
+   `repos.TEMPLATE_FALLBACK`.
 3. Copy `b2e7d9c4a6f1_routine_actions.py` for the contributions and
    `c4a8e2f6b9d3_action_templates.py` for the templates, put the new names in
    `NEW_ACTIONS` and chain `down_revision` to the current head. Keep the guard against
@@ -303,8 +306,37 @@ and only a numeric note adds volume (`3` on a session action counts as three of 
 
 Prices assume build points stay scarce: 100 at profile creation plus
 `BUILD_POINTS_PER_CHECKPOINT` (10) every checkpoint, against 240 bp to own the whole
-catalog. Consumption actions (social apps, games, treats) are free to acquire and charge
-tokens per use instead, which is what the 20/day refill is there to limit.
+catalog.
+
+### The token economy
+
+Tokens are not handed out over time — there is no daily refill. An action either releases
+them or consumes them, flat per execution, and the note never multiplies either side:
+
+| `token_gain` | who |
+| --- | --- |
+| 30 | escalada, surf, architecture |
+| 25 | endurance, team sports, feature, refactor |
+| 20 | heavy lifts, the dev routine, the writing actions |
+| 15 | standard training, read, estudo |
+| 10 | caminhada, meditação, core work, board game |
+| 5 | alongamento, mobilidade, respiração, diário, podcast |
+
+| `token_cost` | who |
+| --- | --- |
+| 20 | video games |
+| 15 | watch film, tiktok |
+| 12 | youtube, watch series, instagram |
+| 10 | twitter, guloseima |
+
+Nutrition sits at zero on both sides: eating is maintenance, not production. A profile
+starts with an empty stock, so the first leisure act runs a debt — spending is never
+blocked, the balance simply goes negative until productivity covers it.
+
+The stock caps at `max_tokens` (50, plus 5 per Tokens node in the skill tree) and anything
+past the cap is dropped: a productive day earns around 70, so tokens do not accumulate
+across days. `ActOutcome.tokens_wasted` reports how much a given act threw away, and both
+clients show it.
 
 ### API
 

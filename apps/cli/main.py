@@ -149,6 +149,11 @@ def cmd_act(data: dict) -> None:
         f"[bold]{action.get('name')}[/bold]",
         f"value={action['value']:g}",
     ]
+    if outcome.token_gain > 0:
+        earned = outcome.token_gain - outcome.tokens_wasted
+        parts.append(f"[green]+{earned} tokens[/green]")
+        if outcome.tokens_wasted > 0:
+            parts.append(f"[dim]({outcome.tokens_wasted} perdidos, estoque cheio)[/dim]")
     if outcome.token_cost > 0:
         parts.append(f"[yellow]-{outcome.token_cost} tokens[/yellow]")
     if outcome.energy_penalty > 0:

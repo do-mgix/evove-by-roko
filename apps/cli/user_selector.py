@@ -84,7 +84,7 @@ class UserSelector:
                 "metadata": {
                     "username": normalized,
                     "energy": 1000,
-                    "tokens": 50,
+                    "tokens": 0,
                     "max_tokens": 50,
                     "build_points": 0,
                     "skill_points": 0,

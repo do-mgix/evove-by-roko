@@ -59,9 +59,7 @@ class UserState(Base):
     mode: Mapped[str] = mapped_column(String(32), default="progressive", nullable=False)
     days_until_next_checkpoint: Mapped[int] = mapped_column(Integer, default=20, nullable=False)
     last_checkpoint_check: Mapped[date | None] = mapped_column(Date, nullable=True)
-    last_token_refill: Mapped[date | None] = mapped_column(Date, nullable=True)
     last_decay_check: Mapped[date | None] = mapped_column(Date, nullable=True)
-    daily_refill: Mapped[int] = mapped_column(Integer, default=20, nullable=False)
     date: Mapped[date] = mapped_column(Date, server_default=text("(CURRENT_DATE)"), nullable=False)
     user: Mapped[User] = relationship(back_populates="state")
 
@@ -105,6 +103,7 @@ class Action(Base):
     logic_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     sub_logic_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     token_cost: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    token_gain: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     user: Mapped[User] = relationship(back_populates="actions")
 
@@ -182,6 +181,7 @@ class ActionTemplate(Base):
     diff: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     cost: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     token_cost: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    token_gain: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
 # user leaf relation - level and score
 class UserLeafScore(Base):
