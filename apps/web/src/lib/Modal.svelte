@@ -84,4 +84,13 @@
     padding: 1rem 1.25rem;
     overflow-y: auto;
   }
+
+  @media (max-width: 768px) {
+    .modal {
+      min-width: 0;
+      width: calc(100vw - 1.5rem);
+      max-width: none;
+      max-height: 85dvh;
+    }
+  }
 </style>

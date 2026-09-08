@@ -550,4 +550,8 @@
   .primary { background: #6cf; color: #0a0a0a; border-color: #6cf; }
   .primary:hover:not(:disabled) { background: #4ad; }
   .primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  @media (max-width: 768px) {
+    .form { min-width: 0; }
+  }
 </style>

@@ -46,6 +46,33 @@
     box-sizing: border-box;
     width: 72px;
   }
+
+  @media (max-width: 768px) {
+    .navbar {
+      flex-direction: row;
+      align-items: stretch;
+      justify-content: space-around;
+      width: 100%;
+      height: auto;
+      gap: 0;
+      padding: 0.35rem 0.25rem;
+      padding-bottom: calc(0.35rem + env(safe-area-inset-bottom, 0px));
+      border-right: none;
+      border-top: 1px solid #1a1a1a;
+      flex-shrink: 0;
+    }
+    .navbar .spacer { display: none; }
+    .nav-btn {
+      flex: 1;
+      min-width: 0;
+      padding: 0.4rem 0.15rem;
+    }
+  }
+
+  /* Seven targets across a narrow phone: drop the words, keep the glyphs. */
+  @media (max-width: 380px) {
+    .nav-btn .label { display: none; }
+  }
   .nav-btn {
     display: flex;
     flex-direction: column;

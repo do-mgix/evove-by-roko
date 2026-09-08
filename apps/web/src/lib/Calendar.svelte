@@ -725,4 +725,15 @@
   .primary { background: #6cf; color: #0a0a0a; border-color: #6cf; }
   .primary:hover:not(:disabled) { background: #4ad; }
   .primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  @media (max-width: 768px) {
+    .page { padding: 0.75rem 0.9rem; }
+    .layout {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto auto;
+      overflow-y: auto;
+    }
+    .day-panel { min-width: 0; }
+    .weekdays, .grid { gap: 0.2rem; }
+  }
 </style>

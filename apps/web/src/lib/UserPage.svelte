@@ -1,21 +1,37 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { fetchUser, fetchAttributes, fetchAttributeTags, type UserState, type Attribute, type AttrTag } from "./api";
+  import {
+    fetchUser,
+    fetchAttributes,
+    fetchAttributeTags,
+    fetchConceptualRoots,
+    type UserState,
+    type Attribute,
+    type AttrTag,
+    type ConceptualRoot,
+  } from "./api";
   import { userVersion } from "./store";
 
   let user: UserState | null = null;
   let attributes: Attribute[] = [];
   let tags: AttrTag[] = [];
+  let conceptualRoots: ConceptualRoot[] = [];
   let loading = true;
   let error: string | null = null;
   let lastVersion = 0;
 
   async function load() {
     try {
-      const [u, a, t] = await Promise.all([fetchUser(), fetchAttributes(), fetchAttributeTags()]);
+      const [u, a, t, cr] = await Promise.all([
+        fetchUser(),
+        fetchAttributes(),
+        fetchAttributeTags(),
+        fetchConceptualRoots(),
+      ]);
       user = u;
       attributes = a;
       tags = t;
+      conceptualRoots = cr;
     } catch (e: any) {
       error = e?.message ?? "erro";
     } finally {
@@ -116,6 +132,27 @@
         <span class="muted-sub">ativos</span>
       </div>
     </section>
+
+    {#if conceptualRoots.length > 0}
+      <section class="attrs-section">
+        <h2>conceitual</h2>
+        <ul class="attrs">
+          {#each conceptualRoots as r (r.key)}
+            <li>
+              <div class="attr-row">
+                <span class="attr-name">{r.name}</span>
+                <span class="attr-meta">
+                  <span class="lvl">lvl {r.level.toFixed(1)}/{r.max_level}</span>
+                </span>
+              </div>
+              <div class="attr-bar">
+                <div class="attr-fill" style="width: {r.progress_to_next * 100}%"></div>
+              </div>
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
 
     {#if tags.length > 0}
       <section class="attrs-section">
@@ -353,4 +390,8 @@
     font-size: 0.65rem;
   }
   .attr-sub .muted { color: #444; }
+
+  @media (max-width: 768px) {
+    .page { padding: 0.75rem 0.9rem; }
+  }
 </style>

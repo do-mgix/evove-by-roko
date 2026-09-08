@@ -14,13 +14,14 @@
     type ConceptualRoot,
     type AgendaToday,
   } from "./api";
-  import UserPanel from "./UserPanel.svelte";
   import LogsPanel from "./LogsPanel.svelte";
   import AgendaPanel from "./AgendaPanel.svelte";
   import ProjectsPanel from "./ProjectsPanel.svelte";
   import EmptySlot from "./EmptySlot.svelte";
   import WidgetTray from "./WidgetTray.svelte";
   import Modal from "./Modal.svelte";
+  import DialPad from "./DialPad.svelte";
+  import { primeAudio, keyFeedback, buzz } from "./dtmf";
   import { bumpLogs, bumpUser, userVersion } from "./store";
 
   export let onNav: (page: string, params?: Record<string, any>) => void = () => {};
@@ -44,14 +45,95 @@
   let noteValue = "";
   let noteInputEl: HTMLInputElement | undefined;
 
+  // ---- responsive ----
+  const MOBILE_QUERY = "(max-width: 768px)";
+  let isMobile = false;
+  onMount(() => {
+    const mq = window.matchMedia(MOBILE_QUERY);
+    const apply = () => (isMobile = mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  });
+
+  // ---- dial input ----
+  // Numeric mode: the buffer is an action id and nothing else. No secondary
+  // operators — matching an id goes straight to the note modal.
+  let searchMode: "text" | "dial" = "text";
+  let dialBuffer = "";
+
+  $: byPrefix = actions.filter((a) => a.id.startsWith(dialBuffer));
+
+  function toggleDial() {
+    searchMode = searchMode === "dial" ? "text" : "dial";
+    dialBuffer = "";
+    if (searchMode === "dial") {
+      primeAudio();          // the click is the gesture browsers require
+      setTimeout(() => inputEl?.focus(), 0);
+    } else {
+      query = "";
+    }
+  }
+
+  /** Fire as soon as the buffer names exactly one action and nothing longer
+   *  shares the prefix — the second half matters once ids become hierarchical. */
+  function tryResolve() {
+    if (!dialBuffer) return;
+    const exact = actions.filter((a) => a.id === dialBuffer);
+    const prefixed = actions.filter((a) => a.id.startsWith(dialBuffer));
+    if (exact.length === 1 && prefixed.length === 1) forceResolve();
+  }
+
+  function forceResolve() {
+    const exact = actions.filter((a) => a.id === dialBuffer);
+    if (exact.length !== 1) return;
+    const action = exact[0];
+    dialBuffer = "";
+    promptNote(action);
+  }
+
+  function pushDigit(d: string) {
+    dialBuffer += d;
+    tryResolve();
+  }
+
+  function popDigit() {
+    dialBuffer = dialBuffer.slice(0, -1);
+  }
+
+  /** Physical numpad while the field has focus, so clicking keys stays optional. */
+  function onDialKey(e: KeyboardEvent) {
+    if (e.key >= "0" && e.key <= "9") {
+      e.preventDefault();
+      keyFeedback(e.key);
+      pushDigit(e.key);
+    } else if (e.key === "Backspace") {
+      e.preventDefault();
+      keyFeedback("*");
+      popDigit();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      keyFeedback("#");
+      forceResolve();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      buzz([15, 5, 15]);
+      dialBuffer = "";
+    } else if (e.key.length === 1) {
+      // the field mirrors dialBuffer; block anything that would desync it
+      e.preventDefault();
+    }
+  }
+
   const TYPE_LABEL: Record<number, string> = {
     0: "session", 1: "reps", 2: "seconds", 3: "minutes", 4: "hours",
     5: "letters", 6: "lines", 7: "words", 8: "group",
   };
 
-  $: filtered = actions.filter((a) =>
-    a.name.toLowerCase().includes(query.trim().toLowerCase())
-  );
+  $: filtered =
+    searchMode === "dial"
+      ? byPrefix
+      : actions.filter((a) => a.name.toLowerCase().includes(query.trim().toLowerCase()));
 
   $: if ($userVersion !== lastUserVersion) {
     lastUserVersion = $userVersion;
@@ -159,6 +241,8 @@
   };
 
   let slots: (string | null)[] = ["actions", "agenda", "projects", "logs"];
+  const MOBILE_SLOTS = ["actions", "logs"];
+  $: visibleSlots = isMobile ? MOBILE_SLOTS : slots;
   let dragSource: { kind: "tray" | "slot"; widgetId: string; from?: number } | null = null;
   let dragOverIdx: number | null = null;
   let dragOverPos: { x: number; y: number } | null = null; // 0..1 in slot
@@ -268,15 +352,26 @@
 </script>
 
 <div class="layout">
+  {#if user}
+    <div class="statusbar">
+      <span class="sb-item"><span class="sb-label">tokens</span>{user.tokens}/{user.max_tokens}</span>
+      <span class="sb-sep">·</span>
+      <span class="sb-item"><span class="sb-label">energia</span>{user.energy}</span>
+      {#if lastAct}
+        <span class="sb-act">+{lastAct.diff} xp · {lastAct.name}</span>
+      {/if}
+    </div>
+  {/if}
+
   <main class="grid-wrap">
-    <div class="grid">
-      {#each slots as widgetId, idx (idx)}
+    <div class="grid" class:stacked={isMobile}>
+      {#each visibleSlots as widgetId, idx (idx)}
         <section
           class="cell"
-          class:drag-over={dragOverIdx === idx && dragSource}
-          on:dragover={(e) => onSlotDragOver(e, idx)}
+          class:drag-over={!isMobile && dragOverIdx === idx && dragSource}
+          on:dragover={(e) => !isMobile && onSlotDragOver(e, idx)}
           on:dragleave={onSlotDragLeave}
-          on:drop={(e) => onSlotDrop(e, idx)}
+          on:drop={(e) => !isMobile && onSlotDrop(e, idx)}
         >
           {#if widgetId === null}
             <EmptySlot dragOver={dragOverIdx === idx && !!dragSource} />
@@ -284,25 +379,49 @@
             <div class="window">
               <div
                 class="window-header"
-                draggable="true"
+                draggable={!isMobile}
                 on:dragstart={(e) => startSlotDrag(e, idx)}
                 on:dragend={cleanupDrag}
               >
                 <span class="window-icon">{widgetById[widgetId]?.icon}</span>
                 <span class="window-label">{widgetById[widgetId]?.label}</span>
-                <span class="grip">⋮⋮</span>
+                {#if !isMobile}<span class="grip">⋮⋮</span>{/if}
               </div>
               <div class="window-body">
                 {#if widgetId === "actions"}
-                  <input
-                    type="text"
-                    placeholder="Buscar ação..."
-                    bind:value={query}
-                    bind:this={inputEl}
-                    on:keydown={onSearchKey}
-                  />
-                  {#if lastAct}
-                    <div class="last-act">+{lastAct.diff} xp · {lastAct.name}</div>
+                  <div class="search-row">
+                    <input
+                      type="text"
+                      class:dial={searchMode === "dial"}
+                      placeholder={searchMode === "dial" ? "id da ação" : "Buscar ação..."}
+                      value={searchMode === "dial" ? dialBuffer : query}
+                      readonly={searchMode === "dial" && isMobile}
+                      inputmode={searchMode === "dial" ? (isMobile ? "none" : "numeric") : "text"}
+                      bind:this={inputEl}
+                      on:input={(e) => {
+                        if (searchMode === "text") query = e.currentTarget.value;
+                      }}
+                      on:keydown={searchMode === "dial" ? onDialKey : onSearchKey}
+                    />
+                    <button
+                      type="button"
+                      class="dial-toggle"
+                      class:on={searchMode === "dial"}
+                      on:click={toggleDial}
+                      title={searchMode === "dial" ? "buscar por nome" : "buscar por id"}
+                    >
+                      123
+                    </button>
+                  </div>
+                  {#if searchMode === "dial"}
+                    <DialPad
+                      buffer={dialBuffer}
+                      touch={isMobile}
+                      onDigit={(d) => pushDigit(d)}
+                      onBackspace={popDigit}
+                      onClear={() => (dialBuffer = "")}
+                      onConfirm={forceResolve}
+                    />
                   {/if}
                   {#if loading}
                     <p class="muted">carregando...</p>
@@ -361,14 +480,10 @@
         </section>
       {/each}
     </div>
-    <WidgetTray widgets={trayWidgets} onWidgetDragStart={startTrayDrag} />
-  </main>
-
-  <aside class="sidebar">
-    {#if user}
-      <UserPanel {user} {tags} {conceptualRoots} />
+    {#if !isMobile}
+      <WidgetTray widgets={trayWidgets} onWidgetDragStart={startTrayDrag} />
     {/if}
-  </aside>
+  </main>
 </div>
 
 {#if pendingNoteFor}
@@ -424,12 +539,33 @@
 
 <style>
   .layout {
-    display: grid;
-    grid-template-columns: 1fr 240px;
-    gap: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
     padding: 1.5rem;
     height: 100%;
     box-sizing: border-box;
+  }
+  .statusbar {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    font-size: 0.78rem;
+    color: #888;
+    flex-wrap: wrap;
+  }
+  .sb-label {
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.65rem;
+    margin-right: 0.35rem;
+  }
+  .sb-sep { color: #333; }
+  .sb-act {
+    color: #6cf;
+    margin-left: auto;
+    animation: fade 2.2s ease-out forwards;
   }
   .grid-wrap {
     display: flex;
@@ -444,10 +580,6 @@
     gap: 1rem;
     flex: 1;
     min-height: 0;
-  }
-  .sidebar {
-    min-height: 0;
-    overflow: hidden;
   }
   .cell {
     overflow: hidden;
@@ -625,11 +757,34 @@
     border-style: solid;
     color: #ccc;
   }
-  .last-act {
+  .search-row {
+    display: flex;
+    gap: 0.35rem;
+    align-items: stretch;
+  }
+  .search-row input { flex: 1; min-width: 0; }
+  .search-row input.dial {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.25em;
+  }
+  .dial-toggle {
+    flex: 0 0 auto;
+    padding: 0 0.6rem;
+    background: #0d0d0d;
+    border: 1px solid #2a2a2a;
+    border-radius: 3px;
+    color: #666;
+    font: inherit;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .dial-toggle:hover { border-color: #444; color: #aaa; }
+  .dial-toggle.on {
+    border-color: #6cf;
     color: #6cf;
-    font-size: 0.78rem;
-    margin: 0 0 0.5rem;
-    animation: fade 2.2s ease-out forwards;
+    background: #0a1418;
   }
   @keyframes fade {
     0%, 70% { opacity: 1; }
@@ -638,6 +793,24 @@
 
   .muted { color: #666; }
   .error { color: #f66; }
+
+  .grid.stacked {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    flex: none;
+  }
+
+  @media (max-width: 768px) {
+    .layout {
+      padding: 0.75rem;
+      height: auto;
+      min-height: 100%;
+    }
+    .grid-wrap { overflow: visible; }
+    .grid.stacked .cell { min-height: 15rem; }
+    .statusbar { font-size: 0.72rem; }
+    .sb-act { margin-left: 0; width: 100%; }
+  }
 
   .details {
     display: grid;

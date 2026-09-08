@@ -70,4 +70,19 @@
     min-width: 0;
     overflow: hidden;
   }
+
+  /* column-reverse puts the page above the bar without reordering the markup,
+     so the nav keeps coming first for keyboard and screen readers. */
+  @media (max-width: 768px) {
+    .app {
+      flex-direction: column-reverse;
+      height: 100dvh;
+    }
+    .page {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+  }
 </style>

@@ -583,4 +583,10 @@
     opacity: 0.4;
     cursor: not-allowed;
   }
+
+  @media (max-width: 768px) {
+    .content { max-width: 60%; }
+    .details { grid-template-columns: 1fr; gap: 0.15rem 0; }
+    .details dd { margin-bottom: 0.5rem; }
+  }
 </style>

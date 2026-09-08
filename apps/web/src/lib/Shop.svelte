@@ -420,4 +420,11 @@
   .primary { background: #6cf; color: #0a0a0a; border-color: #6cf; }
   .primary:hover:not(:disabled) { background: #4ad; }
   .primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  @media (max-width: 768px) {
+    .page { padding: 0.75rem 0.9rem; }
+    .actions li { padding-left: 1.2rem; }
+    .details { grid-template-columns: 1fr; gap: 0.15rem 0; }
+    .details dd { margin-bottom: 0.5rem; }
+  }
 </style>
