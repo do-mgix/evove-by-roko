@@ -471,6 +471,56 @@
     { "action": "ESCREVER ARGUMENTAÇÃO", "leaf": "foco", "weight": 0.20 },
     { "action": "ESCREVER ARGUMENTAÇÃO", "leaf": "wernicke", "weight": 0.10 },
     { "action": "ESCREVER ARGUMENTAÇÃO", "leaf": "hipocampo", "weight": 0.05 },
-    { "action": "ESCREVER ARGUMENTAÇÃO", "leaf": "c_argumentacao", "weight": 1.0 }
+    { "action": "ESCREVER ARGUMENTAÇÃO", "leaf": "c_argumentacao", "weight": 1.0 },
+
+    { "action": "ALONGAMENTO", "leaf": "flexibilidade", "weight": 0.60 },
+    { "action": "ALONGAMENTO", "leaf": "posterior_coxa", "weight": 0.15 },
+    { "action": "ALONGAMENTO", "leaf": "lombar", "weight": 0.15 },
+    { "action": "ALONGAMENTO", "leaf": "deltoide", "weight": 0.10 },
+    { "action": "ALONGAMENTO", "leaf": "c_mobilidade", "weight": 1.0 },
+
+    { "action": "MOBILIDADE ARTICULAR", "leaf": "flexibilidade", "weight": 0.40 },
+    { "action": "MOBILIDADE ARTICULAR", "leaf": "estabilidade", "weight": 0.35 },
+    { "action": "MOBILIDADE ARTICULAR", "leaf": "coordenacao", "weight": 0.15 },
+    { "action": "MOBILIDADE ARTICULAR", "leaf": "somatossensorial", "weight": 0.10 },
+    { "action": "MOBILIDADE ARTICULAR", "leaf": "c_mobilidade", "weight": 1.0 },
+
+    { "action": "AQUECIMENTO", "leaf": "flexibilidade", "weight": 0.30 },
+    { "action": "AQUECIMENTO", "leaf": "aerobico", "weight": 0.30 },
+    { "action": "AQUECIMENTO", "leaf": "estabilidade", "weight": 0.20 },
+    { "action": "AQUECIMENTO", "leaf": "coordenacao", "weight": 0.20 },
+    { "action": "AQUECIMENTO", "leaf": "c_mobilidade", "weight": 0.5 },
+    { "action": "AQUECIMENTO", "leaf": "c_cardio", "weight": 0.5 },
+
+    { "action": "YOGA", "leaf": "flexibilidade", "weight": 0.30 },
+    { "action": "YOGA", "leaf": "estabilidade", "weight": 0.25 },
+    { "action": "YOGA", "leaf": "core", "weight": 0.15 },
+    { "action": "YOGA", "leaf": "equilibrio", "weight": 0.15 },
+    { "action": "YOGA", "leaf": "foco", "weight": 0.15 },
+    { "action": "YOGA", "leaf": "c_mobilidade", "weight": 1.0 },
+
+    { "action": "MEDITAÇÃO", "leaf": "foco", "weight": 0.45 },
+    { "action": "MEDITAÇÃO", "leaf": "amigdala", "weight": 0.35 },
+    { "action": "MEDITAÇÃO", "leaf": "executiva", "weight": 0.20 },
+
+    { "action": "RESPIRAÇÃO", "leaf": "amigdala", "weight": 0.5 },
+    { "action": "RESPIRAÇÃO", "leaf": "foco", "weight": 0.30 },
+    { "action": "RESPIRAÇÃO", "leaf": "aerobico", "weight": 0.20 },
+
+    { "action": "DIÁRIO", "leaf": "broca", "weight": 0.40 },
+    { "action": "DIÁRIO", "leaf": "executiva", "weight": 0.25 },
+    { "action": "DIÁRIO", "leaf": "hipocampo", "weight": 0.20 },
+    { "action": "DIÁRIO", "leaf": "amigdala", "weight": 0.15 },
+    { "action": "DIÁRIO", "leaf": "c_narrativa", "weight": 1.0 },
+
+    { "action": "ESTUDO", "leaf": "hipocampo", "weight": 0.35 },
+    { "action": "ESTUDO", "leaf": "foco", "weight": 0.25 },
+    { "action": "ESTUDO", "leaf": "executiva", "weight": 0.20 },
+    { "action": "ESTUDO", "leaf": "wernicke", "weight": 0.20 },
+    { "action": "ESTUDO", "leaf": "c_leitura", "weight": 1.0 },
+
+    { "action": "PODCAST", "leaf": "auditivo", "weight": 0.45 },
+    { "action": "PODCAST", "leaf": "wernicke", "weight": 0.35 },
+    { "action": "PODCAST", "leaf": "hipocampo", "weight": 0.20 }
   ]
 }
