@@ -18,6 +18,11 @@ implement.md
 trouble.md
 node_modules/
 
+# Editor swap files
+*.swp
+*.swo
+*~
+
 tests/
 
 .nx/cache
