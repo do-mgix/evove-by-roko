@@ -59,6 +59,47 @@ python apps/cli/main.py
 Needs `rich` and `readchar` (`pip install -r apps/cli/requirements.txt`) plus the backend
 requirements, since it imports the same domain code.
 
+### Development loop
+
+Not everything picks up an edit on its own:
+
+| You changed | What picks it up |
+| --- | --- |
+| `apps/web/src/**` | Vite, nothing to do |
+| `backend/**`, running `uvicorn --reload` on the host | the reloader |
+| `backend/**`, running in the container | **nothing — rebuild the image** |
+
+The backend image copies `src/`, `main.py`, `data/` and `alembic/` at build time
+(`backend/Dockerfile`), so a container started before your edit keeps serving the old
+code. Same for the CLI image, which copies `backend/src` and `apps/cli`.
+
+```bash
+docker compose up -d --build backend
+```
+
+A stale image shows up in two ways, neither of which points at the image:
+
+- **The API answers fine, with old values.** The database has your new rows, because
+  migrations run against MySQL and not through the application, but the Python that reads
+  them is the version in the image. A seed you just added appears in Adminer and not in
+  the API.
+- **`alembic: Can't locate revision identified by '<hash>'`.** You migrated from the host,
+  so `alembic_version` names a revision whose file only exists in your working tree, not
+  in the image's `alembic/versions/`. Rebuild and it reappears — the database is already
+  at head, so the upgrade then does nothing.
+
+Migrating from the host avoids the second one entirely and hits the same database:
+
+```bash
+cd backend
+DATABASE_URL='mysql+pymysql://roko:rokopass@127.0.0.1:3306/roko?charset=utf8mb4' \
+  alembic upgrade head
+```
+
+If the rebuild cycle gets tiring, bind-mounting `./backend` over `/app` in the `backend`
+service and running uvicorn with `--reload` removes it. The compose file does not do that
+today: it builds an image on purpose, so what you run locally matches what you would ship.
+
 ### Backend outside Docker
 
 ```bash
