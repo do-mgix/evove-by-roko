@@ -7,9 +7,11 @@
   import Calendar from "./lib/Calendar.svelte";
   import Journey from "./lib/Journey.svelte";
   import UserSelect from "./lib/UserSelect.svelte";
-  import { getUsername, clearUsername } from "./lib/api";
+  import { clearUsername } from "./lib/api";
 
-  let username = getUsername();
+  // The profile picker is always the entry screen: a name kept in localStorage
+  // from a previous visit is not enough to skip it.
+  let username: string | null = null;
   let page = "home";
   let pageParams: Record<string, any> = {};
   let dashKey = 0;
