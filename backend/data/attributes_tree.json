@@ -78,7 +78,21 @@
     { "key": "c_architecture", "name": "Architecture", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 2880, "floor": 0, "threshold": 1, "max_level": 10 },
     { "key": "c_tests", "name": "Tests", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 2160, "floor": 0, "threshold": 1, "max_level": 10 },
     { "key": "c_docs", "name": "Docs", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 2160, "floor": 0, "threshold": 1, "max_level": 10 },
-    { "key": "c_review", "name": "Review", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 2160, "floor": 0, "threshold": 1, "max_level": 10 }
+    { "key": "c_review", "name": "Review", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 2160, "floor": 0, "threshold": 1, "max_level": 10 },
+
+    { "key": "c_alimentacao", "name": "Alimentação", "is_leaf": false, "tree_kind": "conceptual" },
+    { "key": "c_refeicao", "name": "Refeições", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 720, "floor": 0, "threshold": 1, "max_level": 10 },
+    { "key": "c_bebida", "name": "Bebidas", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 720, "floor": 0, "threshold": 1, "max_level": 10 },
+    { "key": "c_consumo", "name": "Consumo", "is_leaf": false, "tree_kind": "conceptual" },
+    { "key": "c_redes", "name": "Redes", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 336, "floor": 0, "threshold": 1, "max_level": 10 },
+    { "key": "c_video", "name": "Vídeo", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 336, "floor": 0, "threshold": 1, "max_level": 10 },
+    { "key": "c_jogos", "name": "Jogos", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 336, "floor": 0, "threshold": 1, "max_level": 10 },
+    { "key": "c_audio", "name": "Áudio", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 336, "floor": 0, "threshold": 1, "max_level": 10 },
+    { "key": "c_indulgencia", "name": "Indulgência", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 336, "floor": 0, "threshold": 1, "max_level": 10 },
+    { "key": "c_pratica_mental", "name": "Prática Mental", "is_leaf": false, "tree_kind": "conceptual" },
+    { "key": "c_meditacao", "name": "Meditação", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 1440, "floor": 0, "threshold": 1, "max_level": 10 },
+    { "key": "c_escuta", "name": "Escuta", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 1440, "floor": 0, "threshold": 1, "max_level": 10 },
+    { "key": "c_raciocinio", "name": "Raciocínio", "is_leaf": true, "tree_kind": "conceptual", "half_life_hours": 1440, "floor": 0, "threshold": 1, "max_level": 10 }
   ],
   "edges": [
     { "parent": "corpo", "child": "musculatura", "weight": 0.40 },
@@ -158,7 +172,18 @@
     { "parent": "c_programacao", "child": "c_architecture", "weight": 0.15 },
     { "parent": "c_programacao", "child": "c_tests", "weight": 0.10 },
     { "parent": "c_programacao", "child": "c_docs", "weight": 0.10 },
-    { "parent": "c_programacao", "child": "c_review", "weight": 0.10 }
+    { "parent": "c_programacao", "child": "c_review", "weight": 0.10 },
+
+    { "parent": "c_alimentacao", "child": "c_refeicao", "weight": 0.60 },
+    { "parent": "c_alimentacao", "child": "c_bebida", "weight": 0.40 },
+    { "parent": "c_consumo", "child": "c_redes", "weight": 0.30 },
+    { "parent": "c_consumo", "child": "c_video", "weight": 0.30 },
+    { "parent": "c_consumo", "child": "c_jogos", "weight": 0.20 },
+    { "parent": "c_consumo", "child": "c_audio", "weight": 0.10 },
+    { "parent": "c_consumo", "child": "c_indulgencia", "weight": 0.10 },
+    { "parent": "c_pratica_mental", "child": "c_meditacao", "weight": 0.50 },
+    { "parent": "c_pratica_mental", "child": "c_escuta", "weight": 0.25 },
+    { "parent": "c_pratica_mental", "child": "c_raciocinio", "weight": 0.25 }
   ],
   "contributions": [
     { "action": "AGACHAMENTO", "leaf": "quadriceps", "weight": 0.40 },
@@ -521,7 +546,28 @@
 
     { "action": "PODCAST", "leaf": "auditivo", "weight": 0.45 },
     { "action": "PODCAST", "leaf": "wernicke", "weight": 0.35 },
-    { "action": "PODCAST", "leaf": "hipocampo", "weight": 0.20 }
+    { "action": "PODCAST", "leaf": "hipocampo", "weight": 0.20 },
+
+    { "action": "BREAKFAST", "leaf": "c_refeicao", "weight": 1.0 },
+    { "action": "LUNCH", "leaf": "c_refeicao", "weight": 1.0 },
+    { "action": "DINNER", "leaf": "c_refeicao", "weight": 1.0 },
+    { "action": "SNACK", "leaf": "c_refeicao", "weight": 1.0 },
+    { "action": "WATER", "leaf": "c_bebida", "weight": 1.0 },
+    { "action": "TEA", "leaf": "c_bebida", "weight": 1.0 },
+    { "action": "COFFEE", "leaf": "c_bebida", "weight": 1.0 },
+    { "action": "INSTAGRAM", "leaf": "c_redes", "weight": 1.0 },
+    { "action": "TIKTOK", "leaf": "c_redes", "weight": 1.0 },
+    { "action": "TWITTER", "leaf": "c_redes", "weight": 1.0 },
+    { "action": "YOUTUBE", "leaf": "c_video", "weight": 1.0 },
+    { "action": "WATCH FILM", "leaf": "c_video", "weight": 1.0 },
+    { "action": "WATCH SERIES", "leaf": "c_video", "weight": 1.0 },
+    { "action": "VIDEO GAMES", "leaf": "c_jogos", "weight": 1.0 },
+    { "action": "MUSIC", "leaf": "c_audio", "weight": 1.0 },
+    { "action": "GULOSEIMA", "leaf": "c_indulgencia", "weight": 1.0 },
+    { "action": "MEDITAÇÃO", "leaf": "c_meditacao", "weight": 1.0 },
+    { "action": "RESPIRAÇÃO", "leaf": "c_meditacao", "weight": 1.0 },
+    { "action": "PODCAST", "leaf": "c_escuta", "weight": 1.0 },
+    { "action": "BOARD GAME", "leaf": "c_raciocinio", "weight": 1.0 }
   ],
 
   "action_templates": [

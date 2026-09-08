@@ -252,7 +252,7 @@ Content tables also keep the logical id from the JSON era (`action_id`, `attr_id
 
 ### Migrations
 
-Twelve revisions in a chain:
+Thirteen revisions in a chain:
 
 ```
 5638fb2a1810  initial schema
@@ -267,6 +267,7 @@ c4a8e2f6b9d3  action templates (unit, difficulty and prices)
 d6b1f4a9c8e2  token economy: earned by productivity, spent on leisure
 e8c2a5d7b1f3  raise the token stock cap to 100
 f9d3b6e8a2c4  record the token delta on each log
+a1e5c9b3d7f2  conceptual themes for the actions that had none
 ```
 
 Seven of them (`b7c1`, `c8d2`, `e5a1`, `f7b3`, `b2e7`, `c4a8`, `d6b1`) read
@@ -282,7 +283,8 @@ a migration is how you add them. Both blocks live in
 
 1. `contributions` — one entry per leaf, action name in caps. Anatomical weights sum to
    `1.0` per action and conceptual weights sum to `1.0` separately; an action with neither
-   never reaches an attribute.
+   never reaches an attribute. Give it at least one conceptual leaf: that is what files it
+   under a theme in the shop — see below.
 2. `action_templates` — one entry per action: `type` (the unit, see `Action._TYPE_MAP`),
    `diff` 0–5, `cost` in build points to acquire it, and then either `token_gain` or
    `token_cost` — never both. An action with contributions but no template falls back to
@@ -294,6 +296,18 @@ a migration is how you add them. Both blocks live in
    the migration hits the unique constraint on `(action_name, leaf_id)`.
 4. Migrating through the container? Run `docker compose build backend` first. The image
    carries a copy of `backend/data/` from build time, not the file in your working tree.
+
+### How the shop groups actions
+
+An action is filed under the parent of its heaviest **conceptual** leaf (`_theme_for` in
+`backend/main.py`), so every group in the shop is a theme — Treino, Programação, Escrita,
+Literacia, Alimentação, Consumo, Prática Mental — and never a body region.
+
+Conceptual leaves are preferred explicitly rather than by weight. An anatomical leaf can
+also carry weight `1.0` (`WATER` → `hidratacao`), and a tie would otherwise be broken by
+whatever order MySQL returned the rows, moving an action between groups from one request
+to the next. The heaviest leaf of any kind is the fallback, so an action with no
+conceptual contribution still lands somewhere instead of in `Outros`.
 
 ### Catalog balance
 
@@ -363,7 +377,7 @@ Every user route reads the `X-Evove-Username` header.
 | GET | `/attributes/tags` | the composite tags |
 | GET | `/attributes/tree` | hierarchical tree with a computed score on every node |
 | GET | `/attributes/conceptual/roots` | conceptual roots with aggregated level |
-| GET | `/shop/packages` | available actions grouped by attribute |
+| GET | `/shop/packages` | available actions grouped by theme |
 | GET | `/shop/catalog` | the same, with each action's leaves and weights |
 | POST | `/shop/actions/buy` | buy an action (`{attribute, name}`) |
 | GET | `/skills/tree` | nodes, acquired ids, skill point balance and bonuses |

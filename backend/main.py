@@ -37,22 +37,45 @@ _GREEK = ['α','β','γ','δ','ε','ζ','η','θ','ι','κ','λ','μ','ν','ξ',
 _LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 
+def _leaf_to_parent(tree) -> dict[str, str]:
+    """{leaf_key: parent_key} for every leaf in the tree."""
+    out: dict[str, str] = {}
+    for parent_key, children in tree.children.items():
+        for child_key, _w in children:
+            if child_key in tree.leaves_by_key:
+                out[child_key] = parent_key
+    return out
+
+
+def _theme_for(contribs, tree, leaf_to_parent) -> str | None:
+    """Shop group for an action: the parent of its heaviest conceptual leaf.
+
+    `contribs` arrives sorted by descending weight. Conceptual leaves are
+    preferred explicitly rather than by weight, because an anatomical leaf can
+    also carry weight 1.0 (WATER → hidratacao) and the tie would otherwise be
+    broken by row order. Falls back to the heaviest leaf of any kind so an
+    action with no conceptual contribution still lands somewhere.
+    """
+    if not contribs:
+        return None
+    for leaf_key, _w in contribs:
+        leaf = tree.leaves_by_key.get(leaf_key)
+        if leaf is not None and leaf.tree_kind == "conceptual":
+            return leaf_to_parent.get(leaf_key)
+    return leaf_to_parent.get(contribs[0][0])
+
+
 def load_packages() -> list[dict]:
     tree = repos.load_attr_tree()
     contributions = repos.load_all_contributions()
     templates = repos.load_action_templates()
 
-    leaf_to_parent: dict[str, str] = {}
-    for parent_key, children in tree.children.items():
-        for child_key, _w in children:
-            if child_key in tree.leaves_by_key:
-                leaf_to_parent[child_key] = parent_key
+    leaf_to_parent = _leaf_to_parent(tree)
 
     packages: dict[str, dict] = {}
     unmapped = {"attribute": "_unmapped", "name": "Outros", "actions": []}
     for action_name, contribs in sorted(contributions.items()):
-        primary_leaf = contribs[0][0] if contribs else None
-        group_key = leaf_to_parent.get(primary_leaf or "")
+        group_key = _theme_for(contribs, tree, leaf_to_parent)
         group_name = tree.nodes_by_key[group_key].name if group_key and group_key in tree.nodes_by_key else None
         meta = templates.get(action_name) or repos.TEMPLATE_FALLBACK
         action = {
@@ -744,20 +767,16 @@ def shop_packages():
 
 @app.get("/shop/catalog")
 def shop_catalog():
-    """Group action templates by their primary anatomical/neurological zone.
+    """Group action templates by theme.
 
-    For each action, find the leaf with highest contribution weight, then
-    group by that leaf's parent node. Returns flat list of groups in tree order.
+    Each action is filed under the parent of its heaviest conceptual leaf — see
+    `_theme_for`. Returns a flat list of groups in tree order.
     """
     packages = load_packages()
     tree = repos.load_attr_tree()
     contributions = repos.load_all_contributions()
 
-    leaf_to_parent: dict[str, str] = {}
-    for parent_key, children in tree.children.items():
-        for child_key, _w in children:
-            if child_key in tree.leaves_by_key:
-                leaf_to_parent[child_key] = parent_key
+    leaf_to_parent = _leaf_to_parent(tree)
 
     grouped: dict[str, dict] = {}
     unmapped: list[dict] = []
@@ -785,8 +804,7 @@ def shop_catalog():
             if not contribs:
                 unmapped.append(entry)
                 continue
-            primary_leaf = contribs[0][0]
-            group_key = leaf_to_parent.get(primary_leaf)
+            group_key = _theme_for(contribs, tree, leaf_to_parent)
             if not group_key:
                 unmapped.append(entry)
                 continue
