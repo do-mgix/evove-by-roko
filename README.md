@@ -252,7 +252,7 @@ Content tables also keep the logical id from the JSON era (`action_id`, `attr_id
 
 ### Migrations
 
-Eleven revisions in a chain:
+Twelve revisions in a chain:
 
 ```
 5638fb2a1810  initial schema
@@ -266,6 +266,7 @@ b2e7d9c4a6f1  routine actions contributions
 c4a8e2f6b9d3  action templates (unit, difficulty and prices)
 d6b1f4a9c8e2  token economy: earned by productivity, spent on leisure
 e8c2a5d7b1f3  raise the token stock cap to 100
+f9d3b6e8a2c4  record the token delta on each log
 ```
 
 Seven of them (`b7c1`, `c8d2`, `e5a1`, `f7b3`, `b2e7`, `c4a8`, `d6b1`) read
@@ -339,6 +340,11 @@ anything past the cap is dropped. A productive day releases around 70, so a good
 whole and roughly a day and a half can be banked, but a run of them still overflows.
 `ActOutcome.tokens_wasted` reports how much a given act threw away, and both clients show
 it.
+
+Every log carries the signed delta the act produced in `logs.tokens` — positive for what
+was released after the cap took its cut, negative for what was spent — so the day's ledger
+reads back from the logs panel without recomputing anything. Entries written before that
+column existed sit at 0.
 
 ### API
 

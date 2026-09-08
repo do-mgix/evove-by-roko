@@ -55,7 +55,7 @@ _LOG_ID_PREFIX = 73
 _LOG_ID_WIDTH = 4
 
 
-def append_log(content: str, xp: int) -> dict:
+def append_log(content: str, xp: int, tokens: int = 0) -> dict:
     username = get_current_username()
     logs = load_logs()
     today = datetime.now()
@@ -84,6 +84,7 @@ def append_log(content: str, xp: int) -> dict:
         "timestamp": today.strftime("%d %m %Y : %H:%M:%S"),
         "content": content,
         "xp": int(xp),
+        "tokens": int(tokens),
         "coord": [today_day, next_order + 1],
     }
     repos.append_log(username, entry)
@@ -142,7 +143,8 @@ def cmd_act(data: dict) -> None:
         return
 
     save_user(data)
-    append_log(outcome.log_content, int(round(outcome.score_diff)))
+    token_delta = (outcome.token_gain - outcome.tokens_wasted) - outcome.token_cost
+    append_log(outcome.log_content, int(round(outcome.score_diff)), token_delta)
 
     parts = [
         f"[green]+{int(round(outcome.score_diff))} xp[/green]",
@@ -175,10 +177,13 @@ def cmd_logs() -> None:
     table.add_column("time", style="dim")
     table.add_column("content")
     table.add_column("xp", justify="right", style="green")
+    table.add_column("tokens", justify="right")
     for log in today_logs[-30:]:
         ts = str(log.get("timestamp", ""))
         time_part = ts.split(" : ")[1] if " : " in ts else ts
-        table.add_row(time_part, str(log.get("content", "")), f"+{log.get('xp', 0)}")
+        tk = int(log.get("tokens", 0) or 0)
+        token_cell = "" if tk == 0 else f"[green]+{tk}[/green]" if tk > 0 else f"[yellow]{tk}[/yellow]"
+        table.add_row(time_part, str(log.get("content", "")), f"+{log.get('xp', 0)}", token_cell)
     console.print(table)
 
 

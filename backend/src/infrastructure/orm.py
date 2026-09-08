@@ -258,6 +258,7 @@ class Log(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="[CLOUD]", nullable=False)
     xp: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     day_num: Mapped[int] = mapped_column(Integer, default=0, nullable=False, index=True)
     order_in_day: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 

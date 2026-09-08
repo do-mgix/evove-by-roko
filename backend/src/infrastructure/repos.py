@@ -337,6 +337,7 @@ def _log_to_dict(r: orm.Log) -> dict:
         "content": r.content,
         "status": r.status,
         "xp": r.xp,
+        "tokens": r.tokens,
         "coord": [r.day_num, r.order_in_day],
     }
 
@@ -367,6 +368,7 @@ def save_logs(username: str, logs: list[dict]) -> None:
                 content=str(log.get("content", "") or ""),
                 status=str(log.get("status", "[CLOUD]") or "[CLOUD]")[:32],
                 xp=int(log.get("xp", 0) or 0),
+                tokens=int(log.get("tokens", 0) or 0),
                 day_num=day,
                 order_in_day=order,
             ))
@@ -401,6 +403,7 @@ def append_log(username: str, log: dict) -> None:
             content=str(log.get("content", "") or ""),
             status=str(log.get("status", "[CLOUD]") or "[CLOUD]")[:32],
             xp=int(log.get("xp", 0) or 0),
+            tokens=int(log.get("tokens", 0) or 0),
             day_num=day,
             order_in_day=order,
         ))

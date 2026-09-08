@@ -689,6 +689,7 @@ def logs_by_date(date: str, x_evove_username: str | None = Header(None)):
             "timestamp": log.get("timestamp"),
             "content": log.get("content"),
             "xp": int(log.get("xp", 0) or 0),
+            "tokens": int(log.get("tokens", 0) or 0),
             "order": int(coord[1]),
         })
     result.sort(key=lambda l: l.get("order", 0))
@@ -949,6 +950,7 @@ def list_logs(offset: int = 0, x_evove_username: str | None = Header(None)):
             "timestamp": log.get("timestamp"),
             "content": log.get("content"),
             "xp": int(log.get("xp", 0) or 0),
+            "tokens": int(log.get("tokens", 0) or 0),
             "order": int(coord[1]),
         })
     result.sort(key=lambda l: l.get("order", 0))
@@ -1234,7 +1236,7 @@ def _today_agenda_labels(username: str) -> set[str]:
     return collect_labels(Agenda(username).items, day_name=day_name, iso_date=iso)
 
 
-def _append_log(username: str, content: str, xp: int) -> dict | None:
+def _append_log(username: str, content: str, xp: int, tokens: int = 0) -> dict | None:
     logs = repos.load_logs(username)
     today_day = _day_for(username, datetime.now().date())
     max_id = 0
@@ -1260,6 +1262,7 @@ def _append_log(username: str, content: str, xp: int) -> dict | None:
         "content": content,
         "status": "[CLOUD]",
         "xp": int(xp),
+        "tokens": int(tokens),
         "coord": [today_day, next_order + 1],
     }
     repos.append_log(username, entry)
@@ -1323,7 +1326,8 @@ def act_on_action(action_id: str, payload: dict | None = None, x_evove_username:
     apply_action_contributions(username, action.get("name", ""), float(outcome.score_diff), datetime.now())
 
     _record_activity(username)
-    log_entry = _append_log(username, outcome.log_content, int(round(outcome.score_diff)))
+    token_delta = (outcome.token_gain - outcome.tokens_wasted) - outcome.token_cost
+    log_entry = _append_log(username, outcome.log_content, int(round(outcome.score_diff)), token_delta)
 
     return {
         "id": action_id,

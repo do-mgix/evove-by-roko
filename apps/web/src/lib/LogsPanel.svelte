@@ -255,6 +255,11 @@
           <button class="log-row" on:click={() => (selected = l)}>
             <span class="grip" aria-hidden="true">⋮⋮</span>
             <span class="content">{display(l.content)}</span>
+            {#if l.tokens}
+              <span class="tokens" class:spent={l.tokens < 0}>
+                {l.tokens > 0 ? `+${l.tokens}` : l.tokens}t
+              </span>
+            {/if}
             <span class="xp">+{l.xp}</span>
           </button>
         </li>
@@ -270,6 +275,14 @@
       <dt>timestamp</dt><dd>{selected.timestamp}</dd>
       <dt>order</dt><dd>{selected.order}</dd>
       <dt>xp</dt><dd>+{selected.xp}</dd>
+      {#if selected.tokens}
+        <dt>tokens</dt>
+        <dd class="tokens" class:spent={selected.tokens < 0}>
+          {selected.tokens > 0
+            ? `+${selected.tokens} recebidos`
+            : `${-selected.tokens} gastos`}
+        </dd>
+      {/if}
       <dt>content</dt><dd class="content-full">{selected.content}</dd>
     </dl>
 
@@ -425,6 +438,14 @@
   .xp {
     color: #666;
     font-size: 0.75rem;
+  }
+  .tokens {
+    color: #6c6;
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .tokens.spent {
+    color: #ca6;
   }
   .empty {
     color: #555;

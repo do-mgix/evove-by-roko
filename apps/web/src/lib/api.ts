@@ -178,6 +178,7 @@ export type LogEntry = {
   timestamp: string;
   content: string;
   xp: number;
+  tokens: number;
   order: number;
 };
 
