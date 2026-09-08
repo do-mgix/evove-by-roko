@@ -1,8 +1,8 @@
 """Compatibility helpers for static game metadata.
 
 The legacy JSON files under backend/data were removed when action metadata moved
-to the database. A few callers still need skill metadata and token cost lookup,
-so keep those helpers available without reading removed files.
+to the database. The skill tree never made it into a table, so it lives here.
+Action metadata (unit, difficulty, prices) comes from `repos.load_action_templates`.
 """
 
 _SKILL_TREE = {
@@ -39,6 +39,3 @@ def load_skill_tree() -> dict:
 def skill_nodes_by_id() -> dict:
     return {n["id"]: n for n in _SKILL_TREE["nodes"] if n.get("id")}
 
-
-def lookup_token_cost(action_name: str) -> int:
-    return 0

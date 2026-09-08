@@ -30,7 +30,6 @@ from src.infrastructure.storage import (  # noqa: E402
 from src.infrastructure.static_data import (  # noqa: E402
     load_skill_tree,
     skill_nodes_by_id,
-    lookup_token_cost as _lookup_token_cost_static,
 )
 from src.infrastructure import repos  # noqa: E402
 
@@ -41,6 +40,7 @@ _LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 def load_packages() -> list[dict]:
     tree = repos.load_attr_tree()
     contributions = repos.load_all_contributions()
+    templates = repos.load_action_templates()
 
     leaf_to_parent: dict[str, str] = {}
     for parent_key, children in tree.children.items():
@@ -54,7 +54,14 @@ def load_packages() -> list[dict]:
         primary_leaf = contribs[0][0] if contribs else None
         group_key = leaf_to_parent.get(primary_leaf or "")
         group_name = tree.nodes_by_key[group_key].name if group_key and group_key in tree.nodes_by_key else None
-        action = {"name": action_name, "type": 0, "diff": 1, "cost": 0, "token_cost": 0}
+        meta = templates.get(action_name) or repos.TEMPLATE_FALLBACK
+        action = {
+            "name": action_name,
+            "type": meta["type"],
+            "diff": meta["diff"],
+            "cost": meta["cost"],
+            "token_cost": meta["token_cost"],
+        }
         if group_key and group_name:
             pkg = packages.setdefault(group_key, {"attribute": group_key, "name": group_name, "actions": []})
             pkg["actions"].append(action)
@@ -1304,7 +1311,7 @@ def act_on_action(action_id: str, payload: dict | None = None, x_evove_username:
             manual_value=manual_value,
             today_agenda_labels=today_labels,
             in_agenda_extra=in_agenda_extra,
-            token_cost_lookup=_lookup_token_cost_static,
+            token_cost_lookup=repos.lookup_token_cost,
             skill_nodes_by_id=skill_nodes_by_id(),
         )
     except ActError as e:

@@ -25,10 +25,7 @@ from rich import box
 from src.domain.act import apply_act, ActError
 from src.domain.agenda import collect_labels, DAY_NAMES
 from src.domain.daily import apply_daily_tick
-from src.infrastructure.static_data import (
-    skill_nodes_by_id,
-    lookup_token_cost,
-)
+from src.infrastructure.static_data import skill_nodes_by_id
 from src.infrastructure.storage import get_current_username
 from src.infrastructure import repos
 from user_selector import select_user_profile
@@ -137,7 +134,7 @@ def cmd_act(data: dict) -> None:
             aid,
             manual_value=manual_value,
             today_agenda_labels=_today_agenda_labels(),
-            token_cost_lookup=lookup_token_cost,
+            token_cost_lookup=repos.lookup_token_cost,
             skill_nodes_by_id=skill_nodes_by_id(),
         )
     except ActError as e:

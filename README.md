@@ -32,7 +32,7 @@ docker compose exec backend alembic upgrade head   # the container does not migr
 | Adminer | `http://localhost:8080` | server `db`, user `roko`, password `rokopass` |
 | MySQL | `localhost:3306` | database `roko` |
 
-The migration step is not optional on a fresh database: five of the revisions also seed
+The migration step is not optional on a fresh database: six of the revisions also seed
 the attribute tree, the tags and the shop catalog that the API reads on every request.
 
 ### 2. Web client
@@ -149,7 +149,7 @@ Enough vocabulary to read the code:
 | **leaf score** | per-user score on a leaf, decaying over time unless it is converted into a permanent level |
 | **tag** | a curated combination of leaves, shown as a single bar |
 | **tokens / energy** | consumable resources spent by acting |
-| **build points / skill points** | currencies for buying actions in the shop and nodes in the skill tree |
+| **build points / skill points** | currencies for buying actions in the shop and nodes in the skill tree; both are paid out at checkpoints |
 | **stage / checkpoint** | a countdown that advances the profile and hands out rewards |
 
 The numbers behind all of this (score formula, decay half-lives, level thresholds,
@@ -178,13 +178,14 @@ this API to a network.**
 
 ### Database
 
-Nineteen tables. Profile and content tables have an FK to `users` with delete cascade; the
-attribute tree and the tags are global and shared by everyone:
+Twenty tables. Profile and content tables have an FK to `users` with delete cascade; the
+attribute tree, the catalog and the tags are global and shared by everyone:
 
 - profile — `users`, `user_state`, `user_tutorial`, `sequences_state`
 - user content — `actions`, `attributes`, `attribute_actions`, `skills_acquired`,
   `agenda_items`, `logs`, `projects`, `project_actions`, `project_attributes`
 - static tree — `attr_nodes`, `attr_edges`, `action_contributions`
+- catalog metadata — `action_templates`
 - per-user derived data — `user_leaf_scores`
 - tags — `attribute_tags`, `attribute_tag_sources`
 
@@ -193,7 +194,7 @@ Content tables also keep the logical id from the JSON era (`action_id`, `attr_id
 
 ### Migrations
 
-Eight revisions in a chain:
+Nine revisions in a chain:
 
 ```
 5638fb2a1810  initial schema
@@ -204,30 +205,46 @@ d3f9a8b4c6e2  permanent level
 e5a1c9d8b2f4  programming actions contributions
 f7b3e9c1d4a8  conceptual attribute tree
 b2e7d9c4a6f1  routine actions contributions
+c4a8e2f6b9d3  action templates (unit, difficulty and prices)
 ```
 
-Five of them (`b7c1`, `c8d2`, `e5a1`, `f7b3`, `b2e7`) read `backend/data/*.json` to seed.
-Those files exist only for that: nothing opens them at runtime.
+Six of them (`b7c1`, `c8d2`, `e5a1`, `f7b3`, `b2e7`, `c4a8`) read `backend/data/*.json` to
+seed. Those files exist only for that: nothing opens them at runtime.
 
 ### Adding actions to the catalog
 
-The shop has no admin screen. `/shop/packages` and `/shop/catalog` are derived from
-`action_contributions`, so a new shop item is really a new set of contribution rows, and
-for now a migration is how you add them:
+The shop has no admin screen. `/shop/packages` and `/shop/catalog` are assembled from
+`action_contributions` (which attributes an action feeds) joined with `action_templates`
+(its unit, difficulty and prices), so adding a shop item means rows in both — and for now
+a migration is how you add them. Both blocks live in
+`backend/data/attributes_tree.json`:
 
-1. Add the contributions to `backend/data/attributes_tree.json` — one entry per leaf, the
-   action name in caps. Anatomical weights sum to `1.0` per action and conceptual weights
-   sum to `1.0` separately; an action with neither never reaches an attribute.
-2. Copy `b2e7d9c4a6f1_routine_actions.py`, put the new names in `NEW_ACTIONS` and chain
-   `down_revision` to the current head. Keep its guard against rows that already exist:
-   on a fresh database `b7c1` seeds the whole file, so without the guard the migration
-   hits the unique constraint on `(action_name, leaf_id)`.
-3. Migrating through the container? Run `docker compose build backend` first. The image
+1. `contributions` — one entry per leaf, action name in caps. Anatomical weights sum to
+   `1.0` per action and conceptual weights sum to `1.0` separately; an action with neither
+   never reaches an attribute.
+2. `action_templates` — one entry per action: `type` (the unit, see `Action._TYPE_MAP`),
+   `diff` 0–5, `cost` in build points, `token_cost` charged per unit on every act. An
+   action with contributions but no template falls back to `repos.TEMPLATE_FALLBACK`.
+3. Copy `b2e7d9c4a6f1_routine_actions.py` for the contributions and
+   `c4a8e2f6b9d3_action_templates.py` for the templates, put the new names in
+   `NEW_ACTIONS` and chain `down_revision` to the current head. Keep the guard against
+   rows that already exist: on a fresh database `b7c1` seeds the whole file, so without it
+   the migration hits the unique constraint on `(action_name, leaf_id)`.
+4. Migrating through the container? Run `docker compose build backend` first. The image
    carries a copy of `backend/data/` from build time, not the file in your working tree.
 
-Everything acquired from the shop comes out as type `session`, difficulty 1, costing 0
-build points — `load_packages()` (`backend/main.py`) hardcodes those fields, because
-there is nowhere to keep per-action metadata since the static catalog was removed.
+### Catalog balance
+
+Score is `value × type factor × difficulty multiplier`, and the difficulty multipliers
+jump hard (`1, 30, 120, 400, 1000, 2500`). The catalog leans on that: almost everything is
+a `session` whose value is 1 per act, so the difficulty alone sets the reward — d1 is 90
+xp, d2 is 360, d3 is 1200. Only `WATER`, `COFFEE` and `TEA` use a counted unit, where you
+log how many.
+
+Prices assume build points stay scarce: 100 at profile creation plus
+`BUILD_POINTS_PER_CHECKPOINT` (10) every checkpoint, against 240 bp to own the whole
+catalog. Consumption actions (social apps, games, treats) are free to acquire and charge
+tokens per use instead, which is what the 20/day refill is there to limit.
 
 ### API
 

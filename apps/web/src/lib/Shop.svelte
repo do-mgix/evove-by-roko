@@ -25,6 +25,15 @@
   let openSet: Set<string> = new Set();
   let lastUserVersion = 0;
 
+  const TYPE_LABEL: Record<number, string> = {
+    0: "sessão", 1: "reps", 2: "segundos", 3: "minutos", 4: "horas",
+    5: "letras", 6: "linhas", 7: "palavras", 8: "grupo",
+  };
+
+  function priceLabel(cost: number) {
+    return cost > 0 ? `${cost} bp` : "adquirir";
+  }
+
   async function load() {
     error = null;
     try {
@@ -129,6 +138,9 @@
                 <li class:owned={acquired}>
                   <button class="info" on:click={() => (selected = { group: v.group, action: a })}>
                     <span class="a-name">{a.name}</span>
+                    <span class="a-meta">
+                      {TYPE_LABEL[a.type] ?? a.type} · d{a.diff}{a.token_cost ? ` · ${a.token_cost}t` : ""}
+                    </span>
                   </button>
                   {#if acquired}
                     <span class="owned-tag">adquirida</span>
@@ -136,9 +148,9 @@
                     <button
                       class="buy"
                       on:click|stopPropagation={() => buy(v.group, a)}
-                      disabled={busy === buyKey(v.group.key, a.name)}
+                      disabled={busy === buyKey(v.group.key, a.name) || buildPoints < a.cost}
                     >
-                      {busy === buyKey(v.group.key, a.name) ? "..." : "adquirir"}
+                      {busy === buyKey(v.group.key, a.name) ? "..." : priceLabel(a.cost)}
                     </button>
                   {/if}
                 </li>
@@ -157,8 +169,16 @@
     <dl class="details">
       <dt>nome</dt><dd class="hl">{selected.action.name}</dd>
       <dt>zona</dt><dd>{selected.group.name}</dd>
+      <dt>tipo</dt><dd>{TYPE_LABEL[selected.action.type] ?? selected.action.type}</dd>
+      <dt>dificuldade</dt><dd>d{selected.action.diff}</dd>
       {#if selected.action.token_cost && selected.action.token_cost > 0}
         <dt>custo por uso</dt><dd>{selected.action.token_cost} tokens</dd>
+      {/if}
+      {#if selectedAcquired}
+        <dt>status</dt><dd class="hl">adquirida</dd>
+      {:else}
+        <dt>custo</dt><dd>{selected.action.cost} bp</dd>
+        <dt>saldo</dt><dd>{buildPoints} bp</dd>
       {/if}
     </dl>
     {#if selected.action.leaves && selected.action.leaves.length > 0}
@@ -177,9 +197,9 @@
         <button
           class="primary"
           on:click={() => buy(selected!.group, selected!.action)}
-          disabled={busy !== null}
+          disabled={busy !== null || buildPoints < selected.action.cost}
         >
-          {busy ? "..." : "adquirir"}
+          {busy ? "..." : priceLabel(selected.action.cost)}
         </button>
       {/if}
     </div>
@@ -291,7 +311,9 @@
   .actions li.owned { opacity: 0.4; }
   .info {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
     flex: 1;
     background: transparent;
     border: none;
@@ -303,6 +325,7 @@
   }
   .info:hover .a-name { color: #6cf; }
   .a-name { color: #ddd; font-size: 0.88rem; }
+  .a-meta { color: #555; font-size: 0.7rem; }
   .buy {
     background: transparent;
     border: 1px solid #2a2a2a;

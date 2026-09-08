@@ -167,6 +167,22 @@ class ActionContribution(Base):
     leaf_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("attr_nodes.id", ondelete="CASCADE"), nullable=False, index=True)
     weight: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
 
+# catalog metadata for an action: unit, difficulty and prices
+class ActionTemplate(Base):
+    """Shop-side metadata for an action name. Copied onto the user's row on buy.
+
+    Separate from `action_contributions` because that table has one row per
+    (action, leaf) pair while this metadata is one row per action.
+    """
+    __tablename__ = "action_templates"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    action_name: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    type: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    diff: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    cost: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    token_cost: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
 # user leaf relation - level and score
 class UserLeafScore(Base):
     """Per-user accumulated score for each leaf, with last update timestamp for decay."""

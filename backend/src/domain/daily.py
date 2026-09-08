@@ -9,6 +9,9 @@ import math
 from datetime import datetime
 
 
+BUILD_POINTS_PER_CHECKPOINT = 10
+
+
 def _checkpoint_interval_for_stage(stage: int) -> int:
     return 19 + max(1, int(stage or 1))
 
@@ -57,6 +60,9 @@ def apply_daily_tick(data: dict, now: datetime | None = None) -> bool:
             metadata["energy"] = 1000
             metadata["stage"] = stage
             metadata["skill_points"] = int(metadata.get("skill_points", 0) or 0) + reward
+            metadata["build_points"] = (
+                int(metadata.get("build_points", 0) or 0) + BUILD_POINTS_PER_CHECKPOINT
+            )
             days_until = _checkpoint_interval_for_stage(stage)
 
         metadata["days_until_next_checkpoint"] = days_until

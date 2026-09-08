@@ -852,6 +852,42 @@ def load_all_contributions() -> dict[str, list[tuple[str, float]]]:
         s.close()
 
 
+TEMPLATE_FALLBACK = {"type": 0, "diff": 1, "cost": 0, "token_cost": 0}
+
+
+def load_action_templates() -> dict[str, dict]:
+    """Return {action_name_upper: {type, diff, cost, token_cost}} for the catalog."""
+    s = SessionLocal()
+    try:
+        rows = s.execute(select(orm.ActionTemplate)).scalars().all()
+        return {
+            t.action_name: {
+                "type": int(t.type),
+                "diff": int(t.diff),
+                "cost": int(t.cost),
+                "token_cost": int(t.token_cost),
+            }
+            for t in rows
+        }
+    finally:
+        s.close()
+
+
+def lookup_token_cost(action_name: str) -> int:
+    """Per-unit token cost for an action name, or 0 when it has no template."""
+    name = str(action_name or "").upper()
+    if not name:
+        return 0
+    s = SessionLocal()
+    try:
+        row = s.execute(
+            select(orm.ActionTemplate.token_cost).where(orm.ActionTemplate.action_name == name)
+        ).scalar_one_or_none()
+        return int(row or 0)
+    finally:
+        s.close()
+
+
 def get_user_leaf_scores(username: str) -> dict[str, dict]:
     """Returns {leaf_key: {'score': float, 'last_updated_at': datetime, 'leaf_id': int}}."""
     s = SessionLocal()
