@@ -116,6 +116,25 @@ DATABASE_URL='mysql+pymysql://roko:rokopass@127.0.0.1:3306/roko?charset=utf8mb4'
   alembic upgrade head
 ```
 
+### Restarting the backend
+
+| Situation | Command |
+| --- | --- |
+| a code change did not show up | `docker compose restart backend` |
+| `requirements.txt` changed | `docker compose up -d --build backend` |
+| `docker-compose*.yml` or an env var changed | `docker compose up -d backend` |
+| there is a new migration | `docker compose exec backend alembic upgrade head` |
+| it will not come up | `docker compose logs -f backend` |
+| stop it | `docker compose stop backend` |
+
+They are not interchangeable. `restart` reuses the same container and the same image, so
+it picks up neither a new package nor a compose change. `up -d` recreates the container
+from the current compose files but keeps the image. `--build` also rebuilds the image —
+the only one of the three that installs a dependency.
+
+Docker needs `sudo` unless your user is in the `docker` group
+(`sudo usermod -aG docker $USER`, then log in again).
+
 ### Backend outside Docker
 
 ```bash
