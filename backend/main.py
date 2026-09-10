@@ -1,11 +1,10 @@
-import os
 import re
 import sys
 from datetime import datetime
 from pathlib import Path
 
 import roman
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import Depends, FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 
 _BACKEND_DIR = Path(__file__).parent
@@ -23,15 +22,12 @@ from src.domain.skills import (  # noqa: E402
     acquire_skill as _acquire_skill,
     SkillError,
 )
-from src.infrastructure.storage import (  # noqa: E402
-    get_evove_root_dir,
-    get_user_data_dir,
-)
 from src.infrastructure.static_data import (  # noqa: E402
     load_skill_tree,
     skill_nodes_by_id,
 )
 from src.infrastructure import repos  # noqa: E402
+from src.infrastructure import auth  # noqa: E402
 
 _GREEK = ['α','β','γ','δ','ε','ζ','η','θ','ι','κ','λ','μ','ν','ξ','ο','π','ρ','σ','τ','υ','φ','χ','ψ','ω']
 _LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -111,26 +107,28 @@ app.add_middleware(
 _USERNAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,24}$")
 
 
-def _root_dir() -> Path:
-    override = os.environ.get("EVOVE_DATA_DIR")
-    return Path(override) if override else Path(get_evove_root_dir())
+def _bearer_token(authorization: str | None) -> str | None:
+    if not authorization:
+        return None
+    scheme, _, value = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not value.strip():
+        return None
+    return value.strip()
 
 
-def _resolve_username(x_evove_username: str | None) -> str:
-    name = (x_evove_username or os.environ.get("EVOVE_USERNAME") or "default").strip()
-    if not _USERNAME_RE.match(name):
-        raise HTTPException(status_code=400, detail="invalid username")
-    return name
+def current_username(authorization: str | None = Header(None)) -> str:
+    """FastAPI dependency: the profile behind the request's session token.
 
-
-def _data_dir(username: str | None = None) -> Path:
-    name = _resolve_username(username)
-    override = os.environ.get("EVOVE_DATA_DIR")
-    if override:
-        path = Path(override) / name
-        path.mkdir(parents=True, exist_ok=True)
-        return path
-    return Path(get_user_data_dir(name))
+    Every user route depends on this, so an endpoint cannot accidentally be
+    left open — without a valid session there is no username to act as.
+    """
+    token = _bearer_token(authorization)
+    if not token:
+        raise HTTPException(status_code=401, detail="missing session token")
+    username = repos.username_for_session(auth.token_digest(token))
+    if not username:
+        raise HTTPException(status_code=401, detail="invalid or expired session")
+    return username
 
 
 _INITIAL_BUILD_POINTS = 100
@@ -309,9 +307,8 @@ def _checkpoint_interval_for_stage(stage: int) -> int:
 
 
 @app.get("/journey")
-def journey(x_evove_username: str | None = Header(None)):
+def journey(username: str = Depends(current_username)):
     from datetime import timedelta
-    username = _resolve_username(x_evove_username)
     data = _load_user(username)
     metadata = data.get("metadata", {}) or {}
     stage = int(metadata.get("stage", 1) or 1)
@@ -340,19 +337,8 @@ def journey(x_evove_username: str | None = Header(None)):
     }
 
 
-@app.get("/users")
-def list_users():
-    root = _root_dir()
-    return repos.list_usernames()
-
-
-@app.post("/users")
-def create_user(payload: dict):
-    name = (payload or {}).get("name", "").strip()
-    if not _USERNAME_RE.match(name):
-        raise HTTPException(status_code=400, detail="invalid username (a-z, 0-9, _ -, max 24)")
-    if repos.user_exists(name):
-        raise HTTPException(status_code=409, detail=f"user '{name}' already exists")
+def _initial_profile(name: str) -> tuple[dict, dict]:
+    """The blank slate a freshly registered profile starts from."""
     today = datetime.now().strftime("%Y-%m-%d")
     initial = {
         "username": name,
@@ -393,13 +379,64 @@ def create_user(payload: dict):
         "last_active_date": today_seq,
         "consecutive_days": 1,
     }
-    repos.create_user(name, initial, initial_sequences)
-    return {"name": name}
+    return initial, initial_sequences
+
+
+def _issue_session(username: str) -> dict:
+    token = auth.new_session_token()
+    expires_at = auth.session_expiry()
+    if not repos.create_session(username, auth.token_digest(token), expires_at):
+        raise HTTPException(status_code=404, detail=f"user '{username}' not found")
+    return {"token": token, "username": username, "expires_at": expires_at.isoformat()}
+
+
+@app.post("/auth/register")
+def register(payload: dict):
+    """Create a profile and sign it in. Body: {username, password}."""
+    name = str((payload or {}).get("username", "")).strip()
+    password = str((payload or {}).get("password", ""))
+    if not _USERNAME_RE.match(name):
+        raise HTTPException(status_code=400, detail="invalid username (a-z, 0-9, _ -, max 24)")
+    try:
+        password_hash = auth.hash_password(password)
+    except auth.PasswordError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if repos.user_exists(name):
+        raise HTTPException(status_code=409, detail=f"user '{name}' already exists")
+
+    initial, initial_sequences = _initial_profile(name)
+    repos.create_user(name, initial, initial_sequences, password_hash=password_hash)
+    return _issue_session(name)
+
+
+@app.post("/auth/login")
+def login(payload: dict):
+    """Body: {username, password}. Same error either way, so the response does
+    not tell an attacker which usernames exist."""
+    name = str((payload or {}).get("username", "")).strip()
+    password = str((payload or {}).get("password", ""))
+    stored = repos.get_password_hash(name) if _USERNAME_RE.match(name) else None
+    if not stored or not auth.verify_password(password, stored):
+        raise HTTPException(status_code=401, detail="invalid username or password")
+    repos.purge_expired_sessions()
+    return _issue_session(name)
+
+
+@app.post("/auth/logout")
+def logout(authorization: str | None = Header(None)):
+    token = _bearer_token(authorization)
+    if token:
+        repos.delete_session(auth.token_digest(token))
+    return {"ok": True}
+
+
+@app.get("/auth/me")
+def auth_me(username: str = Depends(current_username)):
+    return {"username": username}
 
 
 @app.get("/user")
-def user_state(x_evove_username: str | None = Header(None)):
-    username = _resolve_username(x_evove_username)
+def user_state(username: str = Depends(current_username)):
     data = _load_user(username)
     metadata = data.get("metadata", {}) or {}
     xp = int(round(float(data.get("score", 0) or 0)))
@@ -578,13 +615,13 @@ class Projects:
 
 
 @app.get("/projects")
-def projects_all(x_evove_username: str | None = Header(None)):
-    return {"items": Projects(_resolve_username(x_evove_username)).items}
+def projects_all(username: str = Depends(current_username)):
+    return {"items": Projects(username).items}
 
 
 @app.post("/projects")
-def projects_add(payload: dict, x_evove_username: str | None = Header(None)):
-    pj = Projects(_resolve_username(x_evove_username))
+def projects_add(payload: dict, username: str = Depends(current_username)):
+    pj = Projects(username)
     return pj.add(
         name=str(payload.get("name", "")).strip(),
         deadline=(str(payload.get("deadline")).strip() if payload.get("deadline") else None),
@@ -595,27 +632,25 @@ def projects_add(payload: dict, x_evove_username: str | None = Header(None)):
 
 
 @app.patch("/projects/{item_id}")
-def projects_update(item_id: str, payload: dict, x_evove_username: str | None = Header(None)):
-    return Projects(_resolve_username(x_evove_username)).update(item_id, payload or {})
+def projects_update(item_id: str, payload: dict, username: str = Depends(current_username)):
+    return Projects(username).update(item_id, payload or {})
 
 
 @app.delete("/projects/{item_id}")
-def projects_remove(item_id: str, x_evove_username: str | None = Header(None)):
-    ok = Projects(_resolve_username(x_evove_username)).remove(item_id)
+def projects_remove(item_id: str, username: str = Depends(current_username)):
+    ok = Projects(username).remove(item_id)
     if not ok:
         raise HTTPException(status_code=404, detail="not found")
     return {"ok": True}
 
 
 @app.get("/agenda")
-def agenda_all(x_evove_username: str | None = Header(None)):
-    username = _resolve_username(x_evove_username)
+def agenda_all(username: str = Depends(current_username)):
     return {"items": Agenda(username).items}
 
 
 @app.post("/agenda")
-def agenda_add(payload: dict, x_evove_username: str | None = Header(None)):
-    username = _resolve_username(x_evove_username)
+def agenda_add(payload: dict, username: str = Depends(current_username)):
     ag = Agenda(username)
     item = ag.add(
         start=str(payload.get("start", "")).strip(),
@@ -630,10 +665,9 @@ def agenda_add(payload: dict, x_evove_username: str | None = Header(None)):
 
 
 @app.get("/calendar")
-def calendar(year: int, month: int, x_evove_username: str | None = Header(None)):
+def calendar(year: int, month: int, username: str = Depends(current_username)):
     """Returns per-date stats for a given month: log counts and special events."""
     from datetime import date as _date, timedelta
-    username = _resolve_username(x_evove_username)
     seq = _ensure_sequences(username)
     try:
         first_dt = datetime.strptime(seq.get("first_activity_date", ""), "%d %m %Y").date()
@@ -684,10 +718,9 @@ def calendar(year: int, month: int, x_evove_username: str | None = Header(None))
 
 
 @app.get("/logs/by-date")
-def logs_by_date(date: str, x_evove_username: str | None = Header(None)):
+def logs_by_date(date: str, username: str = Depends(current_username)):
     """Returns logs whose attribution date matches the given ISO date."""
     from datetime import datetime as _dt, timedelta
-    username = _resolve_username(x_evove_username)
     try:
         target = _dt.strptime(date, "%Y-%m-%d").date()
     except ValueError:
@@ -720,21 +753,18 @@ def logs_by_date(date: str, x_evove_username: str | None = Header(None)):
 
 
 @app.patch("/agenda/{item_id}")
-def agenda_update(item_id: str, payload: dict, x_evove_username: str | None = Header(None)):
-    username = _resolve_username(x_evove_username)
+def agenda_update(item_id: str, payload: dict, username: str = Depends(current_username)):
     return Agenda(username).update(item_id, payload or {})
 
 
 @app.delete("/agenda/{item_id}")
-def agenda_remove(item_id: str, x_evove_username: str | None = Header(None)):
-    username = _resolve_username(x_evove_username)
+def agenda_remove(item_id: str, username: str = Depends(current_username)):
     ok = Agenda(username).remove(item_id)
     if not ok:
         raise HTTPException(status_code=404, detail="item not found")
     return {"ok": True}
 @app.get("/skills/tree")
-def skills_tree(x_evove_username: str | None = Header(None)):
-    username = _resolve_username(x_evove_username)
+def skills_tree(username: str = Depends(current_username)):
     data = _load_user(username)
     tree = load_skill_tree()
     acquired = set(data.get("skills") or [])
@@ -747,8 +777,7 @@ def skills_tree(x_evove_username: str | None = Header(None)):
 
 
 @app.post("/skills/{skill_id}/acquire")
-def acquire_skill(skill_id: str, x_evove_username: str | None = Header(None)):
-    username = _resolve_username(x_evove_username)
+def acquire_skill(skill_id: str, username: str = Depends(current_username)):
     data = _load_user(username)
     try:
         result = _acquire_skill(data, skill_id, skill_nodes_by_id())
@@ -819,8 +848,7 @@ def shop_catalog():
 
 
 @app.post("/shop/actions/buy")
-def buy_action(payload: dict, x_evove_username: str | None = Header(None)):
-    username = _resolve_username(x_evove_username)
+def buy_action(payload: dict, username: str = Depends(current_username)):
     data = _load_user(username)
 
     name = (payload or {}).get("name", "").strip().upper()
@@ -878,9 +906,8 @@ def _day_for(username: str, date_obj) -> int:
 
 
 @app.post("/logs/reorder")
-def reorder_logs(payload: dict, x_evove_username: str | None = Header(None)):
+def reorder_logs(payload: dict, username: str = Depends(current_username)):
     """Body: {day: int, ids: [int, ...]}. Sets coord[1] of each id to its new 1-based index within day."""
-    username = _resolve_username(x_evove_username)
     day = int(payload.get("day", -1))
     ids = payload.get("ids") or []
     if day < 0 or not isinstance(ids, list):
@@ -900,8 +927,7 @@ def reorder_logs(payload: dict, x_evove_username: str | None = Header(None)):
 
 
 @app.delete("/logs/{log_id}")
-def delete_log(log_id: int, x_evove_username: str | None = Header(None)):
-    username = _resolve_username(x_evove_username)
+def delete_log(log_id: int, username: str = Depends(current_username)):
     removed = repos.delete_log(username, int(log_id))
     if removed is None:
         raise HTTPException(status_code=404, detail=f"log {log_id} not found")
@@ -909,9 +935,8 @@ def delete_log(log_id: int, x_evove_username: str | None = Header(None)):
 
 
 @app.patch("/logs/{log_id}")
-def update_log(log_id: int, payload: dict, x_evove_username: str | None = Header(None)):
+def update_log(log_id: int, payload: dict, username: str = Depends(current_username)):
     """Body: {note?: str, content?: str, day_delta?: int}."""
-    username = _resolve_username(x_evove_username)
 
     if "day_delta" in payload and payload["day_delta"] is not None:
         delta = int(payload["day_delta"])
@@ -948,10 +973,9 @@ def update_log(log_id: int, payload: dict, x_evove_username: str | None = Header
 
 
 @app.get("/logs")
-def list_logs(offset: int = 0, x_evove_username: str | None = Header(None)):
+def list_logs(offset: int = 0, username: str = Depends(current_username)):
     """offset: 0 = today, -1 = yesterday, +1 = tomorrow."""
     from datetime import timedelta
-    username = _resolve_username(x_evove_username)
     target_date = (datetime.now() + timedelta(days=offset)).date()
     target_day = _day_for(username, target_date)
     logs = repos.load_logs(username)
@@ -976,22 +1000,20 @@ def list_logs(offset: int = 0, x_evove_username: str | None = Header(None)):
 
 
 @app.get("/agenda/today")
-def agenda_today(x_evove_username: str | None = Header(None)):
-    username = _resolve_username(x_evove_username)
+def agenda_today(username: str = Depends(current_username)):
     day_name = _DAY_NAMES[datetime.now().weekday()]
     items = Agenda(username).for_day(day_name)
     return {"day": day_name, "items": items}
 
 
 @app.get("/attributes")
-def list_attributes(tree: str | None = None, x_evove_username: str | None = Header(None)):
+def list_attributes(tree: str | None = None, username: str = Depends(current_username)):
     """Flat list of leaves with current (decay-applied) user scores + permanent levels.
 
     Query param `tree` filters by tree_kind: 'anatomical' | 'conceptual' | None (= both).
     """
     from src.domain.attributes import level_threshold
 
-    username = _resolve_username(x_evove_username)
     _load_user(username)  # triggers daily decay if due
     tree_data = repos.load_attr_tree()
     user_scores = repos.get_user_leaf_scores(username)
@@ -1035,7 +1057,7 @@ def list_attributes(tree: str | None = None, x_evove_username: str | None = Head
 
 
 @app.get("/attributes/tags")
-def attribute_tags(x_evove_username: str | None = Header(None)):
+def attribute_tags(username: str = Depends(current_username)):
     """Curated composite tags computed from weighted leaves.
 
     Tags whose sources are ≥80% (by weight) on physical leaves (max_level != null)
@@ -1043,7 +1065,6 @@ def attribute_tags(x_evove_username: str | None = Header(None)):
     """
     from src.domain.attributes import level_threshold
 
-    username = _resolve_username(x_evove_username)
     _load_user(username)
     tags = repos.load_attr_tags()
     leaf_scores_raw = repos.get_user_leaf_scores(username)
@@ -1111,11 +1132,10 @@ def attribute_tags(x_evove_username: str | None = Header(None)):
 
 
 @app.get("/attributes/tree")
-def attributes_tree(x_evove_username: str | None = Header(None)):
+def attributes_tree(username: str = Depends(current_username)):
     """Hierarchical tree with computed (decay-applied) scores at every node."""
     from src.domain.attributes import compute_node_score
 
-    username = _resolve_username(x_evove_username)
     _load_user(username)
     tree = repos.load_attr_tree()
     user_scores = repos.get_user_leaf_scores(username)
@@ -1161,14 +1181,13 @@ def attributes_tree(x_evove_username: str | None = Header(None)):
 
 
 @app.get("/attributes/conceptual/roots")
-def conceptual_roots(x_evove_username: str | None = Header(None)):
+def conceptual_roots(username: str = Depends(current_username)):
     """Roots of the conceptual tree with weighted level/progress + score.
 
     Same pattern as physical tags: aggregate over all descendant leaves.
     """
     from src.domain.attributes import compute_node_score, level_threshold
 
-    username = _resolve_username(x_evove_username)
     _load_user(username)
     tree = repos.load_attr_tree()
     user_scores = repos.get_user_leaf_scores(username)
@@ -1288,8 +1307,7 @@ def _append_log(username: str, content: str, xp: int, tokens: int = 0) -> dict |
 
 
 @app.post("/actions/{action_id}/act")
-def act_on_action(action_id: str, payload: dict | None = None, x_evove_username: str | None = Header(None)):
-    username = _resolve_username(x_evove_username)
+def act_on_action(action_id: str, payload: dict | None = None, username: str = Depends(current_username)):
     data = _load_user(username)
 
     action = (data.get("actions") or {}).get(action_id)
@@ -1363,8 +1381,8 @@ def act_on_action(action_id: str, payload: dict | None = None, x_evove_username:
 
 
 @app.get("/actions")
-def list_actions(x_evove_username: str | None = Header(None)):
-    data = _load_user(_resolve_username(x_evove_username))
+def list_actions(username: str = Depends(current_username)):
+    data = _load_user(username)
     actions = data.get("actions", {}) or {}
     result = []
     for action_id, action in actions.items():

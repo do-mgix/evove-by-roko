@@ -1,23 +1,87 @@
 const BASE = (import.meta as any).env?.VITE_API_BASE ?? "http://localhost:8000";
 
-const STORAGE_KEY = "roko_username";
+const TOKEN_KEY = "roko_token";
+const USER_KEY = "roko_username";
 
+export function getToken(): string | null {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
 export function getUsername(): string | null {
-  return localStorage.getItem(STORAGE_KEY);
+  try {
+    return localStorage.getItem(USER_KEY);
+  } catch {
+    return null;
+  }
 }
-export function setUsername(name: string) {
-  localStorage.setItem(STORAGE_KEY, name);
+export function setSession(token: string, username: string) {
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, username);
+  } catch {
+    /* private mode: the session lives for this page only */
+  }
 }
-export function clearUsername() {
-  localStorage.removeItem(STORAGE_KEY);
+export function clearSession() {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+  } catch {
+    /* nothing to clear */
+  }
+}
+
+/** Called when the server rejects our session, so the app can show the login
+ *  screen instead of every panel erroring on its own. */
+let onUnauthorized: (() => void) | null = null;
+export function setUnauthorizedHandler(fn: (() => void) | null) {
+  onUnauthorized = fn;
 }
 
 async function request(path: string, init: RequestInit = {}): Promise<Response> {
-  const username = getUsername();
+  const token = getToken();
   const headers = new Headers(init.headers);
-  if (username) headers.set("X-Evove-Username", username);
+  if (token) headers.set("Authorization", `Bearer ${token}`);
   if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-  return fetch(`${BASE}${path}`, { ...init, headers });
+  const res = await fetch(`${BASE}${path}`, { ...init, headers });
+  if (res.status === 401) {
+    clearSession();
+    onUnauthorized?.();
+  }
+  return res;
+}
+
+export type Session = { token: string; username: string; expires_at: string };
+
+async function authCall(path: string, username: string, password: string): Promise<Session> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.detail || `falhou (${res.status})`);
+  setSession(body.token, body.username);
+  return body;
+}
+
+export function login(username: string, password: string): Promise<Session> {
+  return authCall("/auth/login", username, password);
+}
+
+export function register(username: string, password: string): Promise<Session> {
+  return authCall("/auth/register", username, password);
+}
+
+export async function logout(): Promise<void> {
+  try {
+    await request("/auth/logout", { method: "POST" });
+  } finally {
+    clearSession();
+  }
 }
 
 export type Action = {
@@ -332,12 +396,6 @@ export async function deleteAgendaItem(id: string): Promise<void> {
   }
 }
 
-export async function fetchUsers(): Promise<string[]> {
-  const res = await request("/users");
-  if (!res.ok) throw new Error(`Failed to fetch users (${res.status})`);
-  return res.json();
-}
-
 export type PackageAction = {
   name: string;
   type: number;
@@ -421,11 +479,3 @@ export async function acquireSkill(id: string): Promise<{ acquired: string[]; sk
   return res.json();
 }
 
-export async function createUser(name: string): Promise<{ name: string }> {
-  const res = await request("/users", { method: "POST", body: JSON.stringify({ name }) });
-  if (!res.ok) {
-    const detail = await res.json().catch(() => ({}));
-    throw new Error(detail.detail || `Failed to create user (${res.status})`);
-  }
-  return res.json();
-}

@@ -675,13 +675,14 @@ def save_sequences(username: str, data: dict) -> None:
 
 # ---------- create user ----------
 
-def create_user(username: str, initial_user: dict, initial_sequences: dict | None = None) -> None:
+def create_user(username: str, initial_user: dict, initial_sequences: dict | None = None,
+                password_hash: str = "") -> None:
     s = SessionLocal()
     try:
         if _get_user(s, username):
             from fastapi import HTTPException
             raise HTTPException(status_code=409, detail="user already exists")
-        u = orm.User(username=username, created_at=datetime.now())
+        u = orm.User(username=username, password_hash=password_hash, created_at=datetime.now())
         s.add(u)
         s.flush()
         _write_state(s, u, initial_user)
@@ -696,6 +697,111 @@ def create_user(username: str, initial_user: dict, initial_sequences: dict | Non
             st.last_active_date = _parse_date(initial_sequences.get("last_active_date"))
             st.consecutive_days = int(initial_sequences.get("consecutive_days", 0) or 0)
         s.commit()
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+# ---------- auth ----------
+
+def get_password_hash(username: str) -> str | None:
+    """Stored hash for a username, or None when there is no such user."""
+    s = SessionLocal()
+    try:
+        return s.execute(
+            select(orm.User.password_hash).where(orm.User.username == username)
+        ).scalar_one_or_none()
+    finally:
+        s.close()
+
+
+def set_password_hash(username: str, password_hash: str) -> bool:
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        if not u:
+            return False
+        u.password_hash = password_hash
+        s.commit()
+        return True
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+def create_session(username: str, token_hash: str, expires_at: datetime) -> bool:
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        if not u:
+            return False
+        now = datetime.now()
+        s.add(orm.Session(
+            token_hash=token_hash, user_id=u.id,
+            created_at=now, expires_at=expires_at, last_seen_at=now,
+        ))
+        s.commit()
+        return True
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+def username_for_session(token_hash: str) -> str | None:
+    """Resolve a session to its username, refusing expired ones.
+
+    Touches `last_seen_at` so open sessions can be told apart later.
+    """
+    s = SessionLocal()
+    try:
+        row = s.execute(
+            select(orm.Session, orm.User.username)
+            .join(orm.User, orm.Session.user_id == orm.User.id)
+            .where(orm.Session.token_hash == token_hash)
+        ).first()
+        if row is None:
+            return None
+        session, username = row
+        now = datetime.now()
+        if session.expires_at <= now:
+            s.delete(session)
+            s.commit()
+            return None
+        session.last_seen_at = now
+        s.commit()
+        return username
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+def delete_session(token_hash: str) -> bool:
+    s = SessionLocal()
+    try:
+        n = s.query(orm.Session).filter_by(token_hash=token_hash).delete()
+        s.commit()
+        return bool(n)
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+def purge_expired_sessions() -> int:
+    s = SessionLocal()
+    try:
+        n = s.query(orm.Session).filter(orm.Session.expires_at <= datetime.now()).delete()
+        s.commit()
+        return int(n)
     except Exception:
         s.rollback()
         raise

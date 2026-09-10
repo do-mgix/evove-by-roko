@@ -7,11 +7,19 @@
   import Calendar from "./lib/Calendar.svelte";
   import Journey from "./lib/Journey.svelte";
   import UserSelect from "./lib/UserSelect.svelte";
-  import { clearUsername } from "./lib/api";
+  import { onMount } from "svelte";
+  import { logout as apiLogout, setUnauthorizedHandler } from "./lib/api";
 
-  // The profile picker is always the entry screen: a name kept in localStorage
+  // The login screen is always the entry point: a session kept in localStorage
   // from a previous visit is not enough to skip it.
   let username: string | null = null;
+
+  // A rejected session anywhere in the app drops straight back to login,
+  // instead of every panel failing on its own.
+  onMount(() => {
+    setUnauthorizedHandler(() => (username = null));
+    return () => setUnauthorizedHandler(null);
+  });
   let page = "home";
   let pageParams: Record<string, any> = {};
   let dashKey = 0;
@@ -28,9 +36,9 @@
     dashKey++;
   }
 
-  function logout() {
-    clearUsername();
+  async function logout() {
     username = null;
+    await apiLogout();
   }
 </script>
 

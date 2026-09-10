@@ -1,44 +1,46 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import { fetchUsers, createUser, setUsername } from "./api";
+  import { login, register } from "./api";
 
   export let onSelected: (name: string) => void;
 
-  let users: string[] = [];
-  let loading = true;
+  let mode: "login" | "register" = "login";
+  let username = "";
+  let password = "";
+  let confirmPassword = "";
+  let busy = false;
   let error: string | null = null;
 
-  let mode: "list" | "create" = "list";
-  let newName = "";
-  let creating = false;
+  $: canSubmit =
+    username.trim().length > 0 &&
+    password.length >= 8 &&
+    (mode === "login" || password === confirmPassword);
 
-  onMount(async () => {
-    try {
-      users = await fetchUsers();
-    } catch (e: any) {
-      error = e?.message ?? "erro";
-    } finally {
-      loading = false;
-    }
-  });
-
-  function pick(name: string) {
-    setUsername(name);
-    onSelected(name);
+  function switchMode(next: "login" | "register") {
+    mode = next;
+    error = null;
+    password = "";
+    confirmPassword = "";
   }
 
-  async function confirmCreate() {
-    if (!newName.trim() || creating) return;
-    creating = true;
+  async function submit() {
+    if (!canSubmit || busy) return;
+    busy = true;
     error = null;
     try {
-      const res = await createUser(newName.trim());
-      pick(res.name);
+      const fn = mode === "login" ? login : register;
+      const session = await fn(username.trim(), password);
+      password = "";
+      confirmPassword = "";
+      onSelected(session.username);
     } catch (e: any) {
       error = e?.message ?? "erro";
     } finally {
-      creating = false;
+      busy = false;
     }
+  }
+
+  function onKey(e: KeyboardEvent) {
+    if (e.key === "Enter") submit();
   }
 </script>
 
@@ -46,43 +48,47 @@
   <div class="card">
     <h1>roko</h1>
 
-    {#if loading}
-      <p class="muted">…</p>
-    {:else if mode === "list"}
-      <div class="list-section">
-        <p class="hint">selecione um usuário</p>
-        <ul class="users">
-          {#each users as u (u)}
-            <li>
-              <button class="user-btn" on:click={() => pick(u)}>{u}</button>
-            </li>
-          {/each}
-          {#if users.length === 0}
-            <li class="muted">nenhum usuário</li>
-          {/if}
-        </ul>
-        <button class="primary" on:click={() => { mode = "create"; newName = ""; error = null; }}>
-          + criar novo
-        </button>
-      </div>
-    {:else}
-      <div class="create-section">
-        <p class="hint">novo usuário</p>
-        <input
-          type="text"
-          placeholder="nome"
-          bind:value={newName}
-          on:keydown={(e) => e.key === "Enter" && confirmCreate()}
-          maxlength="24"
-        />
-        <div class="actions">
-          <button class="ghost" on:click={() => { mode = "list"; error = null; }}>cancelar</button>
-          <button class="primary" on:click={confirmCreate} disabled={!newName.trim() || creating}>
-            {creating ? "..." : "confirmar"}
-          </button>
-        </div>
-      </div>
+    <p class="hint">{mode === "login" ? "entrar" : "criar perfil"}</p>
+
+    <input
+      type="text"
+      placeholder="usuário"
+      autocomplete="username"
+      maxlength="24"
+      bind:value={username}
+      on:keydown={onKey}
+    />
+    <input
+      type="password"
+      placeholder="senha"
+      autocomplete={mode === "login" ? "current-password" : "new-password"}
+      bind:value={password}
+      on:keydown={onKey}
+    />
+    {#if mode === "register"}
+      <input
+        type="password"
+        placeholder="repita a senha"
+        autocomplete="new-password"
+        bind:value={confirmPassword}
+        on:keydown={onKey}
+      />
+      {#if password.length > 0 && password.length < 8}
+        <p class="rule">mínimo de 8 caracteres</p>
+      {:else if confirmPassword.length > 0 && password !== confirmPassword}
+        <p class="rule">as senhas não conferem</p>
+      {/if}
     {/if}
+
+    <div class="actions">
+      <button class="primary" on:click={submit} disabled={!canSubmit || busy}>
+        {busy ? "..." : mode === "login" ? "entrar" : "criar"}
+      </button>
+    </div>
+
+    <button class="link" on:click={() => switchMode(mode === "login" ? "register" : "login")}>
+      {mode === "login" ? "criar um perfil novo" : "já tenho um perfil"}
+    </button>
 
     {#if error}
       <p class="error">{error}</p>
@@ -106,6 +112,8 @@
     border-radius: 8px;
     padding: 2rem 2.5rem;
     width: 320px;
+    max-width: calc(100vw - 2rem);
+    box-sizing: border-box;
   }
   h1 {
     margin: 0 0 1.5rem;
@@ -122,31 +130,6 @@
     letter-spacing: 0.1em;
     margin: 0 0 0.75rem;
   }
-  .users {
-    list-style: none;
-    padding: 0;
-    margin: 0 0 1rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-  }
-  .user-btn {
-    width: 100%;
-    text-align: left;
-    background: #111;
-    border: 1px solid #222;
-    border-radius: 4px;
-    color: #e5e5e5;
-    padding: 0.6rem 0.85rem;
-    font: inherit;
-    font-size: 0.9rem;
-    cursor: pointer;
-    transition: border-color 0.15s, color 0.15s;
-  }
-  .user-btn:hover {
-    border-color: #6cf;
-    color: #6cf;
-  }
   input {
     width: 100%;
     box-sizing: border-box;
@@ -158,29 +141,31 @@
     font: inherit;
     font-size: 0.95rem;
     outline: none;
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
   }
   input:focus {
     border-color: #6cf;
   }
+  .rule {
+    color: #ca6;
+    font-size: 0.75rem;
+    margin: -0.35rem 0 0.75rem;
+  }
   .actions {
     display: flex;
     gap: 0.5rem;
+    margin-top: 0.25rem;
   }
-  .primary,
-  .ghost {
+  .primary {
     padding: 0.55rem 1rem;
-    border: 1px solid;
+    border: 1px solid #6cf;
     border-radius: 4px;
     font: inherit;
     font-size: 0.85rem;
     cursor: pointer;
     transition: all 0.15s;
-  }
-  .primary {
     background: #6cf;
     color: #0a0a0a;
-    border-color: #6cf;
     flex: 1;
   }
   .primary:hover:not(:disabled) {
@@ -190,18 +175,21 @@
     opacity: 0.4;
     cursor: not-allowed;
   }
-  .ghost {
+  .link {
+    display: block;
+    width: 100%;
+    margin-top: 0.9rem;
     background: transparent;
-    color: #888;
-    border-color: #333;
+    border: none;
+    color: #666;
+    font: inherit;
+    font-size: 0.78rem;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
   }
-  .ghost:hover {
-    color: #ccc;
-    border-color: #555;
-  }
-  .muted {
-    color: #555;
-    font-size: 0.85rem;
+  .link:hover {
+    color: #6cf;
   }
   .error {
     color: #f66;

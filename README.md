@@ -46,8 +46,9 @@ npm run dev        # http://localhost:5173
 It talks to `http://localhost:8000` by default — set `VITE_API_BASE` to point somewhere
 else. `npm run build` writes `dist/`, `npm run check` runs `svelte-check` and `tsc`.
 
-There is no login. The first screen asks for a profile name, which is stored in
-`localStorage` and sent on every request as the `X-Evove-Username` header.
+The first screen is a login. Register a profile with a username and a password of at
+least 8 characters; the session token that comes back is kept in `localStorage` and sent
+as `Authorization: Bearer`.
 
 ### 3. Terminal client
 
@@ -147,7 +148,7 @@ the files.
 | `MYSQL_DATABASE` | compose | `roko` | database name |
 | `MYSQL_USER` / `MYSQL_PASSWORD` | compose | `roko` / `rokopass` | application user |
 | `DATABASE_URL` | backend, CLI, alembic, importer | `mysql+pymysql://roko:rokopass@127.0.0.1:3306/roko?charset=utf8mb4` | SQLAlchemy connection |
-| `EVOVE_USERNAME` | backend, CLI | `default` | profile used when no header is sent |
+| `EVOVE_USERNAME` | CLI | `default` | profile the CLI opens with |
 | `EVOVE_DATA_DIR` | backend | `~/.local/share/evove` | on-disk data root (legacy) |
 | `TZ` | containers | `America/Sao_Paulo` | timezone |
 | `VITE_API_BASE` | web (build time) | `http://localhost:8000` | API base URL |
@@ -227,19 +228,34 @@ which needs the repositories. When the domain needs interactive input it raises
 JSON files that predated the database, so `main.py` never sees an ORM object. Each
 function opens and closes its own session.
 
-### User identification
+### Authentication
 
-There is no authentication. The user comes in the `X-Evove-Username` header, validated
-against `^[A-Za-z0-9_-]{1,24}$`; without it the request falls back to `EVOVE_USERNAME` or
-to `default`. CORS is open to every origin. **This is meant for local use — do not expose
-this API to a network.**
+A profile is a username plus a bcrypt hash in `users.password_hash`. `POST /auth/register`
+and `POST /auth/login` return an opaque token; every other user route depends on
+`current_username`, which resolves `Authorization: Bearer <token>` through the `sessions`
+table. An endpoint therefore cannot be left open by accident — without a valid session
+there is no username to act as.
+
+Sessions are server-side and revocable: `POST /auth/logout` deletes the row and the token
+dies with it. Only the SHA-256 of the token is stored, so a dump of `sessions` hands out
+nothing usable. Tokens last 30 days (`auth.SESSION_TTL`) and expired rows are cleared on
+the next login.
+
+Login answers the same 401 for a wrong password and for a username that does not exist, so
+the response does not enumerate profiles. There is no endpoint that lists usernames.
+
+**Two things remain open, on purpose, for local use:** CORS still accepts every origin —
+tightening it would break reaching the dev server from a phone on the LAN — and the CLI
+talks straight to MySQL with no password, since whoever runs it already holds
+`DATABASE_URL` and could read every profile anyway. The password protects the API, which
+is the part exposed on a network.
 
 ### Database
 
-Twenty tables. Profile and content tables have an FK to `users` with delete cascade; the
+Twenty-one tables. Profile and content tables have an FK to `users` with delete cascade; the
 attribute tree, the catalog and the tags are global and shared by everyone:
 
-- profile — `users`, `user_state`, `user_tutorial`, `sequences_state`
+- profile — `users`, `user_state`, `user_tutorial`, `sequences_state`, `sessions`
 - user content — `actions`, `attributes`, `attribute_actions`, `skills_acquired`,
   `agenda_items`, `logs`, `projects`, `project_actions`, `project_attributes`
 - static tree — `attr_nodes`, `attr_edges`, `action_contributions`
@@ -252,7 +268,7 @@ Content tables also keep the logical id from the JSON era (`action_id`, `attr_id
 
 ### Migrations
 
-Thirteen revisions in a chain:
+Fourteen revisions in a chain:
 
 ```
 5638fb2a1810  initial schema
@@ -268,6 +284,7 @@ d6b1f4a9c8e2  token economy: earned by productivity, spent on leisure
 e8c2a5d7b1f3  raise the token stock cap to 100
 f9d3b6e8a2c4  record the token delta on each log
 a1e5c9b3d7f2  conceptual themes for the actions that had none
+b4f7d2a9e6c3  passwords and sessions
 ```
 
 Seven of them (`b7c1`, `c8d2`, `e5a1`, `f7b3`, `b2e7`, `c4a8`, `d6b1`) read
@@ -362,13 +379,15 @@ column existed sit at 0.
 
 ### API
 
-Every user route reads the `X-Evove-Username` header.
+Every user route requires `Authorization: Bearer <token>` and answers 401 without one.
 
 | Method | Route | Purpose |
 | --- | --- | --- |
 | GET | `/health` | ping |
-| GET | `/users` | list profiles |
-| POST | `/users` | create a profile (`{name}`) |
+| POST | `/auth/register` | create a profile and sign in (`{username, password}`) |
+| POST | `/auth/login` | sign in (`{username, password}`) |
+| POST | `/auth/logout` | revoke the current session |
+| GET | `/auth/me` | the username behind the token |
 | GET | `/user` | full state: xp, level, rank, resources, bonuses |
 | GET | `/journey` | stage and time left until the next checkpoint |
 | GET | `/actions` | the profile's actions |
@@ -421,13 +440,14 @@ Known rough edges, for whoever touches this next:
 
 - **The root `.env` is stale.** It still describes Postgres (`POSTGRES_*` and a
   `DATABASE_URL` pointing at `postgresql://…`), while `docker-compose.yml` brings up MySQL
-  and sets `DATABASE_URL` on both services itself. Nothing on the current path reads that
+  and sets `DATABASE_URL` on both services itself. Its `JWT_SECRET` is stale too: sessions
+  are opaque tokens in a table, not signed ones. Nothing on the current path reads that
   file.
-- **`npm run check` reports 5 type errors** under `apps/web/src/lib/` — `api.ts:40`
-  (`stringfalso`), `api.ts:274` (`ProjectItem` does not exist; the declared type is
-  `Project`, and `/projects` returns `{items: [...]}` rather than an array),
-  `UserPanel.svelte:58`, `ProjectsPanel.svelte:16` and `:44`. The app still runs — Vite
-  does not type-check in `dev` — but `check` is red.
+- **`npm run check` reports 4 type errors** under `apps/web/src/lib/` — `api.ts:105`
+  (`stringfalso`), `api.ts:344` (`ProjectItem` does not exist; the declared type is
+  `Project`, and `/projects` returns `{items: [...]}` rather than an array), and
+  `ProjectsPanel.svelte:16` and `:44` following from it. The app still runs — Vite does
+  not type-check in `dev` — but `check` is red.
 - `attribute_actions`, `project_actions` and `project_attributes` exist in the ORM and are
   marked as unimplemented; attribute scoring currently comes from the contribution tree,
   not from the per-user `attributes` table.
