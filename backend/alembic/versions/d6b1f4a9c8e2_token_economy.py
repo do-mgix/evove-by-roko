@@ -27,7 +27,7 @@ def upgrade() -> None:
     op.add_column("action_templates", sa.Column("token_gain", sa.Integer(), nullable=False, server_default="0"))
     op.add_column("actions", sa.Column("token_gain", sa.Integer(), nullable=False, server_default="0"))
 
-    seed_path = Path(__file__).resolve().parents[2] / "data" / "attributes_tree.json"
+    seed_path = Path(__file__).resolve().parents[1] / "seeds" / "attributes_tree.pre_engine.json"
     with seed_path.open("r", encoding="utf-8") as f:
         seed = json.load(f)
 

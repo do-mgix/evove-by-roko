@@ -22,7 +22,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def _seed_tags(conn):
-    seed_path = Path(__file__).resolve().parents[2] / "data" / "attribute_tags.json"
+    seed_path = Path(__file__).resolve().parents[1] / "seeds" / "attribute_tags.pre_engine.json"
     with seed_path.open("r", encoding="utf-8") as f:
         data = json.load(f)
 

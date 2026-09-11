@@ -35,7 +35,7 @@ def upgrade() -> None:
     op.add_column("attr_nodes", sa.Column("code", sa.String(2), nullable=True))
     op.add_column("action_templates", sa.Column("code", sa.String(7), nullable=True))
 
-    seed_path = Path(__file__).resolve().parents[2] / "data" / "attributes_tree.json"
+    seed_path = Path(__file__).resolve().parents[1] / "seeds" / "attributes_tree.pre_engine.json"
     with seed_path.open("r", encoding="utf-8") as f:
         seed = json.load(f)
 

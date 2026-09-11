@@ -35,7 +35,7 @@ def upgrade() -> None:
         sa.Column("token_cost", sa.Integer(), nullable=False, server_default="0"),
     )
 
-    seed_path = Path(__file__).resolve().parents[2] / "data" / "attributes_tree.json"
+    seed_path = Path(__file__).resolve().parents[1] / "seeds" / "attributes_tree.pre_engine.json"
     with seed_path.open("r", encoding="utf-8") as f:
         seed = json.load(f)
 
