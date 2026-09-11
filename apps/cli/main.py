@@ -23,6 +23,7 @@ from rich.table import Table
 from rich import box
 
 from src.domain.act import apply_act, ActError
+from src.domain.contributions import apply_action_contributions
 from src.domain.agenda import collect_labels, DAY_NAMES
 from src.domain.daily import apply_daily_tick
 from src.infrastructure.static_data import skill_nodes_by_id
@@ -151,6 +152,10 @@ def cmd_act(data: dict) -> None:
         return
 
     save_user(data)
+    # The web client always did this; the CLI never did, so acting from the
+    # terminal paid xp and tokens but moved no attribute.
+    apply_action_contributions(get_current_username(), action.get("name", ""),
+                               float(outcome.score_diff), datetime.now())
     token_delta = (outcome.token_gain - outcome.tokens_wasted) - outcome.token_cost
     append_log(outcome.log_content, int(round(outcome.score_diff)), token_delta)
 
