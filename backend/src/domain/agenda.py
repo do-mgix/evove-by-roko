@@ -59,33 +59,37 @@ def is_action_in_agenda(action_id: str, action_name: str, attributes: dict, labe
     return False
 
 
-def conceptual_leaves_for_labels(
+def leaves_for_labels(
     labels: set[str],
-    concept_node_by_name: dict[str, str],
+    nodes_by_name: dict[str, list[str]],
     children: dict[str, list],
 ) -> set[str]:
-    """For each agenda label that matches a conceptual node name (normalized),
-    return the union of all leaf keys reachable downward.
+    """Leaves under every attribute whose name matches one of today's labels.
+
+    Any attribute can be scheduled — "Musculatura" covers every strength move.
+    Several attributes may share a display name (there are three "Mobilidade");
+    a label matching several takes the union of all their subtrees.
 
     Args:
       labels: already normalized labels.
-      concept_node_by_name: {NORMALIZED_DISPLAY_NAME: node_key} for conceptual nodes.
-      children: {parent_key: [(child_key, weight), ...]} from the tree.
-
-    Returns the set of leaf keys covered by those labels.
+      nodes_by_name: {NORMALIZED_NAME: [node_key, ...]}.
+      children: {parent_key: [(child_key, weight), ...]} from the graph.
     """
     out: set[str] = set()
+    seen: set[str] = set()
 
-    def _descend(key: str) -> None:
+    def descend(key: str) -> None:
+        if key in seen:           # the graph shares nodes; visit each once
+            return
+        seen.add(key)
         kids = children.get(key, [])
         if not kids:
             out.add(key)
             return
         for child_key, _w in kids:
-            _descend(child_key)
+            descend(child_key)
 
     for label in labels:
-        node_key = concept_node_by_name.get(label)
-        if node_key:
-            _descend(node_key)
+        for node_key in nodes_by_name.get(label, []):
+            descend(node_key)
     return out

@@ -161,88 +161,61 @@ export async function fetchUser(): Promise<UserState> {
   return res.json();
 }
 
-export type Attribute = {
+/** Any attribute. All of them are the same kind of thing; a leaf is simply one
+ *  with no children, and only leaves hold a score. `level` is null when the
+ *  node has no leveled leaves carrying enough of its weight. */
+export type AttrNode = {
   key: string;
   name: string;
-  score: number;
-  permanent_level: number;
+  degree: number;
+  is_leaf: boolean;
+  power: number;
+  level: number | null;
   max_level: number | null;
-  next_threshold: number | null;
-  progress_to_next: number;
-  half_life_hours: number;
-  floor: number;
+  progress_to_next: number | null;
+  // leaves only
+  permanent_level?: number;
+  next_threshold?: number | null;
+  half_life_hours?: number;
+  floor?: number;
+  // in /attributes/tree, on every child
+  weight?: number;
+  primary?: boolean;
+  children?: AttrNode[];
 };
 
-export async function fetchAttributes(): Promise<Attribute[]> {
+/** Leaves, strongest first. */
+export async function fetchAttributes(): Promise<AttrNode[]> {
   const res = await request("/attributes");
   if (!res.ok) throw new Error(`Failed to fetch attributes (${res.status})`);
   return res.json();
 }
 
-export type AttrTreeNode = {
-  key: string;
-  name: string;
-  is_leaf: boolean;
-  score: number;
-  weight?: number;
-  half_life_hours?: number;
-  floor?: number;
-  children?: AttrTreeNode[];
-};
+/** Every root with its power and aggregated level. */
+export async function fetchAttributeRoots(): Promise<AttrNode[]> {
+  const res = await request("/attributes/roots");
+  if (!res.ok) throw new Error(`Failed to fetch attribute roots (${res.status})`);
+  return res.json();
+}
 
-export type AttrTree = {
-  roots: AttrTreeNode[];
-  anatomical?: AttrTreeNode[];
-  conceptual?: AttrTreeNode[];
-};
-
-export async function fetchAttributeTree(): Promise<AttrTree> {
+export async function fetchAttributeTree(): Promise<{ roots: AttrNode[] }> {
   const res = await request("/attributes/tree");
   if (!res.ok) throw new Error(`Failed to fetch tree (${res.status})`);
   return res.json();
 }
 
-/** Flatten the conceptual subtree into [{key, name, path}], including non-leaves. */
-export function flattenConceptualNodes(tree: AttrTree): { key: string; name: string; path: string }[] {
-  const out: { key: string; name: string; path: string }[] = [];
-  const walk = (n: AttrTreeNode, parentPath: string) => {
+/** Every attribute once, with the path to it along primary links.
+ *  A node with several parents appears in the tree under each of them; here it
+ *  is listed once, so it can key a list. */
+export function flattenAttributeNodes(roots: AttrNode[]): { key: string; name: string; path: string }[] {
+  const out = new Map<string, { key: string; name: string; path: string }>();
+  const walk = (n: AttrNode, parentPath: string) => {
     const path = parentPath ? `${parentPath} › ${n.name}` : n.name;
-    out.push({ key: n.key, name: n.name, path });
-    if (n.children) for (const c of n.children) walk(c, path);
+    if (!out.has(n.key)) out.set(n.key, { key: n.key, name: n.name, path });
+    for (const c of n.children ?? []) if (c.primary !== false) walk(c, path);
   };
-  for (const r of tree.conceptual ?? []) walk(r, "");
-  return out;
-}
-
-export type AttrTag = {
-  key: string;
-  name: string;
-  category: string;
-  score: number;
-  level: number | null;
-  max_level: number | null;
-  progress_to_next: number | null;
-};
-
-export type ConceptualRoot = {
-  key: string;
-  name: string;
-  score: number;
-  level: number;
-  max_level: number;
-  progress_to_next: number;
-};
-
-export async function fetchConceptualRoots(): Promise<ConceptualRoot[]> {
-  const res = await request("/attributes/conceptual/roots");
-  if (!res.ok) throw new Error(`Failed to fetch conceptual roots (${res.status})`);
-  return res.json();
-}
-
-export async function fetchAttributeTags(): Promise<AttrTag[]> {
-  const res = await request("/attributes/tags");
-  if (!res.ok) throw new Error(`Failed to fetch tags (${res.status})`);
-  return res.json();
+  for (const r of roots) walk(r, "");
+  return [...out.values()];
 }
 
 export type LogEntry = {

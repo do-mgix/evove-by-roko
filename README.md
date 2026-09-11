@@ -183,7 +183,7 @@ backend/
     action.py                  the Action class and the score formula
     act.py                     the "execute an action" flow (single source of truth)
     agenda.py                  matching an action against the day's agenda
-    attributes.py              decay, levels and aggregated tree scores
+    attributes.py              the attribute graph: power, levels, degree, registration rules
     contributions.py           applies an action's stimulus to the leaves
     daily.py                   daily tick (token refill, checkpoint countdown)
     skills.py                  skill tree rules and bonus aggregation
@@ -194,8 +194,10 @@ backend/
     repos.py                   repositories: dicts in, dicts out — never ORM entities
     storage.py                 per-user directory under ~/.local/share/evove (legacy)
     static_data.py             skill tree hardcoded in Python
-  data/                        migration seeds (never read at runtime)
+  data/                        live seed: the attribute graph and the catalog
   alembic/                     migrations
+  alembic/seeds/               frozen seed copies the older migrations read
+  scripts/attributes.py        register attributes (subdivide, add, link…)
   scripts/migrate_json_to_db.py  legacy JSON importer
 apps/web/src/
   App.svelte                   screen switching by state, no router
@@ -222,9 +224,10 @@ Enough vocabulary to read the code:
 | Term | What it is |
 | --- | --- |
 | **action** | something you log, with a unit type and a difficulty; executing it is called an *act* |
-| **attribute tree** | a static weighted tree; each action feeds a set of leaves |
-| **leaf score** | per-user score on a leaf, decaying over time unless it is converted into a permanent level |
-| **tag** | a curated combination of leaves, shown as a single bar |
+| **attribute** | anything that can be trained, at any grain: Corpo, Bíceps, Força, Leitura. All the same kind of thing |
+| **leaf** | an attribute with no children — the only kind that stores a per-user score, which decays unless converted into a permanent level |
+| **power** | a leaf's score, or for any other attribute the weighted mean of its children |
+| **degree** | depth along primary parents, the root being 1 |
 | **tokens** | earned by executing productivity actions, spent on leisure ones, capped in stock |
 | **energy** | drained by acting outside today's agenda, refilled at each checkpoint |
 | **build points / skill points** | currencies for buying actions in the shop and nodes in the skill tree; both are paid out at checkpoints |
@@ -272,22 +275,21 @@ is the part exposed on a network.
 ### Database
 
 Twenty-one tables. Profile and content tables have an FK to `users` with delete cascade; the
-attribute tree, the catalog and the tags are global and shared by everyone:
+attribute graph and the catalog are global and shared by everyone:
 
 - profile — `users`, `user_state`, `user_tutorial`, `sequences_state`, `sessions`
 - user content — `actions`, `attributes`, `attribute_actions`, `skills_acquired`,
   `agenda_items`, `logs`, `projects`, `project_actions`, `project_attributes`
-- static tree — `attr_nodes`, `attr_edges`, `action_contributions`
-- catalog metadata — `action_templates`
+- attribute graph — `attr_nodes`, `attr_edges`, `action_contributions`
+- catalog — `action_templates`, `id_class1`, `id_class2`
 - per-user derived data — `user_leaf_scores`
-- tags — `attribute_tags`, `attribute_tag_sources`
 
 Content tables also keep the logical id from the JSON era (`action_id`, `attr_id`,
 `item_id`), preserved so ids already used by the front end keep working.
 
 ### Migrations
 
-Fifteen revisions in a chain:
+Sixteen revisions in a chain:
 
 ```
 5638fb2a1810  initial schema
@@ -305,10 +307,68 @@ f9d3b6e8a2c4  record the token delta on each log
 a1e5c9b3d7f2  conceptual themes for the actions that had none
 b4f7d2a9e6c3  passwords and sessions
 c7a3e9f1b5d8  memorable action ids: 5aa-aa-ii
+d8e4b2c6f1a3  attribute engine: one graph, no kinds
 ```
 
-Nine of them (`b7c1`, `c8d2`, `e5a1`, `f7b3`, `b2e7`, `c4a8`, `d6b1`, `a1e5`, `c7a3`) read
-`backend/data/*.json` to seed. Those files exist only for that: nothing opens them at runtime.
+Nine of them (`b7c1`, `c8d2`, `e5a1`, `f7b3`, `b2e7`, `c4a8`, `d6b1`, `a1e5`, `c7a3`) seed
+from **frozen copies** in `backend/alembic/seeds/`, not from `backend/data/`. They used to
+re-read the live seed, so every later edit changed what a fresh install built — which is
+how 17 leaves ended up with a null `max_level`. `d8e4` is the one that reads the live seed:
+it brings nodes, links, their settings, contributions and templates in line with it, so a
+fresh install always ends where the seed says.
+
+### The attribute engine
+
+There is one kind of attribute. Any attribute can have weighted children, depth has no
+limit, and a parent is worth the weighted mean of its children — `braço = antebraço·½ +
+braço·½`. A leaf is simply an attribute without children; only leaves store a score, and
+everything above them is computed on read (`compute_node_score`, memoized per request).
+
+**Several parents, one primary.** Força draws on peitoral, dorsal and more, while peitoral
+also sits under Tronco. Each attribute has at most one *primary* parent, and the primary
+chain alone defines its **degree** — its depth, root = 1 — which is what action ids use.
+Other parents are ordinary links: Físico and Mental are roots whose children are the old
+tags, and each tag reaches its leaves through non-primary links with the weights it
+always had, so every tag kept its value.
+
+**Levels.** A leaf levels up through its own `max_level`. Any other attribute shows the
+weighted mean of the levels of the leveled leaves under it, provided they carry at least
+80% of its weight (`LEVELED_SHARE`); otherwise it shows its power and no level.
+
+### Registering attributes
+
+Registration is always of children. `backend/scripts/attributes.py` applies each change
+to the database **and** writes it into `backend/data/attributes_tree.json`, so a fresh
+install builds the same graph:
+
+```bash
+export DATABASE_URL='mysql+pymysql://roko:rokopass@127.0.0.1:3306/roko?charset=utf8mb4'
+python backend/scripts/attributes.py subdivide biceps \
+  c_longa="Cabeça longa":0.6 c_curta="Cabeça curta":0.4
+python backend/scripts/attributes.py show c_longa
+```
+
+| Command | What it does |
+| --- | --- |
+| `subdivide PARENT KEY=Name:w …` | a leaf gets children, weights summing to 1 |
+| `add PARENT KEY=Name:w …` | more children for a node that already has some |
+| `link PARENT CHILD w` | a non-primary link, how an aggregate like Força is assembled |
+| `reweight PARENT CHILD=w …` | set every child's weight |
+| `root KEY Name` | a parentless attribute to hang an aggregate on |
+| `code-for PARENT` | the code a new action under `PARENT` would get |
+| `show KEY` | degree, primary path, parents and children |
+
+The rule behind `subdivide` and `add`: **registering children never changes what a
+parent is worth at that moment.** On `subdivide`, every child inherits the leaf whole —
+each user's score and permanent level, and every action contribution at the same weight.
+That is not a split: since the parent is a weighted *mean*, `0.6·100 + 0.4·100 = 100`,
+and each act keeps moving it exactly as before. The children start identical and
+diverge once you tune which actions feed which. On `add`, existing links are scaled by
+what the new weights leave, and each new child starts at the parent's current value.
+
+`reweight` is the exception, on purpose: it moves the parent. Links that would close a
+cycle are refused, and so is linking children onto a leaf that already holds scores —
+subdivide it instead.
 
 ### Adding actions to the catalog
 
@@ -318,20 +378,19 @@ The shop has no admin screen. `/shop/packages` and `/shop/catalog` are assembled
 a migration is how you add them. Both blocks live in
 `backend/data/attributes_tree.json`:
 
-1. `contributions` — one entry per leaf, action name in caps. Anatomical weights sum to
-   `1.0` per action and conceptual weights sum to `1.0` separately; an action with neither
-   never reaches an attribute. Give it at least one conceptual leaf: that is what files it
-   under a theme in the shop — see below.
-2. `action_templates` — one entry per action: its `code` (see "Action ids" below),
-   `type` (the unit, see `Action._TYPE_MAP`), `diff` 0–5, `cost` in build points to
-   acquire it, and then either `token_gain` or `token_cost` — never both. An action with
-   contributions but no template still shows in the shop with `repos.TEMPLATE_FALLBACK`,
-   but cannot be bought: with no code there is no id to give it.
-3. Copy `b2e7d9c4a6f1_routine_actions.py` for the contributions and
-   `c4a8e2f6b9d3_action_templates.py` for the templates, put the new names in
-   `NEW_ACTIONS` and chain `down_revision` to the current head. Keep the guard against
-   rows that already exist: on a fresh database `b7c1` seeds the whole file, so without it
-   the migration hits the unique constraint on `(action_name, leaf_id)`.
+1. `contributions` — one entry per leaf the action feeds, name in caps. By convention an
+   action carries two budgets that each sum to `1.0`: its leaves under the practice roots
+   (the ones marked `shop_group`) and all the others. The practice leaf is what files it
+   in the shop — see below.
+2. `action_templates` — one entry per action: its `parent` (the attribute it is
+   registered under), its `code` (from `attributes.py code-for PARENT`), `type` (the unit,
+   see `Action._TYPE_MAP`), `diff` 0–5, `cost` in build points to acquire it, and either
+   `token_gain` or `token_cost` — never both. An action with contributions but no
+   template still shows in the shop, but cannot be bought: with no code there is no id.
+3. Write a migration that inserts the contributions and the template, and records the
+   class numbers `code-for` reported as new in `id_class1` / `id_class2`. A fresh install
+   does not need it — `d8e4` brings everything in line with the seed — but the database
+   you already have does.
 4. Migrating through a container started with `-f docker-compose.yml`? Run
    `docker compose build backend` first — without the override the image carries a copy
    of `backend/data/` from build time, not the file in your working tree.
@@ -341,43 +400,49 @@ a migration is how you add them. Both blocks live in
 An action's id is seven digits, the same for every profile:
 
 ```
-5  01  01  08      FLEXÃO
-│   │   │   └─ position inside the child class, 01–99
-│   │   └───── child class: Calistenia
-│   └───────── parent class: Treino
+5  01  03  01      FLEXÃO
+│   │   │   └─ position among actions with the same two classes, 01–99
+│   │   └───── class 2: the action's parent — Peitoral
+│   └───────── class 1: the ancestor at degree max(2, ⌈N/2⌉) — Musculatura
 └───────────── always 5 — it is an action
 ```
 
-The classes are the conceptual tree the shop already groups by: the parent is a root,
-the child is the node under it on the way to the action's heaviest conceptual leaf.
-`attr_nodes.code` holds each class's two digits — Treino is `01`, Calistenia under it is
-`01` — and `action_templates.code` holds the full id. `00` is reserved at every level.
+Every action is **registered** under a parent attribute (`action_templates.parent_node_id`).
+With N the parent's degree, the first class is the ancestor halfway down its primary path
+— never the root, which contains everything and says nothing — and the second is the
+parent itself, or `00` when the two coincide. FLEXÃO hangs from Peitoral, degree 4 on
+Corpo → Musculatura → Tronco → Peitoral, so its classes are Musculatura and Peitoral.
 
-**Codes are assigned once and never renumbered.** They live in the seed and in the
-database as data, not as something derived from the contributions: if they were
-computed, changing a leaf weight could move an action to another class and change its
-id, which is the one thing the scheme promises not to do. For the same reason, reordering
-a class alphabetically after adding to it is off the table.
+The class numbers are registered too: `id_class1` gives each first-class attribute two
+global digits, `id_class2` gives each second class two digits under its first. Both are
+numbered the first time an action needs them. `00` is reserved at every level.
 
-To add an action, give it the next free number in its class — a new calisthenics exercise
-after `5010110` is `5010111`, wherever it falls alphabetically. A new class takes the next
-free two digits under its parent.
+**Ids never move.** The parent, the class numbers and the code are all stored rather than
+derived: if they were computed, a weight change could re-pick the parent, or an attribute
+inserted mid-path could shift every degree below it, and ids would change. After an
+action is registered, its id is data. The initial parents were the heaviest leaf of the
+body/mind branch; four ties (BURPEE, INSTAGRAM, TEA, AQUECIMENTO) went to the first leaf
+in the seed, and any parent can be changed with a migration.
 
-The web client shows ids grouped (`5 01 01 08`) and the dial filters by prefix as you
-type, so `501` narrows the list to your Treino actions and `50101` to Calistenia before
-the seventh digit picks one.
+To add an action, `attributes.py code-for PARENT` names the next free code and says
+whether it opens a new class.
+
+The web client shows ids grouped (`5 01 03 01`) and the dial filters by prefix as you
+type, so `501` narrows the list to your Musculatura actions and `50103` to the ones on
+Peitoral before the seventh digit picks one.
 
 ### How the shop groups actions
 
-An action is filed under the parent of its heaviest **conceptual** leaf (`_theme_for` in
-`backend/main.py`), so every group in the shop is a theme — Treino, Programação, Escrita,
-Literacia, Alimentação, Consumo, Prática Mental — and never a body region.
+The shop groups by **practice** — Treino, Programação, Escrita, Literacia, Alimentação,
+Consumo, Prática Mental — while ids classify by body and mind region. The same action is
+filed two ways on purpose.
 
-Conceptual leaves are preferred explicitly rather than by weight. An anatomical leaf can
-also carry weight `1.0` (`WATER` → `hidratacao`), and a tie would otherwise be broken by
-whatever order MySQL returned the rows, moving an action between groups from one request
-to the next. The heaviest leaf of any kind is the fallback, so an action with no
-conceptual contribution still lands somewhere instead of in `Outros`.
+The engine has no notion of kinds, so the six practice roots carry a display mark,
+`attr_nodes.shop_group`, and `_theme_for` in `backend/main.py` is its only reader: an
+action goes under the primary parent of its heaviest leaf below a marked root. Scores,
+degrees and ids never look at the mark. Marked leaves are preferred explicitly rather
+than by weight — `WATER` feeds `hidratacao` and `c_bebida` both at `1.0`, and a tie would
+otherwise be settled by row order.
 
 ### Catalog balance
 
@@ -445,10 +510,9 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 | GET | `/journey` | stage and time left until the next checkpoint |
 | GET | `/actions` | the profile's actions |
 | POST | `/actions/{id}/act` | execute an action (`{note}` or `{value}`) |
-| GET | `/attributes` | leaves with score and level — filter with `?tree=anatomical\|conceptual` |
-| GET | `/attributes/tags` | the composite tags |
-| GET | `/attributes/tree` | hierarchical tree with a computed score on every node |
-| GET | `/attributes/conceptual/roots` | conceptual roots with aggregated level |
+| GET | `/attributes` | every leaf with its power and level |
+| GET | `/attributes/roots` | every root with power and aggregated level |
+| GET | `/attributes/tree` | the whole graph; each child link says its `weight` and whether it is `primary` |
 | GET | `/shop/packages` | available actions grouped by theme |
 | GET | `/shop/catalog` | the same, with each action's leaves and weights |
 | POST | `/shop/actions/buy` | buy an action (`{attribute, name}`) |
@@ -501,8 +565,12 @@ Known rough edges, for whoever touches this next:
   `Project`, and `/projects` returns `{items: [...]}` rather than an array), and
   `ProjectsPanel.svelte:16` and `:44` following from it. The app still runs — Vite does
   not type-check in `dev` — but `check` is red.
-- `attribute_actions`, `project_actions` and `project_attributes` exist in the ORM and are
-  marked as unimplemented; attribute scoring currently comes from the contribution tree,
-  not from the per-user `attributes` table.
+- **A fourth, dead notion of attribute.** The per-user tables `attributes`,
+  `attribute_actions` and `project_attributes` are still loaded and saved with every
+  profile, and the legacy branch of agenda matching reads them, but nothing has filled them
+  since `b7c1`. Attribute scoring is the graph. Removing them touches projects and the old
+  agenda path.
+- Three attributes are named "Mobilidade" (`mobilidade`, `c_mobilidade`, `t_mobilidade`).
+  The keys differ, but in the unified tree they sit side by side.
 - `storage.py` and `EVOVE_DATA_DIR` are leftovers from the JSON era. State lives in the
   database; the per-user directory is only used to locate legacy files.

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import Modal from "./Modal.svelte";
-  import { fetchActions, fetchAttributes, fetchAttributeTree, flattenConceptualNodes, createAgendaItem, updateAgendaItem, type AgendaItem } from "./api";
+  import { fetchActions, fetchAttributeTree, flattenAttributeNodes, createAgendaItem, updateAgendaItem, type AgendaItem } from "./api";
 
   export let onClose: () => void;
   export let onCreated: (item: AgendaItem) => void;
@@ -31,7 +31,7 @@
     ? new Set([initialItem.day])
     : new Set(["*"]);
   let label = initialItem?.label ?? "";
-  let suggestions: { kind: "action" | "attribute" | "concept"; id: string; name: string; path?: string }[] = [];
+  let suggestions: { kind: "action" | "attribute"; id: string; name: string; path?: string }[] = [];
   let busy = false;
   let error: string | null = null;
 
@@ -123,16 +123,15 @@
 
   onMount(async () => {
     try {
-      const [actions, attrs, tree] = await Promise.all([
+      // Any attribute can be scheduled, so every node is a suggestion — once each,
+      // even the ones reached through several parents.
+      const [actions, tree] = await Promise.all([
         fetchActions().catch(() => []),
-        fetchAttributes().catch(() => []),
-        fetchAttributeTree().catch(() => ({ roots: [] as any })),
+        fetchAttributeTree().catch(() => ({ roots: [] })),
       ]);
-      const conceptNodes = flattenConceptualNodes(tree as any);
       suggestions = [
-        ...conceptNodes.map((c) => ({ kind: "concept" as const, id: c.key, name: c.name, path: c.path })),
+        ...flattenAttributeNodes(tree.roots).map((n) => ({ kind: "attribute" as const, id: n.key, name: n.name, path: n.path })),
         ...actions.map((a) => ({ kind: "action" as const, id: a.id, name: a.name })),
-        ...attrs.map((a) => ({ kind: "attribute" as const, id: a.key, name: a.name })),
       ];
     } catch {}
   });
@@ -321,8 +320,8 @@
             {#each filteredSuggestions as s (s.kind + ':' + s.id)}
               <li>
                 <button type="button" on:click={() => pick(s)}>
-                  <span class="kind {s.kind}">{s.kind === "action" ? "act" : s.kind === "concept" ? "cnc" : "atr"}</span>
-                  <span class="name">{s.kind === "concept" && s.path ? s.path : s.name}</span>
+                  <span class="kind {s.kind}">{s.kind === "action" ? "act" : "atr"}</span>
+                  <span class="name">{s.path ?? s.name}</span>
                 </button>
               </li>
             {/each}
@@ -524,7 +523,6 @@
   }
   .kind.action { color: #6cf; background: #0a1820; }
   .kind.attribute { color: #cf6; background: #15200a; }
-  .kind.concept { color: #a78bfa; background: #1a1525; }
   .name { color: #ddd; }
   .err {
     color: #f66;

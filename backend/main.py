@@ -33,32 +33,23 @@ _GREEK = ['α','β','γ','δ','ε','ζ','η','θ','ι','κ','λ','μ','ν','ξ',
 _LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 
-def _leaf_to_parent(tree) -> dict[str, str]:
-    """{leaf_key: parent_key} for every leaf in the tree."""
-    out: dict[str, str] = {}
-    for parent_key, children in tree.children.items():
-        for child_key, _w in children:
-            if child_key in tree.leaves_by_key:
-                out[child_key] = parent_key
-    return out
+def _theme_for(contribs, tree) -> str | None:
+    """Shop group for an action: the primary parent of its heaviest leaf that
+    lives under a `shop_group` root.
 
-
-def _theme_for(contribs, tree, leaf_to_parent) -> str | None:
-    """Shop group for an action: the parent of its heaviest conceptual leaf.
-
-    `contribs` arrives sorted by descending weight. Conceptual leaves are
-    preferred explicitly rather than by weight, because an anatomical leaf can
-    also carry weight 1.0 (WATER → hidratacao) and the tie would otherwise be
-    broken by row order. Falls back to the heaviest leaf of any kind so an
-    action with no conceptual contribution still lands somewhere.
+    The shop groups by practice (Treino, Programação…) while the engine has no
+    notion of kinds, so the practice roots carry a display mark and this is the
+    only reader of it. Marked leaves are preferred explicitly rather than by
+    weight: WATER feeds hidratacao and c_bebida both at 1.0, and a tie would
+    otherwise be settled by row order. Falls back to the heaviest leaf of any
+    root, so an action outside every practice still lands somewhere.
     """
     if not contribs:
         return None
-    for leaf_key, _w in contribs:
-        leaf = tree.leaves_by_key.get(leaf_key)
-        if leaf is not None and leaf.tree_kind == "conceptual":
-            return leaf_to_parent.get(leaf_key)
-    return leaf_to_parent.get(contribs[0][0])
+    for leaf_key, _w in contribs:          # arrives sorted by descending weight
+        if leaf_key in tree.nodes_by_key and tree.nodes_by_key[tree.root_of(leaf_key)].shop_group:
+            return tree.primary_parent.get(leaf_key)
+    return tree.primary_parent.get(contribs[0][0])
 
 
 def load_packages() -> list[dict]:
@@ -66,12 +57,10 @@ def load_packages() -> list[dict]:
     contributions = repos.load_all_contributions()
     templates = repos.load_action_templates()
 
-    leaf_to_parent = _leaf_to_parent(tree)
-
     packages: dict[str, dict] = {}
     unmapped = {"attribute": "_unmapped", "name": "Outros", "actions": []}
     for action_name, contribs in sorted(contributions.items()):
-        group_key = _theme_for(contribs, tree, leaf_to_parent)
+        group_key = _theme_for(contribs, tree)
         group_name = tree.nodes_by_key[group_key].name if group_key and group_key in tree.nodes_by_key else None
         meta = templates.get(action_name) or repos.TEMPLATE_FALLBACK
         action = {
@@ -799,14 +788,12 @@ def shop_packages():
 def shop_catalog():
     """Group action templates by theme.
 
-    Each action is filed under the parent of its heaviest conceptual leaf — see
-    `_theme_for`. Returns a flat list of groups in tree order.
+    Each action is filed under its practice — see `_theme_for`. Returns a flat
+    list of groups in tree order.
     """
     packages = load_packages()
     tree = repos.load_attr_tree()
     contributions = repos.load_all_contributions()
-
-    leaf_to_parent = _leaf_to_parent(tree)
 
     grouped: dict[str, dict] = {}
     unmapped: list[dict] = []
@@ -827,7 +814,7 @@ def shop_catalog():
                 "leaves": [
                     {
                         "key": leaf_key,
-                        "name": tree.leaves_by_key[leaf_key].name,
+                        "name": tree.nodes_by_key[leaf_key].name,
                         "weight": w,
                     }
                     for leaf_key, w in contribs
@@ -836,7 +823,7 @@ def shop_catalog():
             if not contribs:
                 unmapped.append(entry)
                 continue
-            group_key = _theme_for(contribs, tree, leaf_to_parent)
+            group_key = _theme_for(contribs, tree)
             if not group_key:
                 unmapped.append(entry)
                 continue
@@ -1013,259 +1000,111 @@ def agenda_today(username: str = Depends(current_username)):
     return {"day": day_name, "items": items}
 
 
-@app.get("/attributes")
-def list_attributes(tree: str | None = None, username: str = Depends(current_username)):
-    """Flat list of leaves with current (decay-applied) user scores + permanent levels.
+def _user_leaf_state(username: str, tree) -> tuple[dict[str, float], dict[str, int]]:
+    """Every leaf's decayed score (or floor) and permanent level, as of now.
 
-    Query param `tree` filters by tree_kind: 'anatomical' | 'conceptual' | None (= both).
+    Lazy decay: stored scores are only brought forward here, never written back.
     """
-    from src.domain.attributes import level_threshold
-
-    _load_user(username)  # triggers daily decay if due
-    tree_data = repos.load_attr_tree()
-    user_scores = repos.get_user_leaf_scores(username)
+    raw = repos.get_user_leaf_scores(username)
     now = datetime.now()
-    result = []
-    for key, leaf in tree_data.leaves_by_key.items():
-        if tree and leaf.tree_kind != tree:
-            continue
-        ls = user_scores.get(key)
-        if ls is None:
-            score = leaf.floor
-            perm = 0
-        else:
-            score = apply_decay(ls["score"], ls["last_updated_at"], now,
-                                leaf.half_life_hours, leaf.floor)
-            perm = int(ls.get("permanent_level", 0) or 0)
-
-        next_thr = None
-        progress = 0.0
-        if leaf.max_level is not None:
-            if perm >= leaf.max_level:
-                next_thr = None
-                progress = 1.0
-            else:
-                next_thr = level_threshold(perm + 1)
-                progress = max(0.0, min(1.0, score / next_thr))
-
-        result.append({
-            "key": key,
-            "name": leaf.name,
-            "score": round(score, 2),
-            "permanent_level": perm,
-            "max_level": leaf.max_level,
-            "next_threshold": next_thr,
-            "progress_to_next": round(progress, 4),
-            "half_life_hours": leaf.half_life_hours,
-            "floor": leaf.floor,
-        })
-    result.sort(key=lambda a: (a["permanent_level"], a["score"]), reverse=True)
-    return result
-
-
-@app.get("/attributes/tags")
-def attribute_tags(username: str = Depends(current_username)):
-    """Curated composite tags computed from weighted leaves.
-
-    Tags whose sources are ≥80% (by weight) on physical leaves (max_level != null)
-    also expose a weighted-average permanent level and progress-to-next bar.
-    """
-    from src.domain.attributes import level_threshold
-
-    _load_user(username)
-    tags = repos.load_attr_tags()
-    leaf_scores_raw = repos.get_user_leaf_scores(username)
-    tree = repos.load_attr_tree()
-    now = datetime.now()
-
-    leaf_scores: dict[str, float] = {}
-    leaf_perm: dict[str, int] = {}
+    scores: dict[str, float] = {}
+    perm: dict[str, int] = {}
     for key, leaf in tree.leaves_by_key.items():
-        ls = leaf_scores_raw.get(key)
-        if ls is None:
-            leaf_scores[key] = leaf.floor
-            leaf_perm[key] = 0
+        row = raw.get(key)
+        if row is None:
+            scores[key], perm[key] = leaf.floor, 0
         else:
-            leaf_scores[key] = apply_decay(
-                ls["score"], ls["last_updated_at"], now,
-                leaf.half_life_hours, leaf.floor,
-            )
-            leaf_perm[key] = int(ls.get("permanent_level", 0) or 0)
+            scores[key] = apply_decay(row["score"], row["last_updated_at"], now, leaf.half_life_hours, leaf.floor)
+            perm[key] = int(row.get("permanent_level", 0) or 0)
+    return scores, perm
 
-    out = []
-    for t in tags:
-        score = sum(w * leaf_scores.get(lk, 0.0) for lk, w in t["sources"])
 
-        # Physical tag: ≥80% of source weight on leaves with max_level
-        max_level_global = 0
-        weighted_level = 0.0
-        weighted_progress = 0.0
-        physical_w = 0.0
-        for lk, w in t["sources"]:
-            leaf = tree.leaves_by_key.get(lk)
-            if leaf is None or leaf.max_level is None:
-                continue
-            physical_w += w
-            perm = leaf_perm.get(lk, 0)
-            weighted_level += w * perm
-            if perm >= leaf.max_level:
-                weighted_progress += w * 1.0
-            else:
-                thr = level_threshold(perm + 1)
-                weighted_progress += w * max(0.0, min(1.0, leaf_scores.get(lk, 0.0) / thr))
-            max_level_global = max(max_level_global, leaf.max_level)
+def _node_view(tree, key: str, scores, perm, memo) -> dict:
+    """What every attribute endpoint says about one node, leaf or not."""
+    from src.domain.attributes import compute_node_score, aggregate_level, level_threshold
 
-        if physical_w >= 0.8:
-            level = weighted_level / physical_w
-            progress = weighted_progress / physical_w
-            level_field = round(level, 2)
-            progress_field = round(progress, 4)
-            max_level_field = max_level_global
+    node = tree.nodes_by_key[key]
+    out = {
+        "key": key,
+        "name": node.name,
+        "degree": tree.degree(key),
+        "is_leaf": tree.is_leaf(key),
+        "power": round(compute_node_score(key, scores, tree, memo), 2),
+    }
+    if tree.is_leaf(key):
+        p = perm.get(key, 0)
+        out.update({
+            "permanent_level": p,
+            "max_level": node.max_level,
+            "half_life_hours": node.half_life_hours,
+            "floor": node.floor,
+        })
+        if node.max_level is None:
+            out.update({"level": None, "next_threshold": None, "progress_to_next": 0.0})
+        elif p >= node.max_level:
+            out.update({"level": float(p), "next_threshold": None, "progress_to_next": 1.0})
         else:
-            level_field = None
-            progress_field = None
-            max_level_field = None
-
-        out.append({
-            "key": t["key"],
-            "name": t["name"],
-            "category": t["category"],
-            "score": round(score, 2),
-            "level": level_field,
-            "max_level": max_level_field,
-            "progress_to_next": progress_field,
+            thr = level_threshold(p + 1)
+            out.update({"level": float(p), "next_threshold": thr,
+                        "progress_to_next": round(max(0.0, min(1.0, scores[key] / thr)), 4)})
+    else:
+        agg = aggregate_level(tree, key, scores, perm)
+        out.update({
+            "level": round(agg["level"], 2) if agg else None,
+            "max_level": agg["max_level"] if agg else None,
+            "progress_to_next": round(agg["progress_to_next"], 4) if agg else None,
         })
     return out
+
+
+@app.get("/attributes")
+def list_attributes(username: str = Depends(current_username)):
+    """Every leaf — the attributes that hold a score — with its level."""
+    _load_user(username)  # triggers daily decay if due
+    tree = repos.load_attr_tree()
+    scores, perm = _user_leaf_state(username, tree)
+    memo: dict[str, float] = {}
+    out = [_node_view(tree, k, scores, perm, memo) for k in tree.leaves_by_key]
+    out.sort(key=lambda a: (a["permanent_level"], a["power"]), reverse=True)
+    return out
+
+
+@app.get("/attributes/roots")
+def attribute_roots(username: str = Depends(current_username)):
+    """Every root with its power and aggregated level. Replaces the separate
+    tag and conceptual-root views: those are ordinary attributes now."""
+    _load_user(username)
+    tree = repos.load_attr_tree()
+    scores, perm = _user_leaf_state(username, tree)
+    memo: dict[str, float] = {}
+    return [_node_view(tree, r, scores, perm, memo) for r in tree.roots]
 
 
 @app.get("/attributes/tree")
 def attributes_tree(username: str = Depends(current_username)):
-    """Hierarchical tree with computed (decay-applied) scores at every node."""
-    from src.domain.attributes import compute_node_score
-
+    """The whole graph from its roots. Each child carries the link `weight` and
+    whether it is the node's `primary` parent — a node with several parents shows
+    up under each of them."""
     _load_user(username)
     tree = repos.load_attr_tree()
-    user_scores = repos.get_user_leaf_scores(username)
-    now = datetime.now()
+    scores, perm = _user_leaf_state(username, tree)
+    memo: dict[str, float] = {}
 
-    leaf_scores: dict[str, float] = {}
-    for key, leaf in tree.leaves_by_key.items():
-        ls = user_scores.get(key)
-        if ls is None:
-            leaf_scores[key] = leaf.floor
-        else:
-            leaf_scores[key] = apply_decay(
-                ls["score"], ls["last_updated_at"], now,
-                leaf.half_life_hours, leaf.floor,
-            )
-
-    def render(key: str) -> dict:
-        node = tree.nodes_by_key[key]
-        score = compute_node_score(key, leaf_scores, tree)
-        out: dict = {
-            "key": key,
-            "name": node.name,
-            "is_leaf": node.is_leaf,
-            "score": round(score, 2),
-        }
-        if node.is_leaf:
-            leaf = tree.leaves_by_key[key]
-            out["half_life_hours"] = leaf.half_life_hours
-            out["floor"] = leaf.floor
-        else:
-            out["children"] = [
-                {"weight": w, **render(ck)}
-                for ck, w in tree.children.get(key, [])
-            ]
+    def render(key: str, path: frozenset) -> dict:
+        out = _node_view(tree, key, scores, perm, memo)
+        if key in path:            # registration refuses cycles; never recurse forever
+            return out
+        kids = []
+        for child, weight in tree.children.get(key, []):
+            view = render(child, path | {key})
+            view["weight"] = weight
+            view["primary"] = tree.primary_parent.get(child) == key
+            kids.append(view)
+        if kids:
+            out["children"] = kids
         return out
 
-    rbk = tree.roots_by_kind or {}
-    return {
-        "anatomical": [render(r) for r in rbk.get("anatomical", [])],
-        "conceptual": [render(r) for r in rbk.get("conceptual", [])],
-        "roots": [render(r) for r in tree.roots],  # legacy combined
-    }
-
-
-@app.get("/attributes/conceptual/roots")
-def conceptual_roots(username: str = Depends(current_username)):
-    """Roots of the conceptual tree with weighted level/progress + score.
-
-    Same pattern as physical tags: aggregate over all descendant leaves.
-    """
-    from src.domain.attributes import compute_node_score, level_threshold
-
-    _load_user(username)
-    tree = repos.load_attr_tree()
-    user_scores = repos.get_user_leaf_scores(username)
-    now = datetime.now()
-
-    leaf_scores: dict[str, float] = {}
-    leaf_perm: dict[str, int] = {}
-    for key, leaf in tree.leaves_by_key.items():
-        ls = user_scores.get(key)
-        if ls is None:
-            leaf_scores[key] = leaf.floor
-            leaf_perm[key] = 0
-        else:
-            leaf_scores[key] = apply_decay(
-                ls["score"], ls["last_updated_at"], now,
-                leaf.half_life_hours, leaf.floor,
-            )
-            leaf_perm[key] = int(ls.get("permanent_level", 0) or 0)
-
-    def descend_leaves(node_key: str, accum_weight: float, out: list):
-        node = tree.nodes_by_key.get(node_key)
-        if node is None:
-            return
-        if node.is_leaf:
-            out.append((node_key, accum_weight))
-            return
-        for child_key, w in tree.children.get(node_key, []):
-            descend_leaves(child_key, accum_weight * w, out)
-
-    out = []
-    rbk = tree.roots_by_kind or {}
-    for root_key in rbk.get("conceptual", []):
-        node = tree.nodes_by_key[root_key]
-        score = compute_node_score(root_key, leaf_scores, tree)
-
-        leaves: list[tuple[str, float]] = []
-        descend_leaves(root_key, 1.0, leaves)
-        total_w = 0.0
-        weighted_level = 0.0
-        weighted_progress = 0.0
-        max_lvl = 0
-        for lk, lw in leaves:
-            leaf = tree.leaves_by_key.get(lk)
-            if leaf is None or leaf.max_level is None:
-                continue
-            total_w += lw
-            perm = leaf_perm.get(lk, 0)
-            weighted_level += lw * perm
-            if perm >= leaf.max_level:
-                weighted_progress += lw * 1.0
-            else:
-                thr = level_threshold(perm + 1)
-                weighted_progress += lw * max(0.0, min(1.0, leaf_scores.get(lk, 0.0) / thr))
-            max_lvl = max(max_lvl, leaf.max_level)
-
-        if total_w > 0:
-            level = weighted_level / total_w
-            progress = weighted_progress / total_w
-        else:
-            level = 0.0
-            progress = 0.0
-
-        out.append({
-            "key": root_key,
-            "name": node.name,
-            "score": round(score, 2),
-            "level": round(level, 2),
-            "max_level": max_lvl or 10,
-            "progress_to_next": round(progress, 4),
-        })
-    return out
+    return {"roots": [render(r, frozenset()) for r in tree.roots]}
 
 
 _LOG_ID_PREFIX = 73
@@ -1336,16 +1175,14 @@ def act_on_action(action_id: str, payload: dict | None = None, username: str = D
 
     today_labels = _today_agenda_labels(username)
 
-    # Conceptual agenda match: if any of today's labels names a conceptual node,
-    # the action counts as "in agenda" when it contributes to that node's subtree.
-    from src.domain.agenda import conceptual_leaves_for_labels, normalize as _norm
+    # Attribute agenda match: if one of today's labels names an attribute, the
+    # action counts as "in agenda" when it feeds a leaf under it.
+    from src.domain.agenda import leaves_for_labels, normalize as _norm
     _tree = repos.load_attr_tree()
-    concept_by_name = {
-        _norm(n.name): n.key
-        for n in _tree.nodes_by_key.values()
-        if n.tree_kind == "conceptual"
-    }
-    concept_leaves_today = conceptual_leaves_for_labels(today_labels, concept_by_name, _tree.children)
+    by_name: dict[str, list[str]] = {}
+    for n in _tree.nodes_by_key.values():
+        by_name.setdefault(_norm(n.name), []).append(n.key)
+    concept_leaves_today = leaves_for_labels(today_labels, by_name, _tree.children)
     action_contribs = repos.load_action_contributions(action.get("name", ""))
     action_leaf_keys = {lk for _id, lk, _w in action_contribs}
     in_agenda_extra = bool(action_leaf_keys & concept_leaves_today)

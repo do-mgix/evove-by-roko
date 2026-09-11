@@ -811,73 +811,262 @@ def purge_expired_sessions() -> int:
 
 # ---------- attribute tree ----------
 
-_TREE_CACHE: dict | None = None
+_TREE_CACHE = None
+
+
+def invalidate_attr_tree() -> None:
+    """Forget the cached graph. Call after any change to nodes or links."""
+    global _TREE_CACHE
+    _TREE_CACHE = None
 
 
 def load_attr_tree():
-    """Load and cache the static tree (nodes/edges/contributions) from DB.
-
-    Returns a domain.attributes.Tree instance.
-    """
+    """Load and cache the attribute graph. Returns a domain.attributes.Tree."""
     global _TREE_CACHE
     if _TREE_CACHE is not None:
         return _TREE_CACHE
 
-    from src.domain.attributes import Tree, NodeMeta, LeafMeta
+    from src.domain.attributes import Tree, Node
 
     s = SessionLocal()
     try:
-        node_rows = s.execute(select(orm.AttrNode)).scalars().all()
-        edge_rows = s.execute(select(orm.AttrEdge)).scalars().all()
+        node_rows = s.execute(select(orm.AttrNode).order_by(orm.AttrNode.id)).scalars().all()
+        edge_rows = s.execute(select(orm.AttrEdge).order_by(orm.AttrEdge.id)).scalars().all()
 
-        nodes_by_key: dict[str, NodeMeta] = {}
-        leaves_by_key: dict[str, LeafMeta] = {}
-        leaves_by_id: dict[int, LeafMeta] = {}
+        nodes_by_key: dict = {}
         id_to_key: dict[int, str] = {}
-
         for n in node_rows:
-            kind = getattr(n, "tree_kind", "anatomical") or "anatomical"
-            nodes_by_key[n.key] = NodeMeta(id=n.id, key=n.key, name=n.name, is_leaf=bool(n.is_leaf), tree_kind=kind)
+            nodes_by_key[n.key] = Node(
+                id=n.id, key=n.key, name=n.name,
+                half_life_hours=float(n.half_life_hours or 0),
+                floor=float(n.floor or 0),
+                threshold=float(n.threshold or 0),
+                max_level=(int(n.max_level) if n.max_level is not None else None),
+                shop_group=bool(n.shop_group),
+            )
             id_to_key[n.id] = n.key
-            if n.is_leaf:
-                leaf = LeafMeta(
-                    id=n.id, key=n.key, name=n.name,
-                    half_life_hours=float(n.half_life_hours or 0),
-                    floor=float(n.floor or 0),
-                    threshold=float(n.threshold or 0),
-                    max_level=(int(n.max_level) if n.max_level is not None else None),
-                    tree_kind=kind,
-                )
-                leaves_by_key[n.key] = leaf
-                leaves_by_id[n.id] = leaf
 
         children: dict[str, list[tuple[str, float]]] = {}
-        child_ids: set[int] = set()
+        parents: dict[str, list[tuple[str, float, bool]]] = {}
+        primary_parent: dict[str, str] = {}
         for e in edge_rows:
-            parent_key = id_to_key.get(e.parent_id)
-            child_key = id_to_key.get(e.child_id)
-            if parent_key is None or child_key is None:
+            pk, ck = id_to_key.get(e.parent_id), id_to_key.get(e.child_id)
+            if pk is None or ck is None:
                 continue
-            children.setdefault(parent_key, []).append((child_key, float(e.weight)))
-            child_ids.add(e.child_id)
+            children.setdefault(pk, []).append((ck, float(e.weight)))
+            parents.setdefault(ck, []).append((pk, float(e.weight), bool(e.is_primary)))
+            if e.is_primary:
+                primary_parent[ck] = pk
 
-        roots = [n.key for n in node_rows if n.id not in child_ids]
-        roots_by_kind: dict[str, list[str]] = {"anatomical": [], "conceptual": []}
-        for r in roots:
-            nm = nodes_by_key.get(r)
-            if nm is None:
-                continue
-            roots_by_kind.setdefault(nm.tree_kind, []).append(r)
-
-        _TREE_CACHE = Tree(
-            nodes_by_key=nodes_by_key,
-            leaves_by_key=leaves_by_key,
-            leaves_by_id=leaves_by_id,
-            children=children,
-            roots=roots,
-            roots_by_kind=roots_by_kind,
-        )
+        _TREE_CACHE = Tree(nodes_by_key=nodes_by_key, children=children,
+                           primary_parent=primary_parent, parents=parents)
         return _TREE_CACHE
+    finally:
+        s.close()
+
+
+# ---------- registering attributes ----------
+#
+# Every write here keeps the promise the engine makes: registering children never
+# changes what a parent is worth at that moment. Each function validates through
+# src.domain.attributes, writes in one transaction, then drops the cached graph.
+
+def _node_row(s: Session, key: str) -> orm.AttrNode:
+    n = s.execute(select(orm.AttrNode).where(orm.AttrNode.key == key)).scalar_one_or_none()
+    if n is None:
+        from src.domain.attributes import RegistrationError
+        raise RegistrationError(f"unknown attribute '{key}'")
+    return n
+
+
+def _holds_data(s: Session, node_id: int) -> bool:
+    for model in (orm.UserLeafScore, orm.ActionContribution):
+        if s.execute(select(func.count()).select_from(model).where(model.leaf_id == node_id)).scalar():
+            return True
+    return False
+
+
+def _settings_from(n: orm.AttrNode) -> dict:
+    return {"half_life_hours": n.half_life_hours, "floor": n.floor,
+            "threshold": n.threshold, "max_level": n.max_level}
+
+
+def subdivide_attribute(parent_key: str, children: list[tuple[str, str, float]]) -> dict:
+    """A leaf becomes a parent. Each child inherits the leaf whole: every user's
+    score and permanent level, and every action contribution at the same weight.
+    Since the parent is the weighted mean of identical children, its value — and
+    how much each act moves it — is exactly what it was."""
+    from src.domain.attributes import check_subdivide
+    check_subdivide(load_attr_tree(), parent_key, children)
+    s = SessionLocal()
+    try:
+        parent = _node_row(s, parent_key)
+        new_ids = []
+        for key, name, weight in children:
+            n = orm.AttrNode(key=key, name=name, shop_group=False, **_settings_from(parent))
+            s.add(n)
+            s.flush()
+            s.add(orm.AttrEdge(parent_id=parent.id, child_id=n.id, weight=weight, is_primary=True))
+            new_ids.append(n.id)
+        scores = s.execute(select(orm.UserLeafScore).where(orm.UserLeafScore.leaf_id == parent.id)).scalars().all()
+        for row in scores:
+            for cid in new_ids:
+                s.add(orm.UserLeafScore(user_id=row.user_id, leaf_id=cid, score=row.score,
+                                        last_updated_at=row.last_updated_at, permanent_level=row.permanent_level))
+            s.delete(row)
+        contribs = s.execute(select(orm.ActionContribution).where(orm.ActionContribution.leaf_id == parent.id)).scalars().all()
+        for c in contribs:
+            for cid in new_ids:
+                s.add(orm.ActionContribution(action_name=c.action_name, leaf_id=cid, weight=c.weight))
+            s.delete(c)
+        s.commit()
+        return {"children": len(new_ids), "scores": len(scores), "contributions": len(contribs)}
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+        invalidate_attr_tree()
+
+
+def add_attribute_children(parent_key: str, children: list[tuple[str, str, float]]) -> dict:
+    """More children for a node that already has some. Existing links are scaled
+    by what the new weights leave, and each new child starts at the parent's
+    current value for every user — so the parent does not move."""
+    from src.domain.attributes import apply_decay, check_add, compute_node_score
+    tree = load_attr_tree()
+    room = check_add(tree, parent_key, children)
+    now = datetime.now()
+    s = SessionLocal()
+    try:
+        parent = _node_row(s, parent_key)
+        sibling = _node_row(s, tree.children[parent_key][0][0])
+        under = {tree.nodes_by_key[k].id: k for k in tree.leaves_by_key
+                 if k in tree.descendants(parent_key)}
+        by_user: dict[int, dict[str, float]] = {}
+        for row in s.execute(select(orm.UserLeafScore).where(orm.UserLeafScore.leaf_id.in_(list(under)))).scalars():
+            leaf = tree.leaves_by_id[row.leaf_id]
+            by_user.setdefault(row.user_id, {})[leaf.key] = apply_decay(
+                row.score, row.last_updated_at, now, leaf.half_life_hours, leaf.floor)
+        s.execute(update(orm.AttrEdge).where(orm.AttrEdge.parent_id == parent.id)
+                  .values(weight=orm.AttrEdge.weight * room).execution_options(synchronize_session=False))
+        for key, name, weight in children:
+            n = orm.AttrNode(key=key, name=name, shop_group=False, **_settings_from(sibling))
+            s.add(n)
+            s.flush()
+            s.add(orm.AttrEdge(parent_id=parent.id, child_id=n.id, weight=weight, is_primary=True))
+            for uid, scores in by_user.items():
+                s.add(orm.UserLeafScore(user_id=uid, leaf_id=n.id, score=compute_node_score(parent_key, scores, tree),
+                                        last_updated_at=now, permanent_level=0))
+        s.commit()
+        return {"children": len(children), "scaled_by": round(room, 6), "users": len(by_user)}
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+        invalidate_attr_tree()
+
+
+def link_attribute(parent_key: str, child_key: str, weight: float) -> dict:
+    """A non-primary link, the way Força draws on peitoral. Nothing is rescaled:
+    this is how an aggregate is assembled, and its weights reach 1 once every
+    link is in. Returns the parent's weight total so far."""
+    from src.domain.attributes import RegistrationError, check_link
+    tree = load_attr_tree()
+    check_link(tree, parent_key, child_key, weight)
+    s = SessionLocal()
+    try:
+        parent, child = _node_row(s, parent_key), _node_row(s, child_key)
+        if tree.is_leaf(parent_key) and _holds_data(s, parent.id):
+            raise RegistrationError(f"'{parent_key}' holds scores or contributions; subdivide it instead")
+        s.add(orm.AttrEdge(parent_id=parent.id, child_id=child.id, weight=weight, is_primary=False))
+        s.commit()
+        total = sum(w for _, w in tree.children.get(parent_key, [])) + weight
+        return {"weight_total": round(total, 6)}
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+        invalidate_attr_tree()
+
+
+def reweight_attribute(parent_key: str, weights: dict[str, float]) -> None:
+    """Set every child's weight. Unlike the other operations this does move the
+    parent: that is its purpose."""
+    from src.domain.attributes import check_reweight
+    tree = load_attr_tree()
+    check_reweight(tree, parent_key, weights)
+    s = SessionLocal()
+    try:
+        pid = tree.nodes_by_key[parent_key].id
+        for child, w in weights.items():
+            s.execute(update(orm.AttrEdge)
+                      .where(orm.AttrEdge.parent_id == pid, orm.AttrEdge.child_id == tree.nodes_by_key[child].id)
+                      .values(weight=w))
+        s.commit()
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+        invalidate_attr_tree()
+
+
+def create_root(key: str, name: str) -> None:
+    """A parentless attribute, to hang an aggregate on."""
+    from src.domain.attributes import RegistrationError
+    s = SessionLocal()
+    try:
+        if s.execute(select(orm.AttrNode.id).where(orm.AttrNode.key == key)).first():
+            raise RegistrationError(f"'{key}' already exists")
+        s.add(orm.AttrNode(key=key, name=name, shop_group=False))
+        s.commit()
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+        invalidate_attr_tree()
+
+
+def code_for_parent(parent_key: str) -> dict:
+    """The code a new action registered under `parent_key` would get.
+
+    Read-only: reuses a class number when one is registered and otherwise names
+    the next free one, but writes nothing — the migration that adds the action
+    records them.
+    """
+    from src.domain.attributes import id_classes
+    tree = load_attr_tree()
+    c1_key, c2_key = id_classes(tree, parent_key)
+    s = SessionLocal()
+    try:
+        c1_id = tree.nodes_by_key[c1_key].id
+        c1 = s.execute(select(orm.IdClass1.code).where(orm.IdClass1.node_id == c1_id)).scalar_one_or_none()
+        new_c1 = c1 is None
+        if new_c1:
+            used = {int(x) for x in s.execute(select(orm.IdClass1.code)).scalars()}
+            c1 = f"{min(set(range(1, 100)) - used):02d}"
+        if c2_key is None:
+            c2, new_c2 = "00", False
+        else:
+            c2 = None if new_c1 else s.execute(
+                select(orm.IdClass2.code).where(orm.IdClass2.class1_node_id == c1_id,
+                                                orm.IdClass2.node_id == tree.nodes_by_key[c2_key].id)
+            ).scalar_one_or_none()
+            new_c2 = c2 is None
+            if new_c2:
+                used = {int(x) for x in s.execute(
+                    select(orm.IdClass2.code).where(orm.IdClass2.class1_node_id == c1_id)).scalars()}
+                c2 = f"{min(set(range(1, 100)) - used):02d}"
+        prefix = f"5{c1}{c2}"
+        taken = {int(x[5:]) for x in s.execute(
+            select(orm.ActionTemplate.code).where(orm.ActionTemplate.code.like(prefix + "%"))).scalars()}
+        position = min(set(range(1, 100)) - taken)
+        return {"code": f"{prefix}{position:02d}", "class1": c1_key, "class2": c2_key,
+                "new_class1": new_c1, "new_class2": new_c2}
     finally:
         s.close()
 
@@ -894,49 +1083,6 @@ def load_action_contributions(action_name: str) -> list[tuple[int, str, float]]:
             .where(orm.ActionContribution.action_name == action_name.strip().upper())
         ).all()
         return [(r[0].leaf_id, r[1], float(r[0].weight)) for r in rows]
-    finally:
-        s.close()
-
-
-_TAGS_CACHE: list[dict] | None = None
-
-
-def load_attr_tags() -> list[dict]:
-    """Returns ordered list of tag definitions.
-
-    Each entry: {key, name, category, display_order, sources: [(leaf_key, weight)]}.
-    Order: Físico < Mental, then by display_order asc.
-    """
-    global _TAGS_CACHE
-    if _TAGS_CACHE is not None:
-        return _TAGS_CACHE
-
-    s = SessionLocal()
-    try:
-        tag_rows = s.execute(select(orm.AttributeTag)).scalars().all()
-        src_rows = s.execute(
-            select(orm.AttributeTagSource, orm.AttrNode.key)
-            .join(orm.AttrNode, orm.AttributeTagSource.leaf_id == orm.AttrNode.id)
-        ).all()
-
-        sources_by_tag: dict[int, list[tuple[str, float]]] = {}
-        for src, leaf_key in src_rows:
-            sources_by_tag.setdefault(src.tag_id, []).append((leaf_key, float(src.weight)))
-
-        category_order = {"Físico": 0, "Mental": 1}
-        tags = [
-            {
-                "key": t.key,
-                "name": t.name,
-                "category": t.category,
-                "display_order": int(t.display_order),
-                "sources": sources_by_tag.get(t.id, []),
-            }
-            for t in tag_rows
-        ]
-        tags.sort(key=lambda t: (category_order.get(t["category"], 99), t["display_order"]))
-        _TAGS_CACHE = tags
-        return _TAGS_CACHE
     finally:
         s.close()
 
@@ -959,24 +1105,28 @@ def load_all_contributions() -> dict[str, list[tuple[str, float]]]:
         s.close()
 
 
-TEMPLATE_FALLBACK = {"code": None, "type": 0, "diff": 1, "cost": 0, "token_cost": 0, "token_gain": 0}
+TEMPLATE_FALLBACK = {"code": None, "parent": None, "type": 0, "diff": 1, "cost": 0, "token_cost": 0, "token_gain": 0}
 
 
 def load_action_templates() -> dict[str, dict]:
-    """Return {action_name_upper: {code, type, diff, cost, token_cost, token_gain}}."""
+    """Return {action_name_upper: {code, parent, type, diff, cost, token_cost, token_gain}}."""
     s = SessionLocal()
     try:
-        rows = s.execute(select(orm.ActionTemplate)).scalars().all()
+        rows = s.execute(
+            select(orm.ActionTemplate, orm.AttrNode.key)
+            .join(orm.AttrNode, orm.ActionTemplate.parent_node_id == orm.AttrNode.id)
+        ).all()
         return {
             t.action_name: {
                 "code": t.code,
+                "parent": parent_key,
                 "type": int(t.type),
                 "diff": int(t.diff),
                 "cost": int(t.cost),
                 "token_cost": int(t.token_cost),
                 "token_gain": int(t.token_gain),
             }
-            for t in rows
+            for t, parent_key in rows
         }
     finally:
         s.close()

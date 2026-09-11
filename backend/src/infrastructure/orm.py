@@ -146,25 +146,34 @@ class AttributeAction(Base):
 
 # sub anatomical / conceptual attributes(nodes) decay and level info 
 class AttrNode(Base):
-    """Static anatomical/neurological tree node. Seeded from attributes_tree.json."""
+    """An attribute. All attributes are the same kind of thing: any of them can
+    have weighted children, and one without children is a leaf — the only place
+    a score is stored. Seeded from attributes_tree.json.
+
+    The decay and level settings take effect only while the node is a leaf.
+    """
     __tablename__ = "attr_nodes"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
-    is_leaf: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     half_life_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
     floor: Mapped[float | None] = mapped_column(Float, nullable=True)
     threshold: Mapped[float | None] = mapped_column(Float, nullable=True)
     max_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    tree_kind: Mapped[str] = mapped_column(String(16), default="anatomical", nullable=False)
-    # two-digit class number for conceptual roots and their direct children;
-    # the parent/child pairs of an action code. Null everywhere else.
-    code: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    # Display only: the shop files an action under the practice roots marked here.
+    # Scores, degrees and ids never read it.
+    shop_group: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-# attribute node relation and weight 
+# attribute node relation and weight
 class AttrEdge(Base):
-    """Weighted parent → child edge in the static tree."""
+    """Weighted parent -> child link. A parent's power is the weighted mean of
+    its children's.
+
+    A node may have several parents, but at most one primary: the primary chain
+    is what defines its degree (depth, root = 1). Non-primary links are how an
+    attribute like Força draws on leaves that live elsewhere.
+    """
     __tablename__ = "attr_edges"
     __table_args__ = (UniqueConstraint("parent_id", "child_id", name="uq_attr_edge_parent_child"),)
 
@@ -172,6 +181,7 @@ class AttrEdge(Base):
     parent_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("attr_nodes.id", ondelete="CASCADE"), nullable=False, index=True)
     child_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("attr_nodes.id", ondelete="CASCADE"), nullable=False, index=True)
     weight: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    is_primary: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
 # action node(leaf) relation and weight
 class ActionContribution(Base):
@@ -198,6 +208,9 @@ class ActionTemplate(Base):
     # 5aa-aa-ii: action · parent class · child class · position. Assigned once
     # and stored; it is never derived at runtime, so it never moves.
     code: Mapped[str] = mapped_column(String(7), unique=True, nullable=False)
+    # The attribute this action is registered under. Its degree picks the code's
+    # classes; like the code, it is recorded, not inferred from weights.
+    parent_node_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("attr_nodes.id"), nullable=False)
     type: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     diff: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     cost: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -217,27 +230,23 @@ class UserLeafScore(Base):
     last_updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     permanent_level: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-# attribute display tags
-class AttributeTag(Base):
-    """Curated composite tag (e.g. Força, Memória) derived from weighted leaves."""
-    __tablename__ = "attribute_tags"
+# registered class numbers for action codes (5 · class1 · class2 · position)
+class IdClass1(Base):
+    """First class of an action code: one two-digit number per attribute, global."""
+    __tablename__ = "id_class1"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
-    name: Mapped[str] = mapped_column(String(128), nullable=False)
-    category: Mapped[str] = mapped_column(String(32), nullable=False)
-    display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    node_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("attr_nodes.id", ondelete="CASCADE"), primary_key=True)
+    code: Mapped[str] = mapped_column(String(2), unique=True, nullable=False)
 
-# leaf tag relation and weight
-class AttributeTagSource(Base):
-    """Edge from tag to leaf with weight."""
-    __tablename__ = "attribute_tag_sources"
-    __table_args__ = (UniqueConstraint("tag_id", "leaf_id", name="uq_tag_source"),)
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    tag_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("attribute_tags.id", ondelete="CASCADE"), nullable=False, index=True)
-    leaf_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("attr_nodes.id", ondelete="CASCADE"), nullable=False, index=True)
-    weight: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+class IdClass2(Base):
+    """Second class: a two-digit number for an attribute, scoped to its class1."""
+    __tablename__ = "id_class2"
+    __table_args__ = (UniqueConstraint("class1_node_id", "code", name="uq_id_class2_code"),)
+
+    class1_node_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("attr_nodes.id", ondelete="CASCADE"), primary_key=True)
+    node_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("attr_nodes.id", ondelete="CASCADE"), primary_key=True)
+    code: Mapped[str] = mapped_column(String(2), nullable=False)
 
 # user skills relation
 class AcquiredSkill(Base):
