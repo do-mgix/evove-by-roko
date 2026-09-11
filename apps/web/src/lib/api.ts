@@ -84,6 +84,14 @@ export async function logout(): Promise<void> {
   }
 }
 
+/** "5010108" -> "5 01 01 08": action · parent class · child class · position.
+ *  Anything that is not a 7-digit action code, or a prefix of one, passes through. */
+export function formatCode(code: string | null | undefined): string {
+  const s = String(code ?? "");
+  if (!/^5\d{0,6}$/.test(s)) return s;
+  return [s.slice(0, 1), s.slice(1, 3), s.slice(3, 5), s.slice(5, 7)].filter(Boolean).join(" ");
+}
+
 export type Action = {
   id: string;
   name: string;
@@ -398,6 +406,7 @@ export async function deleteAgendaItem(id: string): Promise<void> {
 
 export type PackageAction = {
   name: string;
+  code: string | null;
   type: number;
   diff: number;
   cost: number;
@@ -420,6 +429,7 @@ export async function fetchPackages(): Promise<Package[]> {
 export type CatalogLeaf = { key: string; name: string; weight: number };
 export type CatalogAction = {
   name: string;
+  code: string | null;
   type: number;
   diff: number;
   cost: number;

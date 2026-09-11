@@ -8,6 +8,7 @@
     fetchConceptualRoots,
     fetchAgendaToday,
     actOnAction,
+    formatCode,
     type Action,
     type UserState,
     type AttrTag,
@@ -394,7 +395,7 @@
                       type="text"
                       class:dial={searchMode === "dial"}
                       placeholder={searchMode === "dial" ? "id da ação" : "Buscar ação..."}
-                      value={searchMode === "dial" ? dialBuffer : query}
+                      value={searchMode === "dial" ? formatCode(dialBuffer) : query}
                       readonly={searchMode === "dial" && isMobile}
                       inputmode={searchMode === "dial" ? (isMobile ? "none" : "numeric") : "text"}
                       bind:this={inputEl}
@@ -448,7 +449,7 @@
                       {#each filtered as a (a.id)}
                         <li>
                           <button class="row" on:click={() => (selectedAction = a)}>
-                            <span class="id">{a.id}</span>
+                            <span class="id">{formatCode(a.id)}</span>
                             <span class="name">{a.name}</span>
                             <span class="meta">d{a.diff}{a.token_gain ? ` · +${a.token_gain}t` : a.token_cost ? ` · -${a.token_cost}t` : ""}</span>
                           </button>
@@ -672,7 +673,7 @@
   }
   .actions li .row {
     display: grid;
-    grid-template-columns: 3.5rem 1fr auto;
+    grid-template-columns: 5.6rem 1fr auto;
     gap: 0.7rem;
     align-items: baseline;
     flex: 1;
@@ -708,6 +709,8 @@
   }
   .id {
     color: #555;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
   .name {
     color: #e5e5e5;
@@ -718,7 +721,7 @@
   }
   .actions li.empty-cta {
     display: grid;
-    grid-template-columns: 3.5rem 1fr auto;
+    grid-template-columns: 5.6rem 1fr auto;
     gap: 1.5rem;
     align-items: baseline;
     padding: 0.5rem 0.75rem;
@@ -765,7 +768,7 @@
   .search-row input { flex: 1; min-width: 0; }
   .search-row input.dial {
     font-variant-numeric: tabular-nums;
-    letter-spacing: 0.25em;
+    letter-spacing: 0.06em;
   }
   .dial-toggle {
     flex: 0 0 auto;

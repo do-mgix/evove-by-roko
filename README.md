@@ -32,7 +32,7 @@ docker compose exec backend alembic upgrade head   # the container does not migr
 | Adminer | `http://localhost:8080` | server `db`, user `roko`, password `rokopass` |
 | MySQL | `localhost:3306` | database `roko` |
 
-The migration step is not optional on a fresh database: seven of the revisions also seed
+The migration step is not optional on a fresh database: nine of the revisions also seed
 the attribute tree, the tags and the shop catalog that the API reads on every request.
 
 ### 2. Web client
@@ -287,7 +287,7 @@ Content tables also keep the logical id from the JSON era (`action_id`, `attr_id
 
 ### Migrations
 
-Fourteen revisions in a chain:
+Fifteen revisions in a chain:
 
 ```
 5638fb2a1810  initial schema
@@ -304,9 +304,10 @@ e8c2a5d7b1f3  raise the token stock cap to 100
 f9d3b6e8a2c4  record the token delta on each log
 a1e5c9b3d7f2  conceptual themes for the actions that had none
 b4f7d2a9e6c3  passwords and sessions
+c7a3e9f1b5d8  memorable action ids: 5aa-aa-ii
 ```
 
-Seven of them (`b7c1`, `c8d2`, `e5a1`, `f7b3`, `b2e7`, `c4a8`, `d6b1`) read
+Nine of them (`b7c1`, `c8d2`, `e5a1`, `f7b3`, `b2e7`, `c4a8`, `d6b1`, `a1e5`, `c7a3`) read
 `backend/data/*.json` to seed. Those files exist only for that: nothing opens them at runtime.
 
 ### Adding actions to the catalog
@@ -321,17 +322,50 @@ a migration is how you add them. Both blocks live in
    `1.0` per action and conceptual weights sum to `1.0` separately; an action with neither
    never reaches an attribute. Give it at least one conceptual leaf: that is what files it
    under a theme in the shop — see below.
-2. `action_templates` — one entry per action: `type` (the unit, see `Action._TYPE_MAP`),
-   `diff` 0–5, `cost` in build points to acquire it, and then either `token_gain` or
-   `token_cost` — never both. An action with contributions but no template falls back to
-   `repos.TEMPLATE_FALLBACK`.
+2. `action_templates` — one entry per action: its `code` (see "Action ids" below),
+   `type` (the unit, see `Action._TYPE_MAP`), `diff` 0–5, `cost` in build points to
+   acquire it, and then either `token_gain` or `token_cost` — never both. An action with
+   contributions but no template still shows in the shop with `repos.TEMPLATE_FALLBACK`,
+   but cannot be bought: with no code there is no id to give it.
 3. Copy `b2e7d9c4a6f1_routine_actions.py` for the contributions and
    `c4a8e2f6b9d3_action_templates.py` for the templates, put the new names in
    `NEW_ACTIONS` and chain `down_revision` to the current head. Keep the guard against
    rows that already exist: on a fresh database `b7c1` seeds the whole file, so without it
    the migration hits the unique constraint on `(action_name, leaf_id)`.
-4. Migrating through the container? Run `docker compose build backend` first. The image
-   carries a copy of `backend/data/` from build time, not the file in your working tree.
+4. Migrating through a container started with `-f docker-compose.yml`? Run
+   `docker compose build backend` first — without the override the image carries a copy
+   of `backend/data/` from build time, not the file in your working tree.
+
+### Action ids
+
+An action's id is seven digits, the same for every profile:
+
+```
+5  01  01  08      FLEXÃO
+│   │   │   └─ position inside the child class, 01–99
+│   │   └───── child class: Calistenia
+│   └───────── parent class: Treino
+└───────────── always 5 — it is an action
+```
+
+The classes are the conceptual tree the shop already groups by: the parent is a root,
+the child is the node under it on the way to the action's heaviest conceptual leaf.
+`attr_nodes.code` holds each class's two digits — Treino is `01`, Calistenia under it is
+`01` — and `action_templates.code` holds the full id. `00` is reserved at every level.
+
+**Codes are assigned once and never renumbered.** They live in the seed and in the
+database as data, not as something derived from the contributions: if they were
+computed, changing a leaf weight could move an action to another class and change its
+id, which is the one thing the scheme promises not to do. For the same reason, reordering
+a class alphabetically after adding to it is off the table.
+
+To add an action, give it the next free number in its class — a new calisthenics exercise
+after `5010110` is `5010111`, wherever it falls alphabetically. A new class takes the next
+free two digits under its parent.
+
+The web client shows ids grouped (`5 01 01 08`) and the dial filters by prefix as you
+type, so `501` narrows the list to your Treino actions and `50101` to Calistenia before
+the seventh digit picks one.
 
 ### How the shop groups actions
 

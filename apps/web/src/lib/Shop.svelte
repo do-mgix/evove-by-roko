@@ -5,6 +5,7 @@
     fetchUser,
     fetchActions,
     buyPackageAction,
+    formatCode,
     type CatalogGroup,
     type CatalogAction,
   } from "./api";
@@ -144,7 +145,9 @@
                 {@const acquired = owned.has(a.name.toUpperCase())}
                 <li class:owned={acquired}>
                   <button class="info" on:click={() => (selected = { group: v.group, action: a })}>
-                    <span class="a-name">{a.name}</span>
+                    <span class="a-name">
+                      {#if a.code}<span class="a-code">{formatCode(a.code)}</span>{/if}{a.name}
+                    </span>
                     <span class="a-meta">
                       {TYPE_LABEL[a.type] ?? a.type} · d{a.diff}{tokenLabel(a)}
                     </span>
@@ -175,6 +178,9 @@
   <Modal title={selectedAcquired ? "ação" : "adquirir ação"} onClose={() => (selected = null)}>
     <dl class="details">
       <dt>nome</dt><dd class="hl">{selected.action.name}</dd>
+      {#if selected.action.code}
+        <dt>id</dt><dd class="code">{formatCode(selected.action.code)}</dd>
+      {/if}
       <dt>zona</dt><dd>{selected.group.name}</dd>
       <dt>tipo</dt><dd>{TYPE_LABEL[selected.action.type] ?? selected.action.type}</dd>
       <dt>dificuldade</dt><dd>d{selected.action.diff}</dd>
@@ -335,6 +341,13 @@
   .info:hover .a-name { color: #6cf; }
   .a-name { color: #ddd; font-size: 0.88rem; }
   .a-meta { color: #555; font-size: 0.7rem; }
+  .a-code {
+    color: #555;
+    margin-right: 0.6rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .code { font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
   .buy {
     background: transparent;
     border: 1px solid #2a2a2a;

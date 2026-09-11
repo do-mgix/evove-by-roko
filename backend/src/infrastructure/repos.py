@@ -959,16 +959,17 @@ def load_all_contributions() -> dict[str, list[tuple[str, float]]]:
         s.close()
 
 
-TEMPLATE_FALLBACK = {"type": 0, "diff": 1, "cost": 0, "token_cost": 0, "token_gain": 0}
+TEMPLATE_FALLBACK = {"code": None, "type": 0, "diff": 1, "cost": 0, "token_cost": 0, "token_gain": 0}
 
 
 def load_action_templates() -> dict[str, dict]:
-    """Return {action_name_upper: {type, diff, cost, token_cost, token_gain}}."""
+    """Return {action_name_upper: {code, type, diff, cost, token_cost, token_gain}}."""
     s = SessionLocal()
     try:
         rows = s.execute(select(orm.ActionTemplate)).scalars().all()
         return {
             t.action_name: {
+                "code": t.code,
                 "type": int(t.type),
                 "diff": int(t.diff),
                 "cost": int(t.cost),

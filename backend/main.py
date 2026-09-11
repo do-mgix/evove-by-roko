@@ -76,6 +76,7 @@ def load_packages() -> list[dict]:
         meta = templates.get(action_name) or repos.TEMPLATE_FALLBACK
         action = {
             "name": action_name,
+            "code": meta["code"],
             "type": meta["type"],
             "diff": meta["diff"],
             "cost": meta["cost"],
@@ -816,10 +817,12 @@ def shop_catalog():
             contribs = contributions.get(name_upper, [])
             entry = {
                 "name": action.get("name"),
+                "code": action.get("code"),
                 "type": action.get("type"),
                 "diff": action.get("diff"),
                 "cost": action.get("cost"),
                 "token_cost": int(action.get("token_cost", 0) or 0),
+                "token_gain": int(action.get("token_gain", 0) or 0),
                 "package_attribute": pkg.get("attribute"),
                 "leaves": [
                     {
@@ -873,9 +876,13 @@ def buy_action(payload: dict, username: str = Depends(current_username)):
     if any(str(a.get("name", "")).upper() == name and not a.get("deleted") for a in actions.values()):
         raise HTTPException(status_code=409, detail=f"action '{name}' already exists")
 
-    existing_ids = [int(aid) for aid in actions.keys() if aid.isdigit()]
-    next_id = (max(existing_ids) + 1) if existing_ids else 501
-    new_id = str(next_id)
+    # The id is the catalog code, the same for every profile. It is never
+    # generated here, so it cannot drift from what the shop shows.
+    new_id = template.get("code")
+    if not new_id:
+        raise HTTPException(status_code=500, detail=f"action '{name}' has no catalog code")
+    if new_id in actions:
+        raise HTTPException(status_code=409, detail=f"action '{name}' already exists")
     actions[new_id] = {
         "id": new_id,
         "name": name,

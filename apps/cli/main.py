@@ -91,6 +91,14 @@ def append_log(content: str, xp: int, tokens: int = 0) -> dict:
     return entry
 
 
+def format_code(code: str) -> str:
+    """5010108 -> 5 01 01 08. Legacy ids pass through untouched."""
+    s = str(code)
+    if len(s) == 7 and s.startswith("5") and s.isdigit():
+        return f"{s[0]} {s[1:3]} {s[3:5]} {s[5:]}"
+    return s
+
+
 def cmd_list_actions(data: dict) -> None:
     actions = (data.get("actions") or {})
     rows = [(aid, a) for aid, a in actions.items() if not a.get("deleted")]
@@ -104,7 +112,7 @@ def cmd_list_actions(data: dict) -> None:
     table.add_column("score", justify="right", style="cyan")
     for aid, a in rows:
         table.add_row(
-            aid,
+            format_code(aid),
             str(a.get("name", "")),
             str(a.get("type", "")),
             f"d{a.get('diff', 0)}",
@@ -121,7 +129,7 @@ def _today_agenda_labels() -> set[str]:
 
 
 def cmd_act(data: dict) -> None:
-    aid = console.input("[cyan]action id:[/cyan] ").strip()
+    aid = console.input("[cyan]action id:[/cyan] ").replace(" ", "").strip()
     action = (data.get("actions") or {}).get(aid)
     if not action or action.get("deleted"):
         console.print(f"[red]action {aid} not found[/red]")

@@ -158,6 +158,9 @@ class AttrNode(Base):
     threshold: Mapped[float | None] = mapped_column(Float, nullable=True)
     max_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tree_kind: Mapped[str] = mapped_column(String(16), default="anatomical", nullable=False)
+    # two-digit class number for conceptual roots and their direct children;
+    # the parent/child pairs of an action code. Null everywhere else.
+    code: Mapped[str | None] = mapped_column(String(2), nullable=True)
 
 # attribute node relation and weight 
 class AttrEdge(Base):
@@ -192,6 +195,9 @@ class ActionTemplate(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     action_name: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    # 5aa-aa-ii: action · parent class · child class · position. Assigned once
+    # and stored; it is never derived at runtime, so it never moves.
+    code: Mapped[str] = mapped_column(String(7), unique=True, nullable=False)
     type: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     diff: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     cost: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
