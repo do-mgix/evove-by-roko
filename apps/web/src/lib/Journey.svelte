@@ -223,6 +223,6 @@
     height: auto;
   }
   .stage-node.current circle {
-    filter: drop-shadow(0 0 8px rgba(108, 204, 255, 0.5));
+    filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.5));
   }
 </style>

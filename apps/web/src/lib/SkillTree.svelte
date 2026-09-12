@@ -351,7 +351,7 @@
 
   .edge {
     position: absolute;
-    background: rgba(13, 13, 13, 0.85);
+    background: rgba(0, 0, 0, 0.85);
     border: 1px solid #333333;
     color: #808080;
     width: 36px;
