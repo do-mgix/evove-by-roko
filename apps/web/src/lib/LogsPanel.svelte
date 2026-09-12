@@ -321,8 +321,8 @@
 
 <style>
   .panel {
-    background: #0d0d0d;
-    border: 1px solid #1f1f1f;
+    background: #000000;
+    border: 1px solid #333333;
     border-radius: 6px;
     padding: 0.85rem 1rem;
     height: 100%;
@@ -342,7 +342,7 @@
     margin-bottom: 0.6rem;
   }
   .panel-title {
-    color: #555;
+    color: #808080;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     font-size: 0.7rem;
@@ -351,19 +351,19 @@
     display: flex;
     align-items: baseline;
     gap: 0.5rem;
-    color: #888;
+    color: #808080;
     font-size: 0.72rem;
   }
   .weekday {
-    color: #6cf;
+    color: #00e5ff;
     font-weight: bold;
     letter-spacing: 0.08em;
   }
   .rel {
-    color: #aaa;
+    color: #cccccc;
   }
   .meta {
-    color: #555;
+    color: #808080;
   }
   ul {
     list-style: none;
@@ -374,7 +374,7 @@
     min-height: 0;
   }
   li {
-    border-bottom: 1px solid #161616;
+    border-bottom: 1px solid #333333;
   }
   .log-row {
     display: flex;
@@ -392,10 +392,10 @@
     gap: 0.5rem;
   }
   .log-row:hover {
-    background: #141414;
+    background: #000000;
   }
   .grip {
-    color: #2a2a2a;
+    color: #333333;
     font-size: 0.7rem;
     cursor: grab;
     user-select: none;
@@ -404,7 +404,7 @@
     opacity: 0.3;
   }
   li.dragging .log-row {
-    background: #0a0a0a;
+    background: #000000;
   }
   .details {
     display: grid;
@@ -413,46 +413,46 @@
     margin: 0;
   }
   .details dt {
-    color: #555;
+    color: #808080;
     text-transform: uppercase;
     font-size: 0.7rem;
     letter-spacing: 0.05em;
     margin: 0;
   }
   .details dd {
-    color: #ddd;
+    color: #ffffff;
     margin: 0;
     font-size: 0.85rem;
     word-break: break-word;
   }
   .content-full {
-    color: #6cf;
+    color: #00e5ff;
   }
   .content {
-    color: #ddd;
+    color: #ffffff;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     max-width: 75%;
   }
   .xp {
-    color: #666;
+    color: #808080;
     font-size: 0.75rem;
   }
   .tokens {
-    color: #6c6;
+    color: #00e5ff;
     font-size: 0.75rem;
     font-variant-numeric: tabular-nums;
   }
   .tokens.spent {
-    color: #ca6;
+    color: #00e5ff;
   }
   .empty {
-    color: #555;
+    color: #808080;
     font-size: 0.85rem;
   }
   .empty.error {
-    color: #f66;
+    color: #ff4d4d;
   }
   .nav {
     position: absolute;
@@ -461,7 +461,7 @@
     width: 36px;
     border: none;
     background: transparent;
-    color: #444;
+    color: #808080;
     font-size: 2.4rem;
     line-height: 1;
     cursor: pointer;
@@ -480,12 +480,12 @@
     opacity: 1;
   }
   .nav:hover:not(:disabled) {
-    color: #6cf;
+    color: #00e5ff;
     transform: scale(1.2);
   }
   .nav:disabled {
     cursor: default;
-    color: #222;
+    color: #333333;
   }
 
   .edit-block {
@@ -495,26 +495,26 @@
     gap: 0.6rem;
   }
   .edit-label {
-    color: #555;
+    color: #808080;
     text-transform: uppercase;
     font-size: 0.7rem;
     letter-spacing: 0.05em;
   }
   .edit-input {
-    background: #0a0a0a;
-    border: 1px solid #2a2a2a;
+    background: #000000;
+    border: 1px solid #333333;
     border-radius: 4px;
-    color: #ddd;
+    color: #ffffff;
     padding: 0.55rem 0.75rem;
     font: inherit;
     font-size: 0.9rem;
     outline: none;
   }
   .edit-input:focus {
-    border-color: #6cf;
+    border-color: #00e5ff;
   }
   .confirm-msg {
-    color: #ddd;
+    color: #ffffff;
     margin: 0;
     font-size: 0.9rem;
   }
@@ -535,49 +535,49 @@
   }
   .row-btns .ghost {
     background: transparent;
-    color: #888;
-    border-color: #333;
+    color: #808080;
+    border-color: #333333;
   }
   .row-btns .ghost:hover:not(:disabled) {
-    color: #ccc;
-    border-color: #555;
+    color: #cccccc;
+    border-color: #808080;
   }
   .row-btns .primary {
-    background: #6cf;
-    color: #0a0a0a;
-    border-color: #6cf;
+    background: #00e5ff;
+    color: #000000;
+    border-color: #00e5ff;
   }
   .row-btns .primary:hover:not(:disabled) {
-    background: #4ad;
+    background: #00a3b8;
   }
   .row-btns .danger {
-    background: #f66;
-    color: #0a0a0a;
-    border-color: #f66;
+    background: #ff4d4d;
+    color: #000000;
+    border-color: #ff4d4d;
   }
   .row-btns .danger:hover:not(:disabled) {
-    background: #d44;
+    background: #ff4d4d;
   }
   .row-btns .danger-ghost {
     background: transparent;
-    color: #f66;
-    border-color: #432;
+    color: #ff4d4d;
+    border-color: #4d1a1a;
   }
   .row-btns .danger-ghost:hover {
-    border-color: #f66;
-    background: #1a0a0a;
+    border-color: #ff4d4d;
+    background: #1a0000;
   }
   .row-btns .shift-day {
     background: transparent;
-    color: #6cf;
-    border-color: #1a3a4a;
+    color: #00e5ff;
+    border-color: #000000;
     font-size: 1rem;
     padding: 0.45rem 0.7rem;
     margin-right: auto;
   }
   .row-btns .shift-day:hover:not(:disabled) {
-    background: #0a1a28;
-    border-color: #6cf;
+    background: #000000;
+    border-color: #00e5ff;
   }
   .row-btns button:disabled {
     opacity: 0.4;

@@ -40,8 +40,8 @@
     flex-direction: column;
     gap: 0.5rem;
     padding: 1.5rem 0.5rem;
-    background: #0a0a0a;
-    border-right: 1px solid #1a1a1a;
+    background: #000000;
+    border-right: 1px solid #333333;
     height: 100vh;
     box-sizing: border-box;
     width: 72px;
@@ -58,7 +58,7 @@
       padding: 0.35rem 0.25rem;
       padding-bottom: calc(0.35rem + env(safe-area-inset-bottom, 0px));
       border-right: none;
-      border-top: 1px solid #1a1a1a;
+      border-top: 1px solid #333333;
       flex-shrink: 0;
     }
     .navbar .spacer { display: none; }
@@ -83,24 +83,24 @@
     background: transparent;
     border: none;
     border-radius: 4px;
-    color: #555;
+    color: #808080;
     font-family: inherit;
     cursor: pointer;
     transition: color 0.15s, background 0.15s;
   }
   .nav-btn:hover {
-    color: #ccc;
-    background: #141414;
+    color: #cccccc;
+    background: #000000;
   }
   .nav-btn.active {
-    color: #6cf;
-    background: #111;
+    color: #00e5ff;
+    background: #000000;
   }
   .spacer {
     flex: 1;
   }
   .nav-btn.logout:hover {
-    color: #f66;
+    color: #ff4d4d;
   }
   .icon {
     font-size: 1.1rem;

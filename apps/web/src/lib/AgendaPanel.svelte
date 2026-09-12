@@ -208,8 +208,8 @@
 
 <style>
   .panel {
-    background: #0d0d0d;
-    border: 1px solid #1f1f1f;
+    background: #000000;
+    border: 1px solid #333333;
     border-radius: 6px;
     padding: 0.85rem 1rem;
     overflow: auto;
@@ -222,8 +222,8 @@
   }
   .add-btn {
     background: transparent;
-    border: 1px solid #2a2a2a;
-    color: #888;
+    border: 1px solid #333333;
+    color: #808080;
     width: 22px;
     height: 22px;
     border-radius: 4px;
@@ -233,11 +233,11 @@
     padding: 0;
   }
   .add-btn:hover {
-    border-color: #6cf;
-    color: #6cf;
+    border-color: #00e5ff;
+    color: #00e5ff;
   }
   .panel-title {
-    color: #555;
+    color: #808080;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     font-size: 0.7rem;
@@ -248,7 +248,7 @@
     margin: 0;
   }
   li {
-    border-bottom: 1px solid #161616;
+    border-bottom: 1px solid #333333;
   }
   .row {
     display: grid;
@@ -261,29 +261,29 @@
     border: none;
     font: inherit;
     font-size: 0.82rem;
-    color: #888;
+    color: #808080;
     text-align: left;
     cursor: pointer;
   }
   .row:hover {
-    background: #141414;
+    background: #000000;
   }
   li.active .row {
-    color: #6cf;
+    color: #00e5ff;
   }
   .time {
-    color: #555;
+    color: #808080;
     font-size: 0.78rem;
   }
   li.active .time {
-    color: #6cf;
+    color: #00e5ff;
   }
   .check {
     font-size: 0.7rem;
     align-self: center;
   }
-  .check1 { color: #555; }
-  .check2 { color: #6cf; }
+  .check1 { color: #808080; }
+  .check2 { color: #00e5ff; }
   .details {
     display: grid;
     grid-template-columns: max-content 1fr;
@@ -291,29 +291,29 @@
     margin: 0;
   }
   .details dt {
-    color: #555;
+    color: #808080;
     text-transform: uppercase;
     font-size: 0.7rem;
     letter-spacing: 0.05em;
     margin: 0;
   }
   .details dd {
-    color: #ddd;
+    color: #ffffff;
     margin: 0;
     font-size: 0.85rem;
   }
   .hl {
-    color: #6cf;
+    color: #00e5ff;
   }
   .empty {
-    color: #555;
+    color: #808080;
     font-size: 0.85rem;
   }
   .action-block {
     margin-top: 0.8rem;
   }
   .confirm-msg {
-    color: #ccc;
+    color: #cccccc;
     font-size: 0.85rem;
     margin: 0 0 0.6rem;
   }
@@ -323,8 +323,8 @@
   }
   .ghost {
     background: transparent;
-    border: 1px solid #2a2a2a;
-    color: #888;
+    border: 1px solid #333333;
+    color: #808080;
     padding: 0.3rem 0.8rem;
     border-radius: 4px;
     cursor: pointer;
@@ -332,13 +332,13 @@
     font-size: 0.82rem;
   }
   .ghost:hover:not(:disabled) {
-    border-color: #6cf;
-    color: #6cf;
+    border-color: #00e5ff;
+    color: #00e5ff;
   }
   .danger {
     background: transparent;
-    border: 1px solid #622;
-    color: #c66;
+    border: 1px solid #4d1a1a;
+    color: #ff4d4d;
     padding: 0.3rem 0.8rem;
     border-radius: 4px;
     cursor: pointer;
@@ -346,13 +346,13 @@
     font-size: 0.82rem;
   }
   .danger:hover:not(:disabled) {
-    border-color: #c44;
-    color: #f88;
+    border-color: #ff4d4d;
+    color: #ff4d4d;
   }
   .danger-ghost {
     background: transparent;
     border: 1px solid transparent;
-    color: #855;
+    color: #cc6666;
     padding: 0.3rem 0.8rem;
     border-radius: 4px;
     cursor: pointer;
@@ -360,10 +360,10 @@
     font-size: 0.82rem;
   }
   .danger-ghost:hover {
-    color: #c66;
+    color: #ff4d4d;
   }
   .err {
-    color: #c66;
+    color: #ff4d4d;
     font-size: 0.8rem;
     margin: 0.4rem 0 0;
   }

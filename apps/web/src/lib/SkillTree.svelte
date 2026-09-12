@@ -160,7 +160,7 @@
                 y1={2000 + p.y}
                 x2={2000 + n.x}
                 y2={2000 + n.y}
-                stroke={acquired.has(n.id) ? "#6cf" : "#222"}
+                stroke={acquired.has(n.id) ? "#00e5ff" : "#333333"}
                 stroke-width="2"
               />
             {/if}
@@ -233,8 +233,8 @@
     width: 100%;
     height: 100%;
     overflow: hidden;
-    color: #e5e5e5;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: #ffffff;
+    font-family: Arial, Helvetica, sans-serif;
   }
   :global(body) { overflow: hidden; }
   .topbar {
@@ -248,44 +248,44 @@
     z-index: 10;
   }
   .title {
-    color: #888;
+    color: #808080;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     font-size: 0.85rem;
   }
   .recenter {
-    background: #111;
-    border: 1px solid #222;
-    color: #888;
+    background: #000000;
+    border: 1px solid #333333;
+    color: #808080;
     padding: 0.3rem 0.55rem;
     border-radius: 4px;
     cursor: pointer;
     font: inherit;
   }
-  .recenter:hover { color: #6cf; border-color: #6cf; }
+  .recenter:hover { color: #00e5ff; border-color: #00e5ff; }
   .sp-badge {
     margin-left: auto;
     display: flex;
     align-items: baseline;
     gap: 0.5rem;
-    background: #0a1418;
-    border: 1px solid #1d3340;
+    background: #000000;
+    border: 1px solid #000000;
     padding: 0.4rem 0.85rem;
     border-radius: 4px;
   }
   .sp-label {
-    color: #555;
+    color: #808080;
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
   }
   .sp-value {
-    color: #6cf;
+    color: #00e5ff;
     font-weight: bold;
     font-size: 1rem;
   }
-  .status { color: #555; padding: 2rem; }
-  .status.err { color: #f66; }
+  .status { color: #808080; padding: 2rem; }
+  .status.err { color: #ff4d4d; }
   .viewport {
     position: absolute;
     inset: 0;
@@ -309,11 +309,11 @@
     position: absolute;
     transform: translate(-50%, -50%);
     width: 130px;
-    background: #0d0d0d;
-    border: 2px solid #222;
+    background: #000000;
+    border: 2px solid #333333;
     border-radius: 6px;
     padding: 0.55rem 0.7rem;
-    color: #ccc;
+    color: #cccccc;
     font: inherit;
     cursor: pointer;
     transition: all 0.15s;
@@ -323,14 +323,14 @@
     gap: 0.2rem;
   }
   .skill-node:hover:not(:disabled) {
-    border-color: #6cf;
-    background: #0a1418;
+    border-color: #00e5ff;
+    background: #000000;
   }
   .skill-node.owned {
-    border-color: #6cf;
-    background: #0a1820;
+    border-color: #00e5ff;
+    background: #000000;
   }
-  .skill-node.owned .node-label { color: #6cf; }
+  .skill-node.owned .node-label { color: #00e5ff; }
   .skill-node.locked {
     opacity: 0.35;
     cursor: not-allowed;
@@ -344,16 +344,16 @@
     letter-spacing: 0.05em;
   }
   .node-cost {
-    color: #555;
+    color: #808080;
     font-size: 0.7rem;
   }
-  .skill-node.owned .node-cost { color: #6cf; }
+  .skill-node.owned .node-cost { color: #00e5ff; }
 
   .edge {
     position: absolute;
     background: rgba(13, 13, 13, 0.85);
-    border: 1px solid #1f1f1f;
-    color: #555;
+    border: 1px solid #333333;
+    color: #808080;
     width: 36px;
     height: 36px;
     border-radius: 50%;
@@ -366,7 +366,7 @@
     justify-content: center;
     transition: color 0.15s, border-color 0.15s, transform 0.1s;
   }
-  .edge:hover { color: #6cf; border-color: #6cf; }
+  .edge:hover { color: #00e5ff; border-color: #00e5ff; }
   .edge:active { transform: scale(0.92); }
   .edge.top { top: 4rem; left: 50%; transform: translateX(-50%); }
   .edge.bottom { bottom: 1rem; left: 50%; transform: translateX(-50%); }
@@ -386,8 +386,8 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background: #111;
-    border: 1px solid #2a2a2a;
+    background: #000000;
+    border: 1px solid #333333;
     border-radius: 8px;
     min-width: 320px;
     z-index: 100;
@@ -398,10 +398,10 @@
     justify-content: space-between;
     align-items: center;
     padding: 0.75rem 1rem;
-    border-bottom: 1px solid #1f1f1f;
+    border-bottom: 1px solid #333333;
   }
   .m-title {
-    color: #6cf;
+    color: #00e5ff;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     font-size: 0.85rem;
@@ -409,12 +409,12 @@
   .m-close {
     background: transparent;
     border: none;
-    color: #555;
+    color: #808080;
     font-size: 1.4rem;
     line-height: 1;
     cursor: pointer;
   }
-  .m-close:hover { color: #f66; }
+  .m-close:hover { color: #ff4d4d; }
   .m-body {
     display: grid;
     grid-template-columns: max-content 1fr;
@@ -423,13 +423,13 @@
     margin: 0;
   }
   .m-body dt {
-    color: #555;
+    color: #808080;
     text-transform: uppercase;
     font-size: 0.7rem;
     letter-spacing: 0.05em;
   }
   .m-body dd {
-    color: #ddd;
+    color: #ffffff;
     margin: 0;
     font-size: 0.9rem;
   }
@@ -447,9 +447,9 @@
     font-size: 0.85rem;
     cursor: pointer;
   }
-  .ghost { background: transparent; color: #888; border-color: #333; }
-  .ghost:hover { color: #ccc; border-color: #555; }
-  .primary { background: #6cf; color: #0a0a0a; border-color: #6cf; }
-  .primary:hover:not(:disabled) { background: #4ad; }
+  .ghost { background: transparent; color: #808080; border-color: #333333; }
+  .ghost:hover { color: #cccccc; border-color: #808080; }
+  .primary { background: #00e5ff; color: #000000; border-color: #00e5ff; }
+  .primary:hover:not(:disabled) { background: #00a3b8; }
   .primary:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>

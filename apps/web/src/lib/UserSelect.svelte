@@ -103,12 +103,12 @@
     justify-content: center;
     width: 100%;
     height: 100%;
-    color: #e5e5e5;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: #ffffff;
+    font-family: Arial, Helvetica, sans-serif;
   }
   .card {
-    background: #0d0d0d;
-    border: 1px solid #1f1f1f;
+    background: #000000;
+    border: 1px solid #333333;
     border-radius: 8px;
     padding: 2rem 2.5rem;
     width: 320px;
@@ -117,14 +117,14 @@
   }
   h1 {
     margin: 0 0 1.5rem;
-    color: #6cf;
+    color: #00e5ff;
     font-size: 1.5rem;
     text-transform: uppercase;
     letter-spacing: 0.15em;
     text-align: center;
   }
   .hint {
-    color: #555;
+    color: #808080;
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -133,10 +133,10 @@
   input {
     width: 100%;
     box-sizing: border-box;
-    background: #111;
-    border: 1px solid #333;
+    background: #000000;
+    border: 1px solid #333333;
     border-radius: 4px;
-    color: #e5e5e5;
+    color: #ffffff;
     padding: 0.6rem 0.85rem;
     font: inherit;
     font-size: 0.95rem;
@@ -144,10 +144,10 @@
     margin-bottom: 0.75rem;
   }
   input:focus {
-    border-color: #6cf;
+    border-color: #00e5ff;
   }
   .rule {
-    color: #ca6;
+    color: #00e5ff;
     font-size: 0.75rem;
     margin: -0.35rem 0 0.75rem;
   }
@@ -158,18 +158,18 @@
   }
   .primary {
     padding: 0.55rem 1rem;
-    border: 1px solid #6cf;
+    border: 1px solid #00e5ff;
     border-radius: 4px;
     font: inherit;
     font-size: 0.85rem;
     cursor: pointer;
     transition: all 0.15s;
-    background: #6cf;
-    color: #0a0a0a;
+    background: #00e5ff;
+    color: #000000;
     flex: 1;
   }
   .primary:hover:not(:disabled) {
-    background: #4ad;
+    background: #00a3b8;
   }
   .primary:disabled {
     opacity: 0.4;
@@ -181,7 +181,7 @@
     margin-top: 0.9rem;
     background: transparent;
     border: none;
-    color: #666;
+    color: #808080;
     font: inherit;
     font-size: 0.78rem;
     text-decoration: underline;
@@ -189,10 +189,10 @@
     padding: 0;
   }
   .link:hover {
-    color: #6cf;
+    color: #00e5ff;
   }
   .error {
-    color: #f66;
+    color: #ff4d4d;
     font-size: 0.8rem;
     margin-top: 0.75rem;
   }

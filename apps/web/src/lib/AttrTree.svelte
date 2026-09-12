@@ -60,26 +60,26 @@
     cursor: pointer;
   }
   .row.leaf { cursor: default; }
-  .row:not(.leaf):hover .name { color: #6cf; }
-  .caret { color: #555; width: 1em; font-size: 0.75rem; flex: 0 0 auto; }
-  .name { color: #ddd; font-size: 0.85rem; flex: 1; min-width: 0; }
-  .ref { color: #666; margin-left: 0.3rem; font-size: 0.75rem; }
-  .weight { color: #555; font-size: 0.7rem; font-variant-numeric: tabular-nums; }
-  .meta { color: #888; font-size: 0.75rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .row:not(.leaf):hover .name { color: #00e5ff; }
+  .caret { color: #808080; width: 1em; font-size: 0.75rem; flex: 0 0 auto; }
+  .name { color: #ffffff; font-size: 0.85rem; flex: 1; min-width: 0; }
+  .ref { color: #808080; margin-left: 0.3rem; font-size: 0.75rem; }
+  .weight { color: #808080; font-size: 0.7rem; font-variant-numeric: tabular-nums; }
+  .meta { color: #808080; font-size: 0.75rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .bar {
     height: 2px;
-    background: #1a1a1a;
+    background: #333333;
     margin: 0 0 0.25rem 1.5em;
     border-radius: 1px;
     overflow: hidden;
   }
-  .fill { height: 100%; background: #6cf; }
-  .borrowed .name { color: #999; font-style: italic; }
-  .borrowed .fill { background: #357; }
-  .sub { color: #444; font-size: 0.65rem; margin: -0.15rem 0 0.3rem 1.5em; }
+  .fill { height: 100%; background: #00e5ff; }
+  .borrowed .name { color: #808080; font-style: italic; }
+  .borrowed .fill { background: #000000; }
+  .sub { color: #808080; font-size: 0.65rem; margin: -0.15rem 0 0.3rem 1.5em; }
   .kids {
     margin: 0 0 0.25rem 0.5rem;
     padding-left: 0.75rem;
-    border-left: 1px solid #1f1f1f;
+    border-left: 1px solid #333333;
   }
 </style>

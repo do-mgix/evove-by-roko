@@ -352,7 +352,7 @@
     gap: 0.75rem;
   }
   .row-label {
-    color: #555;
+    color: #808080;
     text-transform: uppercase;
     font-size: 0.7rem;
     letter-spacing: 0.05em;
@@ -361,8 +361,8 @@
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    background: #0a0a0a;
-    border: 1px solid #2a2a2a;
+    background: #000000;
+    border: 1px solid #333333;
     border-radius: 4px;
     padding: 0.3rem 0.6rem;
   }
@@ -375,7 +375,7 @@
   .tp-arrow {
     background: transparent;
     border: none;
-    color: #444;
+    color: #808080;
     font-size: 0.65rem;
     line-height: 1;
     cursor: pointer;
@@ -383,10 +383,10 @@
     transition: color 0.1s;
   }
   .tp-arrow:hover {
-    color: #6cf;
+    color: #00e5ff;
   }
   .tp-val {
-    color: #ddd;
+    color: #ffffff;
     font-size: 1rem;
     font-variant-numeric: tabular-nums;
     width: 1.7em;
@@ -398,10 +398,10 @@
     font-family: inherit;
   }
   .tp-val:focus {
-    color: #6cf;
+    color: #00e5ff;
   }
   .tp-val::placeholder {
-    color: #2a2a2a;
+    color: #333333;
   }
   .time-row {
     display: flex;
@@ -409,16 +409,16 @@
     gap: 0.6rem;
   }
   .format-hint {
-    color: #444;
+    color: #808080;
     font-size: 0.65rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    border: 1px solid #2a2a2a;
+    border: 1px solid #333333;
     border-radius: 3px;
     padding: 0.15rem 0.35rem;
   }
   .tp-sep {
-    color: #555;
+    color: #808080;
     font-size: 1rem;
   }
   .end-wrap {
@@ -430,12 +430,12 @@
     display: flex;
     align-items: center;
     gap: 0.35rem;
-    color: #888;
+    color: #808080;
     font-size: 0.75rem;
     cursor: pointer;
   }
   .end-toggle input {
-    accent-color: #6cf;
+    accent-color: #00e5ff;
     margin: 0;
   }
   .day-picker {
@@ -446,37 +446,37 @@
   .day-btn {
     width: 30px;
     height: 30px;
-    background: #0a0a0a;
-    border: 1px solid #2a2a2a;
+    background: #000000;
+    border: 1px solid #333333;
     border-radius: 4px;
-    color: #888;
+    color: #808080;
     font: inherit;
     font-size: 0.85rem;
     cursor: pointer;
     transition: all 0.12s;
     padding: 0;
   }
-  .day-btn:hover { color: #ccc; border-color: #555; }
+  .day-btn:hover { color: #cccccc; border-color: #808080; }
   .day-btn.active {
-    background: #0a1820;
-    border-color: #6cf;
-    color: #6cf;
+    background: #000000;
+    border-color: #00e5ff;
+    color: #00e5ff;
   }
   .day-btn.all {
     margin-left: 0.4rem;
     font-size: 0.7rem;
   }
   input, select {
-    background: #0a0a0a;
-    border: 1px solid #2a2a2a;
+    background: #000000;
+    border: 1px solid #333333;
     border-radius: 4px;
-    color: #ddd;
+    color: #ffffff;
     padding: 0.5rem 0.6rem;
     font: inherit;
     font-size: 0.9rem;
     outline: none;
   }
-  input:focus, select:focus { border-color: #6cf; }
+  input:focus, select:focus { border-color: #00e5ff; }
   .label-row {
     align-items: start;
   }
@@ -491,8 +491,8 @@
     list-style: none;
     margin: 0.25rem 0 0;
     padding: 0;
-    background: #0a0a0a;
-    border: 1px solid #2a2a2a;
+    background: #000000;
+    border: 1px solid #333333;
     border-radius: 4px;
     max-height: 180px;
     overflow-y: auto;
@@ -512,7 +512,7 @@
     cursor: pointer;
   }
   .dropdown li button:hover {
-    background: #141414;
+    background: #000000;
   }
   .kind {
     font-size: 0.65rem;
@@ -521,11 +521,14 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
-  .kind.action { color: #6cf; background: #0a1820; }
-  .kind.attribute { color: #cf6; background: #15200a; }
-  .name { color: #ddd; }
+  .kind.action { color: #00e5ff; background: #000000; }
+  .kind.attribute { color: #00e5ff; background: #000000; }
+  .name { color: #ffffff; }
+  /* only action suggestions carry a catalog name; attribute names are display
+     labels from the graph, so only these are put in the lowercase pattern. */
+  button:has(.kind.action) .name { text-transform: lowercase; }
   .err {
-    color: #f66;
+    color: #ff4d4d;
     font-size: 0.8rem;
     margin: 0;
   }
@@ -543,10 +546,10 @@
     font-size: 0.85rem;
     cursor: pointer;
   }
-  .ghost { background: transparent; color: #888; border-color: #333; }
-  .ghost:hover { color: #ccc; border-color: #555; }
-  .primary { background: #6cf; color: #0a0a0a; border-color: #6cf; }
-  .primary:hover:not(:disabled) { background: #4ad; }
+  .ghost { background: transparent; color: #808080; border-color: #333333; }
+  .ghost:hover { color: #cccccc; border-color: #808080; }
+  .primary { background: #00e5ff; color: #000000; border-color: #00e5ff; }
+  .primary:hover:not(:disabled) { background: #00a3b8; }
   .primary:disabled { opacity: 0.4; cursor: not-allowed; }
 
   @media (max-width: 768px) {

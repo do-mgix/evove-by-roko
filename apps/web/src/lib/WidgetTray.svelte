@@ -27,8 +27,8 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem 0.75rem;
-    background: #0a0a0a;
-    border-top: 1px solid #1a1a1a;
+    background: #000000;
+    border-top: 1px solid #333333;
     min-height: 56px;
     box-sizing: border-box;
   }
@@ -38,40 +38,40 @@
     align-items: center;
     justify-content: center;
     padding: 0.4rem 0.7rem;
-    border: 1px solid #1f1f1f;
+    border: 1px solid #333333;
     border-radius: 4px;
-    background: #111;
+    background: #000000;
     cursor: grab;
     transition: all 0.15s;
     min-width: 64px;
   }
   .widget:hover {
-    border-color: #6cf;
-    color: #6cf;
+    border-color: #00e5ff;
+    color: #00e5ff;
   }
   .widget:active {
     cursor: grabbing;
   }
   .icon {
     font-size: 1.1rem;
-    color: #888;
+    color: #808080;
     line-height: 1;
   }
   .widget:hover .icon {
-    color: #6cf;
+    color: #00e5ff;
   }
   .label {
-    color: #555;
+    color: #808080;
     font-size: 0.65rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     margin-top: 0.25rem;
   }
   .widget:hover .label {
-    color: #888;
+    color: #808080;
   }
   .hint {
-    color: #444;
+    color: #808080;
     font-size: 0.75rem;
   }
 </style>

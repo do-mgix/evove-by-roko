@@ -12,22 +12,22 @@
     align-items: center;
     justify-content: center;
     height: 100%;
-    border: 1px dashed #1f1f1f;
+    border: 1px dashed #333333;
     border-radius: 6px;
     background: transparent;
     transition: all 0.15s;
   }
   .empty-slot.drag-over {
-    border-color: #6cf;
-    background: #0a1418;
+    border-color: #00e5ff;
+    background: #000000;
   }
   .plus {
-    color: #2a2a2a;
+    color: #333333;
     font-size: 2rem;
     font-weight: 200;
     transition: color 0.15s;
   }
   .drag-over .plus {
-    color: #6cf;
+    color: #00e5ff;
   }
 </style>

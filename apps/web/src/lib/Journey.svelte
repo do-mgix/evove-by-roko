@@ -106,7 +106,7 @@
             {@const next = stages[i + 1]}
             <path
               d="M {s.x} {s.y} Q {(s.x + next.x) / 2} {s.y} {(s.x + next.x) / 2} {(s.y + next.y) / 2} T {next.x} {next.y}"
-              stroke={s.status === "done" || s.status === "current" ? "#6cf" : "#222"}
+              stroke={s.status === "done" || s.status === "current" ? "#00e5ff" : "#333333"}
               stroke-width="2"
               fill="none"
               stroke-dasharray={s.status === "future" ? "6 5" : "0"}
@@ -118,14 +118,14 @@
         {#each stages as s (s.n)}
           <g class="stage-node {s.status}">
             <circle cx={s.x} cy={s.y} r="28"
-              fill={s.status === "current" ? "#0a1820" : s.status === "done" ? "#0a1418" : "#0d0d0d"}
-              stroke={s.status === "current" ? "#6cf" : s.status === "done" ? "#3a6378" : "#222"}
+              fill={s.status === "current" ? "#000000" : s.status === "done" ? "#000000" : "#000000"}
+              stroke={s.status === "current" ? "#00e5ff" : s.status === "done" ? "#000000" : "#333333"}
               stroke-width={s.status === "current" ? 3 : 2}
             />
             <text x={s.x} y={s.y + 5}
               text-anchor="middle"
-              fill={s.status === "current" ? "#6cf" : s.status === "done" ? "#6cf" : "#555"}
-              font-family="ui-monospace, monospace"
+              fill={s.status === "current" ? "#00e5ff" : s.status === "done" ? "#00e5ff" : "#808080"}
+              font-family="Arial, Helvetica, sans-serif"
               font-size="14"
               font-weight={s.status === "current" ? "bold" : "normal"}
             >{s.n}</text>
@@ -141,8 +141,8 @@
     height: 100%;
     box-sizing: border-box;
     padding: 1.5rem 2rem;
-    color: #e5e5e5;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: #ffffff;
+    font-family: Arial, Helvetica, sans-serif;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -152,21 +152,21 @@
   }
   h1 {
     margin: 0;
-    color: #888;
+    color: #808080;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     font-size: 1.05rem;
   }
-  .muted { color: #555; }
-  .error { color: #f66; }
+  .muted { color: #808080; }
+  .error { color: #ff4d4d; }
 
   .countdown-card {
-    background: #0d0d0d;
-    border: 1px solid #1d3340;
+    background: #000000;
+    border: 1px solid #000000;
     border-radius: 6px;
     padding: 1rem 1.5rem;
     margin-bottom: 1.25rem;
-    background: linear-gradient(135deg, #0a1820, #0d0d0d 70%);
+    background: linear-gradient(135deg, #000000, #000000 70%);
   }
   .cd-block {
     display: flex;
@@ -175,7 +175,7 @@
     align-items: flex-start;
   }
   .cd-label {
-    color: #555;
+    color: #808080;
     text-transform: uppercase;
     font-size: 0.7rem;
     letter-spacing: 0.1em;
@@ -191,21 +191,21 @@
     gap: 0.15rem;
   }
   .cd-num {
-    color: #6cf;
+    color: #00e5ff;
     font-weight: bold;
     font-size: 2rem;
     font-variant-numeric: tabular-nums;
   }
   .cd-tag {
-    color: #555;
+    color: #808080;
     font-size: 0.75rem;
   }
   .cd-sep {
-    color: #2a4a5a;
+    color: #000000;
     font-size: 1.4rem;
   }
   .cd-sub {
-    color: #555;
+    color: #808080;
     font-size: 0.8rem;
   }
 
@@ -213,8 +213,8 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    background: #0a0a0a;
-    border: 1px solid #1f1f1f;
+    background: #000000;
+    border: 1px solid #333333;
     border-radius: 6px;
     padding: 0.5rem;
   }

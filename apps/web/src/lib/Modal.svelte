@@ -44,11 +44,11 @@
     min-width: 320px;
     max-width: 90vw;
     max-height: 80vh;
-    background: #111;
-    border: 1px solid #2a2a2a;
+    background: #000000;
+    border: 1px solid #333333;
     border-radius: 8px;
-    color: #e5e5e5;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: #ffffff;
+    font-family: Arial, Helvetica, sans-serif;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
     z-index: 100;
     display: flex;
@@ -60,10 +60,10 @@
     justify-content: space-between;
     align-items: center;
     padding: 0.75rem 1rem;
-    border-bottom: 1px solid #1f1f1f;
+    border-bottom: 1px solid #333333;
   }
   .title {
-    color: #888;
+    color: #808080;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     font-size: 0.75rem;
@@ -71,14 +71,14 @@
   .close {
     background: transparent;
     border: none;
-    color: #555;
+    color: #808080;
     font-size: 1.4rem;
     line-height: 1;
     cursor: pointer;
     padding: 0 0.3rem;
   }
   .close:hover {
-    color: #f66;
+    color: #ff4d4d;
   }
   .body {
     padding: 1rem 1.25rem;

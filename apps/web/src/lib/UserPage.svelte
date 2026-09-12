@@ -126,8 +126,8 @@
 <style>
   .page {
     padding: 1.75rem 2rem;
-    color: #e5e5e5;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: #ffffff;
+    font-family: Arial, Helvetica, sans-serif;
     height: 100%;
     overflow-y: auto;
     box-sizing: border-box;
@@ -140,48 +140,48 @@
   }
   h1 {
     margin: 0;
-    color: #ddd;
+    color: #ffffff;
     font-size: 1.4rem;
     text-transform: uppercase;
     letter-spacing: 0.1em;
   }
   h2 {
     margin: 0 0 0.75rem;
-    color: #888;
+    color: #808080;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     font-size: 0.85rem;
   }
-  .muted { color: #555; font-size: 0.78rem; }
-  .muted-sub { color: #555; font-size: 0.7rem; }
-  .error { color: #f66; }
+  .muted { color: #808080; font-size: 0.78rem; }
+  .muted-sub { color: #808080; font-size: 0.7rem; }
+  .error { color: #ff4d4d; }
 
   .rank-large {
     display: flex;
     gap: 0.85rem;
     align-items: center;
-    background: #0a1418;
-    border: 1px solid #1d3340;
+    background: #000000;
+    border: 1px solid #000000;
     border-radius: 6px;
     padding: 0.6rem 0.95rem;
   }
   .rank-sym {
-    color: #6cf;
+    color: #00e5ff;
     font-size: 2.2rem;
     line-height: 1;
   }
   .rank-letter {
-    color: #6cf;
+    color: #00e5ff;
     font-weight: bold;
     font-size: 0.85rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
   }
-  .local-level { color: #888; font-size: 0.75rem; }
+  .local-level { color: #808080; font-size: 0.75rem; }
 
   .xp-card {
-    background: #0d0d0d;
-    border: 1px solid #1f1f1f;
+    background: #000000;
+    border: 1px solid #333333;
     border-radius: 6px;
     padding: 0.85rem 1rem;
     margin-bottom: 1.5rem;
@@ -193,19 +193,19 @@
     margin-bottom: 0.5rem;
   }
   .xp-val {
-    color: #6cf;
+    color: #00e5ff;
     font-weight: bold;
     font-size: 1.1rem;
   }
   .xp-bar {
     height: 5px;
-    background: #1a1a1a;
+    background: #333333;
     border-radius: 2px;
     overflow: hidden;
   }
   .fill {
     height: 100%;
-    background: #6cf;
+    background: #00e5ff;
     transition: width 0.3s ease;
   }
 
@@ -216,8 +216,8 @@
     margin-bottom: 1.75rem;
   }
   .stat {
-    background: #0d0d0d;
-    border: 1px solid #1f1f1f;
+    background: #000000;
+    border: 1px solid #333333;
     border-radius: 6px;
     padding: 0.7rem 0.85rem;
     display: flex;
@@ -225,20 +225,20 @@
     gap: 0.2rem;
   }
   .stat-label {
-    color: #555;
+    color: #808080;
     text-transform: uppercase;
     font-size: 0.65rem;
     letter-spacing: 0.08em;
   }
   .stat-value {
-    color: #ddd;
+    color: #ffffff;
     font-size: 1.15rem;
     font-weight: bold;
   }
 
   .attrs-section {
-    background: #0d0d0d;
-    border: 1px solid #1f1f1f;
+    background: #000000;
+    border: 1px solid #333333;
     border-radius: 6px;
     padding: 0.95rem 1.1rem;
     margin-bottom: 1rem;
