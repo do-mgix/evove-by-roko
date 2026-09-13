@@ -58,7 +58,7 @@
     switch (n.effect.type) {
       case "max_energy": return `+${v} max energy`;
       case "max_tokens": return `+${v} max tokens`;
-      case "xp_multiplier": return `×${v} xp`;
+      case "xp_multiplier": return "sem efeito (xp virou marcas)";
       case "points_multiplier": return `×${v} sp/bp`;
       default: return n.effect.type;
     }

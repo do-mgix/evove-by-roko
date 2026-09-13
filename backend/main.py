@@ -12,12 +12,13 @@ if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
 
 from src.domain.action import Action  # noqa: E402
-from src.domain.act import apply_act, ActError  # noqa: E402
+from src.domain.act import ActError  # noqa: E402
+from src.domain.acting import perform_act, tiers_for, window_state  # noqa: E402
+from src.domain.marks import MARKS_PER_WINDOW, MarkError, options as tier_options  # noqa: E402
 from src.domain.agenda import collect_labels, DAY_NAMES as _DOMAIN_DAY_NAMES  # noqa: E402
 from src.domain.daily import apply_daily_tick  # noqa: E402
-from src.domain.contributions import apply_action_contributions, apply_patch_attributes  # noqa: E402
 from src.domain.user_attributes import PATCH_SEPARATOR, PatchError, engine_name  # noqa: E402
-from src.domain.attributes import apply_decay  # noqa: E402
+from src.domain.attributes import node_total, rank_view, total_marks  # noqa: E402
 from src.domain.skills import (  # noqa: E402
     aggregate_bonuses,
     acquire_skill as _acquire_skill,
@@ -155,20 +156,7 @@ def _load_user(username: str) -> dict:
     dirty = apply_daily_tick(data) or dirty
     if dirty:
         repos.save_user_dict(username, data)
-    _apply_leaf_decay_if_due(username, data)
     return data
-
-
-def _apply_leaf_decay_if_due(username: str, data: dict) -> None:
-    """Once per day, decay every user leaf score with hour precision."""
-    now = datetime.now()
-    today_str = now.date().isoformat()
-    metadata = data.setdefault("metadata", {})
-    if metadata.get("last_decay_check") == today_str:
-        return
-    repos.apply_decay_to_all_leaves(username, now)
-    metadata["last_decay_check"] = today_str
-    repos.save_user_dict(username, data)
 
 
 def _save_user(username: str, data: dict) -> None:
@@ -176,16 +164,18 @@ def _save_user(username: str, data: dict) -> None:
 
 
 def _build_tiers():
+    """The user's progression: rank letters with roman levels inside each. A level
+    costs marks — the old xp curve divided by 70, which makes A·I cost 3."""
     tiers = []
-    cumulative_xp = 0
+    cumulative = 0
     global_level = 1
     total_ranks = len(_LETTERS)
     for rank_index, letter in enumerate(_LETTERS):
         levels_in_rank = max(1, total_ranks - rank_index)
         rank_symbol = _GREEK[rank_index % len(_GREEK)]
         for local_level in range(1, levels_in_rank + 1):
-            xp_cost = max(1, int(round(200 * (1.06 ** (global_level - 1)) * (1.28 ** rank_index))))
-            cumulative_xp += xp_cost
+            cost = max(1, int(round(200 * (1.06 ** (global_level - 1)) * (1.28 ** rank_index) / 70)))
+            cumulative += cost
             tiers.append({
                 "level": global_level,
                 "rank_index": rank_index,
@@ -194,35 +184,32 @@ def _build_tiers():
                 "local_level": local_level,
                 "local_level_roman": roman.toRoman(local_level),
                 "local_levels_total": levels_in_rank,
-                "xp_cost": xp_cost,
-                "threshold": cumulative_xp,
+                "cost": cost,
+                "threshold": cumulative,
             })
             global_level += 1
     return tiers
 
 
-def _progression_state(xp: int):
+def _progression_state(marks: int):
     tiers = _build_tiers()
-    current = tiers[0]
+    current = tiers[-1]
     for tier in tiers:
-        current = tier
-        if xp < tier["threshold"]:
+        if marks < tier["threshold"]:
+            current = tier
             break
-    else:
-        current = tiers[-1]
-    next_xp = max(0, current["threshold"] - xp)
-    if xp >= tiers[-1]["threshold"]:
-        next_xp = 0
+    next_marks = max(0, current["threshold"] - marks)
     return {
-        "xp": xp,
+        "marks": marks,
         "level": current["level"],
         "rank_letter": current["rank_letter"],
         "rank_symbol": current["rank_symbol"],
         "local_level": current["local_level"],
         "local_level_roman": current["local_level_roman"],
         "local_levels_total": current["local_levels_total"],
-        "next_xp": next_xp,
-        "xp_cost": current["xp_cost"],
+        "next_marks": next_marks,
+        "level_cost": current["cost"],
+        "level_marks": current["cost"] - next_marks,
     }
 
 
@@ -430,10 +417,10 @@ def auth_me(username: str = Depends(current_username)):
 def user_state(username: str = Depends(current_username)):
     data = _load_user(username)
     metadata = data.get("metadata", {}) or {}
-    xp = int(round(float(data.get("score", 0) or 0)))
-    progression = _progression_state(xp)
+    marks = int(data.get("marks", 0) or 0)
+    progression = _progression_state(marks)
     user_leaf_scores = repos.get_user_leaf_scores(username)
-    active_attrs = [s for s in user_leaf_scores.values() if float(s.get("score", 0) or 0) > 0]
+    active_attrs = [s for s in user_leaf_scores.values() if s["marks"] > 0 or s["rank_index"] > 0]
     bonuses = aggregate_bonuses(set(data.get("skills") or []), skill_nodes_by_id())
     base_max_tokens = int(metadata.get("max_tokens", 100) or 100)
     base_max_energy = 1000
@@ -443,14 +430,15 @@ def user_state(username: str = Depends(current_username)):
         "date": metadata.get("date"),
         "day": _day_number(username),
         "consecutive_days": int(seq.get("consecutive_days", 0) or 0),
-        "xp": xp,
+        "marks": marks,
         "level": progression["level"],
         "rank_letter": progression["rank_letter"],
         "rank_symbol": progression["rank_symbol"],
         "local_level_roman": progression["local_level_roman"],
         "local_levels_total": progression["local_levels_total"],
-        "next_xp": progression["next_xp"],
-        "xp_cost": progression["xp_cost"],
+        "next_marks": progression["next_marks"],
+        "level_cost": progression["level_cost"],
+        "level_marks": progression["level_marks"],
         "stage": int(metadata.get("stage", 1) or 1),
         "energy": int(metadata.get("energy", 0) or 0),
         "max_energy": base_max_energy + bonuses["max_energy"],
@@ -735,7 +723,7 @@ def logs_by_date(date: str, username: str = Depends(current_username)):
             "id": log.get("id"),
             "timestamp": log.get("timestamp"),
             "content": log.get("content"),
-            "xp": int(log.get("xp", 0) or 0),
+            "marks": int(log.get("marks", 0) or 0),
             "tokens": int(log.get("tokens", 0) or 0),
             "order": int(coord[1]),
         })
@@ -986,7 +974,7 @@ def list_logs(offset: int = 0, username: str = Depends(current_username)):
             "id": log.get("id"),
             "timestamp": log.get("timestamp"),
             "content": log.get("content"),
-            "xp": int(log.get("xp", 0) or 0),
+            "marks": int(log.get("marks", 0) or 0),
             "tokens": int(log.get("tokens", 0) or 0),
             "order": int(coord[1]),
         })
@@ -1001,72 +989,36 @@ def agenda_today(username: str = Depends(current_username)):
     return {"day": day_name, "items": items}
 
 
-def _user_leaf_state(username: str, tree) -> tuple[dict[str, float], dict[str, int]]:
-    """Every leaf's decayed score (or floor) and permanent level, as of now.
-
-    Lazy decay: stored scores are only brought forward here, never written back.
-    """
-    raw = repos.get_user_leaf_scores(username)
-    now = datetime.now()
-    scores: dict[str, float] = {}
-    perm: dict[str, int] = {}
-    for key, leaf in tree.leaves_by_key.items():
-        row = raw.get(key)
-        if row is None:
-            scores[key], perm[key] = leaf.floor, 0
-        else:
-            scores[key] = apply_decay(row["score"], row["last_updated_at"], now, leaf.half_life_hours, leaf.floor)
-            perm[key] = int(row.get("permanent_level", 0) or 0)
-    return scores, perm
+def _user_leaf_totals(username: str, tree) -> dict[str, float]:
+    """Every leaf's total marks: what its rank took plus the marks above it."""
+    return {
+        key: total_marks(row["marks"], row["rank_index"])
+        for key, row in repos.get_user_leaf_scores(username).items()
+        if key in tree.leaves_by_key
+    }
 
 
-def _node_view(tree, key: str, scores, perm, memo) -> dict:
+def _node_view(tree, key: str, totals: dict[str, float], memo: dict) -> dict:
     """What every attribute endpoint says about one node, leaf or not."""
-    from src.domain.attributes import compute_node_score, aggregate_level, level_threshold
-
     node = tree.nodes_by_key[key]
-    out = {
+    return {
         "key": key,
         "name": node.name,
         "degree": tree.degree(key),
         "is_leaf": tree.is_leaf(key),
-        "power": round(compute_node_score(key, scores, tree, memo), 2),
+        **rank_view(node_total(key, totals, tree, memo)),
     }
-    if tree.is_leaf(key):
-        p = perm.get(key, 0)
-        out.update({
-            "permanent_level": p,
-            "max_level": node.max_level,
-            "half_life_hours": node.half_life_hours,
-            "floor": node.floor,
-        })
-        if node.max_level is None:
-            out.update({"level": None, "next_threshold": None, "progress_to_next": 0.0})
-        elif p >= node.max_level:
-            out.update({"level": float(p), "next_threshold": None, "progress_to_next": 1.0})
-        else:
-            thr = level_threshold(p + 1)
-            out.update({"level": float(p), "next_threshold": thr,
-                        "progress_to_next": round(max(0.0, min(1.0, scores[key] / thr)), 4)})
-    else:
-        agg = aggregate_level(tree, key, scores, perm)
-        out.update({
-            "level": round(agg["level"], 2) if agg else None,
-            "max_level": agg["max_level"] if agg else None,
-            "progress_to_next": round(agg["progress_to_next"], 4) if agg else None,
-        })
-    return out
 
 
 @app.get("/attributes")
 def list_attributes(username: str = Depends(current_username)):
-    """Every leaf — the attributes that hold a score — with its level."""
-    _load_user(username)  # triggers daily decay if due
+    """Every leaf — the attributes that hold marks — with its rank."""
+    _load_user(username)
     tree = repos.load_attr_tree()
-    scores, perm = _user_leaf_state(username, tree)
+    totals = _user_leaf_totals(username, tree)
     memo: dict[str, float] = {}
-    out = [_node_view(tree, k, scores, perm, memo) for k in tree.leaves_by_key]
-    out.sort(key=lambda a: (a["permanent_level"], a["power"]), reverse=True)
+    out = [_node_view(tree, k, totals, memo) for k in tree.leaves_by_key]
+    out.sort(key=lambda a: a["total_marks"], reverse=True)
     return out
 
 
@@ -1076,9 +1028,9 @@ def attribute_roots(username: str = Depends(current_username)):
     tag and conceptual-root views: those are ordinary attributes now."""
     _load_user(username)
     tree = repos.load_attr_tree()
-    scores, perm = _user_leaf_state(username, tree)
+    totals = _user_leaf_totals(username, tree)
     memo: dict[str, float] = {}
-    return [_node_view(tree, r, scores, perm, memo) for r in tree.roots]
+    return [_node_view(tree, r, totals, memo) for r in tree.roots]
 
 
 @app.get("/attributes/tree")
@@ -1087,15 +1039,15 @@ def attributes_tree(username: str = Depends(current_username)):
     whether it is the node's `primary` parent — a node with several parents shows
     up under each of them. A node that is the registered parent of a base action
     with patches lists them in `patches`, with their own attributes; they are
-    display only and never enter the node's power."""
+    display only and never enter the node's marks."""
     data = _load_user(username)
     tree = repos.load_attr_tree()
-    scores, perm = _user_leaf_state(username, tree)
+    totals = _user_leaf_totals(username, tree)
     memo: dict[str, float] = {}
     attachments = _patch_attachments(username, data)
 
     def render(key: str, path: frozenset) -> dict:
-        out = _node_view(tree, key, scores, perm, memo)
+        out = _node_view(tree, key, totals, memo)
         if key in attachments:
             out["patches"] = attachments[key]
         if key in path:            # registration refuses cycles; never recurse forever
@@ -1126,7 +1078,6 @@ def _patch_attachments(username: str, data: dict) -> dict[str, list[dict]]:
     attrs = repos.load_user_attributes(username)
     by_id = {a["id"]: a for a in attrs}
     kids = children_of(attrs)
-    now = datetime.now()
     memo: dict = {}
     out: dict[str, list[dict]] = {}
     for patch_id in sorted(links):
@@ -1140,14 +1091,14 @@ def _patch_attachments(username: str, data: dict) -> dict[str, list[dict]]:
         out.setdefault(parent, []).append({
             "id": patch_id,
             "name": patch.get("name"),
-            "attributes": [view(i, by_id, kids, now, memo) for i in links[patch_id] if i in by_id],
+            "attributes": [view(i, by_id, kids, memo) for i in links[patch_id] if i in by_id],
         })
     return out
 
 
 @app.get("/user-attributes")
 def list_user_attributes(username: str = Depends(current_username)):
-    """The user's own attributes as a tree, each with power, level and the patches
+    """The user's own attributes as a tree, each with rank, marks and the patches
     that train it."""
     from src.domain.user_attributes import children_of, view
 
@@ -1164,7 +1115,6 @@ def list_user_attributes(username: str = Depends(current_username)):
 
     by_id = {a["id"]: a for a in attrs}
     kids = children_of(attrs)
-    now = datetime.now()
     memo: dict = {}
 
     def with_patches(v: dict) -> dict:
@@ -1173,7 +1123,7 @@ def list_user_attributes(username: str = Depends(current_username)):
             with_patches(c)
         return v
 
-    return [with_patches(view(r["id"], by_id, kids, now, memo)) for r in kids.get(None, [])]
+    return [with_patches(view(r["id"], by_id, kids, memo)) for r in kids.get(None, [])]
 
 
 @app.post("/user-attributes")
@@ -1222,7 +1172,7 @@ def _today_agenda_labels(username: str) -> set[str]:
     return collect_labels(Agenda(username).items, day_name=day_name, iso_date=iso)
 
 
-def _append_log(username: str, content: str, xp: int, tokens: int = 0) -> dict | None:
+def _append_log(username: str, content: str, marks: int, tokens: int = 0) -> dict | None:
     logs = repos.load_logs(username)
     today_day = _day_for(username, datetime.now().date())
     max_id = 0
@@ -1247,7 +1197,7 @@ def _append_log(username: str, content: str, xp: int, tokens: int = 0) -> dict |
         "timestamp": datetime.now().strftime("%d %m %Y : %H:%M:%S"),
         "content": content,
         "status": "[CLOUD]",
-        "xp": int(xp),
+        "marks": int(marks),
         "tokens": int(tokens),
         "coord": [today_day, next_order + 1],
     }
@@ -1257,24 +1207,17 @@ def _append_log(username: str, content: str, xp: int, tokens: int = 0) -> dict |
 
 @app.post("/actions/{action_id}/act")
 def act_on_action(action_id: str, payload: dict | None = None, username: str = Depends(current_username)):
+    """Body: {option, note?}. `option` is the tier, 0-5; how many marks it yields
+    depends on what the action already earned in its 6-hour window."""
     data = _load_user(username)
 
     action = (data.get("actions") or {}).get(action_id)
     if not action or action.get("deleted"):
         raise HTTPException(status_code=404, detail=f"action {action_id} not found")
-
-    # Determine note input: explicit note, or numeric value, or default 1.
-    manual_value: str | int = 1
-    if payload:
-        if "note" in payload and payload["note"] is not None:
-            note_text = str(payload["note"]).strip()
-            if note_text:
-                manual_value = note_text
-        elif "value" in payload and payload["value"] is not None:
-            try:
-                manual_value = int(payload["value"])
-            except (TypeError, ValueError):
-                manual_value = 1
+    p = payload or {}
+    if p.get("option") is None:
+        raise HTTPException(status_code=400, detail="choose a tier: option 0-5")
+    note = str(p.get("note") or "").strip()
 
     today_labels = _today_agenda_labels(username)
 
@@ -1286,11 +1229,10 @@ def act_on_action(action_id: str, payload: dict | None = None, username: str = D
     for n in _tree.nodes_by_key.values():
         by_name.setdefault(_norm(n.name), []).append(n.key)
     concept_leaves_today = leaves_for_labels(today_labels, by_name, _tree.children)
-    # A patch runs on its base: the base's contributions decide the default graph
-    # and the agenda match, and a label naming one of its own attributes counts too.
+    # A patch runs on its base: the base's contributions decide the agenda match,
+    # and a label naming one of its own attributes counts too.
     engine = engine_name(data.get("actions") or {}, action)
-    action_contribs = repos.load_action_contributions(engine)
-    action_leaf_keys = {lk for _id, lk, _w in action_contribs}
+    action_leaf_keys = {lk for _id, lk, _w in repos.load_action_contributions(engine)}
     in_agenda_extra = bool(action_leaf_keys & concept_leaves_today)
     if action.get("base_action_id") and not in_agenda_extra:
         own = set(repos.load_patch_links(username).get(action_id, []))
@@ -1298,37 +1240,31 @@ def act_on_action(action_id: str, payload: dict | None = None, username: str = D
         in_agenda_extra = bool(names & today_labels)
 
     try:
-        outcome = apply_act(
-            data,
-            action_id,
-            manual_value=manual_value,
-            today_agenda_labels=today_labels,
+        outcome = perform_act(
+            username, data, action_id, p["option"], note,
+            today_labels=today_labels,
             in_agenda_extra=in_agenda_extra,
-            token_cost_lookup=repos.lookup_token_cost,
-            token_gain_lookup=repos.lookup_token_gain,
-            skill_nodes_by_id=skill_nodes_by_id(),
+            save=lambda d: _save_user(username, d),
         )
+    except MarkError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except ActError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    _save_user(username, data)
-
-    now = datetime.now()
-    apply_action_contributions(username, engine, float(outcome.score_diff), now)
-    if action.get("base_action_id"):
-        apply_patch_attributes(username, action_id, float(outcome.score_diff), now)
-
     _record_activity(username)
     token_delta = (outcome.token_gain - outcome.tokens_wasted) - outcome.token_cost
-    log_entry = _append_log(username, outcome.log_content, int(round(outcome.score_diff)), token_delta)
+    log_entry = _append_log(username, outcome.log_content, outcome.marks, token_delta)
 
     return {
         "id": action_id,
         "name": action.get("name"),
         "value": action["value"],
         "score": action["score"],
-        "score_diff": outcome.score_diff,
-        "user_score": data["score"],
+        "marks": outcome.marks,
+        "nominal": int(p["option"]),
+        "window_marks": outcome.window_marks,
+        "window_limit": MARKS_PER_WINDOW,
+        "user_marks": int(data.get("marks", 0) or 0),
         "token_gain": outcome.token_gain,
         "token_cost": outcome.token_cost,
         "tokens_wasted": outcome.tokens_wasted,
@@ -1337,12 +1273,24 @@ def act_on_action(action_id: str, payload: dict | None = None, username: str = D
     }
 
 
+@app.get("/actions/{action_id}/window")
+def action_window(action_id: str, username: str = Depends(current_username)):
+    """Marks this action — its base, for a patch — already earned in the current
+    window, the limit, and its tiers."""
+    data = _load_user(username)
+    try:
+        return window_state(username, data, action_id)
+    except ActError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @app.get("/actions")
 def list_actions(username: str = Depends(current_username)):
     data = _load_user(username)
     actions = data.get("actions", {}) or {}
     links = repos.load_patch_links(username)
     attr_names = {a["id"]: a["name"] for a in repos.load_user_attributes(username)} if links else {}
+    templates = repos.load_action_templates()
     result = []
     for action_id, action in actions.items():
         if action.get("deleted"):
@@ -1356,6 +1304,7 @@ def list_actions(username: str = Depends(current_username)):
             "score": action.get("score"),
             "token_cost": int(action.get("token_cost") or 0),
             "token_gain": int(action.get("token_gain") or 0),
+            "tiers": tier_options(tiers_for(data, action, templates)),
         })
         if action.get("base_action_id"):
             result[-1]["base_action_id"] = action["base_action_id"]

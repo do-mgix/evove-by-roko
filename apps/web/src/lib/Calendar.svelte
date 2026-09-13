@@ -287,7 +287,7 @@
               {#each dayLogs as l (l.id)}
                 <li>
                   <span class="log-content">{display(l.content)}</span>
-                  <span class="log-xp">+{l.xp}</span>
+                  <span class="log-xp">+{l.marks}</span>
                 </li>
               {/each}
             </ul>

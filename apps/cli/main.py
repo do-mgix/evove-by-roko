@@ -22,9 +22,10 @@ from rich.panel import Panel
 from rich.table import Table
 from rich import box
 
-from src.domain.act import apply_act, ActError
-from src.domain.contributions import apply_action_contributions, apply_patch_attributes
-from src.domain.user_attributes import PATCH_SEPARATOR, engine_name
+from src.domain.act import ActError
+from src.domain.acting import perform_act, window_state
+from src.domain.marks import MarkError
+from src.domain.user_attributes import PATCH_SEPARATOR
 from src.domain.agenda import collect_labels, DAY_NAMES
 from src.domain.daily import apply_daily_tick
 from src.infrastructure.static_data import skill_nodes_by_id
@@ -39,7 +40,7 @@ def load_user() -> dict:
     username = get_current_username()
     data = repos.load_user_dict(username)
     if data is None:
-        return {"actions": {}, "metadata": {}, "score": 0}
+        return {"actions": {}, "metadata": {}, "marks": 0}
     if apply_daily_tick(data):
         repos.save_user_dict(username, data)
     return data
@@ -57,7 +58,7 @@ _LOG_ID_PREFIX = 73
 _LOG_ID_WIDTH = 4
 
 
-def append_log(content: str, xp: int, tokens: int = 0) -> dict:
+def append_log(content: str, marks: int, tokens: int = 0) -> dict:
     username = get_current_username()
     logs = load_logs()
     today = datetime.now()
@@ -85,7 +86,7 @@ def append_log(content: str, xp: int, tokens: int = 0) -> dict:
         "id": next_id,
         "timestamp": today.strftime("%d %m %Y : %H:%M:%S"),
         "content": content,
-        "xp": int(xp),
+        "marks": int(marks),
         "tokens": int(tokens),
         "coord": [today_day, next_order + 1],
     }
@@ -143,38 +144,31 @@ def cmd_act(data: dict) -> None:
     if not action or action.get("deleted"):
         console.print(f"[red]action {aid} not found[/red]")
         return
-    note = console.input(f"[cyan]nota para {action.get('name')} (vazio=1):[/cyan] ").strip()
-    manual_value = note if note else 1
+    state = window_state(get_current_username(), data, aid)
+    console.print(f"[bold]{action.get('name')}[/bold]  "
+                  f"[dim]janela {state['window_marks']}/{state['limit']} nas últimas {state['hours']}h[/dim]")
+    for o in state["options"]:
+        console.print(f"  [yellow]{o['index'] + 1}[/yellow] {o['label']}  [dim]{o['marks']} marcas[/dim]")
+    choice = console.input("[cyan]faixa (1-6):[/cyan] ").strip()
+    if not choice.isdigit() or not 1 <= int(choice) <= len(state["options"]):
+        console.print("[red]escolha uma faixa de 1 a 6[/red]")
+        return
+    note = console.input("[cyan]nota (opcional):[/cyan] ").strip()
 
     try:
-        outcome = apply_act(
-            data,
-            aid,
-            manual_value=manual_value,
-            today_agenda_labels=_today_agenda_labels(),
-            token_cost_lookup=repos.lookup_token_cost,
-            skill_nodes_by_id=skill_nodes_by_id(),
-        )
-    except ActError as e:
+        outcome = perform_act(get_current_username(), data, aid, int(choice) - 1, note,
+                              today_labels=_today_agenda_labels(), save=save_user)
+    except (ActError, MarkError) as e:
         console.print(f"[red]{e}[/red]")
         return
 
-    save_user(data)
-    # The web client always did this; the CLI never did, so acting from the
-    # terminal paid xp and tokens but moved no attribute.
-    now = datetime.now()
-    # a patch runs on its base's contributions, then trains its own attributes
-    apply_action_contributions(get_current_username(), engine_name(data.get("actions") or {}, action),
-                               float(outcome.score_diff), now)
-    if action.get("base_action_id"):
-        apply_patch_attributes(get_current_username(), aid, float(outcome.score_diff), now)
     token_delta = (outcome.token_gain - outcome.tokens_wasted) - outcome.token_cost
-    append_log(outcome.log_content, int(round(outcome.score_diff)), token_delta)
+    append_log(outcome.log_content, outcome.marks, token_delta)
 
     parts = [
-        f"[green]+{int(round(outcome.score_diff))} xp[/green]",
+        f"[green]+{outcome.marks} marcas[/green]",
         f"[bold]{action.get('name')}[/bold]",
-        f"value={action['value']:g}",
+        f"[dim]janela {outcome.window_marks}/{state['limit']}[/dim]",
     ]
     if outcome.token_gain > 0:
         earned = outcome.token_gain - outcome.tokens_wasted
@@ -185,9 +179,6 @@ def cmd_act(data: dict) -> None:
         parts.append(f"[yellow]-{outcome.token_cost} tokens[/yellow]")
     if outcome.energy_penalty > 0:
         parts.append(f"[red]-{outcome.energy_penalty} energy[/red] (fora da agenda)")
-    mult = outcome.bonuses.get("xp_multiplier", 1.0)
-    if mult and abs(mult - 1.0) > 1e-9:
-        parts.append(f"[dim]×{mult:g}[/dim]")
     console.print(" · ".join(parts))
 
 
@@ -201,14 +192,14 @@ def cmd_logs() -> None:
     table = Table(box=box.SIMPLE, show_header=True, header_style="bold cyan")
     table.add_column("time", style="dim")
     table.add_column("content")
-    table.add_column("xp", justify="right", style="green")
+    table.add_column("marcas", justify="right", style="green")
     table.add_column("tokens", justify="right")
     for log in today_logs[-30:]:
         ts = str(log.get("timestamp", ""))
         time_part = ts.split(" : ")[1] if " : " in ts else ts
         tk = int(log.get("tokens", 0) or 0)
         token_cell = "" if tk == 0 else f"[green]+{tk}[/green]" if tk > 0 else f"[yellow]{tk}[/yellow]"
-        table.add_row(time_part, str(log.get("content", "")), f"+{log.get('xp', 0)}", token_cell)
+        table.add_row(time_part, str(log.get("content", "")), f"+{log.get('marks', 0)}", token_cell)
     console.print(table)
 
 
@@ -216,7 +207,7 @@ def cmd_status(data: dict) -> None:
     md = data.get("metadata") or {}
     info = [
         f"[cyan]user[/cyan]   {get_current_username()}",
-        f"[cyan]score[/cyan]  {data.get('score', 0):g}",
+        f"[cyan]marcas[/cyan] {data.get('marks', 0)}",
         f"[cyan]energy[/cyan] {md.get('energy', 0)}",
         f"[cyan]tokens[/cyan] {md.get('tokens', 0)}/{md.get('max_tokens', 100)}",
         f"[cyan]bp[/cyan]     {md.get('build_points', 0)}",

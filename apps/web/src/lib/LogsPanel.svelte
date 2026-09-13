@@ -260,7 +260,7 @@
                 {l.tokens > 0 ? `+${l.tokens}` : l.tokens}t
               </span>
             {/if}
-            <span class="xp">+{l.xp}</span>
+            <span class="xp">+{l.marks}</span>
           </button>
         </li>
       {/each}
@@ -274,7 +274,7 @@
       <dt>id</dt><dd>{selected.id}</dd>
       <dt>timestamp</dt><dd>{selected.timestamp}</dd>
       <dt>order</dt><dd>{selected.order}</dd>
-      <dt>xp</dt><dd>+{selected.xp}</dd>
+      <dt>marcas</dt><dd>+{selected.marks}</dd>
       {#if selected.tokens}
         <dt>tokens</dt>
         <dd class="tokens" class:spent={selected.tokens < 0}>

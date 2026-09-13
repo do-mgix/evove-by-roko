@@ -1,7 +1,7 @@
 # EVOVE
 
-Personal progression tracking system. Actions you log daily turn into experience, levels
-and scores spread across a tree of attributes.
+Personal progression tracking system. Every act you log earns marks — up to five for a
+real session — and marks move you and a tree of attributes through ranks.
 
 The repository is a monorepo with three applications sharing one domain layer and one
 database:
@@ -180,12 +180,14 @@ the files.
 backend/
   main.py                      the whole FastAPI app (routes + presentation rules)
   src/domain/                  pure rules, no I/O — shared with the CLI
-    action.py                  the Action class and the score formula
-    act.py                     the "execute an action" flow (single source of truth)
+    action.py                  the Action class (its score formula no longer pays anything)
+    marks.py                   tiers, the 6-hour window, how many marks an act yields
+    act.py                     what an act changes in the user aggregate
+    acting.py                  one act end to end — shared by the API and the CLI
     agenda.py                  matching an action against the day's agenda
-    attributes.py              the attribute graph: power, levels, degree, registration rules
+    attributes.py              the attribute graph: marks, ranks, degree, registration rules
     user_attributes.py         patches and the attributes users create for them
-    contributions.py           applies an action's stimulus to the leaves
+    contributions.py           marks reaching the leaves
     daily.py                   daily tick (token refill, checkpoint countdown)
     skills.py                  skill tree rules and bonus aggregation
     ports.py                   WebInputInterrupt — how the domain asks the host for input
@@ -214,7 +216,8 @@ CHANGELOG.md                   release history (conventional commits)
 
 The CLI imports `backend/src/domain` directly — through `sys.path` in `apps/cli/main.py`
 and `PYTHONPATH` in `apps/cli/Dockerfile`. That is why scoring, token cost and energy
-penalties behave identically in both clients: there is only one implementation.
+penalties behave identically in both clients: `src/domain/acting.py` is the only
+implementation of an act.
 
 ---
 
@@ -226,8 +229,9 @@ Enough vocabulary to read the code:
 | --- | --- |
 | **action** | something you log, with a unit type and a difficulty; executing it is called an *act* |
 | **attribute** | anything that can be trained, at any grain: Corpo, Bíceps, Força, Leitura. All the same kind of thing |
-| **leaf** | an attribute with no children — the only kind that stores a per-user score, which decays unless converted into a permanent level |
-| **power** | a leaf's score, or for any other attribute the weighted mean of its children |
+| **mark** | the unit of progress: an act picks one of its action's six tiers, worth 0–5 marks, and an action yields at most 5 every 6 hours |
+| **rank** | A→Z. Each rank asks for more marks than the last (A 3, B 4 … Z 28); reaching one is permanent |
+| **leaf** | an attribute with no children — the only kind that stores marks; any other attribute is the weighted mean of its children, rounded down |
 | **degree** | depth along primary parents, the root being 1 |
 | **patch** | a user's specialization of an owned action (*estudo → física*): acts like the base and also trains the user's own attributes |
 | **user attribute** | an attribute a user created, outside the default graph, trained only by patches |
@@ -236,8 +240,8 @@ Enough vocabulary to read the code:
 | **build points / skill points** | currencies for buying actions in the shop and nodes in the skill tree; both are paid out at checkpoints |
 | **stage / checkpoint** | a countdown that advances the profile and hands out rewards |
 
-The numbers behind all of this (score formula, decay half-lives, level thresholds,
-progression curve) live in `backend/src/domain/` and in `backend/data/*.json`.
+The numbers behind all of this (tiers, the marks window, the rank table, the progression
+curve) live in `backend/src/domain/` and in `backend/data/*.json`.
 
 ---
 
@@ -277,7 +281,7 @@ is the part exposed on a network.
 
 ### Database
 
-Twenty-three tables. Profile and content tables have an FK to `users` with delete cascade; the
+Twenty-four tables. Profile and content tables have an FK to `users` with delete cascade; the
 attribute graph and the catalog are global and shared by everyone:
 
 - profile — `users`, `user_state`, `user_tutorial`, `sequences_state`, `sessions`
@@ -286,14 +290,14 @@ attribute graph and the catalog are global and shared by everyone:
   `agenda_items`, `logs`, `projects`, `project_actions`, `project_attributes`
 - attribute graph — `attr_nodes`, `attr_edges`, `action_contributions`
 - catalog — `action_templates`, `id_class1`, `id_class2`
-- per-user derived data — `user_leaf_scores`
+- per-user progress — `user_leaf_scores`, `mark_events`
 
 Content tables also keep the logical id from the JSON era (`action_id`, `attr_id`,
 `item_id`), preserved so ids already used by the front end keep working.
 
 ### Migrations
 
-Seventeen revisions in a chain:
+Eighteen revisions in a chain:
 
 ```
 5638fb2a1810  initial schema
@@ -313,6 +317,7 @@ b4f7d2a9e6c3  passwords and sessions
 c7a3e9f1b5d8  memorable action ids: 5aa-aa-ii
 d8e4b2c6f1a3  attribute engine: one graph, no kinds
 e2c7a9d4f6b1  patches and user attributes
+f3b8d1e7a4c2  marks and ranks replace scores, levels and xp
 ```
 
 Nine of them (`b7c1`, `c8d2`, `e5a1`, `f7b3`, `b2e7`, `c4a8`, `d6b1`, `a1e5`, `c7a3`) seed
@@ -325,9 +330,10 @@ fresh install always ends where the seed says.
 ### The attribute engine
 
 There is one kind of attribute. Any attribute can have weighted children, depth has no
-limit, and a parent is worth the weighted mean of its children — `braço = antebraço·½ +
-braço·½`. A leaf is simply an attribute without children; only leaves store a score, and
-everything above them is computed on read (`compute_node_score`, memoized per request).
+limit, and a parent's marks are the weighted mean of its children's, rounded down —
+`braço = ⌊antebraço·½ + braço·½⌋`. A leaf is simply an attribute without children; only
+leaves store marks, and everything above them is computed on read (`node_total`, memoized
+per request).
 
 **Several parents, one primary.** Força draws on peitoral, dorsal and more, while peitoral
 also sits under Tronco. Each attribute has at most one *primary* parent, and the primary
@@ -336,9 +342,20 @@ Other parents are ordinary links: Físico and Mental are roots whose children ar
 tags, and each tag reaches its leaves through non-primary links with the weights it
 always had, so every tag kept its value.
 
-**Levels.** A leaf levels up through its own `max_level`. Any other attribute shows the
-weighted mean of the levels of the leveled leaves under it, provided they carry at least
-80% of its weight (`LEVELED_SHARE`); otherwise it shows its power and no level.
+**Marks and ranks.** An act's marks reach each leaf the action feeds multiplied by the
+contribution weight — a 4-mark push-up session gives Calistenia (100%) 4 and Tríceps (30%)
+1.2. Fractions accumulate; the interface shows whole marks. Marks buy ranks A→Z, rank
+index *i* asking for `3 + i` (`rank_need`), 403 to finish Z, where progress stops at 28/28.
+A leaf stores its `rank_index` and the `marks` above it; any other attribute derives both
+from its total with the same table (`rank_view`). The user page draws every attribute as
+a thick bar cut into one rounded segment per mark (`MarkBar.svelte`).
+
+**Losing marks.** Nothing decays continuously any more. A rank is a permanent checkpoint;
+the marks above it are progress that a trigger will be able to take away — the end of a
+journey stage, a soft reset, time passing — none of which exists yet. The hook does:
+`repos.lose_marks(username, rule)` with `{"kind": "all"}`, `{"kind": "fraction", …}` or
+`{"kind": "half_life"}` (using `attr_nodes.half_life_hours`, kept for this), and it never
+touches a rank.
 
 ### Registering attributes
 
@@ -365,14 +382,17 @@ python backend/scripts/attributes.py show c_longa
 
 The rule behind `subdivide` and `add`: **registering children never changes what a
 parent is worth at that moment.** On `subdivide`, every child inherits the leaf whole —
-each user's score and permanent level, and every action contribution at the same weight.
+each user's marks and rank, and every action contribution at the same weight.
 That is not a split: since the parent is a weighted *mean*, `0.6·100 + 0.4·100 = 100`,
 and each act keeps moving it exactly as before. The children start identical and
 diverge once you tune which actions feed which. On `add`, existing links are scaled by
-what the new weights leave, and each new child starts at the parent's current value.
+what the new weights leave, and each new child starts at the parent's current total.
+Because a parent rounds down, subdividing a leaf that holds a fraction (14.5 marks) leaves
+the parent at 14 — its rank and whole marks on screen stay exactly the same, and the
+fraction stays in the children.
 
 `reweight` is the exception, on purpose: it moves the parent. Links that would close a
-cycle are refused, and so is linking children onto a leaf that already holds scores —
+cycle are refused, and so is linking children onto a leaf that already holds marks —
 subdivide it instead.
 
 ### Adding actions to the catalog
@@ -389,9 +409,10 @@ a migration is how you add them. Both blocks live in
    in the shop — see below.
 2. `action_templates` — one entry per action: its `parent` (the attribute it is
    registered under), its `code` (from `attributes.py code-for PARENT`), `type` (the unit,
-   see `Action._TYPE_MAP`), `diff` 0–5, `cost` in build points to acquire it, and either
-   `token_gain` or `token_cost` — never both. An action with contributions but no
-   template still shows in the shop, but cannot be bought: with no code there is no id.
+   see `Action._TYPE_MAP`), `diff` 0–5, `cost` in build points to acquire it, either
+   `token_gain` or `token_cost` — never both — and its six `tiers` (see "Marks and
+   tiers"). An action with contributions but no template still shows in the shop, but
+   cannot be bought: with no code there is no id.
 3. Write a migration that inserts the contributions and the template, and records the
    class numbers `code-for` reported as new in `id_class1` / `id_class2`. A fresh install
    does not need it — `d8e4` brings everything in line with the seed — but the database
@@ -436,6 +457,47 @@ The web client shows ids grouped (`5 01 03 01`) and the dial filters by prefix a
 type, so `501` narrows the list to your Musculatura actions and `50103` to the ones on
 Peitoral before the seventh digit picks one.
 
+### Marks and tiers
+
+A mark is the smallest execution that counts as a real achievement. Acting means picking
+one of the action's six tiers instead of counting exactly — estudo is
+`<10m · 10–30m · 30m–1h · 1–2h · 2–3h · >3h`, worth 0 to 5 marks. Each template carries
+them in `tiers`:
+
+```json
+{ "unit": "min", "bounds": [10, 30, 60, 120, 180] }
+{ "mode": "max", "labels": ["ultraprocessado", "rápido", "simples", "caseiro", "equilibrado", "equilibrado com vegetais"] }
+```
+
+Five bounds define the six tiers and the labels are generated from the unit (`min`, `reps`,
+`km`, `m`, or any word). The 61 catalog actions got initial tiers — repetitions for
+calisthenics, km or minutes for cardio, minutes for study, dev work and leisure, cups for
+drinks, quality for meals — meant to be tuned.
+
+**The window.** An action yields at most `MARKS_PER_WINDOW` (5) marks every
+`MARK_WINDOW_HOURS` (6), counted in `mark_events`. The window is cumulative, so splitting a
+session pays nothing extra: in `sum` mode a choice is worth the lower bound of its tier,
+and the window pays the tier the total falls in minus what it already paid. Five
+"20–50" push-up records add up to 100, the 100–150 tier: +1, +0, +1, +0, +1 — 3 marks,
+not 5. One ">200" pays 5 and the action pays nothing more until the window frees up. `max`
+mode is for events that do not add up, like meals: the window pays the best tier chosen.
+A patch counts against its base's window, or two patches of one action would each get 5.
+
+**One act, end to end,** is `perform_act` in `src/domain/acting.py`, used by the API and
+the CLI alike: tiers (the base's, for a patch) → window → marks (`marks_for`) → the act on
+the aggregate (executions, marks, tokens, energy, log line `FLEXÃO [20–50] : note`) →
+save → mark event → default-graph contributions → the patch's own attributes. An invalid
+tier is refused before anything changes.
+
+**Xp is gone.** The user's progression keeps its shape — rank letters with roman levels —
+but every level costs marks: the old xp curve divided by 70, so A·I costs 3 and the whole
+of rank A about 169. `user_state.marks` holds the total and `logs.marks` what each act
+earned; the `xp` and `score` columns stay as legacy and are no longer written. The five
+"XP I–V" skills multiplied xp and have no effect until they get a new one.
+
+In the web client the act modal shows the six tiers and how many marks the window already
+holds; after dialing an id, keys 1–6 pick the tier and `Enter` acts.
+
 ### Patches and user attributes
 
 Catalog actions are engines. A **patch** specializes one the user owns without asking
@@ -445,12 +507,11 @@ action, then "+ patch": base action → name → attributes, creating them on th
 there are none. The patch then lists right under its base and acts like any action.
 
 **What an act on a patch does.** It is a row in `actions` with `base_action_id` set,
-carrying the base's `type`, `diff` and tokens, with its own progression. Contributions to
-the default graph and agenda matching use the base's name (`engine_name`), so a patch
-moves exactly the leaves its base would; its name is stored as `ESTUDO · FÍSICA`, which
+carrying the base's `type`, `diff` and tokens. Its tiers, its marks window, its contributions
+to the default graph and its agenda matching all come from the base (`engine_name`), so a
+patch moves exactly the leaves its base would; its name is stored as `ESTUDO · FÍSICA`, which
 keeps logs readable and sorts it under the base. Then `apply_patch_attributes` trains the
-patch's attributes. Web and CLI make the same two calls. Tested with two profiles, one
-acting on the base and one on its patch: same xp, tokens, energy and default-leaf scores.
+patch's attributes, inside the same `perform_act` both clients use.
 
 **Price and ids.** A patch costs the base's `cost` in build points; creating an attribute
 is free. The id is the base's seven digits plus the lowest free two, so one action takes
@@ -461,17 +522,16 @@ base and the ninth digit fires the patch.
 **User attributes** live in `user_attributes`, per user, and follow the engine's rules with
 equal weights:
 
-- only a leaf (no children) holds a score; a parent is the mean of its children;
+- only a leaf (no children) holds marks; a parent is the mean of its children, rounded down;
 - creating a child never moves the parent at that moment — the first child of a leaf
-  inherits its score and level, and a later child starts at the parent's current power;
+  inherits its marks and rank, and a later child starts at the parent's current total;
 - a patch may point at any attribute, and on each act every leaf reached from them gets
-  the **whole** stimulus once — a patch on "Ciências" trains Física and Química fully;
-- decay and levels use `CUSTOM_*` in `src/domain/attributes.py`: 90-day half-life, max
-  level 10, the most common values among practice leaves.
+  **all** of the act's marks once — a patch on "Ciências" trains Física and Química fully;
+- they rank A→Z like any attribute.
 
 **In the tree** a patch sits where its base action would, under the base's registered
 parent: `/attributes/tree` lists it in that node's `patches`, and the user page draws it
-there with its attributes. It is display only and never enters the node's power. The user
+there with its attributes. It is display only and never enters the node's marks. The user
 page also shows every user attribute under "customizados".
 
 **Why links go by text.** `repos._write_actions` deletes and reinserts every action row on
@@ -497,14 +557,10 @@ otherwise be settled by row order.
 
 ### Catalog balance
 
-Score is `value × type factor × difficulty multiplier`, and the difficulty multipliers
-jump hard (`1, 30, 120, 400, 1000, 2500`). The catalog leans on that: almost everything is
-a `session` whose value is 1 per act, so the difficulty alone sets the reward — d1 is 90
-xp, d2 is 360, d3 is 1200. Only `WATER`, `COFFEE` and `TEA` use a counted unit, where you
-log how many.
-
-A note on an act is an annotation, not a quantity: free text always adds one execution,
-and only a numeric note adds volume (`3` on a session action counts as three of them).
+What an act pays is decided by its tier — see "Marks and tiers". `type` and `diff` are
+still stored on every template and every action, but since xp became marks they no longer
+move anything: the old `value × type factor × difficulty multiplier` formula in
+`Action` is not called by acting. A note on an act is text only.
 
 Prices assume build points stay scarce: 100 at profile creation plus
 `BUILD_POINTS_PER_CHECKPOINT` (10) every checkpoint, against 240 bp to own the whole
@@ -513,7 +569,8 @@ catalog.
 ### The token economy
 
 Tokens are not handed out over time — there is no daily refill. An action either releases
-them or consumes them, flat per execution, and the note never multiplies either side:
+them or consumes them, flat per execution whatever the tier — even an act worth 0 marks —
+and the note never multiplies either side:
 
 | `token_gain` | who |
 | --- | --- |
@@ -557,14 +614,15 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 | POST | `/auth/login` | sign in (`{username, password}`) |
 | POST | `/auth/logout` | revoke the current session |
 | GET | `/auth/me` | the username behind the token |
-| GET | `/user` | full state: xp, level, rank, resources, bonuses |
+| GET | `/user` | full state: marks, rank and level, resources, bonuses |
 | GET | `/journey` | stage and time left until the next checkpoint |
-| GET | `/actions` | the profile's actions |
-| POST | `/actions/{id}/act` | execute an action (`{note}` or `{value}`) |
-| GET | `/attributes` | every leaf with its power and level |
-| GET | `/attributes/roots` | every root with power and aggregated level |
+| GET | `/actions` | the profile's actions, each with its six tiers |
+| POST | `/actions/{id}/act` | execute an action (`{option, note?}`; option is the tier, 0–5) |
+| GET | `/actions/{id}/window` | marks already earned in the action's 6-hour window, and its tiers |
+| GET | `/attributes` | every leaf with its rank and marks |
+| GET | `/attributes/roots` | every root with its rank and marks |
 | GET | `/attributes/tree` | the whole graph; each child link says its `weight` and whether it is `primary`; a node can carry `patches` |
-| GET | `/user-attributes` | the user's own attributes as a tree, with power, level and the patches that train each |
+| GET | `/user-attributes` | the user's own attributes as a tree, with rank, marks and the patches that train each |
 | POST | `/user-attributes` | create one (`{name, parent_id?}`), free |
 | POST | `/patches` | create a patch (`{base_action_id, name, attribute_ids, new_attributes}`), costs the base's price |
 | GET | `/shop/packages` | available actions grouped by theme |
@@ -599,7 +657,8 @@ the key `roko_username`; without it the user picker takes over. Two stores (`log
 
 ## Terminal client
 
-A single-key menu over the same database: `l` lists actions, `a` executes one, `g` shows
+A single-key menu over the same database: `l` lists actions, `a` executes one — listing its
+six tiers and the window, then asking which — `g` shows
 today's logs, `s` shows status, `u` switches profile, `q` quits. The profile picker holds
 up to four users and can create and delete them.
 
@@ -617,11 +676,12 @@ Known rough edges, for whoever touches this next:
   and sets `DATABASE_URL` on both services itself. Its `JWT_SECRET` is stale too: sessions
   are opaque tokens in a table, not signed ones. Nothing on the current path reads that
   file.
-- **`npm run check` reports 4 type errors** under `apps/web/src/lib/` — `api.ts:105`
-  (`stringfalso`), `api.ts:344` (`ProjectItem` does not exist; the declared type is
-  `Project`, and `/projects` returns `{items: [...]}` rather than an array), and
-  `ProjectsPanel.svelte:16` and `:44` following from it. The app still runs — Vite does
-  not type-check in `dev` — but `check` is red.
+- **`npm run check` reports 3 type errors** under `apps/web/src/lib/` — `api.ts:421`
+  (`ProjectItem` does not exist; the declared type is `Project`, and `/projects` returns
+  `{items: [...]}` rather than an array), and `ProjectsPanel.svelte:16` and `:44` following
+  from it. The app still runs — Vite does not type-check in `dev` — but `check` is red.
+- **Leftovers of xp.** The `xp`/`score` columns, `Action`'s score formula and the five
+  "XP I–V" skills remain but pay nothing; the skills need a new effect.
 - **A fourth, dead notion of attribute.** The per-user tables `attributes`,
   `attribute_actions` and `project_attributes` are still loaded and saved with every
   profile, and the legacy branch of agenda matching reads them, but nothing has filled them

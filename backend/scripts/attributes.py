@@ -74,7 +74,7 @@ def _seed() -> dict:
 
 
 def _settings(node: dict) -> dict:
-    return {k: node[k] for k in ("half_life_hours", "floor", "threshold", "max_level") if k in node}
+    return {k: node[k] for k in ("half_life_hours",) if k in node}
 
 
 def _insert_after(items: list, pred, new: list) -> None:

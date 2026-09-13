@@ -174,7 +174,7 @@ def _user_to_dict(s: Session, u: orm.User) -> dict:
         "username": u.username,
         "mode": state.mode if state else "progressive",
         "energy": state.energy if state else 1000,
-        "score": state.score if state else 0.0,
+        "marks": int(state.marks) if state else 0,
         "stage": state.stage if state else 1,
         "skill_points": state.skill_points if state else 0,
         "build_points": state.build_points if state else 0,
@@ -182,7 +182,6 @@ def _user_to_dict(s: Session, u: orm.User) -> dict:
         "max_tokens": state.max_tokens if state else 100,
         "days_until_next_checkpoint": state.days_until_next_checkpoint if state else 20,
         "last_checkpoint_check": _date_iso(state.last_checkpoint_check) if state else None,
-        "last_decay_check": _date_iso(state.last_decay_check) if state else None,
         "date": _date_iso(state.date) if state else None,
         "tutorial": {
             t.key: {"status": t.status, "priority": t.priority} for t in tutorial_rows
@@ -191,7 +190,7 @@ def _user_to_dict(s: Session, u: orm.User) -> dict:
 
     return {
         "username": u.username,
-        "score": state.score if state else 0.0,
+        "marks": int(state.marks) if state else 0,
         "value": 0,
         "attributes": attributes,
         "actions": actions,
@@ -233,7 +232,7 @@ def _write_state(s: Session, u: orm.User, data: dict):
     if state is None:
         state = orm.UserState(user_id=u.id)
         s.add(state)
-    state.score = float(data.get("score", 0) or 0)
+    state.marks = int(data.get("marks", 0) or 0)
     state.energy = int(md.get("energy", 1000) or 0)
     state.tokens = int(md.get("tokens", 50) or 0)
     state.max_tokens = int(md.get("max_tokens", 100) or 100)
@@ -244,7 +243,6 @@ def _write_state(s: Session, u: orm.User, data: dict):
     state.date = _parse_date(md.get("date")) or state.date
     state.days_until_next_checkpoint = int(md.get("days_until_next_checkpoint", 20) or 20)
     state.last_checkpoint_check = _parse_date(md.get("last_checkpoint_check"))
-    state.last_decay_check = _parse_date(md.get("last_decay_check"))
 
 
 def _write_tutorial(s: Session, u: orm.User, data: dict):
@@ -339,6 +337,7 @@ def _log_to_dict(r: orm.Log) -> dict:
         "content": r.content,
         "status": r.status,
         "xp": r.xp,
+        "marks": int(r.marks or 0),
         "tokens": r.tokens,
         "coord": [r.day_num, r.order_in_day],
     }
@@ -370,6 +369,7 @@ def save_logs(username: str, logs: list[dict]) -> None:
                 content=str(log.get("content", "") or ""),
                 status=str(log.get("status", "[CLOUD]") or "[CLOUD]")[:32],
                 xp=int(log.get("xp", 0) or 0),
+            marks=int(log.get("marks", 0) or 0),
                 tokens=int(log.get("tokens", 0) or 0),
                 day_num=day,
                 order_in_day=order,
@@ -405,6 +405,7 @@ def append_log(username: str, log: dict) -> None:
             content=str(log.get("content", "") or ""),
             status=str(log.get("status", "[CLOUD]") or "[CLOUD]")[:32],
             xp=int(log.get("xp", 0) or 0),
+            marks=int(log.get("marks", 0) or 0),
             tokens=int(log.get("tokens", 0) or 0),
             day_num=day,
             order_in_day=order,
@@ -495,6 +496,7 @@ def shift_log_day(username: str, log_id: int, delta: int) -> dict | None:
             "content": row.content,
             "status": row.status,
             "xp": row.xp,
+            "marks": int(row.marks or 0),
             "coord": [new_day, new_order],
         }
     except Exception:
@@ -841,9 +843,6 @@ def load_attr_tree():
             nodes_by_key[n.key] = Node(
                 id=n.id, key=n.key, name=n.name,
                 half_life_hours=float(n.half_life_hours or 0),
-                floor=float(n.floor or 0),
-                threshold=float(n.threshold or 0),
-                max_level=(int(n.max_level) if n.max_level is not None else None),
                 shop_group=bool(n.shop_group),
             )
             id_to_key[n.id] = n.key
@@ -889,13 +888,12 @@ def _holds_data(s: Session, node_id: int) -> bool:
 
 
 def _settings_from(n: orm.AttrNode) -> dict:
-    return {"half_life_hours": n.half_life_hours, "floor": n.floor,
-            "threshold": n.threshold, "max_level": n.max_level}
+    return {"half_life_hours": n.half_life_hours}
 
 
 def subdivide_attribute(parent_key: str, children: list[tuple[str, str, float]]) -> dict:
     """A leaf becomes a parent. Each child inherits the leaf whole: every user's
-    score and permanent level, and every action contribution at the same weight.
+    marks and rank, and every action contribution at the same weight.
     Since the parent is the weighted mean of identical children, its value — and
     how much each act moves it — is exactly what it was."""
     from src.domain.attributes import check_subdivide
@@ -913,8 +911,8 @@ def subdivide_attribute(parent_key: str, children: list[tuple[str, str, float]])
         scores = s.execute(select(orm.UserLeafScore).where(orm.UserLeafScore.leaf_id == parent.id)).scalars().all()
         for row in scores:
             for cid in new_ids:
-                s.add(orm.UserLeafScore(user_id=row.user_id, leaf_id=cid, score=row.score,
-                                        last_updated_at=row.last_updated_at, permanent_level=row.permanent_level))
+                s.add(orm.UserLeafScore(user_id=row.user_id, leaf_id=cid, marks=row.marks,
+                                        last_updated_at=row.last_updated_at, rank_index=row.rank_index))
             s.delete(row)
         contribs = s.execute(select(orm.ActionContribution).where(orm.ActionContribution.leaf_id == parent.id)).scalars().all()
         for c in contribs:
@@ -934,8 +932,8 @@ def subdivide_attribute(parent_key: str, children: list[tuple[str, str, float]])
 def add_attribute_children(parent_key: str, children: list[tuple[str, str, float]]) -> dict:
     """More children for a node that already has some. Existing links are scaled
     by what the new weights leave, and each new child starts at the parent's
-    current value for every user — so the parent does not move."""
-    from src.domain.attributes import apply_decay, check_add, compute_node_score
+    current total for every user — so the parent does not move."""
+    from src.domain.attributes import check_add, node_total, split_total, total_marks
     tree = load_attr_tree()
     room = check_add(tree, parent_key, children)
     now = datetime.now()
@@ -947,9 +945,7 @@ def add_attribute_children(parent_key: str, children: list[tuple[str, str, float
                  if k in tree.descendants(parent_key)}
         by_user: dict[int, dict[str, float]] = {}
         for row in s.execute(select(orm.UserLeafScore).where(orm.UserLeafScore.leaf_id.in_(list(under)))).scalars():
-            leaf = tree.leaves_by_id[row.leaf_id]
-            by_user.setdefault(row.user_id, {})[leaf.key] = apply_decay(
-                row.score, row.last_updated_at, now, leaf.half_life_hours, leaf.floor)
+            by_user.setdefault(row.user_id, {})[under[row.leaf_id]] = total_marks(row.marks, row.rank_index)
         s.execute(update(orm.AttrEdge).where(orm.AttrEdge.parent_id == parent.id)
                   .values(weight=orm.AttrEdge.weight * room).execution_options(synchronize_session=False))
         for key, name, weight in children:
@@ -957,9 +953,10 @@ def add_attribute_children(parent_key: str, children: list[tuple[str, str, float
             s.add(n)
             s.flush()
             s.add(orm.AttrEdge(parent_id=parent.id, child_id=n.id, weight=weight, is_primary=True))
-            for uid, scores in by_user.items():
-                s.add(orm.UserLeafScore(user_id=uid, leaf_id=n.id, score=compute_node_score(parent_key, scores, tree),
-                                        last_updated_at=now, permanent_level=0))
+            for uid, totals in by_user.items():
+                marks, rank_index = split_total(node_total(parent_key, totals, tree))
+                s.add(orm.UserLeafScore(user_id=uid, leaf_id=n.id, marks=marks,
+                                        last_updated_at=now, rank_index=rank_index))
         s.commit()
         return {"children": len(children), "scaled_by": round(room, 6), "users": len(by_user)}
     except Exception:
@@ -1107,11 +1104,11 @@ def load_all_contributions() -> dict[str, list[tuple[str, float]]]:
         s.close()
 
 
-TEMPLATE_FALLBACK = {"code": None, "parent": None, "type": 0, "diff": 1, "cost": 0, "token_cost": 0, "token_gain": 0}
+TEMPLATE_FALLBACK = {"code": None, "parent": None, "tiers": None, "type": 0, "diff": 1, "cost": 0, "token_cost": 0, "token_gain": 0}
 
 
 def load_action_templates() -> dict[str, dict]:
-    """Return {action_name_upper: {code, parent, type, diff, cost, token_cost, token_gain}}."""
+    """Return {action_name_upper: {code, parent, tiers, type, diff, cost, token_cost, token_gain}}."""
     s = SessionLocal()
     try:
         rows = s.execute(
@@ -1122,6 +1119,7 @@ def load_action_templates() -> dict[str, dict]:
             t.action_name: {
                 "code": t.code,
                 "parent": parent_key,
+                "tiers": t.tiers,
                 "type": int(t.type),
                 "diff": int(t.diff),
                 "cost": int(t.cost),
@@ -1159,7 +1157,7 @@ def lookup_token_gain(action_name: str) -> int:
 
 
 def get_user_leaf_scores(username: str) -> dict[str, dict]:
-    """Returns {leaf_key: {'score': float, 'last_updated_at': datetime, 'leaf_id': int}}."""
+    """Returns {leaf_key: {'marks': float, 'rank_index': int, 'last_updated_at', 'leaf_id'}}."""
     s = SessionLocal()
     try:
         u = _get_user(s, username)
@@ -1170,20 +1168,20 @@ def get_user_leaf_scores(username: str) -> dict[str, dict]:
             .join(orm.AttrNode, orm.UserLeafScore.leaf_id == orm.AttrNode.id)
             .where(orm.UserLeafScore.user_id == u.id)
         ).all()
-        out: dict[str, dict] = {}
-        for ls, key in rows:
-            out[key] = {
-                "score": float(ls.score),
+        return {
+            key: {
+                "marks": float(ls.marks),
+                "rank_index": int(ls.rank_index or 0),
                 "last_updated_at": ls.last_updated_at,
                 "leaf_id": ls.leaf_id,
-                "permanent_level": int(ls.permanent_level or 0),
             }
-        return out
+            for ls, key in rows
+        }
     finally:
         s.close()
 
 
-def upsert_user_leaf_score(username: str, leaf_id: int, score: float, last_updated_at: datetime, permanent_level: int = 0) -> None:
+def upsert_user_leaf_score(username: str, leaf_id: int, marks: float, last_updated_at: datetime, rank_index: int = 0) -> None:
     s = SessionLocal()
     try:
         u = _get_user(s, username)
@@ -1198,61 +1196,14 @@ def upsert_user_leaf_score(username: str, leaf_id: int, score: float, last_updat
         if existing is None:
             s.add(orm.UserLeafScore(
                 user_id=u.id, leaf_id=int(leaf_id),
-                score=float(score), last_updated_at=last_updated_at,
-                permanent_level=int(permanent_level),
+                marks=float(marks), last_updated_at=last_updated_at,
+                rank_index=int(rank_index),
             ))
         else:
-            s.execute(
-                update(orm.UserLeafScore)
-                .where(
-                    orm.UserLeafScore.user_id == u.id,
-                    orm.UserLeafScore.leaf_id == int(leaf_id),
-                )
-                .values(score=float(score), last_updated_at=last_updated_at, permanent_level=int(permanent_level))
-                .execution_options(synchronize_session=False)
-            )
+            existing.marks = float(marks)
+            existing.last_updated_at = last_updated_at
+            existing.rank_index = int(rank_index)
         s.commit()
-    except Exception:
-        s.rollback()
-        raise
-    finally:
-        s.close()
-
-
-def apply_decay_to_all_leaves(username: str, now: datetime) -> int:
-    """Apply decay to every user leaf score and stamp last_updated_at = now.
-
-    Called by daily tick. Returns count of leaves touched.
-    """
-    from src.domain.attributes import apply_decay
-
-    tree = load_attr_tree()
-    s = SessionLocal()
-    try:
-        u = _get_user(s, username)
-        if not u:
-            return 0
-        rows = s.execute(
-            select(orm.UserLeafScore).where(orm.UserLeafScore.user_id == u.id)
-        ).scalars().all()
-        touched = 0
-        for ls in rows:
-            leaf = tree.leaves_by_id.get(ls.leaf_id)
-            if leaf is None:
-                continue
-            new_score = apply_decay(
-                float(ls.score), ls.last_updated_at, now,
-                leaf.half_life_hours, leaf.floor,
-            )
-            s.execute(
-                update(orm.UserLeafScore)
-                .where(orm.UserLeafScore.id == ls.id)
-                .values(score=new_score, last_updated_at=now)
-                .execution_options(synchronize_session=False)
-            )
-            touched += 1
-        s.commit()
-        return touched
     except Exception:
         s.rollback()
         raise
@@ -1269,8 +1220,8 @@ def apply_decay_to_all_leaves(username: str, now: datetime) -> int:
 def _user_attr_dicts(s: Session, user_id: int) -> list[dict]:
     rows = s.execute(select(orm.UserAttribute).where(orm.UserAttribute.user_id == user_id)).scalars().all()
     return [
-        {"id": r.id, "parent_id": r.parent_id, "name": r.name, "score": float(r.score),
-         "permanent_level": int(r.permanent_level), "last_updated_at": r.last_updated_at}
+        {"id": r.id, "parent_id": r.parent_id, "name": r.name, "marks": float(r.marks),
+         "rank_index": int(r.rank_index), "last_updated_at": r.last_updated_at}
         for r in rows
     ]
 
@@ -1312,17 +1263,18 @@ def _insert_user_attribute(s: Session, u: orm.User, name, parent_id: int | None,
     if taken:
         raise PatchError(f"attribute '{name}' already exists", 409)
 
-    fields = {"score": 0.0, "permanent_level": 0, "last_updated_at": now}
+    fields = {"marks": 0.0, "rank_index": 0}
     if parent_id is not None:
         attrs = _user_attr_dicts(s, u.id)
         by_id = {a["id"]: a for a in attrs}
         if parent_id not in by_id:
             raise PatchError(f"attribute {parent_id} not found", 404)
-        fields, inherits = new_child_start(by_id[parent_id], by_id, children_of(attrs), now)
+        fields, inherits = new_child_start(by_id[parent_id], by_id, children_of(attrs))
         if inherits:
             parent = s.get(orm.UserAttribute, parent_id)
-            parent.score, parent.permanent_level, parent.last_updated_at = 0.0, 0, now
-    row = orm.UserAttribute(user_id=u.id, parent_id=parent_id, name=name, created_at=now, **fields)
+            parent.marks, parent.rank_index, parent.last_updated_at = 0.0, 0, now
+    row = orm.UserAttribute(user_id=u.id, parent_id=parent_id, name=name, created_at=now,
+                            last_updated_at=now, **fields)
     s.add(row)
     s.flush()
     return row
@@ -1427,14 +1379,92 @@ def save_user_attribute_scores(username: str, updates: dict[int, tuple[float, in
     s = SessionLocal()
     try:
         u = _get_user(s, username)
-        for aid, (score, perm) in updates.items():
+        for aid, (marks, rank_index) in updates.items():
             s.execute(
                 update(orm.UserAttribute)
                 .where(orm.UserAttribute.id == aid, orm.UserAttribute.user_id == u.id)
-                .values(score=score, permanent_level=perm, last_updated_at=now)
+                .values(marks=marks, rank_index=rank_index, last_updated_at=now)
                 .execution_options(synchronize_session=False)
             )
         s.commit()
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+# ---------- marks ----------
+
+def load_mark_window(username: str, engine_action_id: str, since: datetime) -> list[dict]:
+    """Events of one action's window after `since`, oldest first: [{amount, marks}]."""
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        if not u:
+            return []
+        rows = s.execute(
+            select(orm.MarkEvent.amount, orm.MarkEvent.marks)
+            .where(orm.MarkEvent.user_id == u.id,
+                   orm.MarkEvent.engine_action_id == engine_action_id,
+                   orm.MarkEvent.acted_at > since)
+            .order_by(orm.MarkEvent.acted_at, orm.MarkEvent.id)
+        ).all()
+        return [{"amount": float(a), "marks": int(m)} for a, m in rows]
+    finally:
+        s.close()
+
+
+def record_mark_event(username: str, engine_action_id: str, action_id: str, acted_at: datetime,
+                      option_index: int, amount: float, marks: int) -> None:
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        s.add(orm.MarkEvent(user_id=u.id, engine_action_id=engine_action_id, action_id=action_id,
+                            acted_at=acted_at, option_index=int(option_index),
+                            amount=float(amount), marks=int(marks)))
+        s.commit()
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+def lose_marks(username: str, rule: dict, now: datetime | None = None) -> int:
+    """Take progress marks away from every attribute a user has — the default graph
+    and their own — never a rank. Returns how many rows changed.
+
+    Nothing calls this yet: it is where a trigger (the end of a journey stage, a soft
+    reset, time passing) plugs in. See attributes.lose_progress for the rules.
+    """
+    from src.domain.attributes import lose_progress
+    from src.domain.user_attributes import CUSTOM_HALF_LIFE_HOURS
+
+    now = now or datetime.now()
+    tree = load_attr_tree()
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        if not u:
+            return 0
+        changed = 0
+        leaf_rows = s.execute(select(orm.UserLeafScore).where(orm.UserLeafScore.user_id == u.id)).scalars()
+        for row in leaf_rows:
+            leaf = tree.leaves_by_id.get(row.leaf_id)
+            left = lose_progress(float(row.marks), rule, row.last_updated_at, now,
+                                 leaf.half_life_hours if leaf else 0.0)
+            if abs(left - row.marks) > 1e-12:
+                row.marks, row.last_updated_at = left, now
+                changed += 1
+        attr_rows = s.execute(select(orm.UserAttribute).where(orm.UserAttribute.user_id == u.id)).scalars()
+        for row in attr_rows:
+            left = lose_progress(float(row.marks), rule, row.last_updated_at, now, CUSTOM_HALF_LIFE_HOURS)
+            if abs(left - row.marks) > 1e-12:
+                row.marks, row.last_updated_at = left, now
+                changed += 1
+        s.commit()
+        return changed
     except Exception:
         s.rollback()
         raise

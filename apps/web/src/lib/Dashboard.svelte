@@ -6,6 +6,7 @@
     fetchUser,
     fetchAgendaToday,
     actOnAction,
+    fetchActionWindow,
     formatCode,
     type Action,
     type UserState,
@@ -33,12 +34,15 @@
   let inputEl: HTMLInputElement;
   let selectedAction: Action | null = null;
   let acting: string | null = null;
-  let lastAct: { name: string; diff: number } | null = null;
+  let lastAct: { name: string; marks: number; window: number } | null = null;
   let lastActTimer: any = null;
   let lastUserVersion = 0;
   let pendingNoteFor: Action | null = null;
   let noteValue = "";
   let noteInputEl: HTMLInputElement | undefined;
+  let chosenTier: number | null = null;
+  let windowMarks: number | null = null;
+  let tiersEl: HTMLDivElement | undefined;
 
   // ---- responsive ----
   const MOBILE_QUERY = "(max-width: 768px)";
@@ -162,19 +166,28 @@
   function promptNote(action: Action) {
     pendingNoteFor = action;
     noteValue = "";
-    setTimeout(() => noteInputEl?.focus(), 0);
+    chosenTier = null;
+    windowMarks = null;
+    fetchActionWindow(action.id)
+      .then((w) => {
+        if (pendingNoteFor?.id === action.id) windowMarks = w.window_marks;
+      })
+      .catch(() => {});
+    // focus the tiers, not the note: after dialing an id, a digit picks the tier
+    setTimeout(() => tiersEl?.focus(), 0);
   }
 
   async function confirmNote() {
-    if (!pendingNoteFor) return;
+    if (!pendingNoteFor || chosenTier === null) return;
     const action = pendingNoteFor;
+    const option = chosenTier;
     const note = noteValue.trim();
     pendingNoteFor = null;
     noteValue = "";
-    await doAct(action, note ? { note } : {});
+    await doAct(action, note ? { option, note } : { option });
   }
 
-  async function doAct(action: Action, opts: { value?: number; note?: string } = {}) {
+  async function doAct(action: Action, opts: { option: number; note?: string }) {
     if (acting) return;
     acting = action.id;
     try {
@@ -184,7 +197,7 @@
         actions[idx] = { ...actions[idx], value: res.value, score: res.score };
         actions = actions;
       }
-      lastAct = { name: res.name, diff: Math.round(res.score_diff) };
+      lastAct = { name: res.name, marks: res.marks, window: res.window_marks };
       bumpLogs();
       bumpUser();
       if (lastActTimer) clearTimeout(lastActTimer);
@@ -203,6 +216,20 @@
     if (e.key === "Enter" && filtered.length === 1) {
       promptNote(filtered[0]);
       query = "";
+    }
+  }
+
+  /** 1–6 pick a tier, Enter acts, Escape closes — while focus is on the tiers. */
+  function onTierKey(e: KeyboardEvent) {
+    const count = pendingNoteFor?.tiers?.length ?? 0;
+    if (e.key >= "1" && e.key <= String(count)) {
+      e.preventDefault();
+      chosenTier = Number(e.key) - 1;
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      confirmNote();
+    } else if (e.key === "Escape") {
+      pendingNoteFor = null;
     }
   }
 
@@ -346,7 +373,7 @@
       <span class="sb-sep">·</span>
       <span class="sb-item"><span class="sb-label">energia</span>{user.energy}</span>
       {#if lastAct}
-        <span class="sb-act">+{lastAct.diff} xp · {lastAct.name}</span>
+        <span class="sb-act">+{lastAct.marks} {lastAct.marks === 1 ? "marca" : "marcas"} · {lastAct.name} · {lastAct.window}/5 na janela</span>
       {/if}
     </div>
   {/if}
@@ -475,19 +502,38 @@
 </div>
 
 {#if pendingNoteFor}
-  <Modal title="nota" onClose={() => (pendingNoteFor = null)}>
+  <Modal title="agir" onClose={() => (pendingNoteFor = null)}>
     <p class="note-target">para <span class="hl">{pendingNoteFor.name}</span></p>
-    <p class="note-hint">número ou texto · Valor padrão 1 · Enter para confirmar</p>
+    <p class="note-hint">
+      teclas 1–6 · enter para agir · {windowMarks === null ? "…" : `${windowMarks}/5 marcas nas últimas 6h`}
+    </p>
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+    <div class="tiers" tabindex="0" role="radiogroup" aria-label="faixa" bind:this={tiersEl} on:keydown={onTierKey}>
+      {#each pendingNoteFor.tiers ?? [] as t (t.index)}
+        <button
+          class="tier"
+          class:chosen={chosenTier === t.index}
+          role="radio"
+          aria-checked={chosenTier === t.index}
+          on:click={() => (chosenTier = t.index)}
+        >
+          <span class="tier-key">{t.index + 1}</span>
+          <span class="tier-label">{t.label}</span>
+          <span class="tier-marks">{t.marks}</span>
+        </button>
+      {/each}
+    </div>
     <input
       class="note-input"
       type="text"
+      placeholder="nota (opcional)"
       bind:value={noteValue}
       bind:this={noteInputEl}
       on:keydown={onNoteKey}
     />
     <div class="confirm-row">
       <button class="ghost" on:click={() => (pendingNoteFor = null)}>cancelar</button>
-      <button class="primary" on:click={confirmNote} disabled={acting !== null}>
+      <button class="primary" on:click={confirmNote} disabled={acting !== null || chosenTier === null}>
         {acting ? "..." : "agir"}
       </button>
     </div>
@@ -501,8 +547,8 @@
       <dt>name</dt><dd class="hl">{selectedAction.name}</dd>
       <dt>type</dt><dd>{TYPE_LABEL[selectedAction.type] ?? selectedAction.type}</dd>
       <dt>diff</dt><dd>d{selectedAction.diff}</dd>
-      <dt>value</dt><dd>{selectedAction.value}</dd>
-      <dt>score</dt><dd>{selectedAction.score} xp</dd>
+      <dt>execuções</dt><dd>{selectedAction.value}</dd>
+      <dt>marcas</dt><dd>{selectedAction.score}</dd>
       {#if selectedAction.token_gain}<dt>rende</dt><dd>+{selectedAction.token_gain} tokens</dd>{/if}
       {#if selectedAction.token_cost}<dt>consome</dt><dd>{selectedAction.token_cost} tokens</dd>{/if}
       {#if selectedAction.attributes?.length}
@@ -881,4 +927,33 @@
   /* a patch sits right under its base, one step in */
   .actions li.patch .name { position: relative; padding-left: 0.9rem; }
   .actions li.patch .name::before { content: "↳"; position: absolute; left: 0; color: #808080; }
+  .tiers {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.4rem;
+    margin: 0 0 0.85rem;
+    outline: none;
+  }
+  .tier {
+    display: flex;
+    align-items: baseline;
+    gap: 0.45rem;
+    background: #000000;
+    border: 1px solid #333333;
+    border-radius: 6px;
+    color: #ffffff;
+    padding: 0.55rem 0.6rem;
+    font: inherit;
+    font-size: 0.85rem;
+    text-align: left;
+    cursor: pointer;
+  }
+  .tier:hover { border-color: #808080; }
+  .tier.chosen { border-color: #00e5ff; color: #00e5ff; }
+  .tier-key { color: #808080; font-size: 0.7rem; }
+  .tier-label { flex: 1; min-width: 0; }
+  .tier-marks { color: #00e5ff; font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+  @media (max-width: 520px) {
+    .tiers { grid-template-columns: repeat(2, 1fr); }
+  }
 </style>

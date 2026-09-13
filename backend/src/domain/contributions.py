@@ -1,54 +1,40 @@
-"""Apply action stimulus to leaves with lazy decay + threshold."""
+"""Marks reaching attributes after an act."""
 from __future__ import annotations
 
 from datetime import datetime
 
-from src.domain.attributes import apply_decay, apply_level_ups
+from src.domain.attributes import apply_rank_ups
 from src.infrastructure import repos
 
 
-def apply_action_contributions(username: str, action_name: str, score_diff: float, now: datetime) -> int:
-    """For each leaf contribution of `action_name`, apply lazy decay then add weighted stimulus.
-
-    Returns number of leaves stimulated (above threshold).
-    """
+def apply_action_contributions(username: str, action_name: str, marks: int, now: datetime) -> int:
+    """Each leaf `action_name` feeds receives marks × weight. Fractions accumulate;
+    the interface shows whole marks. Returns how many leaves moved."""
+    if marks <= 0:
+        return 0
     contribs = repos.load_action_contributions(action_name)
     if not contribs:
         return 0
-
     tree = repos.load_attr_tree()
     current = repos.get_user_leaf_scores(username)
     touched = 0
     for leaf_id, leaf_key, weight in contribs:
-        leaf = tree.leaves_by_key.get(leaf_key)
-        if leaf is None:
+        if leaf_key not in tree.leaves_by_key:
             continue
-        stimulus = float(score_diff) * float(weight)
-        if stimulus < leaf.threshold:
-            continue
-        cur = current.get(leaf_key)
-        if cur is None:
-            base_score = leaf.floor
-            perm = 0
-        else:
-            base_score = apply_decay(
-                cur["score"], cur["last_updated_at"], now,
-                leaf.half_life_hours, leaf.floor,
-            )
-            perm = int(cur.get("permanent_level", 0) or 0)
-        new_score = base_score + stimulus
-        if leaf.max_level is not None:
-            new_score, perm = apply_level_ups(new_score, perm, leaf.max_level)
-        repos.upsert_user_leaf_score(username, leaf_id, new_score, now, perm)
+        cur = current.get(leaf_key) or {"marks": 0.0, "rank_index": 0}
+        new_marks, rank_index = apply_rank_ups(float(cur["marks"]) + marks * float(weight), int(cur["rank_index"]))
+        repos.upsert_user_leaf_score(username, leaf_id, new_marks, now, rank_index)
         touched += 1
     return touched
 
 
-def apply_patch_attributes(username: str, patch_action_id: str, score_diff: float, now: datetime) -> int:
-    """Train a patch's own attributes: every leaf reached from them receives the
-    whole stimulus, once. Returns how many leaves moved."""
+def apply_patch_attributes(username: str, patch_action_id: str, marks: int, now: datetime) -> int:
+    """Train a patch's own attributes: every leaf reached from them receives all of
+    the act's marks, once. Returns how many leaves moved."""
     from src.domain.user_attributes import children_of, reached_leaves, stimulate
 
+    if marks <= 0:
+        return 0
     links = repos.load_patch_links(username).get(patch_action_id)
     if not links:
         return 0
@@ -57,7 +43,7 @@ def apply_patch_attributes(username: str, patch_action_id: str, score_diff: floa
     kids = children_of(attrs)
     updates: dict[int, tuple[float, int]] = {}
     for leaf_id in reached_leaves([a for a in links if a in by_id], kids):
-        result = stimulate(by_id[leaf_id], float(score_diff), now)
+        result = stimulate(by_id[leaf_id], marks)
         if result is not None:
             updates[leaf_id] = result
     if updates:

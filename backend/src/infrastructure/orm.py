@@ -16,7 +16,9 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
+    JSON,
     String,
     Text,
     UniqueConstraint,
@@ -64,7 +66,8 @@ class UserState(Base):
     __tablename__ = "user_state"
 
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-    score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)   # legacy xp, no longer written
+    marks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     energy: Mapped[int] = mapped_column(Integer, default=1000, nullable=False)
     tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     max_tokens: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
@@ -74,7 +77,6 @@ class UserState(Base):
     mode: Mapped[str] = mapped_column(String(32), default="progressive", nullable=False)
     days_until_next_checkpoint: Mapped[int] = mapped_column(Integer, default=20, nullable=False)
     last_checkpoint_check: Mapped[date | None] = mapped_column(Date, nullable=True)
-    last_decay_check: Mapped[date | None] = mapped_column(Date, nullable=True)
     date: Mapped[date] = mapped_column(Date, server_default=text("(CURRENT_DATE)"), nullable=False)
     user: Mapped[User] = relationship(back_populates="state")
 
@@ -151,9 +153,10 @@ class AttributeAction(Base):
 class AttrNode(Base):
     """An attribute. All attributes are the same kind of thing: any of them can
     have weighted children, and one without children is a leaf — the only place
-    a score is stored. Seeded from attributes_tree.json.
+    marks are stored. Seeded from attributes_tree.json.
 
-    The decay and level settings take effect only while the node is a leaf.
+    `half_life_hours` is kept for a future time-based loss of marks; nothing reads
+    it continuously.
     """
     __tablename__ = "attr_nodes"
 
@@ -161,9 +164,6 @@ class AttrNode(Base):
     key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     half_life_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
-    floor: Mapped[float | None] = mapped_column(Float, nullable=True)
-    threshold: Mapped[float | None] = mapped_column(Float, nullable=True)
-    max_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Display only: the shop files an action under the practice roots marked here.
     # Scores, degrees and ids never read it.
     shop_group: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -219,19 +219,23 @@ class ActionTemplate(Base):
     cost: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     token_cost: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     token_gain: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Six tiers worth 0-5 marks: {"unit", "bounds": [5]} or {"mode": "max", "labels": [6]}.
+    # See src.domain.marks.
+    tiers: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 # user leaf relation - level and score
 class UserLeafScore(Base):
-    """Per-user accumulated score for each leaf, with last update timestamp for decay."""
+    """A user's marks on a leaf: the rank reached (a permanent checkpoint) and the
+    marks above it, with fractions from weighted contributions."""
     __tablename__ = "user_leaf_scores"
     __table_args__ = (UniqueConstraint("user_id", "leaf_id", name="uq_user_leaf"),)
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     leaf_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("attr_nodes.id", ondelete="CASCADE"), nullable=False, index=True)
-    score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    marks: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     last_updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-    permanent_level: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    rank_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
 # registered class numbers for action codes (5 · class1 · class2 · position)
 class IdClass1(Base):
@@ -290,7 +294,8 @@ class Log(Base):
     timestamp: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="[CLOUD]", nullable=False)
-    xp: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    xp: Mapped[int] = mapped_column(Integer, default=0, nullable=False)   # legacy, no longer written
+    marks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     day_num: Mapped[int] = mapped_column(Integer, default=0, nullable=False, index=True)
     order_in_day: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -340,8 +345,8 @@ class UserAttribute(Base):
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     parent_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("user_attributes.id", ondelete="CASCADE"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(64), nullable=False)
-    score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
-    permanent_level: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    marks: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    rank_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     last_updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
@@ -355,3 +360,20 @@ class PatchAttribute(Base):
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     patch_action_id: Mapped[str] = mapped_column(String(16), primary_key=True)
     user_attribute_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("user_attributes.id", ondelete="CASCADE"), primary_key=True)
+
+
+# one act as the marks window sees it
+class MarkEvent(Base):
+    """What each act added to its action's window. `engine_action_id` is the base's
+    id for a patch, so a patch and its base share one window."""
+    __tablename__ = "mark_events"
+    __table_args__ = (Index("ix_mark_events_window", "user_id", "engine_action_id", "acted_at"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    engine_action_id: Mapped[str] = mapped_column(String(16), nullable=False)
+    action_id: Mapped[str] = mapped_column(String(16), nullable=False)
+    acted_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    option_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    marks: Mapped[int] = mapped_column(Integer, nullable=False)

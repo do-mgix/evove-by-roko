@@ -11,6 +11,7 @@
   } from "./api";
   import { userVersion } from "./store";
   import AttrTree from "./AttrTree.svelte";
+  import MarkBar from "./MarkBar.svelte";
 
   let user: UserState | null = null;
   let roots: AttrNode[] = [];
@@ -43,12 +44,6 @@
     if (lastVersion > 0) load();
   }
 
-  // Scale for attributes with no level to show: bars are relative to the strongest root.
-  $: maxPower = roots.reduce((m, r) => Math.max(m, r.power), 1) || 1;
-  $: customMax = custom.reduce((m, a) => Math.max(m, a.power), 1) || 1;
-  $: xpProgress = user && user.xp_cost > 0
-    ? Math.max(0, Math.min(100, ((user.xp_cost - user.next_xp) / user.xp_cost) * 100))
-    : 100;
 </script>
 
 <section class="page">
@@ -73,13 +68,11 @@
 
     <section class="xp-card">
       <div class="xp-row">
-        <span class="muted">xp</span>
-        <span class="xp-val">{user.xp.toLocaleString()}</span>
-        <span class="muted">→ próximo: {user.next_xp.toLocaleString()}</span>
+        <span class="muted">marcas</span>
+        <span class="xp-val">{user.marks.toLocaleString()}</span>
+        <span class="muted">· nível {user.local_level_roman}: {user.level_marks}/{user.level_cost}</span>
       </div>
-      <div class="xp-bar">
-        <div class="fill" style="width: {xpProgress}%"></div>
-      </div>
+      <MarkBar marks={user.level_marks} need={user.level_cost} size="lg" />
     </section>
 
     <section class="grid">
@@ -130,7 +123,7 @@
         <h2>atributos</h2>
         <ul class="tree">
           {#each roots as r (r.key)}
-            <AttrTree node={r} {maxPower} />
+            <AttrTree node={r} />
           {/each}
         </ul>
       </section>
@@ -141,7 +134,7 @@
       {#if custom.length > 0}
         <ul class="tree">
           {#each custom as a (a.id)}
-            <AttrTree node={userAttrAsNode(a)} maxPower={customMax} />
+            <AttrTree node={userAttrAsNode(a)} />
           {/each}
         </ul>
       {:else}
@@ -225,12 +218,7 @@
     font-weight: bold;
     font-size: 1.1rem;
   }
-  .xp-bar {
-    height: 5px;
-    background: #333333;
-    border-radius: 2px;
-    overflow: hidden;
-  }
+
   .fill {
     height: 100%;
     background: #00e5ff;

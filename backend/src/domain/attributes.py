@@ -1,9 +1,14 @@
-"""The attribute graph: decay, levels and aggregated power.
+"""The attribute graph: marks, ranks and aggregation.
 
 Every attribute is the same kind of thing. Any attribute can have weighted
-children; one without children is a leaf, and leaves are the only place a
-score is stored. Everything else is computed: a parent's power is the weighted
-mean of its children's, so `braço = antebraço·½ + braço·½`.
+children; one without children is a leaf, and leaves are the only place marks
+are stored. A parent's total is the weighted mean of its children's totals,
+rounded down, so `braço = ⌊antebraço·½ + braço·½⌋`.
+
+Marks move an attribute through ranks A→Z: rank index i asks for `3 + i` marks
+(A 0/3, B 0/4 … Z 0/28, 403 in all). A rank is a permanent checkpoint. The marks
+above it are progress that later triggers may take away (`lose_progress`), never
+the rank itself.
 
 A node may have several parents (Força draws on peitoral, which also sits under
 Tronco) but at most one *primary* parent. The primary chain defines its degree:
@@ -17,43 +22,99 @@ from datetime import datetime
 from functools import cached_property
 
 
-LEVEL_BASE = 100
-LEVELED_SHARE = 0.8   # a node shows a level when leveled leaves carry this much of its weight
 WEIGHT_TOLERANCE = 1e-3
+_EPS = 1e-9
 
-# Attributes a user creates for patches live outside the graph and carry no
-# settings of their own. They use the values most common among practice leaves.
-CUSTOM_HALF_LIFE_HOURS = 2160.0
-CUSTOM_FLOOR = 0.0
-CUSTOM_THRESHOLD = 1.0
-CUSTOM_MAX_LEVEL = 10
+RANK_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+MAX_RANK = len(RANK_LETTERS) - 1
 
 
-def level_threshold(next_level: int) -> float:
-    """Superficial score required to advance from (next_level - 1) into next_level."""
-    return LEVEL_BASE * next_level * next_level
+# ---------------------------------------------------------------- ranks
+
+def rank_need(rank_index: int) -> int:
+    """Marks rank `rank_index` asks for before the next one: A 3, B 4 … Z 28."""
+    return 3 + rank_index
 
 
-def apply_level_ups(score: float, permanent_level: int, max_level: int) -> tuple[float, int]:
-    """Consume superficial score into permanent levels until insufficient or capped.
-
-    Returns (remaining_score, new_permanent_level). Multiple level-ups possible in one call.
-    """
-    while permanent_level < max_level and score >= level_threshold(permanent_level + 1):
-        score -= level_threshold(permanent_level + 1)
-        permanent_level += 1
-    return score, permanent_level
+def rank_base(rank_index: int) -> int:
+    """Marks spent on every rank below `rank_index`."""
+    return sum(rank_need(i) for i in range(rank_index))
 
 
-def apply_decay(score: float, last_updated: datetime, now: datetime,
-                half_life_hours: float, floor: float) -> float:
+RANK_TOTAL = rank_base(MAX_RANK) + rank_need(MAX_RANK)
+
+
+def apply_rank_ups(marks: float, rank_index: int) -> tuple[float, int]:
+    """Spend marks on ranks while they cover the current one. Returns (marks left,
+    rank index). At Z the progress stops at 28/28."""
+    while rank_index < MAX_RANK and marks + _EPS >= rank_need(rank_index):
+        marks -= rank_need(rank_index)
+        rank_index += 1
+    if rank_index == MAX_RANK:
+        marks = min(marks, float(rank_need(MAX_RANK)))
+    return max(0.0, marks), rank_index
+
+
+def total_marks(marks: float, rank_index: int) -> float:
+    return rank_base(rank_index) + marks
+
+
+def split_total(total: float) -> tuple[float, int]:
+    return apply_rank_ups(max(0.0, total), 0)
+
+
+def rank_view(total: float) -> dict:
+    """What the interface shows for any attribute holding `total` marks."""
+    marks, rank_index = split_total(total)
+    need = rank_need(rank_index)
+    return {
+        "rank": RANK_LETTERS[rank_index],
+        "rank_index": rank_index,
+        "marks": int(math.floor(marks + _EPS)),
+        "need": need,
+        "total_marks": int(math.floor(total + _EPS)),
+        "max": rank_index == MAX_RANK and marks + _EPS >= need,
+    }
+
+
+# ---------------------------------------------------------------- losing marks
+
+def apply_decay(value: float, last_updated: datetime, now: datetime,
+                half_life_hours: float, floor: float = 0.0) -> float:
+    """Half-life math. Nothing decays continuously any more; this stays for a
+    time-based trigger (see `lose_progress`)."""
     if half_life_hours <= 0:
-        return score
+        return value
     dh = (now - last_updated).total_seconds() / 3600.0
     if dh <= 0:
-        return score
-    decayed = score * (0.5 ** (dh / half_life_hours))
-    return max(floor, decayed)
+        return value
+    return max(floor, value * (0.5 ** (dh / half_life_hours)))
+
+
+def lose_progress(marks: float, rule: dict, last_updated: datetime | None = None,
+                  now: datetime | None = None, half_life_hours: float = 0.0) -> float:
+    """Marks left above the rank checkpoint after a loss — the rank never moves.
+
+    Nothing calls this yet. It is the hook for triggers still to be defined: the
+    end of a journey stage, a soft reset, time passing. Rules:
+      {"kind": "all"}                        every mark above the rank
+      {"kind": "fraction", "fraction": 0.5}  a share of them
+      {"kind": "half_life"}                  decay since `last_updated`, by the
+                                             attribute's half-life
+    """
+    kind = rule.get("kind")
+    if kind == "all":
+        return 0.0
+    if kind == "fraction":
+        f = float(rule.get("fraction", 0))
+        if not 0.0 <= f <= 1.0:
+            raise ValueError("fraction must be between 0 and 1")
+        return marks * (1.0 - f)
+    if kind == "half_life":
+        if last_updated is None or now is None:
+            raise ValueError("half_life needs last_updated and now")
+        return apply_decay(marks, last_updated, now, half_life_hours)
+    raise ValueError(f"unknown loss rule {kind!r}")
 
 
 # ---------------------------------------------------------------- graph
@@ -64,9 +125,6 @@ class Node:
     key: str
     name: str
     half_life_hours: float = 0.0
-    floor: float = 0.0
-    threshold: float = 0.0
-    max_level: int | None = None
     shop_group: bool = False
 
 
@@ -123,77 +181,30 @@ class Tree:
         return seen
 
 
-def compute_node_score(node_key: str, leaf_scores: dict[str, float], tree: Tree,
-                       memo: dict[str, float] | None = None) -> float:
-    """Power of a node: its own score if it is a leaf, else the weighted mean of its
-    children. Pass a shared `memo` when computing many nodes — shared subtrees are
-    then evaluated once."""
+def node_total(node_key: str, leaf_totals: dict[str, float], tree: Tree,
+               memo: dict[str, float] | None = None) -> float:
+    """Total marks of a node: a leaf's own, or the weighted mean of its children's
+    rounded down. Pass a shared `memo` when computing many nodes."""
     if memo is None:
         memo = {}
-    return _score(node_key, leaf_scores, tree, memo, frozenset())
+    return _total(node_key, leaf_totals, tree, memo, frozenset())
 
 
-def _score(key, leaf_scores, tree, memo, path) -> float:
+def _total(key, leaf_totals, tree, memo, path) -> float:
     if key in memo:
         return memo[key]
-    node = tree.nodes_by_key.get(key)
-    if node is None:
+    if key not in tree.nodes_by_key:
         return 0.0
     kids = tree.children.get(key)
     if not kids:
-        value = leaf_scores.get(key, node.floor)
+        value = float(leaf_totals.get(key, 0.0))
     else:
         if key in path:
             raise ValueError(f"cycle through {key}")
         inner = path | {key}
-        value = sum(w * _score(c, leaf_scores, tree, memo, inner) for c, w in kids)
+        value = float(math.floor(sum(w * _total(c, leaf_totals, tree, memo, inner) for c, w in kids) + _EPS))
     memo[key] = value
     return value
-
-
-def weighted_leaves(tree: Tree, key: str) -> list[tuple[str, float]]:
-    """Every leaf under `key` with its effective weight — the product of the link
-    weights along the way, summed over every path that reaches it."""
-    acc: dict[str, float] = {}
-
-    def walk(k: str, w: float, path: frozenset):
-        if tree.is_leaf(k):
-            acc[k] = acc.get(k, 0.0) + w
-            return
-        if k in path:
-            raise ValueError(f"cycle through {k}")
-        for c, cw in tree.children.get(k, []):
-            walk(c, w * cw, path | {k})
-
-    walk(key, 1.0, frozenset())
-    return list(acc.items())
-
-
-def aggregate_level(tree: Tree, key: str, leaf_scores: dict[str, float],
-                    leaf_perm: dict[str, int]) -> dict | None:
-    """Level of any node: the weighted mean of its leveled leaves' levels.
-
-    A leaf with no `max_level` has no level at all. An internal node shows one only
-    when leveled leaves carry at least LEVELED_SHARE of its weight; otherwise None.
-    """
-    total = leveled = lvl = prog = 0.0
-    max_lvl = 0
-    for lk, w in weighted_leaves(tree, key):
-        total += w
-        leaf = tree.nodes_by_key[lk]
-        if leaf.max_level is None:
-            continue
-        leveled += w
-        perm = leaf_perm.get(lk, 0)
-        lvl += w * perm
-        if perm >= leaf.max_level:
-            prog += w
-        else:
-            prog += w * max(0.0, min(1.0, leaf_scores.get(lk, 0.0) / level_threshold(perm + 1)))
-        max_lvl = max(max_lvl, leaf.max_level)
-    if total <= 0 or leveled / total < LEVELED_SHARE:
-        return None
-    return {"level": lvl / leveled, "max_level": max_lvl, "progress_to_next": prog / leveled}
 
 
 # ---------------------------------------------------------------- action ids

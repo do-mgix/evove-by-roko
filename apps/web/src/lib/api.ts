@@ -103,6 +103,7 @@ export type Action = {
   score: number;
   token_cost: number;
   token_gain: number;
+  tiers?: TierOption[];
   // patches only
   base_action_id?: string;
   attributes?: { id: number; name: string }[];
@@ -115,19 +116,22 @@ export async function fetchActions(): Promise<Action[]>{
 };
 
 export type ActResult = {
-  id: stringfalso;
+  id: string;
   name: string;
-  value: number;
-  score: number;
-  score_diff: number;
-  user_score: number;
+  value: number;          // executions of this action
+  score: number;          // marks earned on this action
+  marks: number;          // marks this act yielded
+  nominal: number;        // marks the chosen tier is worth on its own
+  window_marks: number;   // marks in the action's window after this act
+  window_limit: number;
+  user_marks: number;
   token_gain: number;
   token_cost: number;
   tokens_wasted: number;
   tokens: number;
 };
 
-export async function actOnAction(id: string, opts: { value?: number; note?: string } = {}): Promise<ActResult> {
+export async function actOnAction(id: string, opts: { option: number; note?: string }): Promise<ActResult> {
   const res = await request(`/actions/${id}/act`, { method: "POST", body: JSON.stringify(opts) });
   if (!res.ok) {
     const detail = await res.json().catch(() => ({}));
@@ -136,18 +140,29 @@ export async function actOnAction(id: string, opts: { value?: number; note?: str
   return res.json();
 }
 
+/** One of an action's six tiers. `marks` is what it is worth on its own; the
+ *  window may pay less. */
+export type TierOption = { index: number; label: string; marks: number };
+
+export async function fetchActionWindow(id: string): Promise<{ window_marks: number; limit: number; hours: number; options: TierOption[] }> {
+  const res = await request(`/actions/${id}/window`);
+  if (!res.ok) throw new Error(`Failed to fetch window (${res.status})`);
+  return res.json();
+}
+
 export type UserState = {
   username: string;
   day: number;
   consecutive_days: number;
-  xp: number;
+  marks: number;
   level: number;
   rank_letter: string;
   rank_symbol: string;
   local_level_roman: string;
   local_levels_total: number;
-  next_xp: number;
-  xp_cost: number;
+  next_marks: number;
+  level_cost: number;
+  level_marks: number;
   stage: number;
   energy: number;
   skill_points: number;
@@ -174,15 +189,12 @@ export type AttrNode = {
   name: string;
   degree: number;
   is_leaf: boolean;
-  power: number;
-  level: number | null;
-  max_level: number | null;
-  progress_to_next: number | null;
-  // leaves only
-  permanent_level?: number;
-  next_threshold?: number | null;
-  half_life_hours?: number;
-  floor?: number;
+  rank: string;          // A..Z, a permanent checkpoint
+  rank_index: number;
+  marks: number;         // whole marks above the rank
+  need: number;          // marks this rank asks for
+  total_marks: number;
+  max: boolean;          // Z completed
   // in /attributes/tree, on every child
   weight?: number;
   primary?: boolean;
@@ -200,10 +212,12 @@ export type UserAttribute = {
   name: string;
   parent_id: number | null;
   is_leaf: boolean;
-  power: number;
-  level: number;
-  max_level: number;
-  progress_to_next: number;
+  rank: string;
+  rank_index: number;
+  marks: number;
+  need: number;
+  total_marks: number;
+  max: boolean;
   children: UserAttribute[];
   patches?: { id: string; name: string }[];
 };
@@ -275,11 +289,12 @@ export function userAttrAsNode(a: UserAttribute): AttrNode {
     name: a.name,
     degree: 0,
     is_leaf: a.is_leaf,
-    power: a.power,
-    level: a.level,
-    max_level: a.max_level,
-    progress_to_next: a.progress_to_next,
-    permanent_level: a.is_leaf ? Math.round(a.level) : undefined,
+    rank: a.rank,
+    rank_index: a.rank_index,
+    marks: a.marks,
+    need: a.need,
+    total_marks: a.total_marks,
+    max: a.max,
     custom: true,
     children: a.children.map(userAttrAsNode),
   };
@@ -303,7 +318,7 @@ export type LogEntry = {
   id: number;
   timestamp: string;
   content: string;
-  xp: number;
+  marks: number;
   tokens: number;
   order: number;
 };
