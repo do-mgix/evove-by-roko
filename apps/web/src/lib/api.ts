@@ -88,8 +88,10 @@ export async function logout(): Promise<void> {
  *  Anything that is not a 7-digit action code, or a prefix of one, passes through. */
 export function formatCode(code: string | null | undefined): string {
   const s = String(code ?? "");
-  if (!/^5\d{0,6}$/.test(s)) return s;
-  return [s.slice(0, 1), s.slice(1, 3), s.slice(3, 5), s.slice(5, 7)].filter(Boolean).join(" ");
+  if (!/^5\d{0,8}$/.test(s)) return s;
+  const head = [s.slice(0, 1), s.slice(1, 3), s.slice(3, 5), s.slice(5, 7)].filter(Boolean).join(" ");
+  // a patch: the base's seven digits, then its own two
+  return s.length > 7 ? `${head} · ${s.slice(7, 9)}` : head;
 }
 
 export type Action = {
@@ -101,6 +103,9 @@ export type Action = {
   score: number;
   token_cost: number;
   token_gain: number;
+  // patches only
+  base_action_id?: string;
+  attributes?: { id: number; name: string }[];
 };
 
 export async function fetchActions(): Promise<Action[]>{
@@ -182,7 +187,28 @@ export type AttrNode = {
   weight?: number;
   primary?: boolean;
   children?: AttrNode[];
+  // under the registered parent of a base action: the patches that sit there
+  patches?: PatchAttachment[];
+  // a user attribute drawn by the same component
+  custom?: boolean;
 };
+
+/** An attribute the user created. Leaves hold the score; a parent is the mean of
+ *  its children. */
+export type UserAttribute = {
+  id: number;
+  name: string;
+  parent_id: number | null;
+  is_leaf: boolean;
+  power: number;
+  level: number;
+  max_level: number;
+  progress_to_next: number;
+  children: UserAttribute[];
+  patches?: { id: string; name: string }[];
+};
+
+export type PatchAttachment = { id: string; name: string; attributes: UserAttribute[] };
 
 /** Leaves, strongest first. */
 export async function fetchAttributes(): Promise<AttrNode[]> {
@@ -202,6 +228,61 @@ export async function fetchAttributeTree(): Promise<{ roots: AttrNode[] }> {
   const res = await request("/attributes/tree");
   if (!res.ok) throw new Error(`Failed to fetch tree (${res.status})`);
   return res.json();
+}
+
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const res = await request(path, { method: "POST", body: JSON.stringify(body) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || `falhou (${res.status})`);
+  return data as T;
+}
+
+export async function fetchUserAttributes(): Promise<UserAttribute[]> {
+  const res = await request("/user-attributes");
+  if (!res.ok) throw new Error(`Failed to fetch user attributes (${res.status})`);
+  return res.json();
+}
+
+export function createUserAttribute(name: string, parentId: number | null) {
+  return postJson<{ id: number; name: string; parent_id: number | null }>(
+    "/user-attributes", { name, parent_id: parentId });
+}
+
+export function createPatch(body: {
+  base_action_id: string;
+  name: string;
+  attribute_ids: number[];
+  new_attributes: string[];
+}) {
+  return postJson<{ id: string; name: string; cost: number; build_points: number }>("/patches", body);
+}
+
+/** Every user attribute once, with its path, for pickers. */
+export function flattenUserAttributes(list: UserAttribute[], parentPath = ""): { id: number; name: string; path: string }[] {
+  const out: { id: number; name: string; path: string }[] = [];
+  for (const a of list) {
+    const path = parentPath ? `${parentPath} › ${a.name}` : a.name;
+    out.push({ id: a.id, name: a.name, path });
+    out.push(...flattenUserAttributes(a.children, path));
+  }
+  return out;
+}
+
+/** A user attribute in the shape AttrTree renders, so one component draws both trees. */
+export function userAttrAsNode(a: UserAttribute): AttrNode {
+  return {
+    key: `user:${a.id}`,
+    name: a.name,
+    degree: 0,
+    is_leaf: a.is_leaf,
+    power: a.power,
+    level: a.level,
+    max_level: a.max_level,
+    progress_to_next: a.progress_to_next,
+    permanent_level: a.is_leaf ? Math.round(a.level) : undefined,
+    custom: true,
+    children: a.children.map(userAttrAsNode),
+  };
 }
 
 /** Every attribute once, with the path to it along primary links.

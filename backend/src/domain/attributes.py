@@ -21,6 +21,13 @@ LEVEL_BASE = 100
 LEVELED_SHARE = 0.8   # a node shows a level when leveled leaves carry this much of its weight
 WEIGHT_TOLERANCE = 1e-3
 
+# Attributes a user creates for patches live outside the graph and carry no
+# settings of their own. They use the values most common among practice leaves.
+CUSTOM_HALF_LIFE_HOURS = 2160.0
+CUSTOM_FLOOR = 0.0
+CUSTOM_THRESHOLD = 1.0
+CUSTOM_MAX_LEVEL = 10
+
 
 def level_threshold(next_level: int) -> float:
     """Superficial score required to advance from (next_level - 1) into next_level."""

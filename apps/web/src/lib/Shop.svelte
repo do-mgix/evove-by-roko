@@ -6,8 +6,14 @@
     fetchActions,
     buyPackageAction,
     formatCode,
+    fetchUserAttributes,
+    createUserAttribute,
+    createPatch,
+    flattenUserAttributes,
     type CatalogGroup,
     type CatalogAction,
+    type Action,
+    type UserAttribute,
   } from "./api";
   import { userVersion, bumpUser } from "./store";
   import Modal from "./Modal.svelte";
@@ -45,14 +51,17 @@
   async function load() {
     error = null;
     try {
-      const [cat, user, userActions] = await Promise.all([
+      const [cat, user, acts, attrs] = await Promise.all([
         fetchShopCatalog(),
         fetchUser().catch(() => null),
         fetchActions().catch(() => []),
+        fetchUserAttributes().catch(() => []),
       ]);
       groups = cat;
       buildPoints = user?.build_points ?? 0;
-      owned = new Set(userActions.map((a) => a.name.toUpperCase()));
+      userActions = acts;
+      userAttrs = attrs;
+      owned = new Set(acts.map((a) => a.name.toUpperCase()));
     } catch (e: any) {
       error = e?.message ?? "erro";
     } finally {
@@ -108,11 +117,137 @@
       busy = null;
     }
   }
+
+  // ---- patches and user attributes ----
+
+  let userActions: Action[] = [];
+  let userAttrs: UserAttribute[] = [];
+
+  $: costByName = new Map(
+    groups.flatMap((g) => g.actions.map((a) => [a.name.toUpperCase(), a.cost] as [string, number])),
+  );
+  $: attrOptions = flattenUserAttributes(userAttrs);
+  $: baseActions = userActions.filter((a) => !a.base_action_id);
+
+  let patchOpen = false;
+  let patchBase: Action | null = null;
+  let patchBaseQuery = "";
+  let patchName = "";
+  let patchAttrIds: Set<number> = new Set();
+  let patchNewAttrs: string[] = [];
+  let patchNewAttrDraft = "";
+  let patchBusy = false;
+  let patchError: string | null = null;
+
+  $: baseOptions = baseActions.filter((a) =>
+    a.name.toLowerCase().includes(patchBaseQuery.trim().toLowerCase()),
+  );
+  $: patchCost = patchBase ? costByName.get(patchBase.name.toUpperCase()) ?? 0 : 0;
+  $: nextPatchId = patchBase ? nextFreePatchId(patchBase, userActions) : "";
+  $: patchReady =
+    !!patchBase &&
+    !!nextPatchId &&
+    patchName.trim().length > 0 &&
+    patchAttrIds.size + patchNewAttrs.length > 0 &&
+    buildPoints >= patchCost;
+
+  /** Mirrors the server: the base's id plus the lowest free two digits. */
+  function nextFreePatchId(base: Action, all: Action[]): string {
+    const used = new Set(all.filter((a) => a.base_action_id === base.id).map((a) => a.id.slice(base.id.length)));
+    for (let n = 1; n <= 99; n++) {
+      const suffix = String(n).padStart(2, "0");
+      if (!used.has(suffix)) return base.id + suffix;
+    }
+    return "";
+  }
+
+  function openPatch() {
+    patchBase = null;
+    patchBaseQuery = "";
+    patchName = "";
+    patchAttrIds = new Set();
+    patchNewAttrs = [];
+    patchNewAttrDraft = "";
+    patchError = null;
+    patchOpen = true;
+  }
+
+  function toggleAttr(id: number) {
+    const next = new Set(patchAttrIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    patchAttrIds = next;
+  }
+
+  /** A name that already exists selects that attribute instead of creating a twin. */
+  function addNewAttr() {
+    const name = patchNewAttrDraft.trim().replace(/\s+/g, " ");
+    if (!name) return;
+    const existing = attrOptions.find((o) => o.name.toLowerCase() === name.toLowerCase());
+    if (existing) patchAttrIds = new Set([...patchAttrIds, existing.id]);
+    else if (!patchNewAttrs.some((n) => n.toLowerCase() === name.toLowerCase())) patchNewAttrs = [...patchNewAttrs, name];
+    patchNewAttrDraft = "";
+  }
+
+  function removeNewAttr(name: string) {
+    patchNewAttrs = patchNewAttrs.filter((n) => n !== name);
+  }
+
+  async function submitPatch() {
+    if (!patchReady || !patchBase || patchBusy) return;
+    patchBusy = true;
+    patchError = null;
+    try {
+      const res = await createPatch({
+        base_action_id: patchBase.id,
+        name: patchName.trim(),
+        attribute_ids: [...patchAttrIds],
+        new_attributes: patchNewAttrs,
+      });
+      buildPoints = res.build_points;
+      patchOpen = false;
+      bumpUser();
+    } catch (e: any) {
+      patchError = e?.message ?? "erro";
+    } finally {
+      patchBusy = false;
+    }
+  }
+
+  let attrOpen = false;
+  let attrName = "";
+  let attrParent: number | null = null;
+  let attrBusy = false;
+  let attrError: string | null = null;
+
+  function openAttr() {
+    attrName = "";
+    attrParent = null;
+    attrError = null;
+    attrOpen = true;
+  }
+
+  async function submitAttr() {
+    if (!attrName.trim() || attrBusy) return;
+    attrBusy = true;
+    attrError = null;
+    try {
+      await createUserAttribute(attrName.trim(), attrParent);
+      attrOpen = false;
+      userAttrs = await fetchUserAttributes();
+    } catch (e: any) {
+      attrError = e?.message ?? "erro";
+    } finally {
+      attrBusy = false;
+    }
+  }
 </script>
 
 <section class="page">
   <header class="topbar">
     <span class="title">shop</span>
+    <button class="make" on:click={openPatch}>+ patch</button>
+    <button class="make" on:click={openAttr}>+ atributo</button>
     <div class="bp-badge">
       <span class="bp-label">build points</span>
       <span class="bp-value">{buildPoints}</span>
@@ -217,6 +352,124 @@
           {busy ? "..." : priceLabel(selected.action.cost)}
         </button>
       {/if}
+    </div>
+  </Modal>
+{/if}
+
+{#if patchOpen}
+  <Modal title="novo patch" onClose={() => (patchOpen = false)}>
+    <div class="wizard">
+      <div class="step">
+        <div class="step-title">1 · ação base</div>
+        {#if patchBase}
+          <div class="chosen">
+            <span class="a-code">{formatCode(patchBase.id)}</span>
+            <span class="a-name">{patchBase.name}</span>
+            <button class="link" on:click={() => (patchBase = null)}>trocar</button>
+          </div>
+        {:else if baseActions.length === 0}
+          <p class="muted small">adquira uma ação na loja primeiro — o patch roda em cima dela</p>
+        {:else}
+          <input class="field" type="text" placeholder="buscar ação..." bind:value={patchBaseQuery} />
+          <ul class="pick-list">
+            {#each baseOptions as a (a.id)}
+              <li>
+                <button class="pick" on:click={() => (patchBase = a)}>
+                  <span class="a-code">{formatCode(a.id)}</span>
+                  <span class="a-name">{a.name}</span>
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </div>
+
+      {#if patchBase}
+        <div class="step">
+          <div class="step-title">2 · nome do patch</div>
+          <input class="field" type="text" maxlength="48" placeholder="física" bind:value={patchName} />
+        </div>
+      {/if}
+
+      {#if patchBase && patchName.trim()}
+        <div class="step">
+          <div class="step-title">3 · atributos</div>
+          {#if attrOptions.length > 0}
+            <ul class="check-list">
+              {#each attrOptions as o (o.id)}
+                <li>
+                  <label>
+                    <input type="checkbox" checked={patchAttrIds.has(o.id)} on:change={() => toggleAttr(o.id)} />
+                    <span>{o.path}</span>
+                  </label>
+                </li>
+              {/each}
+            </ul>
+          {:else if patchNewAttrs.length === 0}
+            <p class="muted small">nenhum atributo ainda — crie o primeiro</p>
+          {/if}
+          {#each patchNewAttrs as n (n)}
+            <div class="new-attr">
+              <span>+ {n}</span>
+              <button class="link" on:click={() => removeNewAttr(n)}>remover</button>
+            </div>
+          {/each}
+          <div class="inline-new">
+            <input
+              class="field"
+              type="text"
+              maxlength="64"
+              placeholder="novo atributo"
+              bind:value={patchNewAttrDraft}
+              on:keydown={(e) => e.key === "Enter" && addNewAttr()}
+            />
+            <button class="ghost" on:click={addNewAttr} disabled={!patchNewAttrDraft.trim()}>criar</button>
+          </div>
+        </div>
+      {/if}
+    </div>
+
+    {#if patchBase}
+      <dl class="details">
+        <dt>id</dt><dd class="code">{nextPatchId ? formatCode(nextPatchId) : "sem ids livres"}</dd>
+        <dt>custo</dt><dd>{patchCost} bp</dd>
+        <dt>saldo</dt><dd>{buildPoints} bp</dd>
+      </dl>
+    {/if}
+    {#if patchError}<p class="error">{patchError}</p>{/if}
+    <div class="confirm-row">
+      <button class="ghost" on:click={() => (patchOpen = false)}>cancelar</button>
+      <button class="primary" on:click={submitPatch} disabled={!patchReady || patchBusy}>
+        {patchBusy ? "..." : patchCost > 0 ? `criar · ${patchCost} bp` : "criar"}
+      </button>
+    </div>
+  </Modal>
+{/if}
+
+{#if attrOpen}
+  <Modal title="novo atributo" onClose={() => (attrOpen = false)}>
+    <div class="wizard">
+      <div class="step">
+        <div class="step-title">nome</div>
+        <input class="field" type="text" maxlength="64" placeholder="física" bind:value={attrName} />
+      </div>
+      <div class="step">
+        <div class="step-title">dentro de (opcional)</div>
+        <select class="field" bind:value={attrParent}>
+          <option value={null}>nenhum</option>
+          {#each attrOptions as o (o.id)}
+            <option value={o.id}>{o.path}</option>
+          {/each}
+        </select>
+      </div>
+      <p class="muted small">fica fora da árvore padrão e só é treinado por patches</p>
+    </div>
+    {#if attrError}<p class="error">{attrError}</p>{/if}
+    <div class="confirm-row">
+      <button class="ghost" on:click={() => (attrOpen = false)}>cancelar</button>
+      <button class="primary" on:click={submitAttr} disabled={!attrName.trim() || attrBusy}>
+        {attrBusy ? "..." : "criar"}
+      </button>
     </div>
   </Modal>
 {/if}
@@ -440,4 +693,92 @@
     .details { grid-template-columns: 1fr; gap: 0.15rem 0; }
     .details dd { margin-bottom: 0.5rem; }
   }
+
+  .make {
+    background: transparent;
+    border: 1px solid #333333;
+    border-radius: 4px;
+    color: #ffffff;
+    padding: 0.35rem 0.7rem;
+    font: inherit;
+    font-size: 0.78rem;
+    cursor: pointer;
+  }
+  .make:hover { border-color: #00e5ff; color: #00e5ff; }
+  .wizard {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    margin-bottom: 0.9rem;
+    min-width: min(26rem, 80vw);
+  }
+  .step-title {
+    color: #808080;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.4rem;
+  }
+  .field {
+    width: 100%;
+    box-sizing: border-box;
+    background: #000000;
+    border: 1px solid #333333;
+    border-radius: 4px;
+    color: #ffffff;
+    padding: 0.5rem 0.65rem;
+    font: inherit;
+    font-size: 0.88rem;
+    outline: none;
+  }
+  .field:focus { border-color: #00e5ff; }
+  .pick-list,
+  .check-list {
+    list-style: none;
+    margin: 0.4rem 0 0;
+    padding: 0;
+    max-height: 12rem;
+    overflow-y: auto;
+    border: 1px solid #333333;
+    border-radius: 4px;
+  }
+  .pick {
+    display: flex;
+    gap: 0.6rem;
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid #333333;
+    color: #ffffff;
+    padding: 0.45rem 0.6rem;
+    font: inherit;
+    font-size: 0.85rem;
+    text-align: left;
+    cursor: pointer;
+  }
+  .pick:hover .a-name { color: #00e5ff; }
+  .check-list label {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .check-list input { accent-color: #00e5ff; }
+  .chosen { display: flex; align-items: baseline; gap: 0.6rem; }
+  .link {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: #808080;
+    font: inherit;
+    font-size: 0.75rem;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .link:hover { color: #00e5ff; }
+  .new-attr { display: flex; align-items: baseline; gap: 0.5rem; margin-top: 0.35rem; color: #00e5ff; font-size: 0.85rem; }
+  .inline-new { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+  .small { font-size: 0.72rem; margin: 0; }
 </style>

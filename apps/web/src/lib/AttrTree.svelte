@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { AttrNode } from "./api";
+  import { formatCode, userAttrAsNode, type AttrNode } from "./api";
 
   /** One attribute and, on demand, everything under it. Renders itself for
    *  children, so depth is whatever the graph has. */
@@ -8,7 +8,8 @@
 
   let open = false;
 
-  $: hasKids = !!node.children?.length;
+  $: patches = node.patches ?? [];
+  $: hasKids = !!node.children?.length || patches.length > 0;
   $: leveled = node.level != null && node.max_level != null;
   $: fill = leveled
     ? (node.progress_to_next ?? 0) * 100
@@ -18,7 +19,7 @@
   $: borrowed = node.primary === false;
 </script>
 
-<li class="node" class:borrowed>
+<li class="node" class:borrowed class:custom={node.custom}>
   <button class="row" on:click={() => hasKids && (open = !open)} class:leaf={!hasKids} aria-expanded={hasKids ? open : undefined}>
     <span class="caret">{hasKids ? (open ? "▾" : "▸") : "·"}</span>
     <span class="name">{node.name}{#if borrowed}<span class="ref" title="ligação não primária">↗</span>{/if}</span>
@@ -39,6 +40,22 @@
     <ul class="kids">
       {#each node.children ?? [] as child (child.key)}
         <svelte:self node={child} {maxPower} />
+      {/each}
+      {#each patches as p (p.id)}
+        <!-- where the base action would sit: the patch and the attributes it trains.
+             Display only; none of it enters this node's power. -->
+        <li class="patch">
+          <div class="patch-head">
+            <span class="caret">↳</span>
+            <span class="pname">{p.name}</span>
+            <span class="pid">{formatCode(p.id)}</span>
+          </div>
+          <ul class="kids">
+            {#each p.attributes as a (a.id)}
+              <svelte:self node={userAttrAsNode(a)} {maxPower} />
+            {/each}
+          </ul>
+        </li>
       {/each}
     </ul>
   {/if}
@@ -82,4 +99,10 @@
     padding-left: 0.75rem;
     border-left: 1px solid #333333;
   }
+  .patch { list-style: none; margin: 0.15rem 0; }
+  .patch-head { display: flex; align-items: baseline; gap: 0.5rem; padding: 0.3rem 0; }
+  .pname { flex: 1; min-width: 0; color: #00e5ff; font-size: 0.85rem; text-transform: lowercase; }
+  .pid { color: #808080; font-size: 0.7rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .patch > .kids { border-left: 1px dashed #00e5ff; }
+  .custom > .row .name { color: #00e5ff; }
 </style>

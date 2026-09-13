@@ -184,6 +184,7 @@ backend/
     act.py                     the "execute an action" flow (single source of truth)
     agenda.py                  matching an action against the day's agenda
     attributes.py              the attribute graph: power, levels, degree, registration rules
+    user_attributes.py         patches and the attributes users create for them
     contributions.py           applies an action's stimulus to the leaves
     daily.py                   daily tick (token refill, checkpoint countdown)
     skills.py                  skill tree rules and bonus aggregation
@@ -228,6 +229,8 @@ Enough vocabulary to read the code:
 | **leaf** | an attribute with no children — the only kind that stores a per-user score, which decays unless converted into a permanent level |
 | **power** | a leaf's score, or for any other attribute the weighted mean of its children |
 | **degree** | depth along primary parents, the root being 1 |
+| **patch** | a user's specialization of an owned action (*estudo → física*): acts like the base and also trains the user's own attributes |
+| **user attribute** | an attribute a user created, outside the default graph, trained only by patches |
 | **tokens** | earned by executing productivity actions, spent on leisure ones, capped in stock |
 | **energy** | drained by acting outside today's agenda, refilled at each checkpoint |
 | **build points / skill points** | currencies for buying actions in the shop and nodes in the skill tree; both are paid out at checkpoints |
@@ -274,10 +277,11 @@ is the part exposed on a network.
 
 ### Database
 
-Twenty-one tables. Profile and content tables have an FK to `users` with delete cascade; the
+Twenty-three tables. Profile and content tables have an FK to `users` with delete cascade; the
 attribute graph and the catalog are global and shared by everyone:
 
 - profile — `users`, `user_state`, `user_tutorial`, `sequences_state`, `sessions`
+- patches — `user_attributes`, `patch_attributes` (a patch itself is a row in `actions`)
 - user content — `actions`, `attributes`, `attribute_actions`, `skills_acquired`,
   `agenda_items`, `logs`, `projects`, `project_actions`, `project_attributes`
 - attribute graph — `attr_nodes`, `attr_edges`, `action_contributions`
@@ -289,7 +293,7 @@ Content tables also keep the logical id from the JSON era (`action_id`, `attr_id
 
 ### Migrations
 
-Sixteen revisions in a chain:
+Seventeen revisions in a chain:
 
 ```
 5638fb2a1810  initial schema
@@ -308,6 +312,7 @@ a1e5c9b3d7f2  conceptual themes for the actions that had none
 b4f7d2a9e6c3  passwords and sessions
 c7a3e9f1b5d8  memorable action ids: 5aa-aa-ii
 d8e4b2c6f1a3  attribute engine: one graph, no kinds
+e2c7a9d4f6b1  patches and user attributes
 ```
 
 Nine of them (`b7c1`, `c8d2`, `e5a1`, `f7b3`, `b2e7`, `c4a8`, `d6b1`, `a1e5`, `c7a3`) seed
@@ -431,6 +436,52 @@ The web client shows ids grouped (`5 01 03 01`) and the dial filters by prefix a
 type, so `501` narrows the list to your Musculatura actions and `50103` to the ones on
 Peitoral before the seventh digit picks one.
 
+### Patches and user attributes
+
+Catalog actions are engines. A **patch** specializes one the user owns without asking
+them to pick anatomical leaves: *estudo → física* keeps everything estudo pays and also
+trains "Física", an attribute the user created. The flow is all in the shop — buy the
+action, then "+ patch": base action → name → attributes, creating them on the spot if
+there are none. The patch then lists right under its base and acts like any action.
+
+**What an act on a patch does.** It is a row in `actions` with `base_action_id` set,
+carrying the base's `type`, `diff` and tokens, with its own progression. Contributions to
+the default graph and agenda matching use the base's name (`engine_name`), so a patch
+moves exactly the leaves its base would; its name is stored as `ESTUDO · FÍSICA`, which
+keeps logs readable and sorts it under the base. Then `apply_patch_attributes` trains the
+patch's attributes. Web and CLI make the same two calls. Tested with two profiles, one
+acting on the base and one on its patch: same xp, tokens, energy and default-leaf scores.
+
+**Price and ids.** A patch costs the base's `cost` in build points; creating an attribute
+is free. The id is the base's seven digits plus the lowest free two, so one action takes
+up to 99 patches — `5 06 01 01 · 01`. The dial needs no new rule: a base with patches no
+longer fires at seven digits, because a longer id shares the prefix; `Enter` fires the
+base and the ninth digit fires the patch.
+
+**User attributes** live in `user_attributes`, per user, and follow the engine's rules with
+equal weights:
+
+- only a leaf (no children) holds a score; a parent is the mean of its children;
+- creating a child never moves the parent at that moment — the first child of a leaf
+  inherits its score and level, and a later child starts at the parent's current power;
+- a patch may point at any attribute, and on each act every leaf reached from them gets
+  the **whole** stimulus once — a patch on "Ciências" trains Física and Química fully;
+- decay and levels use `CUSTOM_*` in `src/domain/attributes.py`: 90-day half-life, max
+  level 10, the most common values among practice leaves.
+
+**In the tree** a patch sits where its base action would, under the base's registered
+parent: `/attributes/tree` lists it in that node's `patches`, and the user page draws it
+there with its attributes. It is display only and never enters the node's power. The user
+page also shows every user attribute under "customizados".
+
+**Why links go by text.** `repos._write_actions` deletes and reinserts every action row on
+each save, so `actions.id` changes all the time. `patch_attributes` references the patch by
+`(user_id, action_id)`, and `POST /patches` writes the whole patch in one transaction
+instead of going through `save_user`. The dead per-user `attributes` table was not an
+option for the same reason — every save wipes it.
+
+Editing, renaming or deleting patches and user attributes is not built yet.
+
 ### How the shop groups actions
 
 The shop groups by **practice** — Treino, Programação, Escrita, Literacia, Alimentação,
@@ -512,7 +563,10 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 | POST | `/actions/{id}/act` | execute an action (`{note}` or `{value}`) |
 | GET | `/attributes` | every leaf with its power and level |
 | GET | `/attributes/roots` | every root with power and aggregated level |
-| GET | `/attributes/tree` | the whole graph; each child link says its `weight` and whether it is `primary` |
+| GET | `/attributes/tree` | the whole graph; each child link says its `weight` and whether it is `primary`; a node can carry `patches` |
+| GET | `/user-attributes` | the user's own attributes as a tree, with power, level and the patches that train each |
+| POST | `/user-attributes` | create one (`{name, parent_id?}`), free |
+| POST | `/patches` | create a patch (`{base_action_id, name, attribute_ids, new_attributes}`), costs the base's price |
 | GET | `/shop/packages` | available actions grouped by theme |
 | GET | `/shop/catalog` | the same, with each action's leaves and weights |
 | POST | `/shop/actions/buy` | buy an action (`{attribute, name}`) |
@@ -548,6 +602,9 @@ the key `roko_username`; without it the user picker takes over. Two stores (`log
 A single-key menu over the same database: `l` lists actions, `a` executes one, `g` shows
 today's logs, `s` shows status, `u` switches profile, `q` quits. The profile picker holds
 up to four users and can create and delete them.
+
+Patches show up in `l` under their base and can be executed with `a` by their nine-digit id
+(spaces allowed). Creating patches and attributes is only in the web shop.
 
 ---
 

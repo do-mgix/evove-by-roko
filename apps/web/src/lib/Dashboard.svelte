@@ -434,7 +434,7 @@
                   {:else}
                     <ul class="actions">
                       {#each filtered as a (a.id)}
-                        <li>
+                        <li class:patch={!!a.base_action_id}>
                           <button class="row" on:click={() => (selectedAction = a)}>
                             <span class="id">{formatCode(a.id)}</span>
                             <span class="name">{a.name}</span>
@@ -497,7 +497,7 @@
 {#if selectedAction}
   <Modal title="action" onClose={() => (selectedAction = null)}>
     <dl class="details">
-      <dt>id</dt><dd>{selectedAction.id}</dd>
+      <dt>id</dt><dd>{formatCode(selectedAction.id)}</dd>
       <dt>name</dt><dd class="hl">{selectedAction.name}</dd>
       <dt>type</dt><dd>{TYPE_LABEL[selectedAction.type] ?? selectedAction.type}</dd>
       <dt>diff</dt><dd>d{selectedAction.diff}</dd>
@@ -505,6 +505,9 @@
       <dt>score</dt><dd>{selectedAction.score} xp</dd>
       {#if selectedAction.token_gain}<dt>rende</dt><dd>+{selectedAction.token_gain} tokens</dd>{/if}
       {#if selectedAction.token_cost}<dt>consome</dt><dd>{selectedAction.token_cost} tokens</dd>{/if}
+      {#if selectedAction.attributes?.length}
+        <dt>treina</dt><dd>{selectedAction.attributes.map((x) => x.name).join(", ")}</dd>
+      {/if}
     </dl>
     <div class="confirm-row">
       <button class="ghost" on:click={() => (selectedAction = null)}>fechar</button>
@@ -875,4 +878,7 @@
     opacity: 0.4;
     cursor: not-allowed;
   }
+  /* a patch sits right under its base, one step in */
+  .actions li.patch .name { position: relative; padding-left: 0.9rem; }
+  .actions li.patch .name::before { content: "↳"; position: absolute; left: 0; color: #808080; }
 </style>

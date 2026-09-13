@@ -153,6 +153,7 @@ def _user_to_dict(s: Session, u: orm.User) -> dict:
             "sub_logic_type": a.sub_logic_type,
             "token_cost": a.token_cost,
             "token_gain": a.token_gain,
+            "base_action_id": a.base_action_id,
         }
 
     attributes: dict = {}
@@ -281,6 +282,7 @@ def _write_actions(s: Session, u: orm.User, data: dict):
             sub_logic_type=a.get("sub_logic_type") or None,
             token_cost=int(a.get("token_cost", 0) or 0),
             token_gain=int(a.get("token_gain", 0) or 0),
+            base_action_id=a.get("base_action_id") or None,
         ))
 
 
@@ -1257,3 +1259,184 @@ def apply_decay_to_all_leaves(username: str, now: datetime) -> int:
     finally:
         s.close()
 
+
+# ---------- user attributes and patches ----------
+#
+# The rules live in src.domain.user_attributes; these functions only load and
+# write. Patches are rows in `actions`, so creating one must not go through
+# save_user: the whole patch is written here in one transaction.
+
+def _user_attr_dicts(s: Session, user_id: int) -> list[dict]:
+    rows = s.execute(select(orm.UserAttribute).where(orm.UserAttribute.user_id == user_id)).scalars().all()
+    return [
+        {"id": r.id, "parent_id": r.parent_id, "name": r.name, "score": float(r.score),
+         "permanent_level": int(r.permanent_level), "last_updated_at": r.last_updated_at}
+        for r in rows
+    ]
+
+
+def load_user_attributes(username: str) -> list[dict]:
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        return _user_attr_dicts(s, u.id) if u else []
+    finally:
+        s.close()
+
+
+def load_patch_links(username: str) -> dict[str, list[int]]:
+    """{patch_action_id: [user_attribute_id, ...]}."""
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        if not u:
+            return {}
+        out: dict[str, list[int]] = {}
+        rows = s.execute(select(orm.PatchAttribute).where(orm.PatchAttribute.user_id == u.id)).scalars()
+        for r in rows:
+            out.setdefault(r.patch_action_id, []).append(r.user_attribute_id)
+        return out
+    finally:
+        s.close()
+
+
+def _insert_user_attribute(s: Session, u: orm.User, name, parent_id: int | None, now: datetime) -> orm.UserAttribute:
+    from src.domain.user_attributes import PatchError, children_of, new_child_start
+
+    name = " ".join(str(name or "").split())
+    if not name or len(name) > 64:
+        raise PatchError("attribute name must be 1-64 characters")
+    # the column's collation decides equality, the same one the unique key uses
+    taken = s.execute(select(orm.UserAttribute.id).where(
+        orm.UserAttribute.user_id == u.id, orm.UserAttribute.name == name)).first()
+    if taken:
+        raise PatchError(f"attribute '{name}' already exists", 409)
+
+    fields = {"score": 0.0, "permanent_level": 0, "last_updated_at": now}
+    if parent_id is not None:
+        attrs = _user_attr_dicts(s, u.id)
+        by_id = {a["id"]: a for a in attrs}
+        if parent_id not in by_id:
+            raise PatchError(f"attribute {parent_id} not found", 404)
+        fields, inherits = new_child_start(by_id[parent_id], by_id, children_of(attrs), now)
+        if inherits:
+            parent = s.get(orm.UserAttribute, parent_id)
+            parent.score, parent.permanent_level, parent.last_updated_at = 0.0, 0, now
+    row = orm.UserAttribute(user_id=u.id, parent_id=parent_id, name=name, created_at=now, **fields)
+    s.add(row)
+    s.flush()
+    return row
+
+
+def create_user_attribute(username: str, name: str, parent_id: int | None = None) -> dict:
+    now = datetime.now()
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        row = _insert_user_attribute(s, u, name, parent_id, now)
+        s.commit()
+        return {"id": row.id, "name": row.name, "parent_id": row.parent_id}
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+def create_patch(username: str, base_action_id: str, name: str,
+                 attribute_ids: list, new_attributes: list) -> dict:
+    """Pay the base's price, create the new attributes, the patch action and its
+    links, all in one transaction."""
+    from src.domain.user_attributes import MAX_PATCHES, PatchError, patch_name
+
+    now = datetime.now()
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        base = s.execute(select(orm.Action).where(
+            orm.Action.user_id == u.id, orm.Action.action_id == base_action_id)).scalar_one_or_none()
+        if base is None or base.deleted:
+            raise PatchError(f"action {base_action_id} not found", 404)
+        if base.base_action_id:
+            raise PatchError("a patch cannot be the base of another patch")
+
+        label = " ".join(str(name or "").split()).upper()
+        if not label or len(label) > 48:
+            raise PatchError("patch name must be 1-48 characters")
+        full_name = patch_name(base.name, label)
+
+        siblings = s.execute(select(orm.Action).where(
+            orm.Action.user_id == u.id, orm.Action.base_action_id == base.action_id)).scalars().all()
+        if any(r.name == full_name for r in siblings):
+            raise PatchError(f"patch '{label}' already exists on {base.name}", 409)
+        used = {r.action_id[len(base.action_id):] for r in siblings}
+        free = [n for n in range(1, MAX_PATCHES + 1) if f"{n:02d}" not in used]
+        if not free:
+            raise PatchError(f"{base.name} already has {MAX_PATCHES} patches", 409)
+        patch_id = f"{base.action_id}{free[0]:02d}"
+
+        known = {r[0] for r in s.execute(select(orm.UserAttribute.id).where(orm.UserAttribute.user_id == u.id))}
+        ids: list[int] = []
+        for raw in attribute_ids or []:
+            try:
+                aid = int(raw)
+            except (TypeError, ValueError):
+                raise PatchError(f"attribute {raw!r} not found", 404)
+            if aid not in known:
+                raise PatchError(f"attribute {aid} not found", 404)
+            ids.append(aid)
+        for spec in new_attributes or []:
+            if isinstance(spec, dict):
+                parent = spec.get("parent_id")
+                row = _insert_user_attribute(s, u, spec.get("name"), int(parent) if parent is not None else None, now)
+            else:
+                row = _insert_user_attribute(s, u, spec, None, now)
+            ids.append(row.id)
+        ids = list(dict.fromkeys(ids))
+        if not ids:
+            raise PatchError("a patch needs at least one attribute")
+
+        cost = int(s.execute(select(orm.ActionTemplate.cost).where(
+            orm.ActionTemplate.action_name == base.name)).scalar_one_or_none() or 0)
+        state = s.get(orm.UserState, u.id)
+        have = int(state.build_points) if state else 0
+        if have < cost:
+            raise PatchError(f"insufficient build points (have {have}, need {cost})")
+        if state:
+            state.build_points = have - cost
+
+        s.add(orm.Action(
+            user_id=u.id, action_id=patch_id, name=full_name, type=base.type, diff=base.diff,
+            value=0, max_value=0, score=0, deleted=False,
+            token_cost=base.token_cost, token_gain=base.token_gain,
+            base_action_id=base.action_id,
+        ))
+        for aid in ids:
+            s.add(orm.PatchAttribute(user_id=u.id, patch_action_id=patch_id, user_attribute_id=aid))
+        s.commit()
+        return {"id": patch_id, "name": full_name, "base_action_id": base.action_id,
+                "attribute_ids": ids, "cost": cost, "build_points": have - cost}
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+def save_user_attribute_scores(username: str, updates: dict[int, tuple[float, int]], now: datetime) -> None:
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        for aid, (score, perm) in updates.items():
+            s.execute(
+                update(orm.UserAttribute)
+                .where(orm.UserAttribute.id == aid, orm.UserAttribute.user_id == u.id)
+                .values(score=score, permanent_level=perm, last_updated_at=now)
+                .execution_options(synchronize_session=False)
+            )
+        s.commit()
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()

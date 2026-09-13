@@ -1,20 +1,34 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { fetchUser, fetchAttributeTree, type UserState, type AttrNode } from "./api";
+  import {
+    fetchUser,
+    fetchAttributeTree,
+    fetchUserAttributes,
+    userAttrAsNode,
+    type UserState,
+    type AttrNode,
+    type UserAttribute,
+  } from "./api";
   import { userVersion } from "./store";
   import AttrTree from "./AttrTree.svelte";
 
   let user: UserState | null = null;
   let roots: AttrNode[] = [];
+  let custom: UserAttribute[] = [];
   let loading = true;
   let error: string | null = null;
   let lastVersion = 0;
 
   async function load() {
     try {
-      const [u, tree] = await Promise.all([fetchUser(), fetchAttributeTree()]);
+      const [u, tree, ua] = await Promise.all([
+        fetchUser(),
+        fetchAttributeTree(),
+        fetchUserAttributes().catch(() => []),
+      ]);
       user = u;
       roots = tree.roots;
+      custom = ua;
     } catch (e: any) {
       error = e?.message ?? "erro";
     } finally {
@@ -31,6 +45,7 @@
 
   // Scale for attributes with no level to show: bars are relative to the strongest root.
   $: maxPower = roots.reduce((m, r) => Math.max(m, r.power), 1) || 1;
+  $: customMax = custom.reduce((m, a) => Math.max(m, a.power), 1) || 1;
   $: xpProgress = user && user.xp_cost > 0
     ? Math.max(0, Math.min(100, ((user.xp_cost - user.next_xp) / user.xp_cost) * 100))
     : 100;
@@ -120,6 +135,19 @@
         </ul>
       </section>
     {/if}
+
+    <section class="attrs-section">
+      <h2>customizados</h2>
+      {#if custom.length > 0}
+        <ul class="tree">
+          {#each custom as a (a.id)}
+            <AttrTree node={userAttrAsNode(a)} maxPower={customMax} />
+          {/each}
+        </ul>
+      {:else}
+        <p class="empty-note">nenhum ainda — crie na loja, em “+ atributo” ou ao montar um patch</p>
+      {/if}
+    </section>
   {/if}
 </section>
 
@@ -258,4 +286,5 @@
   @media (max-width: 768px) {
     .page { padding: 0.75rem 0.9rem; }
   }
+  .empty-note { color: #808080; font-size: 0.8rem; margin: 0; }
 </style>

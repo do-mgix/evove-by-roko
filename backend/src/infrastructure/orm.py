@@ -119,6 +119,9 @@ class Action(Base):
     sub_logic_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     token_cost: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     token_gain: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Set on a patch: the action_id of the catalog action it specializes. The patch
+    # id is that id plus two digits.
+    base_action_id: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
     user: Mapped[User] = relationship(back_populates="actions")
 
@@ -324,3 +327,31 @@ class ProjectAttribute(Base):
 
     project_pk: Mapped[int] = mapped_column(BigInteger, ForeignKey("projects.id", ondelete="CASCADE"), primary_key=True)
     attr_id: Mapped[str] = mapped_column(String(16), primary_key=True)
+
+
+# attributes a user creates for their patches, outside the default graph
+class UserAttribute(Base):
+    """Same engine rules as the default graph, with equal weights: a leaf (no
+    children) holds the score, a parent is worth the mean of its children."""
+    __tablename__ = "user_attributes"
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_user_attributes_name"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    parent_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("user_attributes.id", ondelete="CASCADE"), nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(64), nullable=False)
+    score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    permanent_level: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+# which user attributes a patch trains
+class PatchAttribute(Base):
+    """Keyed by the patch's action_id text, never by actions.id: save_user
+    deletes and reinserts every action row, so that id changes on each save."""
+    __tablename__ = "patch_attributes"
+
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    patch_action_id: Mapped[str] = mapped_column(String(16), primary_key=True)
+    user_attribute_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("user_attributes.id", ondelete="CASCADE"), primary_key=True)

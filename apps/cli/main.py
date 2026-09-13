@@ -23,7 +23,8 @@ from rich.table import Table
 from rich import box
 
 from src.domain.act import apply_act, ActError
-from src.domain.contributions import apply_action_contributions
+from src.domain.contributions import apply_action_contributions, apply_patch_attributes
+from src.domain.user_attributes import PATCH_SEPARATOR, engine_name
 from src.domain.agenda import collect_labels, DAY_NAMES
 from src.domain.daily import apply_daily_tick
 from src.infrastructure.static_data import skill_nodes_by_id
@@ -93,17 +94,24 @@ def append_log(content: str, xp: int, tokens: int = 0) -> dict:
 
 
 def format_code(code: str) -> str:
-    """5010108 -> 5 01 01 08. Legacy ids pass through untouched."""
+    """5010108 -> 5 01 01 08, a patch 501010801 -> 5 01 01 08 · 01. Legacy ids pass
+    through untouched."""
     s = str(code)
-    if len(s) == 7 and s.startswith("5") and s.isdigit():
-        return f"{s[0]} {s[1:3]} {s[3:5]} {s[5:]}"
+    if s.startswith("5") and s.isdigit():
+        if len(s) == 7:
+            return f"{s[0]} {s[1:3]} {s[3:5]} {s[5:]}"
+        if len(s) == 9:
+            return f"{format_code(s[:7])} · {s[7:]}"
     return s
 
 
 def cmd_list_actions(data: dict) -> None:
     actions = (data.get("actions") or {})
     rows = [(aid, a) for aid, a in actions.items() if not a.get("deleted")]
-    rows.sort(key=lambda r: str(r[1].get("name", "")).upper())
+    # a patch right under its base
+    rows.sort(key=lambda r: (str(r[1].get("name", "")).split(PATCH_SEPARATOR)[0].upper(),
+                             1 if r[1].get("base_action_id") else 0,
+                             str(r[1].get("name", "")).upper()))
     table = Table(box=box.SIMPLE, show_header=True, header_style="bold cyan")
     table.add_column("id", style="dim")
     table.add_column("name")
@@ -154,8 +162,12 @@ def cmd_act(data: dict) -> None:
     save_user(data)
     # The web client always did this; the CLI never did, so acting from the
     # terminal paid xp and tokens but moved no attribute.
-    apply_action_contributions(get_current_username(), action.get("name", ""),
-                               float(outcome.score_diff), datetime.now())
+    now = datetime.now()
+    # a patch runs on its base's contributions, then trains its own attributes
+    apply_action_contributions(get_current_username(), engine_name(data.get("actions") or {}, action),
+                               float(outcome.score_diff), now)
+    if action.get("base_action_id"):
+        apply_patch_attributes(get_current_username(), aid, float(outcome.score_diff), now)
     token_delta = (outcome.token_gain - outcome.tokens_wasted) - outcome.token_cost
     append_log(outcome.log_content, int(round(outcome.score_diff)), token_delta)
 

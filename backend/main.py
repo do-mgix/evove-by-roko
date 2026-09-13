@@ -15,7 +15,8 @@ from src.domain.action import Action  # noqa: E402
 from src.domain.act import apply_act, ActError  # noqa: E402
 from src.domain.agenda import collect_labels, DAY_NAMES as _DOMAIN_DAY_NAMES  # noqa: E402
 from src.domain.daily import apply_daily_tick  # noqa: E402
-from src.domain.contributions import apply_action_contributions  # noqa: E402
+from src.domain.contributions import apply_action_contributions, apply_patch_attributes  # noqa: E402
+from src.domain.user_attributes import PATCH_SEPARATOR, PatchError, engine_name  # noqa: E402
 from src.domain.attributes import apply_decay  # noqa: E402
 from src.domain.skills import (  # noqa: E402
     aggregate_bonuses,
@@ -1084,14 +1085,19 @@ def attribute_roots(username: str = Depends(current_username)):
 def attributes_tree(username: str = Depends(current_username)):
     """The whole graph from its roots. Each child carries the link `weight` and
     whether it is the node's `primary` parent — a node with several parents shows
-    up under each of them."""
-    _load_user(username)
+    up under each of them. A node that is the registered parent of a base action
+    with patches lists them in `patches`, with their own attributes; they are
+    display only and never enter the node's power."""
+    data = _load_user(username)
     tree = repos.load_attr_tree()
     scores, perm = _user_leaf_state(username, tree)
     memo: dict[str, float] = {}
+    attachments = _patch_attachments(username, data)
 
     def render(key: str, path: frozenset) -> dict:
         out = _node_view(tree, key, scores, perm, memo)
+        if key in attachments:
+            out["patches"] = attachments[key]
         if key in path:            # registration refuses cycles; never recurse forever
             return out
         kids = []
@@ -1105,6 +1111,103 @@ def attributes_tree(username: str = Depends(current_username)):
         return out
 
     return {"roots": [render(r, frozenset()) for r in tree.roots]}
+
+
+def _patch_attachments(username: str, data: dict) -> dict[str, list[dict]]:
+    """{node_key: [patch, ...]} — each patch sits where its base action would, under
+    the base's registered parent."""
+    from src.domain.user_attributes import children_of, view
+
+    links = repos.load_patch_links(username)
+    if not links:
+        return {}
+    actions = data.get("actions") or {}
+    templates = repos.load_action_templates()
+    attrs = repos.load_user_attributes(username)
+    by_id = {a["id"]: a for a in attrs}
+    kids = children_of(attrs)
+    now = datetime.now()
+    memo: dict = {}
+    out: dict[str, list[dict]] = {}
+    for patch_id in sorted(links):
+        patch = actions.get(patch_id)
+        if not patch or patch.get("deleted") or not patch.get("base_action_id"):
+            continue
+        base = actions.get(patch["base_action_id"]) or {}
+        parent = (templates.get(base.get("name", "")) or {}).get("parent")
+        if not parent:
+            continue
+        out.setdefault(parent, []).append({
+            "id": patch_id,
+            "name": patch.get("name"),
+            "attributes": [view(i, by_id, kids, now, memo) for i in links[patch_id] if i in by_id],
+        })
+    return out
+
+
+@app.get("/user-attributes")
+def list_user_attributes(username: str = Depends(current_username)):
+    """The user's own attributes as a tree, each with power, level and the patches
+    that train it."""
+    from src.domain.user_attributes import children_of, view
+
+    data = _load_user(username)
+    actions = data.get("actions") or {}
+    attrs = repos.load_user_attributes(username)
+    trained_by: dict[int, list[dict]] = {}
+    for patch_id, ids in repos.load_patch_links(username).items():
+        patch = actions.get(patch_id)
+        if not patch or patch.get("deleted"):
+            continue
+        for i in ids:
+            trained_by.setdefault(i, []).append({"id": patch_id, "name": patch.get("name")})
+
+    by_id = {a["id"]: a for a in attrs}
+    kids = children_of(attrs)
+    now = datetime.now()
+    memo: dict = {}
+
+    def with_patches(v: dict) -> dict:
+        v["patches"] = trained_by.get(v["id"], [])
+        for c in v["children"]:
+            with_patches(c)
+        return v
+
+    return [with_patches(view(r["id"], by_id, kids, now, memo)) for r in kids.get(None, [])]
+
+
+@app.post("/user-attributes")
+def post_user_attribute(payload: dict, username: str = Depends(current_username)):
+    """Body: {name, parent_id?}. Free. Under a parent, the new attribute starts so
+    that the parent keeps its value."""
+    p = payload or {}
+    parent = p.get("parent_id")
+    try:
+        parent_id = int(parent) if parent not in (None, "") else None
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=404, detail=f"attribute {parent!r} not found")
+    try:
+        return repos.create_user_attribute(username, p.get("name", ""), parent_id)
+    except PatchError as e:
+        raise HTTPException(status_code=e.status, detail=str(e))
+
+
+@app.post("/patches")
+def post_patch(payload: dict, username: str = Depends(current_username)):
+    """Body: {base_action_id, name, attribute_ids, new_attributes}. Costs the base's
+    price in build points; the id is the base's id plus the lowest free two digits."""
+    p = payload or {}
+    _load_user(username)  # run any due daily tick before the patch is written
+    try:
+        return repos.create_patch(
+            username,
+            str(p.get("base_action_id", "")).strip(),
+            p.get("name", ""),
+            p.get("attribute_ids") or [],
+            p.get("new_attributes") or [],
+        )
+    except PatchError as e:
+        raise HTTPException(status_code=e.status, detail=str(e))
 
 
 _LOG_ID_PREFIX = 73
@@ -1183,9 +1286,16 @@ def act_on_action(action_id: str, payload: dict | None = None, username: str = D
     for n in _tree.nodes_by_key.values():
         by_name.setdefault(_norm(n.name), []).append(n.key)
     concept_leaves_today = leaves_for_labels(today_labels, by_name, _tree.children)
-    action_contribs = repos.load_action_contributions(action.get("name", ""))
+    # A patch runs on its base: the base's contributions decide the default graph
+    # and the agenda match, and a label naming one of its own attributes counts too.
+    engine = engine_name(data.get("actions") or {}, action)
+    action_contribs = repos.load_action_contributions(engine)
     action_leaf_keys = {lk for _id, lk, _w in action_contribs}
     in_agenda_extra = bool(action_leaf_keys & concept_leaves_today)
+    if action.get("base_action_id") and not in_agenda_extra:
+        own = set(repos.load_patch_links(username).get(action_id, []))
+        names = {_norm(a["name"]) for a in repos.load_user_attributes(username) if a["id"] in own}
+        in_agenda_extra = bool(names & today_labels)
 
     try:
         outcome = apply_act(
@@ -1203,7 +1313,10 @@ def act_on_action(action_id: str, payload: dict | None = None, username: str = D
 
     _save_user(username, data)
 
-    apply_action_contributions(username, action.get("name", ""), float(outcome.score_diff), datetime.now())
+    now = datetime.now()
+    apply_action_contributions(username, engine, float(outcome.score_diff), now)
+    if action.get("base_action_id"):
+        apply_patch_attributes(username, action_id, float(outcome.score_diff), now)
 
     _record_activity(username)
     token_delta = (outcome.token_gain - outcome.tokens_wasted) - outcome.token_cost
@@ -1228,6 +1341,8 @@ def act_on_action(action_id: str, payload: dict | None = None, username: str = D
 def list_actions(username: str = Depends(current_username)):
     data = _load_user(username)
     actions = data.get("actions", {}) or {}
+    links = repos.load_patch_links(username)
+    attr_names = {a["id"]: a["name"] for a in repos.load_user_attributes(username)} if links else {}
     result = []
     for action_id, action in actions.items():
         if action.get("deleted"):
@@ -1242,5 +1357,15 @@ def list_actions(username: str = Depends(current_username)):
             "token_cost": int(action.get("token_cost") or 0),
             "token_gain": int(action.get("token_gain") or 0),
         })
-    result.sort(key=lambda a: (a.get("name") or "").upper())
+        if action.get("base_action_id"):
+            result[-1]["base_action_id"] = action["base_action_id"]
+            result[-1]["attributes"] = [
+                {"id": i, "name": attr_names[i]} for i in links.get(action_id, []) if i in attr_names
+            ]
+    # a patch right under its base: group by the base's name, base first
+    result.sort(key=lambda a: (
+        (a.get("name") or "").split(PATCH_SEPARATOR)[0].upper(),
+        1 if a.get("base_action_id") else 0,
+        (a.get("name") or "").upper(),
+    ))
     return result

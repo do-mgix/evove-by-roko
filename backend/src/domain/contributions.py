@@ -42,3 +42,24 @@ def apply_action_contributions(username: str, action_name: str, score_diff: floa
         repos.upsert_user_leaf_score(username, leaf_id, new_score, now, perm)
         touched += 1
     return touched
+
+
+def apply_patch_attributes(username: str, patch_action_id: str, score_diff: float, now: datetime) -> int:
+    """Train a patch's own attributes: every leaf reached from them receives the
+    whole stimulus, once. Returns how many leaves moved."""
+    from src.domain.user_attributes import children_of, reached_leaves, stimulate
+
+    links = repos.load_patch_links(username).get(patch_action_id)
+    if not links:
+        return 0
+    attrs = repos.load_user_attributes(username)
+    by_id = {a["id"]: a for a in attrs}
+    kids = children_of(attrs)
+    updates: dict[int, tuple[float, int]] = {}
+    for leaf_id in reached_leaves([a for a in links if a in by_id], kids):
+        result = stimulate(by_id[leaf_id], float(score_diff), now)
+        if result is not None:
+            updates[leaf_id] = result
+    if updates:
+        repos.save_user_attribute_scores(username, updates, now)
+    return len(updates)
