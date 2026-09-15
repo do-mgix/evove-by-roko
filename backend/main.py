@@ -408,9 +408,19 @@ def logout(authorization: str | None = Header(None)):
     return {"ok": True}
 
 
+@app.post("/auth/logout-all")
+def logout_all(username: str = Depends(current_username)):
+    """Revoke every session of the profile, on every device, this one included."""
+    return {"ok": True, "revoked": repos.delete_user_sessions(username)}
+
+
 @app.get("/auth/me")
-def auth_me(username: str = Depends(current_username)):
-    return {"username": username}
+def auth_me(authorization: str | None = Header(None), username: str = Depends(current_username)):
+    """The account and the session behind the token."""
+    info = repos.session_info(auth.token_digest(_bearer_token(authorization)))
+    if not info:
+        raise HTTPException(status_code=401, detail="invalid or expired session")
+    return info
 
 
 @app.get("/user")

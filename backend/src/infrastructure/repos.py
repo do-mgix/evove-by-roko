@@ -813,6 +813,53 @@ def purge_expired_sessions() -> int:
         s.close()
 
 
+def delete_user_sessions(username: str) -> int:
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        if not u:
+            return 0
+        n = s.query(orm.Session).filter_by(user_id=u.id).delete()
+        s.commit()
+        return int(n)
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+def session_info(token_hash: str) -> dict | None:
+    """The account and the session behind a token, for the profile screen."""
+    s = SessionLocal()
+    try:
+        row = s.execute(
+            select(orm.Session, orm.User)
+            .join(orm.User, orm.Session.user_id == orm.User.id)
+            .where(orm.Session.token_hash == token_hash)
+        ).first()
+        if row is None:
+            return None
+        session, user = row
+        active = s.execute(
+            select(func.count())
+            .select_from(orm.Session)
+            .where(orm.Session.user_id == user.id, orm.Session.expires_at > datetime.now())
+        ).scalar_one()
+        return {
+            "user_id": user.id,
+            "username": user.username,
+            "created_at": user.created_at.isoformat(),
+            "session": {
+                "created_at": session.created_at.isoformat(),
+                "expires_at": session.expires_at.isoformat(),
+            },
+            "active_sessions": int(active),
+        }
+    finally:
+        s.close()
+
+
 # ---------- attribute tree ----------
 
 _TREE_CACHE = None

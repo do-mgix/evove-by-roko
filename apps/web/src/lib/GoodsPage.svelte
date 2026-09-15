@@ -53,10 +53,7 @@
     <p class="error">{error}</p>
   {:else if user}
     <header class="head">
-      <div>
-        <h1>{user.username}</h1>
-        <span class="muted">user</span>
-      </div>
+      <h1>goods</h1>
       <div class="rank-large">
         <span class="rank-sym">{user.rank_symbol}</span>
         <div>

@@ -3,12 +3,13 @@
   import Dashboard from "./lib/Dashboard.svelte";
   import Shop from "./lib/Shop.svelte";
   import SkillTree from "./lib/SkillTree.svelte";
-  import UserPage from "./lib/UserPage.svelte";
+  import GoodsPage from "./lib/GoodsPage.svelte";
+  import ProfilePage from "./lib/ProfilePage.svelte";
   import Calendar from "./lib/Calendar.svelte";
   import Journey from "./lib/Journey.svelte";
   import UserSelect from "./lib/UserSelect.svelte";
   import { onMount } from "svelte";
-  import { logout as apiLogout, setUnauthorizedHandler } from "./lib/api";
+  import { logout as apiLogout, logoutEverywhere, setUnauthorizedHandler } from "./lib/api";
 
   // The login screen is always the entry point: a session kept in localStorage
   // from a previous visit is not enough to skip it.
@@ -36,9 +37,9 @@
     dashKey++;
   }
 
-  async function logout() {
+  async function logout(everywhere: boolean) {
     username = null;
-    await apiLogout();
+    await (everywhere ? logoutEverywhere() : apiLogout());
   }
 </script>
 
@@ -46,9 +47,11 @@
   <UserSelect {onSelected} />
 {:else}
   <div class="app">
-    <NavBar current={page} onNav={nav} onLogout={logout} />
+    <NavBar current={page} onNav={nav} />
     <div class="page">
-      {#if page === "home"}
+      {#if page === "profile"}
+        <ProfilePage onLogout={logout} />
+      {:else if page === "home"}
         {#key dashKey}
           <Dashboard onNav={nav} />
         {/key}
@@ -60,8 +63,8 @@
         <Shop initialSection={pageParams.section ?? null} />
       {:else if page === "skills"}
         <SkillTree />
-      {:else if page === "user"}
-        <UserPage />
+      {:else if page === "goods"}
+        <GoodsPage />
       {/if}
     </div>
   </div>

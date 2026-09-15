@@ -1,15 +1,15 @@
 <script lang="ts">
   export let current: string;
   export let onNav: (page: string) => void;
-  export let onLogout: () => void;
 
   const items = [
+    { id: "profile", label: "profile", icon: "@" },
     { id: "home", label: "home", icon: "◆" },
     { id: "agenda", label: "agenda", icon: "▦" },
     { id: "journey", label: "journey", icon: "↝" },
     { id: "shop", label: "shop", icon: "$" },
     { id: "skills", label: "skills", icon: "✦" },
-    { id: "user", label: "user", icon: "@" },
+    { id: "goods", label: "goods", icon: "◈" },
   ];
 </script>
 
@@ -25,13 +25,6 @@
       <span class="label">{item.label}</span>
     </button>
   {/each}
-
-  <div class="spacer"></div>
-
-  <button class="nav-btn logout" on:click={onLogout} title="log out">
-    <span class="icon">⏻</span>
-    <span class="label">log out</span>
-  </button>
 </nav>
 
 <style>
@@ -61,7 +54,6 @@
       border-top: 1px solid #333333;
       flex-shrink: 0;
     }
-    .navbar .spacer { display: none; }
     .nav-btn {
       flex: 1;
       min-width: 0;
@@ -95,12 +87,6 @@
   .nav-btn.active {
     color: #00e5ff;
     background: #000000;
-  }
-  .spacer {
-    flex: 1;
-  }
-  .nav-btn.logout:hover {
-    color: #ff4d4d;
   }
   .icon {
     font-size: 1.1rem;

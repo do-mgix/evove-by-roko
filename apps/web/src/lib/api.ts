@@ -1,4 +1,5 @@
 const BASE = (import.meta as any).env?.VITE_API_BASE ?? "http://localhost:8000";
+export const API_BASE = BASE;
 
 const TOKEN_KEY = "roko_token";
 const USER_KEY = "roko_username";
@@ -82,6 +83,29 @@ export async function logout(): Promise<void> {
   } finally {
     clearSession();
   }
+}
+
+/** Revokes every session of the profile, on every device, this one included. */
+export async function logoutEverywhere(): Promise<void> {
+  try {
+    await request("/auth/logout-all", { method: "POST" });
+  } finally {
+    clearSession();
+  }
+}
+
+export type SessionInfo = {
+  user_id: number;
+  username: string;
+  created_at: string;
+  session: { created_at: string; expires_at: string };
+  active_sessions: number;
+};
+
+export async function fetchSessionInfo(): Promise<SessionInfo> {
+  const res = await request("/auth/me");
+  if (!res.ok) throw new Error(`Failed to fetch session (${res.status})`);
+  return res.json();
 }
 
 /** "5010108" -> "5 01 01 08": action · parent class · child class · position.

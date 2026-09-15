@@ -266,7 +266,8 @@ table. An endpoint therefore cannot be left open by accident — without a valid
 there is no username to act as.
 
 Sessions are server-side and revocable: `POST /auth/logout` deletes the row and the token
-dies with it. Only the SHA-256 of the token is stored, so a dump of `sessions` hands out
+dies with it, and `POST /auth/logout-all` deletes every row of the profile, signing it out
+on every device. Only the SHA-256 of the token is stored, so a dump of `sessions` hands out
 nothing usable. Tokens last 30 days (`auth.SESSION_TTL`) and expired rows are cleared on
 the next login.
 
@@ -347,7 +348,7 @@ contribution weight — a 4-mark push-up session gives Calistenia (100%) 4 and T
 1.2. Fractions accumulate; the interface shows whole marks. Marks buy ranks A→Z, rank
 index *i* asking for `3 + i` (`rank_need`), 403 to finish Z, where progress stops at 28/28.
 A leaf stores its `rank_index` and the `marks` above it; any other attribute derives both
-from its total with the same table (`rank_view`). The user page draws every attribute as
+from its total with the same table (`rank_view`). The goods page draws every attribute as
 a thick bar cut into one rounded segment per mark (`MarkBar.svelte`).
 
 **Losing marks.** Nothing decays continuously any more. A rank is a permanent checkpoint;
@@ -530,8 +531,8 @@ equal weights:
 - they rank A→Z like any attribute.
 
 **In the tree** a patch sits where its base action would, under the base's registered
-parent: `/attributes/tree` lists it in that node's `patches`, and the user page draws it
-there with its attributes. It is display only and never enters the node's marks. The user
+parent: `/attributes/tree` lists it in that node's `patches`, and the goods page draws it
+there with its attributes. It is display only and never enters the node's marks. The goods
 page also shows every user attribute under "customizados".
 
 **Why links go by text.** `repos._write_actions` deletes and reinserts every action row on
@@ -613,7 +614,8 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 | POST | `/auth/register` | create a profile and sign in (`{username, password}`) |
 | POST | `/auth/login` | sign in (`{username, password}`) |
 | POST | `/auth/logout` | revoke the current session |
-| GET | `/auth/me` | the username behind the token |
+| POST | `/auth/logout-all` | revoke every session of the profile, on every device |
+| GET | `/auth/me` | the account behind the token (id, username, creation date), its session's start and expiry, and how many sessions are active |
 | GET | `/user` | full state: marks, rank and level, resources, bonuses |
 | GET | `/journey` | stage and time left until the next checkpoint |
 | GET | `/actions` | the profile's actions, each with its six tiers |
@@ -647,8 +649,10 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 ## Web client
 
 Svelte 5 with TypeScript and no router: `App.svelte` keeps the current screen in a
-variable and the sidebar switches between `home`, `agenda`, `journey`, `shop`, `skills`
-and `user`. The theme is dark and monospaced.
+variable and the sidebar switches between `profile`, `home`, `agenda`, `journey`, `shop`,
+`skills` and `goods`. `profile` holds only technical details — account, session, API — and
+the log out options; `goods` is what the profile has earned: rank, marks, resources and the
+attribute trees. The theme is dark and monospaced.
 
 The home screen is a grid of windows you can drag between slots and the bottom tray —
 `actions`, `agenda`, `logs` and `projects`. The profile name lives in `localStorage` under
