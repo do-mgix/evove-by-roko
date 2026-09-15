@@ -360,6 +360,8 @@ class PatchAttribute(Base):
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     patch_action_id: Mapped[str] = mapped_column(String(16), primary_key=True)
     user_attribute_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("user_attributes.id", ondelete="CASCADE"), primary_key=True)
+    # the share of the patch's marks this attribute receives, above 0 and at most 1
+    weight: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
 
 
 # one act as the marks window sees it

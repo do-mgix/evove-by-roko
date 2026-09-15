@@ -6,16 +6,26 @@
   export let node: AttrNode;
   /** A muted line under the bar. */
   export let note: string | null = null;
+  /** Makes the row a button. */
+  export let onOpen: (() => void) | null = null;
 </script>
 
-<li class="attr" class:custom={node.custom}>
-  <div class="row">
+{#snippet body()}
+  <span class="row">
     <span class="name">{node.name}</span>
     {#if node.weight != null}<span class="weight">{Math.round(node.weight * 100)}%</span>{/if}
     <span class="rank">{node.rank}</span>
-  </div>
+  </span>
   <MarkBar marks={node.max ? node.need : node.marks} need={node.need} size="md" label={node.max ? "máx" : null} />
-  {#if note}<div class="note">{note}</div>{/if}
+  {#if note}<span class="note">{note}</span>{/if}
+{/snippet}
+
+<li class="attr" class:custom={node.custom}>
+  {#if onOpen}
+    <button type="button" class="hit" on:click={onOpen}>{@render body()}</button>
+  {:else}
+    {@render body()}
+  {/if}
 </li>
 
 <style>
@@ -24,6 +34,18 @@
     min-width: 0;
     padding: 0.3rem 0 0.5rem;
   }
+  .hit {
+    display: block;
+    width: 100%;
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .hit:hover .name { color: #00e5ff; }
   .row {
     display: flex;
     align-items: baseline;
@@ -43,6 +65,7 @@
   .weight { color: #808080; font-size: 0.7rem; font-variant-numeric: tabular-nums; }
   .rank { color: #00e5ff; font-weight: bold; font-size: 0.8rem; }
   .note {
+    display: block;
     margin-top: 0.3rem;
     color: #808080;
     font-size: 0.68rem;

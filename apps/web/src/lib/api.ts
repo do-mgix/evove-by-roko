@@ -130,9 +130,11 @@ export type Action = {
   tiers?: TierOption[];
   // root first, down to the attribute it is registered under; a patch's is its base's
   path?: { key: string; name: string }[];
-  // patches only
+  // the leaves it feeds and their weights; a patch's are its base's
+  leaves?: { key: string; name: string; weight: number }[];
+  // patches only; `weight` is the share of the patch's marks the attribute receives
   base_action_id?: string;
-  attributes?: { id: number; name: string }[];
+  attributes?: { id: number; name: string; weight: number }[];
 };
 
 export async function fetchActions(): Promise<Action[]>{
@@ -245,7 +247,7 @@ export type UserAttribute = {
   total_marks: number;
   max: boolean;
   children: UserAttribute[];
-  patches?: { id: string; name: string }[];
+  patches?: { id: string; name: string; weight: number }[];
 };
 
 export type PatchAttachment = { id: string; name: string; attributes: UserAttribute[] };
@@ -280,11 +282,34 @@ export async function fetchRecentAttributes(limit = 10): Promise<RecentAttribute
   return res.json();
 }
 
-async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const res = await request(path, { method: "POST", body: JSON.stringify(body) });
+async function sendJson<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const res = await request(path, { method, body: body === undefined ? undefined : JSON.stringify(body) });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.detail || `falhou (${res.status})`);
   return data as T;
+}
+
+function postJson<T>(path: string, body: unknown): Promise<T> {
+  return sendJson<T>("POST", path, body);
+}
+
+/** Rename, or move under another attribute — `null` makes it a root. */
+export function updateUserAttribute(id: number, change: { name?: string; parent_id?: number | null }) {
+  return sendJson<{ id: number; name: string; parent_id: number | null }>("PATCH", `/user-attributes/${id}`, change);
+}
+
+/** Rename, or replace the attributes it trains. */
+export function updatePatch(id: string, change: { name?: string; attribute_ids?: number[] }) {
+  return sendJson<{ id: string; name: string; attribute_ids: number[] }>("PATCH", `/patches/${id}`, change);
+}
+
+/** The share of the patch's marks one of its attributes receives, above 0 and at most 1. */
+export function setPatchWeight(patchId: string, attributeId: number, weight: number) {
+  return sendJson<{ weight: number }>("PUT", `/patches/${patchId}/attributes/${attributeId}`, { weight });
+}
+
+export function unlinkPatchAttribute(patchId: string, attributeId: number) {
+  return sendJson<{ ok: boolean }>("DELETE", `/patches/${patchId}/attributes/${attributeId}`);
 }
 
 export async function fetchUserAttributes(): Promise<UserAttribute[]> {

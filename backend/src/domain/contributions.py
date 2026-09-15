@@ -29,8 +29,9 @@ def apply_action_contributions(username: str, action_name: str, marks: int, now:
 
 
 def apply_patch_attributes(username: str, patch_action_id: str, marks: int, now: datetime) -> int:
-    """Train a patch's own attributes: every leaf reached from them receives all of
-    the act's marks, once. Returns how many leaves moved."""
+    """Train a patch's own attributes: every leaf reached from them receives the
+    act's marks times the weight of its link, once — through the heaviest link when
+    several reach it. Returns how many leaves moved."""
     from src.domain.user_attributes import children_of, reached_leaves, stimulate
 
     if marks <= 0:
@@ -42,8 +43,9 @@ def apply_patch_attributes(username: str, patch_action_id: str, marks: int, now:
     by_id = {a["id"]: a for a in attrs}
     kids = children_of(attrs)
     updates: dict[int, tuple[float, int]] = {}
-    for leaf_id in reached_leaves([a for a in links if a in by_id], kids):
-        result = stimulate(by_id[leaf_id], marks)
+    reached = reached_leaves({a: w for a, w in links.items() if a in by_id}, kids)
+    for leaf_id, weight in reached.items():
+        result = stimulate(by_id[leaf_id], marks * weight)
         if result is not None:
             updates[leaf_id] = result
     if updates:

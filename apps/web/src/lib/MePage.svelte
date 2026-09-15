@@ -17,6 +17,7 @@
   import { userVersion } from "./store";
   import AttrRow from "./AttrRow.svelte";
   import MarkBar from "./MarkBar.svelte";
+  import DetailModal, { type Subject } from "./DetailModal.svelte";
 
   type Group = { key: string; title: string; items: Action[] };
   // a degree, or "p": the custom attributes, or the patches
@@ -37,6 +38,8 @@
   let lastVersion = 0;
   let attrView: AttrView = 1;
   let actView: ActView = 1;
+  // what the detail modal shows; the recent list opens nothing
+  let subject: Subject | null = null;
 
   async function load() {
     try {
@@ -88,9 +91,8 @@
     return out;
   }
 
-  // nothing opens, so every custom attribute is listed, each parent before its children
-  const flattenCustom = (list: UserAttribute[]): AttrNode[] =>
-    list.flatMap((a) => [userAttrAsNode(a), ...flattenCustom(a.children)]);
+  // nothing opens in place, so every custom attribute is listed, each parent before its children
+  const flattenCustom = (list: UserAttribute[]): UserAttribute[] => list.flatMap((a) => [a, ...flattenCustom(a.children)]);
 
   /** Catalog actions under their ancestor of `degree`, on the way to the attribute
    *  they are registered under. Patches have their own view. */
@@ -145,7 +147,10 @@
 
   $: half = Math.ceil(recent.length / 2);
   $: recentColumns = [recent.slice(0, half), recent.slice(half)];
-  $: attrList = attrView === "p" ? flattenCustom(custom) : attributesOfDegree(roots, attrView);
+  $: attrItems =
+    attrView === "p"
+      ? flattenCustom(custom).map((a) => ({ node: userAttrAsNode(a), subject: { kind: "custom", id: a.id } as Subject }))
+      : attributesOfDegree(roots, attrView).map((n) => ({ node: n, subject: { kind: "attribute", key: n.key } as Subject }));
   $: actGroups = actView === "p" ? patchesByBase(actions) : actionsOfDegree(actions, actView);
 </script>
 
@@ -203,10 +208,10 @@
           <span class="star">★</span>{attrView}
         </button>
       </div>
-      {#if attrList.length > 0}
+      {#if attrItems.length > 0}
         <ul class="list grid">
-          {#each attrList as n (n.key)}
-            <AttrRow node={n} />
+          {#each attrItems as item (item.node.key)}
+            <AttrRow node={item.node} onOpen={() => (subject = item.subject)} />
           {/each}
         </ul>
       {:else}
@@ -235,14 +240,20 @@
               <ul class="list">
                 {#each g.items as a (a.id)}
                   <li class="act">
-                    <div class="act-row">
-                      <span class="code">{formatCode(a.id)}</span>
-                      <span class="a-name">{actView === "p" ? patchLabel(a) : a.name}</span>
-                      <span class="meta">{a.value ?? 0}× · {Math.floor(a.score ?? 0)} marcas</span>
-                    </div>
-                    {#if actView === "p" && a.attributes?.length}
-                      <div class="a-attrs">{a.attributes.map((x) => x.name).join(", ")}</div>
-                    {/if}
+                    <button
+                      type="button"
+                      class="act-hit"
+                      on:click={() => (subject = a.base_action_id ? { kind: "patch", id: a.id } : { kind: "action", id: a.id })}
+                    >
+                      <span class="act-row">
+                        <span class="code">{formatCode(a.id)}</span>
+                        <span class="a-name">{actView === "p" ? patchLabel(a) : a.name}</span>
+                        <span class="meta">{a.value ?? 0}× · {Math.floor(a.score ?? 0)} marcas</span>
+                      </span>
+                      {#if actView === "p" && a.attributes?.length}
+                        <span class="a-attrs">{a.attributes.map((x) => x.name).join(", ")}</span>
+                      {/if}
+                    </button>
                   </li>
                 {/each}
               </ul>
@@ -257,6 +268,10 @@
     </section>
   {/if}
 </section>
+
+{#if subject}
+  <DetailModal {subject} {roots} {custom} {actions} onClose={() => (subject = null)} onChanged={load} />
+{/if}
 
 <style>
   .page {
@@ -402,6 +417,18 @@
   }
   .act { padding: 0.3rem 0; border-bottom: 1px solid #1a1a1a; }
   .act:last-child { border-bottom: none; }
+  .act-hit {
+    display: block;
+    width: 100%;
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .act-hit:hover .a-name { color: #00e5ff; }
   .act-row {
     display: flex;
     align-items: baseline;
@@ -427,6 +454,7 @@
     white-space: nowrap;
   }
   .a-attrs {
+    display: block;
     margin-top: 0.15rem;
     color: #00e5ff;
     font-size: 0.72rem;

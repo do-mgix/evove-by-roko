@@ -6,11 +6,13 @@
   export let size: "lg" | "md" = "lg";
   /** What floats over the bar; `marks/need` unless given. */
   export let label: string | null = null;
+  /** Makes each segment a button: clicking the n-th picks n. */
+  export let onPick: ((units: number) => void) | null = null;
 
   $: segments = Math.max(1, Math.floor(need));
   $: filled = Math.max(0, Math.min(segments, Math.floor(marks)));
   // past a few dozen segments the gaps stop reading as units
-  $: continuous = segments > 40;
+  $: continuous = segments > 40 && !onPick;
   $: text = label ?? `${filled}/${segments}`;
 </script>
 
@@ -27,7 +29,17 @@
     <div class="fill" style="width: {(filled / segments) * 100}%"></div>
   {:else}
     {#each Array(segments) as _, i (i)}
-      <span class="seg" class:on={i < filled}></span>
+      {#if onPick}
+        <button
+          type="button"
+          class="seg pick"
+          class:on={i < filled}
+          aria-label="{i + 1} de {segments}"
+          on:click={() => onPick?.(i + 1)}
+        ></button>
+      {:else}
+        <span class="seg" class:on={i < filled}></span>
+      {/if}
     {/each}
   {/if}
   <span class="count">{text}</span>
@@ -48,6 +60,14 @@
   .markbar.continuous { background: #333333; }
   .seg { flex: 1; min-width: 2px; background: #333333; }
   .seg.on { background: #ffffff; }
+  .seg.pick {
+    border: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+  }
+  .seg.pick:hover { background: #808080; }
+  .seg.pick.on:hover { background: #cccccc; }
   .fill { height: 100%; background: #ffffff; }
   .count {
     position: absolute;

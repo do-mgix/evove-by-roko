@@ -1,9 +1,23 @@
+<script module lang="ts">
+  // Modals open on top of one another; only the topmost answers Escape, so closing
+  // a confirmation leaves the modal under it open.
+  const stack: object[] = [];
+</script>
+
 <script lang="ts">
+  import { onDestroy } from "svelte";
+
   export let title = "";
   export let onClose: () => void;
+  /** "page" takes most of the screen, like a page of its own. */
+  export let size: "default" | "page" = "default";
+
+  const self = {};
+  stack.push(self);
+  onDestroy(() => stack.splice(stack.indexOf(self), 1));
 
   function onKey(e: KeyboardEvent) {
-    if (e.key === "Escape") onClose();
+    if (e.key === "Escape" && stack[stack.length - 1] === self) onClose();
   }
 </script>
 
@@ -17,7 +31,7 @@
   tabindex="-1"
 ></div>
 
-<div class="modal" role="dialog" aria-modal="true">
+<div class="modal {size}" role="dialog" aria-modal="true">
   <header>
     <span class="title">{title}</span>
     <button class="close" on:click={onClose} aria-label="fechar">×</button>
@@ -55,6 +69,12 @@
     flex-direction: column;
     overflow: hidden;
   }
+  .modal.page {
+    width: min(1100px, 94vw);
+    max-width: none;
+    height: 88vh;
+    max-height: none;
+  }
   header {
     display: flex;
     justify-content: space-between;
@@ -84,6 +104,10 @@
     padding: 1rem 1.25rem;
     overflow-y: auto;
   }
+  .page .body {
+    flex: 1;
+    min-height: 0;
+  }
 
   @media (max-width: 768px) {
     .modal {
@@ -91,6 +115,10 @@
       width: calc(100vw - 1.5rem);
       max-width: none;
       max-height: 85dvh;
+    }
+    .modal.page {
+      height: 92dvh;
+      max-height: none;
     }
   }
 </style>

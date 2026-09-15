@@ -1174,19 +1174,19 @@ def _patch_attachments(username: str, data: dict) -> dict[str, list[dict]]:
 @app.get("/user-attributes")
 def list_user_attributes(username: str = Depends(current_username)):
     """The user's own attributes as a tree, each with rank, marks and the patches
-    that train it."""
+    that train it, at the weight of their link."""
     from src.domain.user_attributes import children_of, view
 
     data = _load_user(username)
     actions = data.get("actions") or {}
     attrs = repos.load_user_attributes(username)
     trained_by: dict[int, list[dict]] = {}
-    for patch_id, ids in repos.load_patch_links(username).items():
+    for patch_id, weights in repos.load_patch_links(username).items():
         patch = actions.get(patch_id)
         if not patch or patch.get("deleted"):
             continue
-        for i in ids:
-            trained_by.setdefault(i, []).append({"id": patch_id, "name": patch.get("name")})
+        for i, weight in weights.items():
+            trained_by.setdefault(i, []).append({"id": patch_id, "name": patch.get("name"), "weight": weight})
 
     by_id = {a["id"]: a for a in attrs}
     kids = children_of(attrs)
@@ -1206,13 +1206,38 @@ def post_user_attribute(payload: dict, username: str = Depends(current_username)
     """Body: {name, parent_id?}. Free. Under a parent, the new attribute starts so
     that the parent keeps its value."""
     p = payload or {}
-    parent = p.get("parent_id")
-    try:
-        parent_id = int(parent) if parent not in (None, "") else None
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=404, detail=f"attribute {parent!r} not found")
+    parent_id = _attribute_id(p.get("parent_id"))
     try:
         return repos.create_user_attribute(username, p.get("name", ""), parent_id)
+    except PatchError as e:
+        raise HTTPException(status_code=e.status, detail=str(e))
+
+
+def _attribute_id(raw) -> int | None:
+    """A user attribute id from a request body; None for none."""
+    if raw in (None, ""):
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=404, detail=f"attribute {raw!r} not found")
+
+
+@app.patch("/user-attributes/{attr_id}")
+def patch_user_attribute(attr_id: int, payload: dict, username: str = Depends(current_username)):
+    """Body: {name?, parent_id?}. Renames it, or moves it with its marks under
+    another attribute — null for a root. A leaf holding marks takes no children,
+    and a parent left without children keeps its total."""
+    p = payload or {}
+    if "name" not in p and "parent_id" not in p:
+        raise HTTPException(status_code=400, detail="give name or parent_id")
+    try:
+        out: dict = {}
+        if "name" in p:
+            out = repos.rename_user_attribute(username, attr_id, p["name"])
+        if "parent_id" in p:
+            out = repos.move_user_attribute(username, attr_id, _attribute_id(p["parent_id"]))
+        return out
     except PatchError as e:
         raise HTTPException(status_code=e.status, detail=str(e))
 
@@ -1231,6 +1256,46 @@ def post_patch(payload: dict, username: str = Depends(current_username)):
             p.get("attribute_ids") or [],
             p.get("new_attributes") or [],
         )
+    except PatchError as e:
+        raise HTTPException(status_code=e.status, detail=str(e))
+
+
+@app.patch("/patches/{patch_id}")
+def patch_patch(patch_id: str, payload: dict, username: str = Depends(current_username)):
+    """Body: {name?, attribute_ids?}. Renames it, or replaces the attributes it
+    trains: a kept link keeps its weight, a new one starts at 1, and a dropped
+    attribute stops receiving its marks."""
+    p = payload or {}
+    if "name" not in p and "attribute_ids" not in p:
+        raise HTTPException(status_code=400, detail="give name or attribute_ids")
+    if "attribute_ids" in p and not isinstance(p["attribute_ids"], list):
+        raise HTTPException(status_code=400, detail="attribute_ids must be a list")
+    try:
+        out: dict = {}
+        if "name" in p:
+            out = repos.rename_patch(username, patch_id, p["name"])
+        if "attribute_ids" in p:
+            out = {**out, **repos.set_patch_attributes(username, patch_id, p["attribute_ids"])}
+        return out
+    except PatchError as e:
+        raise HTTPException(status_code=e.status, detail=str(e))
+
+
+@app.put("/patches/{patch_id}/attributes/{attr_id}")
+def put_patch_link(patch_id: str, attr_id: int, payload: dict, username: str = Depends(current_username)):
+    """Body: {weight}. The share of the patch's marks this attribute receives, above
+    0 and at most 1."""
+    try:
+        return repos.set_patch_link_weight(username, patch_id, attr_id, (payload or {}).get("weight"))
+    except PatchError as e:
+        raise HTTPException(status_code=e.status, detail=str(e))
+
+
+@app.delete("/patches/{patch_id}/attributes/{attr_id}")
+def delete_patch_link(patch_id: str, attr_id: int, username: str = Depends(current_username)):
+    """The attribute stops receiving the patch's marks."""
+    try:
+        return repos.unlink_patch_attribute(username, patch_id, attr_id)
     except PatchError as e:
         raise HTTPException(status_code=e.status, detail=str(e))
 
@@ -1367,6 +1432,7 @@ def list_actions(username: str = Depends(current_username)):
     attr_names = {a["id"]: a["name"] for a in repos.load_user_attributes(username)} if links else {}
     templates = repos.load_action_templates()
     tree = repos.load_attr_tree()
+    contributions = repos.load_all_contributions()
     result = []
     for action_id, action in actions.items():
         if action.get("deleted"):
@@ -1382,11 +1448,17 @@ def list_actions(username: str = Depends(current_username)):
             "token_gain": int(action.get("token_gain") or 0),
             "tiers": tier_options(tiers_for(data, action, templates)),
             "path": _action_path(tree, templates, actions, action),
+            "leaves": [
+                {"key": key, "name": tree.nodes_by_key[key].name, "weight": weight}
+                for key, weight in contributions.get(engine_name(actions, action).upper(), [])
+                if key in tree.nodes_by_key
+            ],
         })
         if action.get("base_action_id"):
             result[-1]["base_action_id"] = action["base_action_id"]
             result[-1]["attributes"] = [
-                {"id": i, "name": attr_names[i]} for i in links.get(action_id, []) if i in attr_names
+                {"id": i, "name": attr_names[i], "weight": weight}
+                for i, weight in links.get(action_id, {}).items() if i in attr_names
             ]
     # a patch right under its base: group by the base's name, base first
     result.sort(key=lambda a: (

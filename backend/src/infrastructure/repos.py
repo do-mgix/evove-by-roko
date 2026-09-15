@@ -1282,34 +1282,57 @@ def load_user_attributes(username: str) -> list[dict]:
         s.close()
 
 
-def load_patch_links(username: str) -> dict[str, list[int]]:
-    """{patch_action_id: [user_attribute_id, ...]}."""
+def load_patch_links(username: str) -> dict[str, dict[int, float]]:
+    """{patch_action_id: {user_attribute_id: weight}}."""
     s = SessionLocal()
     try:
         u = _get_user(s, username)
         if not u:
             return {}
-        out: dict[str, list[int]] = {}
+        out: dict[str, dict[int, float]] = {}
         rows = s.execute(select(orm.PatchAttribute).where(orm.PatchAttribute.user_id == u.id)).scalars()
         for r in rows:
-            out.setdefault(r.patch_action_id, []).append(r.user_attribute_id)
+            out.setdefault(r.patch_action_id, {})[r.user_attribute_id] = float(r.weight)
         return out
     finally:
         s.close()
 
 
-def _insert_user_attribute(s: Session, u: orm.User, name, parent_id: int | None, now: datetime) -> orm.UserAttribute:
-    from src.domain.user_attributes import PatchError, children_of, new_child_start
+def _checked_attribute_name(s: Session, u: orm.User, name, exclude_id: int | None = None) -> str:
+    from src.domain.user_attributes import PatchError
 
     name = " ".join(str(name or "").split())
     if not name or len(name) > 64:
         raise PatchError("attribute name must be 1-64 characters")
     # the column's collation decides equality, the same one the unique key uses
-    taken = s.execute(select(orm.UserAttribute.id).where(
-        orm.UserAttribute.user_id == u.id, orm.UserAttribute.name == name)).first()
-    if taken:
+    query = select(orm.UserAttribute.id).where(orm.UserAttribute.user_id == u.id, orm.UserAttribute.name == name)
+    if exclude_id is not None:
+        query = query.where(orm.UserAttribute.id != exclude_id)
+    if s.execute(query).first():
         raise PatchError(f"attribute '{name}' already exists", 409)
+    return name
 
+
+def _owned_attribute_ids(s: Session, u: orm.User, raw_ids: list) -> list[int]:
+    from src.domain.user_attributes import PatchError
+
+    known = {r[0] for r in s.execute(select(orm.UserAttribute.id).where(orm.UserAttribute.user_id == u.id))}
+    ids: list[int] = []
+    for raw in raw_ids or []:
+        try:
+            aid = int(raw)
+        except (TypeError, ValueError):
+            raise PatchError(f"attribute {raw!r} not found", 404)
+        if aid not in known:
+            raise PatchError(f"attribute {aid} not found", 404)
+        ids.append(aid)
+    return ids
+
+
+def _insert_user_attribute(s: Session, u: orm.User, name, parent_id: int | None, now: datetime) -> orm.UserAttribute:
+    from src.domain.user_attributes import PatchError, children_of, new_child_start
+
+    name = _checked_attribute_name(s, u, name)
     fields = {"marks": 0.0, "rank_index": 0}
     if parent_id is not None:
         attrs = _user_attr_dicts(s, u.id)
@@ -1346,7 +1369,7 @@ def create_patch(username: str, base_action_id: str, name: str,
                  attribute_ids: list, new_attributes: list) -> dict:
     """Pay the base's price, create the new attributes, the patch action and its
     links, all in one transaction."""
-    from src.domain.user_attributes import MAX_PATCHES, PatchError, patch_name
+    from src.domain.user_attributes import MAX_PATCHES, PatchError, patch_label, patch_name
 
     now = datetime.now()
     s = SessionLocal()
@@ -1359,9 +1382,7 @@ def create_patch(username: str, base_action_id: str, name: str,
         if base.base_action_id:
             raise PatchError("a patch cannot be the base of another patch")
 
-        label = " ".join(str(name or "").split()).upper()
-        if not label or len(label) > 48:
-            raise PatchError("patch name must be 1-48 characters")
+        label = patch_label(name)
         full_name = patch_name(base.name, label)
 
         siblings = s.execute(select(orm.Action).where(
@@ -1374,16 +1395,7 @@ def create_patch(username: str, base_action_id: str, name: str,
             raise PatchError(f"{base.name} already has {MAX_PATCHES} patches", 409)
         patch_id = f"{base.action_id}{free[0]:02d}"
 
-        known = {r[0] for r in s.execute(select(orm.UserAttribute.id).where(orm.UserAttribute.user_id == u.id))}
-        ids: list[int] = []
-        for raw in attribute_ids or []:
-            try:
-                aid = int(raw)
-            except (TypeError, ValueError):
-                raise PatchError(f"attribute {raw!r} not found", 404)
-            if aid not in known:
-                raise PatchError(f"attribute {aid} not found", 404)
-            ids.append(aid)
+        ids = _owned_attribute_ids(s, u, attribute_ids)
         for spec in new_attributes or []:
             if isinstance(spec, dict):
                 parent = spec.get("parent_id")
@@ -1415,6 +1427,167 @@ def create_patch(username: str, base_action_id: str, name: str,
         s.commit()
         return {"id": patch_id, "name": full_name, "base_action_id": base.action_id,
                 "attribute_ids": ids, "cost": cost, "build_points": have - cost}
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+def _owned_attribute(s: Session, u: orm.User, attr_id: int) -> orm.UserAttribute:
+    from src.domain.user_attributes import PatchError
+
+    row = s.get(orm.UserAttribute, attr_id)
+    if row is None or row.user_id != u.id:
+        raise PatchError(f"attribute {attr_id} not found", 404)
+    return row
+
+
+def _owned_patch(s: Session, u: orm.User, patch_id: str) -> orm.Action:
+    from src.domain.user_attributes import PatchError
+
+    row = s.execute(select(orm.Action).where(
+        orm.Action.user_id == u.id, orm.Action.action_id == patch_id)).scalar_one_or_none()
+    if row is None or row.deleted or not row.base_action_id:
+        raise PatchError(f"patch {patch_id} not found", 404)
+    return row
+
+
+def _patch_link(s: Session, u: orm.User, patch_id: str, attr_id: int) -> orm.PatchAttribute:
+    from src.domain.user_attributes import PatchError
+
+    _owned_patch(s, u, patch_id)
+    link = s.get(orm.PatchAttribute, (u.id, patch_id, attr_id))
+    if link is None:
+        raise PatchError(f"patch {patch_id} does not train attribute {attr_id}", 404)
+    return link
+
+
+def rename_user_attribute(username: str, attr_id: int, name) -> dict:
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        row = _owned_attribute(s, u, attr_id)
+        row.name = _checked_attribute_name(s, u, name, exclude_id=attr_id)
+        s.commit()
+        return {"id": row.id, "name": row.name, "parent_id": row.parent_id}
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+def move_user_attribute(username: str, attr_id: int, parent_id: int | None) -> dict:
+    """Put an attribute under another, or make it a root. Its marks go with it; a
+    parent it leaves without children keeps its total."""
+    from src.domain.user_attributes import check_move, children_of, left_behind
+
+    now = datetime.now()
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        attrs = _user_attr_dicts(s, u.id)
+        by_id = {a["id"]: a for a in attrs}
+        kids = children_of(attrs)
+        check_move(attr_id, parent_id, by_id, kids)
+        row = _owned_attribute(s, u, attr_id)
+        if row.parent_id != parent_id:
+            kept = left_behind(attr_id, by_id, kids)
+            if kept is not None:
+                old = s.get(orm.UserAttribute, row.parent_id)
+                old.marks, old.rank_index = kept
+                old.last_updated_at = now
+            row.parent_id = parent_id
+            s.commit()
+        return {"id": row.id, "name": row.name, "parent_id": row.parent_id}
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+def rename_patch(username: str, patch_id: str, name) -> dict:
+    """Only the part after the base's name changes; the id and the links stay."""
+    from src.domain.user_attributes import PATCH_SEPARATOR, PatchError, patch_label, patch_name
+
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        row = _owned_patch(s, u, patch_id)
+        base = s.execute(select(orm.Action).where(
+            orm.Action.user_id == u.id, orm.Action.action_id == row.base_action_id)).scalar_one_or_none()
+        base_name = base.name if base else row.name.split(PATCH_SEPARATOR)[0]
+        label = patch_label(name)
+        full_name = patch_name(base_name, label)
+        taken = s.execute(select(orm.Action.action_id).where(
+            orm.Action.user_id == u.id, orm.Action.base_action_id == row.base_action_id,
+            orm.Action.name == full_name, orm.Action.action_id != patch_id)).first()
+        if taken:
+            raise PatchError(f"patch '{label}' already exists on {base_name}", 409)
+        row.name = full_name
+        s.commit()
+        return {"id": row.action_id, "name": row.name}
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+def set_patch_attributes(username: str, patch_id: str, attribute_ids: list) -> dict:
+    """Replace the attributes a patch trains. A link it keeps keeps its weight, a new
+    one starts at 1, and a dropped attribute stops receiving the patch's marks."""
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        _owned_patch(s, u, patch_id)
+        ids = list(dict.fromkeys(_owned_attribute_ids(s, u, attribute_ids)))
+        links = {
+            r.user_attribute_id: r
+            for r in s.execute(select(orm.PatchAttribute).where(
+                orm.PatchAttribute.user_id == u.id, orm.PatchAttribute.patch_action_id == patch_id)).scalars()
+        }
+        for aid, link in links.items():
+            if aid not in ids:
+                s.delete(link)
+        for aid in ids:
+            if aid not in links:
+                s.add(orm.PatchAttribute(user_id=u.id, patch_action_id=patch_id, user_attribute_id=aid, weight=1.0))
+        s.commit()
+        return {"id": patch_id, "attribute_ids": ids}
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+def set_patch_link_weight(username: str, patch_id: str, attr_id: int, weight) -> dict:
+    from src.domain.user_attributes import link_weight
+
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        link = _patch_link(s, u, patch_id, attr_id)
+        link.weight = link_weight(weight)
+        s.commit()
+        return {"id": patch_id, "attribute_id": attr_id, "weight": link.weight}
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+def unlink_patch_attribute(username: str, patch_id: str, attr_id: int) -> dict:
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        s.delete(_patch_link(s, u, patch_id, attr_id))
+        s.commit()
+        return {"ok": True, "id": patch_id, "attribute_id": attr_id}
     except Exception:
         s.rollback()
         raise

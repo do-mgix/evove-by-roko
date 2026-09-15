@@ -298,7 +298,7 @@ Content tables also keep the logical id from the JSON era (`action_id`, `attr_id
 
 ### Migrations
 
-Eighteen revisions in a chain:
+Nineteen revisions in a chain:
 
 ```
 5638fb2a1810  initial schema
@@ -319,6 +319,7 @@ c7a3e9f1b5d8  memorable action ids: 5aa-aa-ii
 d8e4b2c6f1a3  attribute engine: one graph, no kinds
 e2c7a9d4f6b1  patches and user attributes
 f3b8d1e7a4c2  marks and ranks replace scores, levels and xp
+a3c9e5f1b7d2  patch link weights
 ```
 
 Nine of them (`b7c1`, `c8d2`, `e5a1`, `f7b3`, `b2e7`, `c4a8`, `d6b1`, `a1e5`, `c7a3`) seed
@@ -527,8 +528,13 @@ equal weights:
 - only a leaf (no children) holds marks; a parent is the mean of its children, rounded down;
 - creating a child never moves the parent at that moment — the first child of a leaf
   inherits its marks and rank, and a later child starts at the parent's current total;
-- a patch may point at any attribute, and on each act every leaf reached from them gets
-  **all** of the act's marks once — a patch on "Ciências" trains Física and Química fully;
+- a patch may point at any attribute, each link with a weight above 0 and at most 1 (new
+  links start at 1): on each act every leaf reached gets the act's marks times that
+  weight, once, through the heaviest link when several reach it — a patch on "Ciências"
+  at 100% trains Física and Química fully;
+- moving an attribute takes its marks along; a parent it leaves without children becomes
+  a leaf again at the total it had, and a leaf holding marks takes no children, since its
+  own marks would vanish behind the mean;
 - they rank A→Z like any attribute.
 
 **In the tree** a patch sits where its base action would, under the base's registered
@@ -543,7 +549,13 @@ each save, so `actions.id` changes all the time. `patch_attributes` references t
 instead of going through `save_user`. The dead per-user `attributes` table was not an
 option for the same reason — every save wipes it.
 
-Editing, renaming or deleting patches and user attributes is not built yet.
+**Editing.** The `me` page opens any attribute or action in a page-sized modal — its marks
+and rank, what computes it and what it computes. Only what the user created changes there:
+a patch or a user attribute can be renamed and re-parented, and a user attribute's
+children re-weighted (patches, in tenths) or removed — a child attribute becomes a root
+with its marks, a patch simply stops training it. Anything that makes an attribute stop
+counting marks asks for confirmation first. Deleting patches and user attributes is not
+built yet.
 
 ### How the shop groups actions
 
@@ -620,16 +632,20 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 | GET | `/auth/me` | the account behind the token (id, username, creation date), its session's start and expiry, and how many sessions are active |
 | GET | `/user` | full state: marks, rank and level, resources, bonuses |
 | GET | `/journey` | stage and time left until the next checkpoint |
-| GET | `/actions` | the profile's actions, each with its six tiers and `path`, the primary chain to the attribute it is registered under |
+| GET | `/actions` | the profile's actions, each with its six tiers, `path` (the primary chain to the attribute it is registered under) and `leaves` (what it feeds, with weights); a patch adds its `attributes` with their link weight |
 | POST | `/actions/{id}/act` | execute an action (`{option, note?}`; option is the tier, 0–5) |
 | GET | `/actions/{id}/window` | marks already earned in the action's 6-hour window, and its tiers |
 | GET | `/attributes` | every leaf with its rank and marks |
 | GET | `/attributes/roots` | every root with its rank and marks |
 | GET | `/attributes/recent` | the leaves that most recently gained marks, custom ones included (`?limit=10`) |
 | GET | `/attributes/tree` | the whole graph; each child link says its `weight` and whether it is `primary`; a node can carry `patches` |
-| GET | `/user-attributes` | the user's own attributes as a tree, with rank, marks and the patches that train each |
+| GET | `/user-attributes` | the user's own attributes as a tree, with rank, marks and the patches that train each, with their link weight |
+| PATCH | `/user-attributes/{id}` | rename (`{name}`) or move with its marks (`{parent_id}`, `null` for a root) |
 | POST | `/user-attributes` | create one (`{name, parent_id?}`), free |
 | POST | `/patches` | create a patch (`{base_action_id, name, attribute_ids, new_attributes}`), costs the base's price |
+| PATCH | `/patches/{id}` | rename (`{name}`) or replace the attributes it trains (`{attribute_ids}`); kept links keep their weight |
+| PUT | `/patches/{id}/attributes/{attribute_id}` | set a link's weight (`{weight}`, above 0 and at most 1) |
+| DELETE | `/patches/{id}/attributes/{attribute_id}` | the attribute stops receiving the patch's marks |
 | GET | `/shop/packages` | available actions grouped by theme |
 | GET | `/shop/catalog` | the same, with each action's leaves and weights |
 | POST | `/shop/actions/buy` | buy an action (`{attribute, name}`) |
@@ -658,7 +674,9 @@ account, session, API — and the log out options. `me` is what the profile has 
 rank and marks, the leaves that gained marks most recently in two columns, the attributes
 of one degree as flat rows, and the actions grouped by their attribute of one degree. A
 single star button cycles each list by click: ★1, ★2, ★3 and ★p for the custom attributes;
-★1, ★2 and ★p for the patches, by base. The theme is dark and monospaced.
+★1, ★2 and ★p for the patches, by base. Clicking an attribute or an action — not a recent
+one — opens it in `DetailModal.svelte` (see "Editing" above). The theme is dark and
+monospaced.
 
 The home screen is a grid of windows you can drag between slots and the bottom tray —
 `actions`, `agenda`, `logs` and `projects`. The profile name lives in `localStorage` under
