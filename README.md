@@ -349,7 +349,8 @@ contribution weight — a 4-mark push-up session gives Calistenia (100%) 4 and T
 index *i* asking for `3 + i` (`rank_need`), 403 to finish Z, where progress stops at 28/28.
 A leaf stores its `rank_index` and the `marks` above it; any other attribute derives both
 from its total with the same table (`rank_view`). The `me` page draws every attribute as
-a thick bar cut into one rounded segment per mark (`MarkBar.svelte`).
+a thick white bar cut into one segment per mark, rounded only at its ends, with the count
+floating in the middle (`MarkBar.svelte`).
 
 **Losing marks.** Nothing decays continuously any more. A rank is a permanent checkpoint;
 the marks above it are progress that a trigger will be able to take away — the end of a
@@ -531,10 +532,10 @@ equal weights:
 - they rank A→Z like any attribute.
 
 **In the tree** a patch sits where its base action would, under the base's registered
-parent: `/attributes/tree` lists it in that node's `patches`, and the `me` page draws it
-there with its attributes. It is display only and never enters the node's marks. The `me`
-page also shows every user attribute under "custom" and every patch, by base action, under
-"patches".
+parent: `/attributes/tree` lists it in that node's `patches`, display only — it never
+enters the node's marks, and the web client no longer draws it there. The `me` page lists
+every user attribute under the attributes' ★p and every patch, by base action, under the
+actions' ★p.
 
 **Why links go by text.** `repos._write_actions` deletes and reinserts every action row on
 each save, so `actions.id` changes all the time. `patch_attributes` references the patch by
@@ -655,9 +656,9 @@ variable and the sidebar switches between `profile`, `home`, `agenda`, `journey`
 `skills` and `me`. `profile` holds the journey (day, streak, stage), the technical details —
 account, session, API — and the log out options. `me` is what the profile has earned: its
 rank and marks, the leaves that gained marks most recently in two columns, the attributes
-of degree 1, 2 or 3 or the custom ones, and the actions grouped by their degree-1 or
-degree-2 attribute, or the patches by base — each switched by a button row. The theme is
-dark and monospaced.
+of one degree as flat rows, and the actions grouped by their attribute of one degree. A
+single star button cycles each list by click: ★1, ★2, ★3 and ★p for the custom attributes;
+★1, ★2 and ★p for the patches, by base. The theme is dark and monospaced.
 
 The home screen is a grid of windows you can drag between slots and the bottom tray —
 `actions`, `agenda`, `logs` and `projects`. The profile name lives in `localStorage` under
