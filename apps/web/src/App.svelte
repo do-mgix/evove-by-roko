@@ -3,7 +3,7 @@
   import Dashboard from "./lib/Dashboard.svelte";
   import Shop from "./lib/Shop.svelte";
   import SkillTree from "./lib/SkillTree.svelte";
-  import GoodsPage from "./lib/GoodsPage.svelte";
+  import MePage from "./lib/MePage.svelte";
   import ProfilePage from "./lib/ProfilePage.svelte";
   import Calendar from "./lib/Calendar.svelte";
   import Journey from "./lib/Journey.svelte";
@@ -63,8 +63,8 @@
         <Shop initialSection={pageParams.section ?? null} />
       {:else if page === "skills"}
         <SkillTree />
-      {:else if page === "goods"}
-        <GoodsPage />
+      {:else if page === "me"}
+        <MePage />
       {/if}
     </div>
   </div>

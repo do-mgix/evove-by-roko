@@ -1001,11 +1001,7 @@ def agenda_today(username: str = Depends(current_username)):
 
 def _user_leaf_totals(username: str, tree) -> dict[str, float]:
     """Every leaf's total marks: what its rank took plus the marks above it."""
-    return {
-        key: total_marks(row["marks"], row["rank_index"])
-        for key, row in repos.get_user_leaf_scores(username).items()
-        if key in tree.leaves_by_key
-    }
+    return _user_leaf_totals_from(repos.get_user_leaf_scores(username), tree)
 
 
 def _node_view(tree, key: str, totals: dict[str, float], memo: dict) -> dict:
@@ -1018,6 +1014,61 @@ def _node_view(tree, key: str, totals: dict[str, float], memo: dict) -> dict:
         "is_leaf": tree.is_leaf(key),
         **rank_view(node_total(key, totals, tree, memo)),
     }
+
+
+def _recent_attributes(tree, leaf_scores: dict, user_attrs: list[dict], limit: int, now: datetime) -> list[dict]:
+    """Leaves holding marks, newest update first: the graph's and the user's own
+    (`custom`). Only leaves store marks, so only a leaf has an update time."""
+    from src.domain.user_attributes import children_of
+
+    totals = _user_leaf_totals_from(leaf_scores, tree)
+    memo: dict[str, float] = {}
+    rows: list[tuple[datetime, dict]] = []
+    for key, total in totals.items():
+        if total <= 0:
+            continue
+        parent = tree.primary_parent.get(key)
+        item = _node_view(tree, key, totals, memo)
+        item["parent"] = tree.nodes_by_key[parent].name if parent else None
+        rows.append((leaf_scores[key]["last_updated_at"], item))
+
+    by_id = {a["id"]: a for a in user_attrs}
+    kids = children_of(user_attrs)
+    for a in user_attrs:
+        total = total_marks(a["marks"], a["rank_index"])
+        if kids.get(a["id"]) or total <= 0:
+            continue
+        parent = by_id.get(a["parent_id"])
+        rows.append((a["last_updated_at"], {
+            "key": f"user:{a['id']}",
+            "name": a["name"],
+            "degree": 0,
+            "is_leaf": True,
+            **rank_view(total),
+            "custom": True,
+            "parent": parent["name"] if parent else None,
+        }))
+
+    rows.sort(key=lambda r: r[0], reverse=True)
+    # measured here, so the browser's clock and zone never enter it
+    return [{**item, "seconds_ago": max(0, int((now - at).total_seconds()))} for at, item in rows[:limit]]
+
+
+def _user_leaf_totals_from(leaf_scores: dict, tree) -> dict[str, float]:
+    return {
+        key: total_marks(row["marks"], row["rank_index"])
+        for key, row in leaf_scores.items()
+        if key in tree.leaves_by_key
+    }
+
+
+def _action_path(tree, templates: dict, actions: dict, action: dict) -> list[dict]:
+    """Root first, the primary chain down to the attribute an action is registered
+    under — a patch's is its base's. Empty for an action without a template."""
+    parent = (templates.get(engine_name(actions, action)) or {}).get("parent")
+    if not parent or parent not in tree.nodes_by_key:
+        return []
+    return [{"key": k, "name": tree.nodes_by_key[k].name} for k in tree.primary_chain(parent)]
 
 
 @app.get("/attributes")
@@ -1041,6 +1092,20 @@ def attribute_roots(username: str = Depends(current_username)):
     totals = _user_leaf_totals(username, tree)
     memo: dict[str, float] = {}
     return [_node_view(tree, r, totals, memo) for r in tree.roots]
+
+
+@app.get("/attributes/recent")
+def recent_attributes(limit: int = 10, username: str = Depends(current_username)):
+    """The leaves that most recently gained marks, the user's own included, newest
+    first, each with `parent` and `seconds_ago`."""
+    _load_user(username)
+    return _recent_attributes(
+        repos.load_attr_tree(),
+        repos.get_user_leaf_scores(username),
+        repos.load_user_attributes(username),
+        max(1, min(limit, 50)),
+        datetime.now(),
+    )
 
 
 @app.get("/attributes/tree")
@@ -1301,6 +1366,7 @@ def list_actions(username: str = Depends(current_username)):
     links = repos.load_patch_links(username)
     attr_names = {a["id"]: a["name"] for a in repos.load_user_attributes(username)} if links else {}
     templates = repos.load_action_templates()
+    tree = repos.load_attr_tree()
     result = []
     for action_id, action in actions.items():
         if action.get("deleted"):
@@ -1315,6 +1381,7 @@ def list_actions(username: str = Depends(current_username)):
             "token_cost": int(action.get("token_cost") or 0),
             "token_gain": int(action.get("token_gain") or 0),
             "tiers": tier_options(tiers_for(data, action, templates)),
+            "path": _action_path(tree, templates, actions, action),
         })
         if action.get("base_action_id"):
             result[-1]["base_action_id"] = action["base_action_id"]

@@ -128,6 +128,8 @@ export type Action = {
   token_cost: number;
   token_gain: number;
   tiers?: TierOption[];
+  // root first, down to the attribute it is registered under; a patch's is its base's
+  path?: { key: string; name: string }[];
   // patches only
   base_action_id?: string;
   attributes?: { id: number; name: string }[];
@@ -265,6 +267,16 @@ export async function fetchAttributeRoots(): Promise<AttrNode[]> {
 export async function fetchAttributeTree(): Promise<{ roots: AttrNode[] }> {
   const res = await request("/attributes/tree");
   if (!res.ok) throw new Error(`Failed to fetch tree (${res.status})`);
+  return res.json();
+}
+
+/** A leaf that recently gained marks, from the graph or the user's own (`custom`).
+ *  `seconds_ago` is measured on the server. */
+export type RecentAttribute = AttrNode & { parent: string | null; seconds_ago: number };
+
+export async function fetchRecentAttributes(limit = 10): Promise<RecentAttribute[]> {
+  const res = await request(`/attributes/recent?limit=${limit}`);
+  if (!res.ok) throw new Error(`Failed to fetch recent attributes (${res.status})`);
   return res.json();
 }
 

@@ -9,7 +9,7 @@
     { id: "journey", label: "journey", icon: "↝" },
     { id: "shop", label: "shop", icon: "$" },
     { id: "skills", label: "skills", icon: "✦" },
-    { id: "goods", label: "goods", icon: "◈" },
+    { id: "me", label: "me", icon: "◈" },
   ];
 </script>
 

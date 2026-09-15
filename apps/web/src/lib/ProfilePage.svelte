@@ -1,17 +1,20 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { API_BASE, fetchSessionInfo, type SessionInfo } from "./api";
+  import { API_BASE, fetchSessionInfo, fetchUser, type SessionInfo, type UserState } from "./api";
 
   export let onLogout: (everywhere: boolean) => void;
 
   let info: SessionInfo | null = null;
+  let user: UserState | null = null;
   let loading = true;
   let error: string | null = null;
   let confirmAll = false;
 
   onMount(async () => {
     try {
-      info = await fetchSessionInfo();
+      const [i, u] = await Promise.all([fetchSessionInfo(), fetchUser()]);
+      info = i;
+      user = u;
     } catch (e: any) {
       error = e?.message ?? "erro";
     } finally {
@@ -34,6 +37,17 @@
       <h1>{info.username}</h1>
       <span class="muted">profile</span>
     </header>
+
+    {#if user}
+      <section class="card">
+        <h2>jornada</h2>
+        <dl class="rows">
+          <dt>day</dt><dd>{user.day} <span class="muted-sub">desde o primeiro login</span></dd>
+          <dt>streak</dt><dd>{user.consecutive_days} <span class="muted-sub">dias consecutivos</span></dd>
+          <dt>stage</dt><dd>{user.stage} <span class="muted-sub">checkpoint em {user.days_until_next_checkpoint}d</span></dd>
+        </dl>
+      </section>
+    {/if}
 
     <section class="card">
       <h2>conta</h2>
@@ -122,7 +136,8 @@
   }
   .rows {
     display: grid;
-    grid-template-columns: max-content 1fr;
+    /* fixed, so the values line up from one card to the next */
+    grid-template-columns: 8rem 1fr;
     gap: 0.45rem 1.5rem;
     margin: 0;
   }
