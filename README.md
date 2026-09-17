@@ -235,6 +235,7 @@ Enough vocabulary to read the code:
 | **degree** | depth along primary parents, the root being 1 |
 | **patch** | a user's specialization of an owned action (*estudo → física*): acts like the base and also trains the user's own attributes |
 | **user attribute** | an attribute a user created, outside the default graph, trained only by patches |
+| **log action** | an action logged for monitoring only (leisure): `log_only`, spends tokens, feeds no attribute — its marks stay on the action |
 | **tokens** | earned by executing productivity actions, spent on leisure ones, capped in stock |
 | **energy** | drained by acting outside today's agenda, refilled at each checkpoint |
 | **build points / skill points** | currencies for buying actions in the shop and nodes in the skill tree; both are paid out at checkpoints |
@@ -397,6 +398,143 @@ fraction stays in the children.
 `reweight` is the exception, on purpose: it moves the parent. Links that would close a
 cycle are refused, and so is linking children onto a leaf that already holds marks —
 subdivide it instead.
+
+### What deserves an attribute
+
+The engine takes any grain, which is exactly why the tree needs a policy — nothing in the
+code stops someone from registering *surf* next to *bíceps*. One question decides it:
+
+> **Is this, in practice, completely different from what is already there — or does it name
+> a part of the body?** If neither, it is not a new attribute.
+
+Surf is not, in practice, different from a sport: it is Esporte. So is chess, if the user
+wants it there — the tree is not a taxonomy of the world, it is the set of things that can
+be trained, and the system is not trying to model reality closely. Training and sport, on
+the other hand, *are* different enough to stay apart: the anatomical branch already covers
+what a training session moves, muscle by muscle, while a sport is one activity with a
+progression of its own.
+
+So the seed stays coarse and generic:
+
+| Not an attribute | Where it goes |
+| --- | --- |
+| Surf, futebol, basquete, vôlei, tênis, xadrez | Esporte — one attribute, one action, a patch per sport |
+| Instagram, TikTok, Twitter | Redes sociais — one action, no brands |
+| A single exercise | The muscles it moves, through `action_contributions` |
+
+**Brand names never enter the seed.** They date, they multiply, and whoever wants to
+separate them already has patches. The catalog carries *Redes sociais*, *Vídeo*, *Jogos*;
+a user who cares about the distinction carries *Redes sociais · Instagram*.
+
+**Patches absorb the specificity.** A patch keeps everything its base pays and adds the
+user's own attributes, so *Esporte · Basquete*, *Treino · Arremesso de 3* and *Treino ·
+Velocidade* are all things a user builds on top of two catalog actions, each feeding
+whatever user attributes they created. That is where realism belongs — the seed only has
+to be right about what is *different*.
+
+**Food and diet come out.** `nutricao` (`macros`, `hidratacao`, `estimulantes`), the
+`c_alimentacao` practice (`c_refeicao`, `c_bebida`) and the seven actions that feed them —
+WATER, COFFEE, TEA, BREAKFAST, LUNCH, DINNER, SNACK — leave the seed. Tying an achievement
+to what someone ate is not a progression worth rewarding here, and ranks pointed at meals
+push in the direction of several eating disorders whether or not the app intends it.
+Hydration and caffeine go with it rather than surviving as a smaller version of the same
+idea. Two weights move with them: `corpo` loses a child worth `0.2` and `t_saude` loses
+three of its five links, so both are reweighted in the same migration.
+
+### Log actions
+
+Leisure is *logged*, not trained. Watching a film or scrolling a feed belongs in the day's
+ledger and in the token balance, and should not raise an attribute — there is no level of
+watching films worth having. For these the **action is the attribute**: marks accumulate on
+the action row itself (`actions.score`, plus `logs.marks` and `mark_events`, all of which
+already exist) and reach no leaf.
+
+They are marked with a boolean on the template, `log_only`, because they share one shape:
+they charge `token_cost` instead of releasing `token_gain`, they carry six tiers like any
+action, and they have no contributions. A patch on one of them is allowed and costs the
+base's `cost` like any other patch, but it trains nothing — the user can keep *Redes
+sociais · Trabalho* apart from *Redes sociais · Rolagem* in the logs without either
+becoming progression.
+
+Two things still hold for a log action:
+
+- it is still **registered** under an attribute (`action_templates.parent_node_id`), because
+  that is what gives it an id — registration is an id anchor, not a contribution;
+- `/shop/packages` and `/shop/catalog` iterate `action_contributions` today, so an action
+  with none would disappear from the shop. Filing log actions means assembling the catalog
+  from `action_templates` instead, with `log_only` or the registered parent choosing the
+  group. That is implementation, and it lands with the population.
+
+One question stays open until the population: `apply_act` raises the profile's total marks
+for every act, and monitoring argues a log action should not. The current code says it does.
+
+### Naming and language
+
+Schema in English, visible text translatable, user text untouched:
+
+| Layer | Language | Example |
+| --- | --- | --- |
+| Tables, columns, enums, `attr_nodes.key`, action names | English | `arm_strength`, `log_only` |
+| Labels the interface shows for seeded content | a translation keyed by the technical key | `arm_strength` → "Força de Braço" |
+| Anything the user typed — patch names, user attributes | free text, stored as written, never keyed | "Ler Ficção" |
+
+Identifiers in Portuguese cost more than they look: accents rub against ORMs, migrations,
+query caches and logs, every error message and every library around them is in English
+already, and a mixed-language schema is the first thing a second pair of hands trips over.
+Content is the opposite — it has to be in the user's language, so it lives as data and not
+as an identifier, either as a `label_pt` column beside the key or, better, in an i18n file
+the front end reads by key without touching the database.
+
+User-created content is a third case and takes no key at all. A patch called "Ler Ficção"
+has no English name to map to and never gets one; it is stored in the language it was typed
+in, and only the closed set of seeded attributes and actions gets the key plus translation
+treatment.
+
+The seed as it stands mixes the two (`biceps` and `c_leitura` next to `FLEXÃO` and `ESCREVER
+DIÁLOGOS`), and the population is when that gets settled. Node keys are cheap to rename:
+`attr_edges`, `action_contributions` and `action_templates` all point at node **ids**, no
+client stores a key, and the only files that spell them out are `backend/data/attributes_tree.json`
+and `scripts/attributes.py` — the frozen `*.pre_engine.json` seeds keep the old keys, and the
+rename migration maps them forward the way `d8e4` already realigns the graph. Action names
+are not cheap: `action_contributions.action_name`, `action_templates.action_name` and
+`actions.name` join on the string itself, and `engine_name` resolves a patch through its
+base's name, so renaming one action touches all of them at once.
+
+### Sources for the population
+
+What each source is actually for, in the order it feeds the calculation — not in the order
+a bibliography would list them.
+
+**Anatomical attributes** (muscle → share of the limb):
+
+| Source | Use |
+| --- | --- |
+| Holzbaur et al. 2007 (upper limb) | Base table of fixed weights per muscle inside *braço* / *ombro*: the volume fraction becomes the static weight of the attribute in that limb |
+| Handsfield et al. 2014 (lower limb) | The same for *perna*; it also gives scaling formulas, so weights can vary by height and mass per profile |
+| Ito 1996 / Brookbush | Simpler alternative — weigh by **joint** (hip, knee, ankle) instead of by individual muscle. Less granular, easier to implement first |
+| ACE EMG studies | Not structural weight but **weight per exercise**: how much a given action patch (supino, agachamento) contributes to the target muscle against a reference exercise. This is what calibrates how much one mark of an action moves a muscle |
+
+**Anatomical-conceptual attributes** (activity → brain region):
+
+| Source | Use |
+| --- | --- |
+| Penfield's homunculus and its revisions (Ghimire 2021, Emory) | Links "part of the body trained" to "cortical weight" — lets physical attributes also feed a general fine-motor-control attribute in proportion to cortical representation |
+| Fedorenko et al. (language network vs. MD network) | A **separation** criterion: language and general reasoning are distinct networks, which is the evidence for splitting two conceptual patches into sibling attributes |
+| Reading × mathematics meta-analysis (2025) | An **overlap** criterion: different domains share one cognitive-control network, which justifies a transversal attribute (focus / cognitive control) that takes marks from any conceptual patch on top of the subject's own attribute |
+| Physical exercise and cognition (hippocampus, prefrontal cortex) | Justification for a small bonus from physical attributes into cognitive ones (memory, focus) — only if that crossover is wanted in the design |
+
+**Purely conceptual attributes** (subjects, work, skills):
+
+| Source | Use |
+| --- | --- |
+| ISCED-F 2013 | A ready-made skeleton for the *estudar* branch. Its three levels (broad field → narrow field → detailed field) copy straight across as the patch hierarchy: Ciências naturais → Ciências físicas → Matemática. Nothing to invent |
+| O*NET Content Model — Basic and Cross-Functional Skills | Structure for work and productivity outside school: content skills (reading, writing, speaking, mathematics, science) and process skills (active learning, critical thinking, monitoring). Use it when a patch is a competence rather than a subject |
+| O*NET Abilities Taxonomy (cognitive, psychomotor, physical) | The only source that already holds all three domains in one tree — a cross-reference to check that no attribute here is left without a category |
+| O*NET frameworks in Excel / JSON-LD | Not theory, importable data: a seed for the patch tree instead of typing it out |
+
+Suggested order: ISCED (conceptual) → O*NET Abilities (the cognitive bridge) → Holzbaur
+and Handsfield (anatomical) → ACE EMG (fine calibration) → Penfield and Fedorenko (the
+anatomical-conceptual link, more advanced and optional for the MVP).
 
 ### Adding actions to the catalog
 
@@ -719,3 +857,9 @@ Known rough edges, for whoever touches this next:
   The keys differ, but in the unified tree they sit side by side.
 - `storage.py` and `EVOVE_DATA_DIR` are leftovers from the JSON era. State lives in the
   database; the per-user directory is only used to locate legacy files.
+- **The seed is still the test population.** "What deserves an attribute", "Log actions" and
+  "Naming and language" describe the convention the next migration applies; none of it is in
+  the database yet. What is there: `nutricao`, `c_alimentacao` and their seven actions, one
+  action per sport (FUTEBOL, BASQUETE, VÔLEI, TÊNIS, SURF), one per platform (INSTAGRAM,
+  TIKTOK, TWITTER, YOUTUBE), leisure actions feeding `visual`, `auditivo` and `recompensa`,
+  and no `log_only` column on `action_templates`.
