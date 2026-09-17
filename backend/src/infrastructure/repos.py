@@ -1151,16 +1151,18 @@ def load_all_contributions() -> dict[str, list[tuple[str, float]]]:
         s.close()
 
 
-TEMPLATE_FALLBACK = {"code": None, "parent": None, "tiers": None, "type": 0, "diff": 1, "cost": 0, "token_cost": 0, "token_gain": 0}
-
-
 def load_action_templates() -> dict[str, dict]:
-    """Return {action_name_upper: {code, parent, tiers, type, diff, cost, token_cost, token_gain}}."""
+    """Return {action_name_upper: {code, parent, tiers, type, diff, cost, token_cost,
+    token_gain, log_only}}.
+
+    Outer join: a log action is registered under no attribute, so its `parent` is
+    None and an inner join would drop it from the catalog entirely.
+    """
     s = SessionLocal()
     try:
         rows = s.execute(
             select(orm.ActionTemplate, orm.AttrNode.key)
-            .join(orm.AttrNode, orm.ActionTemplate.parent_node_id == orm.AttrNode.id)
+            .outerjoin(orm.AttrNode, orm.ActionTemplate.parent_node_id == orm.AttrNode.id)
         ).all()
         return {
             t.action_name: {
@@ -1172,6 +1174,7 @@ def load_action_templates() -> dict[str, dict]:
                 "cost": int(t.cost),
                 "token_cost": int(t.token_cost),
                 "token_gain": int(t.token_gain),
+                "log_only": bool(t.log_only),
             }
             for t, parent_key in rows
         }
@@ -1404,7 +1407,12 @@ def create_patch(username: str, base_action_id: str, name: str,
                 row = _insert_user_attribute(s, u, spec, None, now)
             ids.append(row.id)
         ids = list(dict.fromkeys(ids))
-        if not ids:
+        if _base_is_log(s, base.name):
+            # leisure is logged, not trained: the patch separates the entries in the
+            # ledger — "REDES SOCIAIS · TRABALHO" — and moves no attribute
+            if ids:
+                raise PatchError(f"{base.name} is logged, not trained: its patches train no attribute")
+        elif not ids:
             raise PatchError("a patch needs at least one attribute")
 
         cost = int(s.execute(select(orm.ActionTemplate.cost).where(
@@ -1441,6 +1449,21 @@ def _owned_attribute(s: Session, u: orm.User, attr_id: int) -> orm.UserAttribute
     if row is None or row.user_id != u.id:
         raise PatchError(f"attribute {attr_id} not found", 404)
     return row
+
+
+def _base_name(s: Session, u: orm.User, patch: orm.Action) -> str:
+    """The catalog name a patch runs on — what carries the tiers, the tokens and
+    the log_only mark."""
+    if not patch.base_action_id:
+        return patch.name
+    return s.execute(select(orm.Action.name).where(
+        orm.Action.user_id == u.id, orm.Action.action_id == patch.base_action_id)).scalar_one_or_none() or ""
+
+
+def _base_is_log(s: Session, base_name: str) -> bool:
+    """A log action trains nothing, and neither does a patch of one."""
+    return bool(s.execute(select(orm.ActionTemplate.log_only).where(
+        orm.ActionTemplate.action_name == base_name)).scalar_one_or_none())
 
 
 def _owned_patch(s: Session, u: orm.User, patch_id: str) -> orm.Action:
@@ -1539,11 +1562,15 @@ def rename_patch(username: str, patch_id: str, name) -> dict:
 def set_patch_attributes(username: str, patch_id: str, attribute_ids: list) -> dict:
     """Replace the attributes a patch trains. A link it keeps keeps its weight, a new
     one starts at 1, and a dropped attribute stops receiving the patch's marks."""
+    from src.domain.user_attributes import PatchError
+
     s = SessionLocal()
     try:
         u = _get_user(s, username)
-        _owned_patch(s, u, patch_id)
+        patch = _owned_patch(s, u, patch_id)
         ids = list(dict.fromkeys(_owned_attribute_ids(s, u, attribute_ids)))
+        if ids and _base_is_log(s, _base_name(s, u, patch)):
+            raise PatchError("this action is logged, not trained: its patches train no attribute")
         links = {
             r.user_attribute_id: r
             for r in s.execute(select(orm.PatchAttribute).where(

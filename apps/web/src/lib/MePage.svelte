@@ -98,13 +98,15 @@
    *  they are registered under. Patches have their own view. */
   function actionsOfDegree(list: Action[], degree: number): Group[] {
     const groups = new Map<string, Group>();
+    // a log action is registered under no attribute, so it has no path to group by
+    const logged: Group = { key: "_log", title: "registro", items: [] };
     const loose: Group = { key: "", title: "sem registro", items: [] };
     for (const a of list) {
       if (a.base_action_id) continue;
       const path = a.path ?? [];
       const at = path[degree - 1];
       if (!at) {
-        loose.items.push(a);
+        (a.log_only ? logged : loose).items.push(a);
         continue;
       }
       if (!groups.has(at.key)) {
@@ -113,7 +115,7 @@
       groups.get(at.key)!.items.push(a);
     }
     const out = [...groups.values()].sort(byTitle);
-    if (loose.items.length) out.push(loose);
+    for (const extra of [logged, loose]) if (extra.items.length) out.push(extra);
     for (const g of out) g.items.sort((x, y) => x.id.localeCompare(y.id));
     return out;
   }

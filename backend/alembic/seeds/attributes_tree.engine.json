@@ -7,6 +7,7 @@
     { "key": "memb_inf", "name": "Membros Inferiores" },
     { "key": "cardiovascular", "name": "Cardiovascular" },
     { "key": "mobilidade", "name": "Mobilidade" },
+    { "key": "nutricao", "name": "Nutrição" },
 
     { "key": "mente", "name": "Mente" },
     { "key": "pre_frontal", "name": "Pré-Frontal" },
@@ -31,6 +32,9 @@
     { "key": "anaerobico", "name": "Anaeróbico", "half_life_hours": 240 },
     { "key": "flexibilidade", "name": "Flexibilidade", "half_life_hours": 720 },
     { "key": "estabilidade", "name": "Estabilidade", "half_life_hours": 720 },
+    { "key": "macros", "name": "Macros", "half_life_hours": 72 },
+    { "key": "hidratacao", "name": "Hidratação", "half_life_hours": 24 },
+    { "key": "estimulantes", "name": "Estimulantes", "half_life_hours": 24 },
 
     { "key": "foco", "name": "Foco", "half_life_hours": 168 },
     { "key": "executiva", "name": "Função Executiva", "half_life_hours": 168 },
@@ -69,6 +73,17 @@
     { "key": "c_docs", "name": "Docs", "half_life_hours": 2160 },
     { "key": "c_review", "name": "Review", "half_life_hours": 2160 },
 
+    { "key": "c_alimentacao", "name": "Alimentação", "shop_group": true },
+    { "key": "c_refeicao", "name": "Refeições", "half_life_hours": 720 },
+    { "key": "c_bebida", "name": "Bebidas", "half_life_hours": 720 },
+
+    { "key": "c_consumo", "name": "Consumo", "shop_group": true },
+    { "key": "c_redes", "name": "Redes", "half_life_hours": 336 },
+    { "key": "c_video", "name": "Vídeo", "half_life_hours": 336 },
+    { "key": "c_jogos", "name": "Jogos", "half_life_hours": 336 },
+    { "key": "c_audio", "name": "Áudio", "half_life_hours": 336 },
+    { "key": "c_indulgencia", "name": "Indulgência", "half_life_hours": 336 },
+
     { "key": "c_pratica_mental", "name": "Prática Mental", "shop_group": true },
     { "key": "c_meditacao", "name": "Meditação", "half_life_hours": 1440 },
     { "key": "c_escuta", "name": "Escuta", "half_life_hours": 1440 },
@@ -101,9 +116,10 @@
   ],
 
   "edges": [
-    { "parent": "corpo", "child": "musculatura", "weight": 0.5 },
-    { "parent": "corpo", "child": "cardiovascular", "weight": 0.3 },
-    { "parent": "corpo", "child": "mobilidade", "weight": 0.2 },
+    { "parent": "corpo", "child": "musculatura", "weight": 0.4 },
+    { "parent": "corpo", "child": "cardiovascular", "weight": 0.25 },
+    { "parent": "corpo", "child": "mobilidade", "weight": 0.15 },
+    { "parent": "corpo", "child": "nutricao", "weight": 0.2 },
 
     { "parent": "musculatura", "child": "memb_sup", "weight": 0.33 },
     { "parent": "musculatura", "child": "tronco", "weight": 0.33 },
@@ -129,6 +145,10 @@
 
     { "parent": "mobilidade", "child": "flexibilidade", "weight": 0.5 },
     { "parent": "mobilidade", "child": "estabilidade", "weight": 0.5 },
+
+    { "parent": "nutricao", "child": "macros", "weight": 0.5 },
+    { "parent": "nutricao", "child": "hidratacao", "weight": 0.35 },
+    { "parent": "nutricao", "child": "estimulantes", "weight": 0.15 },
 
     { "parent": "mente", "child": "pre_frontal", "weight": 0.25 },
     { "parent": "mente", "child": "limbico", "weight": 0.2 },
@@ -175,6 +195,15 @@
     { "parent": "c_programacao", "child": "c_docs", "weight": 0.1 },
     { "parent": "c_programacao", "child": "c_review", "weight": 0.1 },
 
+    { "parent": "c_alimentacao", "child": "c_refeicao", "weight": 0.6 },
+    { "parent": "c_alimentacao", "child": "c_bebida", "weight": 0.4 },
+
+    { "parent": "c_consumo", "child": "c_redes", "weight": 0.3 },
+    { "parent": "c_consumo", "child": "c_video", "weight": 0.3 },
+    { "parent": "c_consumo", "child": "c_jogos", "weight": 0.2 },
+    { "parent": "c_consumo", "child": "c_audio", "weight": 0.1 },
+    { "parent": "c_consumo", "child": "c_indulgencia", "weight": 0.1 },
+
     { "parent": "c_pratica_mental", "child": "c_meditacao", "weight": 0.5 },
     { "parent": "c_pratica_mental", "child": "c_escuta", "weight": 0.25 },
     { "parent": "c_pratica_mental", "child": "c_raciocinio", "weight": 0.25 },
@@ -185,12 +214,12 @@
     { "parent": "fisico", "child": "t_mobilidade", "weight": 0.2 },
     { "parent": "fisico", "child": "t_saude", "weight": 0.2 },
 
-    { "parent": "mental", "child": "t_aprendizado", "weight": 0.166667 },
-    { "parent": "mental", "child": "t_memoria", "weight": 0.166667 },
-    { "parent": "mental", "child": "t_foco", "weight": 0.166667 },
-    { "parent": "mental", "child": "t_linguagem", "weight": 0.166667 },
-    { "parent": "mental", "child": "t_coordenacao", "weight": 0.166667 },
-    { "parent": "mental", "child": "t_emocao", "weight": 0.166667 },
+    { "parent": "mental", "child": "t_aprendizado", "weight": 0.1667 },
+    { "parent": "mental", "child": "t_memoria", "weight": 0.1667 },
+    { "parent": "mental", "child": "t_foco", "weight": 0.1667 },
+    { "parent": "mental", "child": "t_linguagem", "weight": 0.1667 },
+    { "parent": "mental", "child": "t_coordenacao", "weight": 0.1667 },
+    { "parent": "mental", "child": "t_emocao", "weight": 0.1667 },
 
     { "parent": "t_forca", "child": "peitoral", "weight": 0.2, "primary": false },
     { "parent": "t_forca", "child": "dorsal", "weight": 0.2, "primary": false },
@@ -227,13 +256,13 @@
     { "parent": "t_mobilidade", "child": "flexibilidade", "weight": 0.5, "primary": false },
     { "parent": "t_mobilidade", "child": "estabilidade", "weight": 0.5, "primary": false },
 
-    { "parent": "t_saude", "child": "aerobico", "weight": 0.5, "primary": false },
-    { "parent": "t_saude", "child": "flexibilidade", "weight": 0.2, "primary": false },
-    { "parent": "t_saude", "child": "estabilidade", "weight": 0.15, "primary": false },
-    { "parent": "t_saude", "child": "core", "weight": 0.15, "primary": false },
-
     { "parent": "t_linguagem", "child": "wernicke", "weight": 0.5, "primary": false },
     { "parent": "t_linguagem", "child": "broca", "weight": 0.5, "primary": false },
+
+    { "parent": "t_saude", "child": "macros", "weight": 0.35, "primary": false },
+    { "parent": "t_saude", "child": "hidratacao", "weight": 0.3, "primary": false },
+    { "parent": "t_saude", "child": "aerobico", "weight": 0.2, "primary": false },
+    { "parent": "t_saude", "child": "estimulantes", "weight": 0.15, "primary": false },
 
     { "parent": "t_coordenacao", "child": "coordenacao", "weight": 0.5, "primary": false },
     { "parent": "t_coordenacao", "child": "equilibrio", "weight": 0.3, "primary": false },
@@ -294,14 +323,34 @@
     { "action": "REMADA", "leaf": "deltoide", "weight": 0.15 },
     { "action": "REMADA", "leaf": "core", "weight": 0.15 },
 
-    { "action": "ESPORTE", "leaf": "aerobico", "weight": 0.25 },
-    { "action": "ESPORTE", "leaf": "anaerobico", "weight": 0.2 },
-    { "action": "ESPORTE", "leaf": "coordenacao", "weight": 0.2 },
-    { "action": "ESPORTE", "leaf": "equilibrio", "weight": 0.1 },
-    { "action": "ESPORTE", "leaf": "quadriceps", "weight": 0.1 },
-    { "action": "ESPORTE", "leaf": "core", "weight": 0.1 },
-    { "action": "ESPORTE", "leaf": "panturrilha", "weight": 0.05 },
-    { "action": "ESPORTE", "leaf": "c_esportes", "weight": 1.0 },
+    { "action": "FUTEBOL", "leaf": "aerobico", "weight": 0.35 },
+    { "action": "FUTEBOL", "leaf": "anaerobico", "weight": 0.15 },
+    { "action": "FUTEBOL", "leaf": "quadriceps", "weight": 0.15 },
+    { "action": "FUTEBOL", "leaf": "gluteo", "weight": 0.1 },
+    { "action": "FUTEBOL", "leaf": "panturrilha", "weight": 0.1 },
+    { "action": "FUTEBOL", "leaf": "coordenacao", "weight": 0.1 },
+    { "action": "FUTEBOL", "leaf": "equilibrio", "weight": 0.05 },
+
+    { "action": "BASQUETE", "leaf": "aerobico", "weight": 0.3 },
+    { "action": "BASQUETE", "leaf": "anaerobico", "weight": 0.2 },
+    { "action": "BASQUETE", "leaf": "quadriceps", "weight": 0.15 },
+    { "action": "BASQUETE", "leaf": "panturrilha", "weight": 0.15 },
+    { "action": "BASQUETE", "leaf": "coordenacao", "weight": 0.1 },
+    { "action": "BASQUETE", "leaf": "equilibrio", "weight": 0.1 },
+
+    { "action": "VÔLEI", "leaf": "anaerobico", "weight": 0.25 },
+    { "action": "VÔLEI", "leaf": "panturrilha", "weight": 0.15 },
+    { "action": "VÔLEI", "leaf": "deltoide", "weight": 0.15 },
+    { "action": "VÔLEI", "leaf": "core", "weight": 0.1 },
+    { "action": "VÔLEI", "leaf": "coordenacao", "weight": 0.2 },
+    { "action": "VÔLEI", "leaf": "equilibrio", "weight": 0.15 },
+
+    { "action": "TÊNIS", "leaf": "anaerobico", "weight": 0.25 },
+    { "action": "TÊNIS", "leaf": "antebraco", "weight": 0.2 },
+    { "action": "TÊNIS", "leaf": "deltoide", "weight": 0.15 },
+    { "action": "TÊNIS", "leaf": "core", "weight": 0.1 },
+    { "action": "TÊNIS", "leaf": "coordenacao", "weight": 0.2 },
+    { "action": "TÊNIS", "leaf": "equilibrio", "weight": 0.1 },
 
     { "action": "CORRIDA", "leaf": "aerobico", "weight": 0.55 },
     { "action": "CORRIDA", "leaf": "quadriceps", "weight": 0.15 },
@@ -326,12 +375,52 @@
     { "action": "CAMINHADA", "leaf": "quadriceps", "weight": 0.15 },
     { "action": "CAMINHADA", "leaf": "gluteo", "weight": 0.15 },
 
+    { "action": "SURF", "leaf": "aerobico", "weight": 0.15 },
+    { "action": "SURF", "leaf": "anaerobico", "weight": 0.15 },
+    { "action": "SURF", "leaf": "core", "weight": 0.2 },
+    { "action": "SURF", "leaf": "equilibrio", "weight": 0.25 },
+    { "action": "SURF", "leaf": "coordenacao", "weight": 0.15 },
+    { "action": "SURF", "leaf": "deltoide", "weight": 0.1 },
+
     { "action": "ESCALADA", "leaf": "antebraco", "weight": 0.25 },
     { "action": "ESCALADA", "leaf": "biceps", "weight": 0.2 },
     { "action": "ESCALADA", "leaf": "dorsal", "weight": 0.15 },
     { "action": "ESCALADA", "leaf": "core", "weight": 0.15 },
     { "action": "ESCALADA", "leaf": "coordenacao", "weight": 0.15 },
     { "action": "ESCALADA", "leaf": "foco", "weight": 0.1 },
+
+    { "action": "INSTAGRAM", "leaf": "visual", "weight": 0.5 },
+    { "action": "INSTAGRAM", "leaf": "recompensa", "weight": 0.5 },
+
+    { "action": "TWITTER", "leaf": "visual", "weight": 0.3 },
+    { "action": "TWITTER", "leaf": "wernicke", "weight": 0.3 },
+    { "action": "TWITTER", "leaf": "recompensa", "weight": 0.4 },
+
+    { "action": "TIKTOK", "leaf": "visual", "weight": 0.5 },
+    { "action": "TIKTOK", "leaf": "auditivo", "weight": 0.2 },
+    { "action": "TIKTOK", "leaf": "recompensa", "weight": 0.3 },
+
+    { "action": "YOUTUBE", "leaf": "visual", "weight": 0.4 },
+    { "action": "YOUTUBE", "leaf": "auditivo", "weight": 0.3 },
+    { "action": "YOUTUBE", "leaf": "recompensa", "weight": 0.2 },
+    { "action": "YOUTUBE", "leaf": "hipocampo", "weight": 0.1 },
+
+    { "action": "WATCH FILM", "leaf": "visual", "weight": 0.4 },
+    { "action": "WATCH FILM", "leaf": "auditivo", "weight": 0.3 },
+    { "action": "WATCH FILM", "leaf": "amigdala", "weight": 0.2 },
+    { "action": "WATCH FILM", "leaf": "hipocampo", "weight": 0.1 },
+
+    { "action": "WATCH SERIES", "leaf": "visual", "weight": 0.4 },
+    { "action": "WATCH SERIES", "leaf": "auditivo", "weight": 0.3 },
+    { "action": "WATCH SERIES", "leaf": "amigdala", "weight": 0.15 },
+    { "action": "WATCH SERIES", "leaf": "hipocampo", "weight": 0.15 },
+
+    { "action": "VIDEO GAMES", "leaf": "visual", "weight": 0.25 },
+    { "action": "VIDEO GAMES", "leaf": "auditivo", "weight": 0.15 },
+    { "action": "VIDEO GAMES", "leaf": "recompensa", "weight": 0.2 },
+    { "action": "VIDEO GAMES", "leaf": "executiva", "weight": 0.15 },
+    { "action": "VIDEO GAMES", "leaf": "coordenacao", "weight": 0.15 },
+    { "action": "VIDEO GAMES", "leaf": "foco", "weight": 0.1 },
 
     { "action": "BOARD GAME", "leaf": "executiva", "weight": 0.3 },
     { "action": "BOARD GAME", "leaf": "hipocampo", "weight": 0.2 },
@@ -343,6 +432,36 @@
     { "action": "READ", "leaf": "hipocampo", "weight": 0.3 },
     { "action": "READ", "leaf": "foco", "weight": 0.2 },
     { "action": "READ", "leaf": "executiva", "weight": 0.1 },
+
+    { "action": "MUSIC", "leaf": "auditivo", "weight": 0.5 },
+    { "action": "MUSIC", "leaf": "recompensa", "weight": 0.3 },
+    { "action": "MUSIC", "leaf": "amigdala", "weight": 0.2 },
+
+    { "action": "BREAKFAST", "leaf": "macros", "weight": 0.9 },
+    { "action": "BREAKFAST", "leaf": "hidratacao", "weight": 0.1 },
+
+    { "action": "LUNCH", "leaf": "macros", "weight": 0.9 },
+    { "action": "LUNCH", "leaf": "hidratacao", "weight": 0.1 },
+
+    { "action": "DINNER", "leaf": "macros", "weight": 0.9 },
+    { "action": "DINNER", "leaf": "hidratacao", "weight": 0.1 },
+
+    { "action": "SNACK", "leaf": "macros", "weight": 0.7 },
+    { "action": "SNACK", "leaf": "hidratacao", "weight": 0.1 },
+    { "action": "SNACK", "leaf": "estimulantes", "weight": 0.2 },
+
+    { "action": "GULOSEIMA", "leaf": "recompensa", "weight": 0.7 },
+    { "action": "GULOSEIMA", "leaf": "macros", "weight": 0.3 },
+
+    { "action": "COFFEE", "leaf": "estimulantes", "weight": 0.7 },
+    { "action": "COFFEE", "leaf": "foco", "weight": 0.2 },
+    { "action": "COFFEE", "leaf": "hidratacao", "weight": 0.1 },
+
+    { "action": "TEA", "leaf": "estimulantes", "weight": 0.4 },
+    { "action": "TEA", "leaf": "hidratacao", "weight": 0.4 },
+    { "action": "TEA", "leaf": "foco", "weight": 0.2 },
+
+    { "action": "WATER", "leaf": "hidratacao", "weight": 1.0 },
 
     { "action": "BUG FIX", "leaf": "foco", "weight": 0.3 },
     { "action": "BUG FIX", "leaf": "executiva", "weight": 0.25 },
@@ -420,6 +539,14 @@
 
     { "action": "REMADA", "leaf": "c_calistenia", "weight": 1.0 },
 
+    { "action": "FUTEBOL", "leaf": "c_esportes", "weight": 1.0 },
+
+    { "action": "BASQUETE", "leaf": "c_esportes", "weight": 1.0 },
+
+    { "action": "VÔLEI", "leaf": "c_esportes", "weight": 1.0 },
+
+    { "action": "TÊNIS", "leaf": "c_esportes", "weight": 1.0 },
+
     { "action": "CORRIDA", "leaf": "c_cardio", "weight": 1.0 },
 
     { "action": "CICLISMO", "leaf": "c_cardio", "weight": 1.0 },
@@ -428,6 +555,8 @@
     { "action": "NATAÇÃO", "leaf": "c_esportes", "weight": 0.3 },
 
     { "action": "CAMINHADA", "leaf": "c_cardio", "weight": 1.0 },
+
+    { "action": "SURF", "leaf": "c_esportes", "weight": 1.0 },
 
     { "action": "ESCALADA", "leaf": "c_esportes", "weight": 0.6 },
     { "action": "ESCALADA", "leaf": "c_calistenia", "weight": 0.4 },
@@ -533,6 +662,38 @@
     { "action": "PODCAST", "leaf": "wernicke", "weight": 0.35 },
     { "action": "PODCAST", "leaf": "hipocampo", "weight": 0.2 },
 
+    { "action": "BREAKFAST", "leaf": "c_refeicao", "weight": 1.0 },
+
+    { "action": "LUNCH", "leaf": "c_refeicao", "weight": 1.0 },
+
+    { "action": "DINNER", "leaf": "c_refeicao", "weight": 1.0 },
+
+    { "action": "SNACK", "leaf": "c_refeicao", "weight": 1.0 },
+
+    { "action": "WATER", "leaf": "c_bebida", "weight": 1.0 },
+
+    { "action": "TEA", "leaf": "c_bebida", "weight": 1.0 },
+
+    { "action": "COFFEE", "leaf": "c_bebida", "weight": 1.0 },
+
+    { "action": "INSTAGRAM", "leaf": "c_redes", "weight": 1.0 },
+
+    { "action": "TIKTOK", "leaf": "c_redes", "weight": 1.0 },
+
+    { "action": "TWITTER", "leaf": "c_redes", "weight": 1.0 },
+
+    { "action": "YOUTUBE", "leaf": "c_video", "weight": 1.0 },
+
+    { "action": "WATCH FILM", "leaf": "c_video", "weight": 1.0 },
+
+    { "action": "WATCH SERIES", "leaf": "c_video", "weight": 1.0 },
+
+    { "action": "VIDEO GAMES", "leaf": "c_jogos", "weight": 1.0 },
+
+    { "action": "MUSIC", "leaf": "c_audio", "weight": 1.0 },
+
+    { "action": "GULOSEIMA", "leaf": "c_indulgencia", "weight": 1.0 },
+
     { "action": "MEDITAÇÃO", "leaf": "c_meditacao", "weight": 1.0 },
 
     { "action": "RESPIRAÇÃO", "leaf": "c_meditacao", "weight": 1.0 },
@@ -543,6 +704,13 @@
   ],
 
   "action_templates": [
+    { "action": "WATER", "code": "5040201", "parent": "hidratacao", "type": 1, "diff": 0, "cost": 0, "token_cost": 0, "token_gain": 0, "tiers": {"unit": "copos", "bounds": [2, 4, 6, 8, 10]} },
+    { "action": "COFFEE", "code": "5040301", "parent": "estimulantes", "type": 1, "diff": 0, "cost": 0, "token_cost": 0, "token_gain": 0, "tiers": {"unit": "xícaras", "bounds": [1, 2, 3, 4, 5]} },
+    { "action": "TEA", "code": "5040302", "parent": "estimulantes", "type": 1, "diff": 0, "cost": 0, "token_cost": 0, "token_gain": 0, "tiers": {"unit": "xícaras", "bounds": [1, 2, 3, 4, 5]} },
+    { "action": "BREAKFAST", "code": "5040101", "parent": "macros", "type": 0, "diff": 0, "cost": 0, "token_cost": 0, "token_gain": 0, "tiers": {"mode": "max", "labels": ["ultraprocessado", "rápido", "simples", "caseiro", "equilibrado", "equilibrado com vegetais"]} },
+    { "action": "LUNCH", "code": "5040103", "parent": "macros", "type": 0, "diff": 0, "cost": 0, "token_cost": 0, "token_gain": 0, "tiers": {"mode": "max", "labels": ["ultraprocessado", "rápido", "simples", "caseiro", "equilibrado", "equilibrado com vegetais"]} },
+    { "action": "DINNER", "code": "5040102", "parent": "macros", "type": 0, "diff": 0, "cost": 0, "token_cost": 0, "token_gain": 0, "tiers": {"mode": "max", "labels": ["ultraprocessado", "rápido", "simples", "caseiro", "equilibrado", "equilibrado com vegetais"]} },
+    { "action": "SNACK", "code": "5040104", "parent": "macros", "type": 0, "diff": 0, "cost": 0, "token_cost": 0, "token_gain": 0, "tiers": {"mode": "max", "labels": ["doce ou industrializado", "salgado", "simples", "fruta", "fruta com proteína", "planejado"]} },
     { "action": "ALONGAMENTO", "code": "5030101", "parent": "flexibilidade", "type": 0, "diff": 1, "cost": 3, "token_cost": 0, "token_gain": 5, "tiers": {"unit": "min", "bounds": [5, 10, 20, 30, 45]} },
     { "action": "MOBILIDADE ARTICULAR", "code": "5030103", "parent": "flexibilidade", "type": 0, "diff": 1, "cost": 3, "token_cost": 0, "token_gain": 5, "tiers": {"unit": "min", "bounds": [5, 10, 20, 30, 45]} },
     { "action": "AQUECIMENTO", "code": "5030102", "parent": "flexibilidade", "type": 0, "diff": 1, "cost": 3, "token_cost": 0, "token_gain": 5, "tiers": {"unit": "min", "bounds": [3, 5, 10, 15, 20]} },
@@ -561,8 +729,12 @@
     { "action": "CORRIDA", "code": "5020104", "parent": "aerobico", "type": 0, "diff": 3, "cost": 5, "token_cost": 0, "token_gain": 25, "tiers": {"unit": "km", "bounds": [1, 3, 5, 10, 15]} },
     { "action": "CICLISMO", "code": "5020103", "parent": "aerobico", "type": 0, "diff": 3, "cost": 8, "token_cost": 0, "token_gain": 25, "tiers": {"unit": "km", "bounds": [5, 10, 20, 40, 60]} },
     { "action": "NATAÇÃO", "code": "5020106", "parent": "aerobico", "type": 0, "diff": 3, "cost": 8, "token_cost": 0, "token_gain": 25, "tiers": {"unit": "m", "bounds": [200, 500, 1000, 2000, 3000]} },
-    { "action": "ESPORTE", "code": "5020107", "parent": "aerobico", "type": 0, "diff": 3, "cost": 8, "token_cost": 0, "token_gain": 25, "tiers": {"unit": "min", "bounds": [15, 30, 60, 90, 120]} },
+    { "action": "FUTEBOL", "code": "5020105", "parent": "aerobico", "type": 0, "diff": 3, "cost": 8, "token_cost": 0, "token_gain": 25, "tiers": {"unit": "min", "bounds": [15, 30, 60, 90, 120]} },
+    { "action": "BASQUETE", "code": "5020101", "parent": "aerobico", "type": 0, "diff": 3, "cost": 8, "token_cost": 0, "token_gain": 25, "tiers": {"unit": "min", "bounds": [15, 30, 60, 90, 120]} },
+    { "action": "VÔLEI", "code": "5020202", "parent": "anaerobico", "type": 0, "diff": 3, "cost": 8, "token_cost": 0, "token_gain": 25, "tiers": {"unit": "min", "bounds": [15, 30, 60, 90, 120]} },
+    { "action": "TÊNIS", "code": "5020201", "parent": "anaerobico", "type": 0, "diff": 3, "cost": 8, "token_cost": 0, "token_gain": 25, "tiers": {"unit": "min", "bounds": [15, 30, 60, 90, 120]} },
     { "action": "ESCALADA", "code": "5010201", "parent": "antebraco", "type": 0, "diff": 3, "cost": 12, "token_cost": 0, "token_gain": 30, "tiers": {"unit": "min", "bounds": [15, 30, 60, 90, 120]} },
+    { "action": "SURF", "code": "5090101", "parent": "equilibrio", "type": 0, "diff": 3, "cost": 12, "token_cost": 0, "token_gain": 30, "tiers": {"unit": "min", "bounds": [15, 30, 60, 90, 120]} },
     { "action": "BUG FIX", "code": "5050101", "parent": "foco", "type": 0, "diff": 2, "cost": 5, "token_cost": 0, "token_gain": 20, "tiers": {"unit": "min", "bounds": [15, 30, 60, 120, 240]} },
     { "action": "CODE REVIEW", "code": "5080201", "parent": "wernicke", "type": 0, "diff": 2, "cost": 5, "token_cost": 0, "token_gain": 20, "tiers": {"unit": "min", "bounds": [15, 30, 60, 120, 240]} },
     { "action": "WRITE DOCS", "code": "5080105", "parent": "broca", "type": 0, "diff": 2, "cost": 5, "token_cost": 0, "token_gain": 20, "tiers": {"unit": "min", "bounds": [15, 30, 60, 120, 240]} },
@@ -584,10 +756,14 @@
     { "action": "RESPIRAÇÃO", "code": "5060201", "parent": "amigdala", "type": 0, "diff": 1, "cost": 3, "token_cost": 0, "token_gain": 5, "tiers": {"unit": "min", "bounds": [3, 5, 10, 15, 20]} },
     { "action": "PODCAST", "code": "5070202", "parent": "auditivo", "type": 0, "diff": 1, "cost": 3, "token_cost": 0, "token_gain": 5, "tiers": {"unit": "min", "bounds": [15, 30, 60, 90, 120]} },
     { "action": "BOARD GAME", "code": "5050202", "parent": "executiva", "type": 0, "diff": 1, "cost": 3, "token_cost": 0, "token_gain": 10, "tiers": {"unit": "min", "bounds": [15, 30, 60, 90, 120]} },
-    { "action": "REDES SOCIAIS", "code": "5000001", "parent": null, "log_only": true, "type": 0, "diff": 0, "cost": 0, "token_cost": 12, "token_gain": 0, "tiers": {"unit": "min", "bounds": [10, 30, 60, 120, 180]} },
-    { "action": "VÍDEO", "code": "5000002", "parent": null, "log_only": true, "type": 0, "diff": 0, "cost": 0, "token_cost": 12, "token_gain": 0, "tiers": {"unit": "min", "bounds": [20, 45, 90, 150, 240]} },
-    { "action": "JOGOS", "code": "5000003", "parent": null, "log_only": true, "type": 0, "diff": 0, "cost": 0, "token_cost": 20, "token_gain": 0, "tiers": {"unit": "min", "bounds": [15, 30, 60, 120, 180]} },
-    { "action": "MÚSICA", "code": "5000004", "parent": null, "log_only": true, "type": 0, "diff": 0, "cost": 0, "token_cost": 0, "token_gain": 0, "tiers": {"unit": "min", "bounds": [15, 30, 60, 120, 180]} },
-    { "action": "GULOSEIMA", "code": "5000005", "parent": null, "log_only": true, "type": 0, "diff": 0, "cost": 0, "token_cost": 10, "token_gain": 0, "tiers": {"unit": "porções", "bounds": [1, 2, 3, 4, 5]} }
+    { "action": "MUSIC", "code": "5070201", "parent": "auditivo", "type": 0, "diff": 0, "cost": 0, "token_cost": 0, "token_gain": 0, "tiers": {"unit": "min", "bounds": [15, 30, 60, 120, 180]} },
+    { "action": "GULOSEIMA", "code": "5060301", "parent": "recompensa", "type": 0, "diff": 0, "cost": 0, "token_cost": 10, "token_gain": 0, "tiers": {"unit": "porções", "bounds": [1, 2, 3, 4, 5]} },
+    { "action": "INSTAGRAM", "code": "5070101", "parent": "visual", "type": 0, "diff": 0, "cost": 0, "token_cost": 12, "token_gain": 0, "tiers": {"unit": "min", "bounds": [10, 30, 60, 120, 180]} },
+    { "action": "TWITTER", "code": "5060302", "parent": "recompensa", "type": 0, "diff": 0, "cost": 0, "token_cost": 10, "token_gain": 0, "tiers": {"unit": "min", "bounds": [10, 30, 60, 120, 180]} },
+    { "action": "YOUTUBE", "code": "5070106", "parent": "visual", "type": 0, "diff": 0, "cost": 0, "token_cost": 12, "token_gain": 0, "tiers": {"unit": "min", "bounds": [10, 30, 60, 120, 180]} },
+    { "action": "WATCH SERIES", "code": "5070105", "parent": "visual", "type": 0, "diff": 0, "cost": 0, "token_cost": 12, "token_gain": 0, "tiers": {"unit": "min", "bounds": [20, 45, 90, 150, 240]} },
+    { "action": "TIKTOK", "code": "5070102", "parent": "visual", "type": 0, "diff": 0, "cost": 0, "token_cost": 15, "token_gain": 0, "tiers": {"unit": "min", "bounds": [10, 30, 60, 120, 180]} },
+    { "action": "WATCH FILM", "code": "5070104", "parent": "visual", "type": 0, "diff": 0, "cost": 0, "token_cost": 15, "token_gain": 0, "tiers": {"unit": "min", "bounds": [30, 60, 90, 120, 180]} },
+    { "action": "VIDEO GAMES", "code": "5070103", "parent": "visual", "type": 0, "diff": 0, "cost": 0, "token_cost": 20, "token_gain": 0, "tiers": {"unit": "min", "bounds": [15, 30, 60, 120, 180]} }
   ]
 }

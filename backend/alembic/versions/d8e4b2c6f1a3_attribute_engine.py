@@ -42,7 +42,12 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 _HERE = Path(__file__).resolve()
-LIVE_SEED = _HERE.parents[2] / "data" / "attributes_tree.json"
+# Frozen, like every other seeding revision: this file used to read the live
+# seed, which meant that every later edit to backend/data/ changed what a fresh
+# install built here — and this one validates each action code against its
+# parent's chain, so the first action added to the live seed would have broken
+# fresh installs outright. The copy is the seed as it stood at this revision.
+FROZEN_ENGINE = _HERE.parents[1] / "seeds" / "attributes_tree.engine.json"
 FROZEN_TREE = _HERE.parents[1] / "seeds" / "attributes_tree.pre_engine.json"
 FROZEN_TAGS = _HERE.parents[1] / "seeds" / "attribute_tags.pre_engine.json"
 PARAMS = ("half_life_hours", "floor", "threshold", "max_level")
@@ -89,7 +94,7 @@ def _restore_template_codes(conn, code_by_name):
 
 
 def upgrade() -> None:
-    seed = _load(LIVE_SEED)
+    seed = _load(FROZEN_ENGINE)
     conn = op.get_bind()
 
     # ---- shape ----

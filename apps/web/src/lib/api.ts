@@ -127,6 +127,9 @@ export type Action = {
   score: number;
   token_cost: number;
   token_gain: number;
+  // logged, not trained: leisure. It feeds no attribute, its marks stay on the
+  // action and its `path` is empty — it is registered under no attribute
+  log_only?: boolean;
   tiers?: TierOption[];
   // root first, down to the attribute it is registered under; a patch's is its base's
   path?: { key: string; name: string }[];
@@ -152,7 +155,8 @@ export type ActResult = {
   nominal: number;        // marks the chosen tier is worth on its own
   window_marks: number;   // marks in the action's window after this act
   window_limit: number;
-  user_marks: number;
+  user_marks: number;      // unchanged by a log action: its marks stay on the action
+  log_only?: boolean;
   token_gain: number;
   token_cost: number;
   tokens_wasted: number;
@@ -542,6 +546,7 @@ export type PackageAction = {
   cost: number;
   token_cost?: number;
   token_gain?: number;
+  log_only?: boolean;
 };
 export type Package = {
   attribute: string;
@@ -565,6 +570,7 @@ export type CatalogAction = {
   cost: number;
   token_cost: number;
   token_gain: number;
+  log_only?: boolean;
   package_attribute: string;
   leaves: CatalogLeaf[];
 };

@@ -3,6 +3,10 @@
 Picks the action's tiers (the base's, for a patch), reads its marks window,
 decides the marks, applies the act to the user aggregate and saves it, records
 the mark event, then moves the default graph and the patch's own attributes.
+
+A log action — leisure, `action_templates.log_only` — stops after the mark
+event: it feeds no attribute, not even through a patch, and its marks stay on
+the action row instead of reaching the profile's total.
 """
 from __future__ import annotations
 
@@ -23,9 +27,13 @@ def engine_action_id(action_id: str, action: dict) -> str:
 
 
 def tiers_for(data: dict, action: dict, templates: dict | None = None) -> dict:
+    return _meta(data, action, templates).get("tiers") or DEFAULT_TIERS
+
+
+def _meta(data: dict, action: dict, templates: dict | None = None) -> dict:
+    """The catalog template behind an action — a patch's is its base's."""
     templates = repos.load_action_templates() if templates is None else templates
-    meta = templates.get(engine_name(data.get("actions") or {}, action)) or {}
-    return meta.get("tiers") or DEFAULT_TIERS
+    return templates.get(engine_name(data.get("actions") or {}, action)) or {}
 
 
 def _window(username: str, action_id: str, action: dict, now: datetime) -> list[dict]:
@@ -58,12 +66,15 @@ def perform_act(username: str, data: dict, action_id: str, option, note: str = "
     Raises MarkError for an invalid tier before anything changes."""
     action = _action(data, action_id)
     now = datetime.now()
-    tiers = tiers_for(data, action)
+    meta = _meta(data, action)
+    tiers = meta.get("tiers") or DEFAULT_TIERS
+    log_only = bool(meta.get("log_only"))
     decided = marks_for(tiers, option, _window(username, action_id, action, now))
 
     outcome = apply_act(
         data, action_id,
         marks=decided["marks"],
+        log_only=log_only,
         option_label=options(tiers)[int(option)]["label"],
         note=note,
         today_agenda_labels=today_labels,
@@ -77,6 +88,8 @@ def perform_act(username: str, data: dict, action_id: str, option, note: str = "
 
     engine_id = engine_action_id(action_id, action)
     repos.record_mark_event(username, engine_id, action_id, now, int(option), decided["amount"], decided["marks"])
+    if log_only:
+        return outcome
     apply_action_contributions(username, engine_name(data.get("actions") or {}, action), decided["marks"], now)
     if action.get("base_action_id"):
         apply_patch_attributes(username, action_id, decided["marks"], now)

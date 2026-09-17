@@ -28,6 +28,7 @@ class ActOutcome:
     token_gain: int = 0
     tokens_wasted: int = 0
     window_marks: int = 0
+    log_only: bool = False
     bonuses: dict = field(default_factory=dict)
 
 
@@ -44,13 +45,18 @@ def apply_act(
     token_gain_lookup=None,
     skill_nodes_by_id: dict | None = None,
     energy_penalty: int = ENERGY_PENALTY_OUT_OF_AGENDA,
+    log_only: bool = False,
 ) -> ActOutcome:
     """Apply the act in place on `data`.
 
     Mutations:
       - data['actions'][action_id]: value (executions), score (marks earned on it)
-      - data['marks']: the user's total marks
+      - data['marks']: the user's total marks, unless the action is `log_only`
       - data['metadata']: tokens (earned or spent), energy (penalty)
+
+    A log action is leisure: it is logged, not trained. Its marks stay on the
+    action row and never reach the profile's total or any attribute, which is
+    what keeps watching a film out of progression while the ledger still has it.
 
     Tokens are flat per execution: productivity actions release `token_gain`, leisure
     actions charge `token_cost`, whatever the tier and even at 0 marks. Earning is
@@ -66,7 +72,8 @@ def apply_act(
 
     action["value"] = float(action.get("value", 0) or 0) + 1
     action["score"] = float(action.get("score", 0) or 0) + marks
-    data["marks"] = int(data.get("marks", 0) or 0) + marks
+    if not log_only:
+        data["marks"] = int(data.get("marks", 0) or 0) + marks
 
     bonuses = aggregate_bonuses(set(data.get("skills") or []), skill_nodes_by_id or {})
 
@@ -117,5 +124,6 @@ def apply_act(
         tokens_wasted=tokens_wasted,
         energy_penalty=applied_energy_penalty,
         in_agenda=in_agenda,
+        log_only=log_only,
         bonuses=bonuses,
     )

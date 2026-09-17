@@ -212,8 +212,10 @@ class ActionTemplate(Base):
     # and stored; it is never derived at runtime, so it never moves.
     code: Mapped[str] = mapped_column(String(7), unique=True, nullable=False)
     # The attribute this action is registered under. Its degree picks the code's
-    # classes; like the code, it is recorded, not inferred from weights.
-    parent_node_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("attr_nodes.id"), nullable=False)
+    # classes; like the code, it is recorded, not inferred from weights. NULL for
+    # a log action, which is registered under no attribute and takes the reserved
+    # class 5-00-00 instead.
+    parent_node_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("attr_nodes.id"), nullable=True)
     type: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     diff: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     cost: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -222,6 +224,9 @@ class ActionTemplate(Base):
     # Six tiers worth 0-5 marks: {"unit", "bounds": [5]} or {"mode": "max", "labels": [6]}.
     # See src.domain.marks.
     tiers: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Logged, not trained: leisure. The action feeds no attribute and its marks
+    # stay on the action row, out of the profile's total. See src.domain.acting.
+    log_only: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 # user leaf relation - level and score
 class UserLeafScore(Base):

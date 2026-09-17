@@ -144,11 +144,14 @@
   );
   $: patchCost = patchBase ? costByName.get(patchBase.name.toUpperCase()) ?? 0 : 0;
   $: nextPatchId = patchBase ? nextFreePatchId(patchBase, userActions) : "";
+  // a log action is logged, not trained: its patches only separate entries in
+  // the ledger, so they take no attribute and the step is skipped
+  $: patchIsLog = !!patchBase?.log_only;
   $: patchReady =
     !!patchBase &&
     !!nextPatchId &&
     patchName.trim().length > 0 &&
-    patchAttrIds.size + patchNewAttrs.length > 0 &&
+    (patchIsLog || patchAttrIds.size + patchNewAttrs.length > 0) &&
     buildPoints >= patchCost;
 
   /** Mirrors the server: the base's id plus the lowest free two digits. */
@@ -201,8 +204,8 @@
       const res = await createPatch({
         base_action_id: patchBase.id,
         name: patchName.trim(),
-        attribute_ids: [...patchAttrIds],
-        new_attributes: patchNewAttrs,
+        attribute_ids: patchIsLog ? [] : [...patchAttrIds],
+        new_attributes: patchIsLog ? [] : patchNewAttrs,
       });
       buildPoints = res.build_points;
       patchOpen = false;
@@ -391,7 +394,15 @@
         </div>
       {/if}
 
-      {#if patchBase && patchName.trim()}
+      {#if patchBase && patchName.trim() && patchIsLog}
+        <div class="step">
+          <div class="step-title">3 · atributos</div>
+          <p class="muted small">
+            {patchBase.name} é registro, não treino: o patch separa as entradas no diário
+            e não treina atributo nenhum.
+          </p>
+        </div>
+      {:else if patchBase && patchName.trim()}
         <div class="step">
           <div class="step-title">3 · atributos</div>
           {#if attrOptions.length > 0}

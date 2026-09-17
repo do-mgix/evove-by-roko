@@ -10,6 +10,7 @@ backend/data/attributes_tree.json, so a fresh install builds the same graph.
     reweight PARENT CHILD=weight [...]                        set every child's weight
     root KEY Name                                             a parentless attribute
     code-for PARENT                                           the code a new action would get
+    check                                                     seed against the database
 
 Run from the repository root with DATABASE_URL set:
 
@@ -185,8 +186,74 @@ def cmd_code_for(parent):
     print(f"{c[0]} {c[1:3]} {c[3:5]} {c[5:]}   {names}" + (f"   ({', '.join(flags)})" if flags else ""))
 
 
+def cmd_check():
+    """Report every difference between backend/data/attributes_tree.json and the
+    database. No migration reads the live seed any more, so the seed says what a
+    fresh install builds and this is what says whether it still does."""
+    seed = _seed()
+    tree = repos.load_attr_tree()
+    templates = repos.load_action_templates()
+    contributions = repos.load_all_contributions()
+    diffs = []
+
+    want_nodes = {n["key"]: n["name"] for n in seed["nodes"]}
+    have_nodes = {k: n.name for k, n in tree.nodes_by_key.items()}
+    for k in sorted(set(want_nodes) - set(have_nodes)):
+        diffs.append(f"atributo só no seed: {k}")
+    for k in sorted(set(have_nodes) - set(want_nodes)):
+        diffs.append(f"atributo só no banco: {k}")
+    for k in sorted(set(want_nodes) & set(have_nodes)):
+        if want_nodes[k] != have_nodes[k]:
+            diffs.append(f"{k}: nome '{have_nodes[k]}' no banco, '{want_nodes[k]}' no seed")
+
+    want_edges = {(e["parent"], e["child"]): (float(e["weight"]), bool(e.get("primary", True)))
+                  for e in seed["edges"]}
+    have_edges = {(p, c): (w, prim)
+                  for p, kids in tree.children.items() for c, w in kids
+                  for prim in [any(pp == p and pr for pp, _w, pr in tree.parents.get(c, []))]}
+    for e in sorted(set(want_edges) - set(have_edges)):
+        diffs.append(f"ligação só no seed: {e[0]} -> {e[1]}")
+    for e in sorted(set(have_edges) - set(want_edges)):
+        diffs.append(f"ligação só no banco: {e[0]} -> {e[1]}")
+    for e in sorted(set(want_edges) & set(have_edges)):
+        (ws, ps), (wd, pd) = want_edges[e], have_edges[e]
+        if abs(ws - wd) > 1e-9 or ps != pd:
+            diffs.append(f"{e[0]} -> {e[1]}: {wd}{'' if pd else ' (não primária)'} no banco, "
+                         f"{ws}{'' if ps else ' (não primária)'} no seed")
+
+    want_contrib = {(c["action"].upper(), c["leaf"]): float(c["weight"]) for c in seed["contributions"]}
+    have_contrib = {(a, leaf): w for a, leaves in contributions.items() for leaf, w in leaves}
+    for c in sorted(set(want_contrib) - set(have_contrib)):
+        diffs.append(f"contribuição só no seed: {c[0]} -> {c[1]}")
+    for c in sorted(set(have_contrib) - set(want_contrib)):
+        diffs.append(f"contribuição só no banco: {c[0]} -> {c[1]}")
+    for c in sorted(set(want_contrib) & set(have_contrib)):
+        if abs(want_contrib[c] - have_contrib[c]) > 1e-9:
+            diffs.append(f"{c[0]} -> {c[1]}: {have_contrib[c]} no banco, {want_contrib[c]} no seed")
+
+    fields = ("code", "parent", "type", "diff", "cost", "token_cost", "token_gain", "tiers", "log_only")
+    want_t = {t["action"].upper(): t for t in seed["action_templates"]}
+    for name in sorted(set(want_t) - set(templates)):
+        diffs.append(f"ação só no seed: {name}")
+    for name in sorted(set(templates) - set(want_t)):
+        diffs.append(f"ação só no banco: {name}")
+    for name in sorted(set(want_t) & set(templates)):
+        for f in fields:
+            a, b = want_t[name].get(f, False if f == "log_only" else None), templates[name].get(f)
+            if f == "log_only":
+                a, b = bool(a), bool(b)
+            if a != b:
+                diffs.append(f"{name}.{f}: {b!r} no banco, {a!r} no seed")
+
+    for d in diffs:
+        print(d)
+    print(f"{len(diffs)} diferenças" if diffs else "seed e banco batem")
+    raise SystemExit(1 if diffs else 0)
+
+
 COMMANDS = {"show": cmd_show, "subdivide": cmd_subdivide, "add": cmd_add, "link": cmd_link,
-            "reweight": cmd_reweight, "root": cmd_root, "code-for": cmd_code_for}
+            "reweight": cmd_reweight, "root": cmd_root, "code-for": cmd_code_for,
+            "check": cmd_check}
 
 if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in COMMANDS:

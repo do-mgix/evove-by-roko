@@ -34,7 +34,9 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 _HERE = Path(__file__).resolve()
-LIVE_SEED = _HERE.parents[2] / "data" / "attributes_tree.json"
+# Frozen: reading the live seed here meant a later edit to it changed the tiers a
+# fresh install was built with. The copy is the seed as it stood at this revision.
+FROZEN_ENGINE = _HERE.parents[1] / "seeds" / "attributes_tree.engine.json"
 FROZEN_TREE = _HERE.parents[1] / "seeds" / "attributes_tree.pre_engine.json"
 
 
@@ -47,7 +49,7 @@ def upgrade() -> None:
     conn = op.get_bind()
 
     op.add_column("action_templates", sa.Column("tiers", sa.JSON(), nullable=True))
-    for t in _load(LIVE_SEED)["action_templates"]:
+    for t in _load(FROZEN_ENGINE)["action_templates"]:
         if t.get("tiers"):
             conn.execute(sa.text("UPDATE action_templates SET tiers = :j WHERE action_name = :n"),
                          {"j": json.dumps(t["tiers"], ensure_ascii=False), "n": t["action"].upper()})

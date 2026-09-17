@@ -35,6 +35,9 @@ _GREEK = ['α','β','γ','δ','ε','ζ','η','θ','ι','κ','λ','μ','ν','ξ',
 _LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 
+LOG_GROUP = "_log"          # the shop section log actions fall in; not an attribute
+
+
 def _theme_for(contribs, tree) -> str | None:
     """Shop group for an action: the primary parent of its heaviest leaf that
     lives under a `shop_group` root.
@@ -42,7 +45,7 @@ def _theme_for(contribs, tree) -> str | None:
     The shop groups by practice (Treino, Programação…) while the engine has no
     notion of kinds, so the practice roots carry a display mark and this is the
     only reader of it. Marked leaves are preferred explicitly rather than by
-    weight: WATER feeds hidratacao and c_bebida both at 1.0, and a tie would
+    weight: ESPORTE feeds aerobico and c_esportes both at 1.0, and a tie would
     otherwise be settled by row order. Falls back to the heaviest leaf of any
     root, so an action outside every practice still lands somewhere.
     """
@@ -55,16 +58,20 @@ def _theme_for(contribs, tree) -> str | None:
 
 
 def load_packages() -> list[dict]:
+    """The catalog grouped by practice.
+
+    Assembled from `action_templates`: the catalog is the set of templates, since
+    a log action has no contributions at all and grouping by them would drop it.
+    A template is also what makes an action buyable — it carries the code the id
+    comes from — so nothing listed here is unbuyable.
+    """
     tree = repos.load_attr_tree()
     contributions = repos.load_all_contributions()
-    templates = repos.load_action_templates()
 
     packages: dict[str, dict] = {}
+    logged = {"attribute": LOG_GROUP, "name": "Consumo", "actions": []}
     unmapped = {"attribute": "_unmapped", "name": "Outros", "actions": []}
-    for action_name, contribs in sorted(contributions.items()):
-        group_key = _theme_for(contribs, tree)
-        group_name = tree.nodes_by_key[group_key].name if group_key and group_key in tree.nodes_by_key else None
-        meta = templates.get(action_name) or repos.TEMPLATE_FALLBACK
+    for action_name, meta in sorted(repos.load_action_templates().items()):
         action = {
             "name": action_name,
             "code": meta["code"],
@@ -73,7 +80,13 @@ def load_packages() -> list[dict]:
             "cost": meta["cost"],
             "token_cost": meta["token_cost"],
             "token_gain": meta["token_gain"],
+            "log_only": meta["log_only"],
         }
+        if meta["log_only"]:
+            logged["actions"].append(action)
+            continue
+        group_key = _theme_for(contributions.get(action_name, []), tree)
+        group_name = tree.nodes_by_key[group_key].name if group_key and group_key in tree.nodes_by_key else None
         if group_key and group_name:
             pkg = packages.setdefault(group_key, {"attribute": group_key, "name": group_name, "actions": []})
             pkg["actions"].append(action)
@@ -81,8 +94,9 @@ def load_packages() -> list[dict]:
             unmapped["actions"].append(action)
 
     out = sorted(packages.values(), key=lambda p: p["name"])
-    if unmapped["actions"]:
-        out.append(unmapped)
+    for extra in (logged, unmapped):
+        if extra["actions"]:
+            out.append(extra)
     return out
 
 
@@ -785,54 +799,27 @@ def shop_packages():
 
 @app.get("/shop/catalog")
 def shop_catalog():
-    """Group action templates by theme.
+    """The same groups as `/shop/packages`, each action with the leaves it feeds.
 
-    Each action is filed under its practice — see `_theme_for`. Returns a flat
-    list of groups in tree order.
+    A log action lists none: it is logged, not trained.
     """
-    packages = load_packages()
     tree = repos.load_attr_tree()
     contributions = repos.load_all_contributions()
 
-    grouped: dict[str, dict] = {}
-    unmapped: list[dict] = []
-
-    for pkg in packages:
+    result = []
+    for pkg in load_packages():
+        actions = []
         for action in pkg.get("actions", []) or []:
-            name_upper = str(action.get("name", "")).upper()
-            contribs = contributions.get(name_upper, [])
-            entry = {
-                "name": action.get("name"),
-                "code": action.get("code"),
-                "type": action.get("type"),
-                "diff": action.get("diff"),
-                "cost": action.get("cost"),
-                "token_cost": int(action.get("token_cost", 0) or 0),
-                "token_gain": int(action.get("token_gain", 0) or 0),
+            contribs = contributions.get(str(action.get("name", "")).upper(), [])
+            actions.append({
+                **action,
                 "package_attribute": pkg.get("attribute"),
                 "leaves": [
-                    {
-                        "key": leaf_key,
-                        "name": tree.nodes_by_key[leaf_key].name,
-                        "weight": w,
-                    }
-                    for leaf_key, w in contribs
+                    {"key": leaf_key, "name": tree.nodes_by_key[leaf_key].name, "weight": w}
+                    for leaf_key, w in contribs if leaf_key in tree.nodes_by_key
                 ],
-            }
-            if not contribs:
-                unmapped.append(entry)
-                continue
-            group_key = _theme_for(contribs, tree)
-            if not group_key:
-                unmapped.append(entry)
-                continue
-            group_name = tree.nodes_by_key[group_key].name
-            grouped.setdefault(group_key, {"key": group_key, "name": group_name, "actions": []})
-            grouped[group_key]["actions"].append(entry)
-
-    result = sorted(grouped.values(), key=lambda g: g["name"])
-    if unmapped:
-        result.append({"key": "_unmapped", "name": "Outros", "actions": unmapped})
+            })
+        result.append({"key": pkg.get("attribute"), "name": pkg.get("name"), "actions": actions})
     return result
 
 
@@ -1405,6 +1392,8 @@ def act_on_action(action_id: str, payload: dict | None = None, username: str = D
         "window_marks": outcome.window_marks,
         "window_limit": MARKS_PER_WINDOW,
         "user_marks": int(data.get("marks", 0) or 0),
+        # a log action's marks stayed on the action: `user_marks` did not move
+        "log_only": outcome.log_only,
         "token_gain": outcome.token_gain,
         "token_cost": outcome.token_cost,
         "tokens_wasted": outcome.tokens_wasted,
@@ -1446,6 +1435,7 @@ def list_actions(username: str = Depends(current_username)):
             "score": action.get("score"),
             "token_cost": int(action.get("token_cost") or 0),
             "token_gain": int(action.get("token_gain") or 0),
+            "log_only": bool((templates.get(engine_name(actions, action)) or {}).get("log_only")),
             "tiers": tier_options(tiers_for(data, action, templates)),
             "path": _action_path(tree, templates, actions, action),
             "leaves": [

@@ -299,7 +299,7 @@ Content tables also keep the logical id from the JSON era (`action_id`, `attr_id
 
 ### Migrations
 
-Nineteen revisions in a chain:
+Twenty revisions in a chain:
 
 ```
 5638fb2a1810  initial schema
@@ -321,14 +321,21 @@ d8e4b2c6f1a3  attribute engine: one graph, no kinds
 e2c7a9d4f6b1  patches and user attributes
 f3b8d1e7a4c2  marks and ranks replace scores, levels and xp
 a3c9e5f1b7d2  patch link weights
+b9f4c2e7a1d6  population: diet out, one action per practice, log actions
 ```
 
-Nine of them (`b7c1`, `c8d2`, `e5a1`, `f7b3`, `b2e7`, `c4a8`, `d6b1`, `a1e5`, `c7a3`) seed
-from **frozen copies** in `backend/alembic/seeds/`, not from `backend/data/`. They used to
-re-read the live seed, so every later edit changed what a fresh install built — which is
-how 17 leaves ended up with a null `max_level`. `d8e4` is the one that reads the live seed:
-it brings nodes, links, their settings, contributions and templates in line with it, so a
-fresh install always ends where the seed says.
+**No revision reads `backend/data/attributes_tree.json` any more.** Every one that seeds
+reads a **frozen copy** in `backend/alembic/seeds/`: `*.pre_engine.json` for the nine older
+ones (`b7c1`, `c8d2`, `e5a1`, `f7b3`, `b2e7`, `c4a8`, `d6b1`, `a1e5`, `c7a3`), and
+`attributes_tree.engine.json` for `d8e4` and `f3b8`. Those two used to re-read the live
+seed, so every later edit changed what a fresh install built — which is how 17 leaves ended
+up with a null `max_level`, and `d8e4` validates every action code against its parent's
+chain, so the first action added to the live seed would have broken fresh installs
+outright.
+
+The live seed is therefore the *end state*, not an input: a fresh install replays the
+history and lands on it, and `scripts/attributes.py check` is what says whether the
+database and the seed still agree.
 
 ### The attribute engine
 
@@ -383,6 +390,7 @@ python backend/scripts/attributes.py show c_longa
 | `root KEY Name` | a parentless attribute to hang an aggregate on |
 | `code-for PARENT` | the code a new action under `PARENT` would get |
 | `show KEY` | degree, primary path, parents and children |
+| `check` | every difference between the seed and the database; exits 1 if there is one |
 
 The rule behind `subdivide` and `add`: **registering children never changes what a
 parent is worth at that moment.** On `subdivide`, every child inherits the leaf whole —
@@ -432,14 +440,21 @@ Velocidade* are all things a user builds on top of two catalog actions, each fee
 whatever user attributes they created. That is where realism belongs — the seed only has
 to be right about what is *different*.
 
-**Food and diet come out.** `nutricao` (`macros`, `hidratacao`, `estimulantes`), the
-`c_alimentacao` practice (`c_refeicao`, `c_bebida`) and the seven actions that feed them —
-WATER, COFFEE, TEA, BREAKFAST, LUNCH, DINNER, SNACK — leave the seed. Tying an achievement
-to what someone ate is not a progression worth rewarding here, and ranks pointed at meals
-push in the direction of several eating disorders whether or not the app intends it.
-Hydration and caffeine go with it rather than surviving as a smaller version of the same
-idea. Two weights move with them: `corpo` loses a child worth `0.2` and `t_saude` loses
-three of its five links, so both are reweighted in the same migration.
+**Food and diet are out.** `nutricao` (`macros`, `hidratacao`, `estimulantes`), the
+`c_alimentacao` practice (`c_refeicao`, `c_bebida`) and the seven actions that fed them —
+WATER, COFFEE, TEA, BREAKFAST, LUNCH, DINNER, SNACK — left the seed in `b9f4`. Tying an
+achievement to what someone ate is not a progression worth rewarding here, and ranks
+pointed at meals push in the direction of several eating disorders whether or not the app
+intends it. Hydration and caffeine went with it rather than surviving as a smaller version
+of the same idea. Two weights moved with them: `corpo` lost a child worth `0.2` and is
+`0.5 / 0.3 / 0.2` now, and `t_saude`, which was mostly nutrition, is rebuilt on aerobico
+`0.5`, flexibilidade `0.2`, estabilidade `0.15` and core `0.15`.
+
+**What that left.** Five ball sports became one ESPORTE with the athletic profile they
+shared (aerobico `.25`, anaerobico `.2`, coordenacao `.2`, equilibrio `.1`, quadriceps
+`.1`, core `.1`, panturrilha `.05`); the ones that are anatomically their own thing stayed
+— CORRIDA, CICLISMO, NATAÇÃO, CAMINHADA, ESCALADA. Nine leisure actions became five log
+actions. The catalog went from 61 actions to 46, the graph from 92 attributes to 79.
 
 ### Log actions
 
@@ -449,24 +464,38 @@ watching films worth having. For these the **action is the attribute**: marks ac
 the action row itself (`actions.score`, plus `logs.marks` and `mark_events`, all of which
 already exist) and reach no leaf.
 
-They are marked with a boolean on the template, `log_only`, because they share one shape:
-they charge `token_cost` instead of releasing `token_gain`, they carry six tiers like any
-action, and they have no contributions. A patch on one of them is allowed and costs the
-base's `cost` like any other patch, but it trains nothing — the user can keep *Redes
-sociais · Trabalho* apart from *Redes sociais · Rolagem* in the logs without either
-becoming progression.
+They are marked with a boolean on the template, `action_templates.log_only`, because they
+share one shape: they charge `token_cost` instead of releasing `token_gain`, they carry six
+tiers like any action, and they have no contributions at all. The catalog has five —
+REDES SOCIAIS, VÍDEO, JOGOS, MÚSICA, GULOSEIMA — where it used to carry a brand per feed.
 
-Two things still hold for a log action:
+What an act on one does, and does not do:
 
-- it is still **registered** under an attribute (`action_templates.parent_node_id`), because
-  that is what gives it an id — registration is an id anchor, not a contribution;
-- `/shop/packages` and `/shop/catalog` iterate `action_contributions` today, so an action
-  with none would disappear from the shop. Filing log actions means assembling the catalog
-  from `action_templates` instead, with `log_only` or the registered parent choosing the
-  group. That is implementation, and it lands with the population.
+| | |
+| --- | --- |
+| the action's own marks (`actions.score`) | grow, as for any action |
+| the marks window | applies, so a split session pays no more |
+| `logs` and `mark_events` | written, as for any action |
+| tokens and the energy penalty | charged, as for any action |
+| the profile's total (`user_state.marks`) | **untouched** — the marks stay on the action |
+| attributes, through contributions or a patch | **untouched** — it feeds none |
 
-One question stays open until the population: `apply_act` raises the profile's total marks
-for every act, and monitoring argues a log action should not. The current code says it does.
+`perform_act` reads `log_only` from the template behind the action — a patch's is its
+base's — passes it to `apply_act`, which then skips the profile's total, and returns before
+`apply_action_contributions`. The act's response carries `log_only`, so a client can say
+why the total did not move.
+
+**Registration and the id.** A log action is registered under no attribute:
+`action_templates.parent_node_id` is NULL and the id takes the reserved class, `5 00 00 ii`
+— an action with no attribute has no class to name. That is why `/actions` returns an empty
+`path` for one, and why the `me` page files them under *registro* rather than under an
+attribute.
+
+**Patches.** A patch on a log action is allowed and costs the base's `cost` like any other
+patch, but it takes no attributes: `POST /patches` refuses `attribute_ids` on a log base
+instead of accepting links that would never pay, and the shop skips the attribute step. It
+is there to separate entries in the ledger — *REDES SOCIAIS · TRABALHO* apart from
+*REDES SOCIAIS · ROLAGEM* — without either becoming progression.
 
 ### Naming and language
 
@@ -490,8 +519,11 @@ has no English name to map to and never gets one; it is stored in the language i
 in, and only the closed set of seeded attributes and actions gets the key plus translation
 treatment.
 
-The seed as it stands mixes the two (`biceps` and `c_leitura` next to `FLEXÃO` and `ESCREVER
-DIÁLOGOS`), and the population is when that gets settled. Node keys are cheap to rename:
+**This is the convention, not yet the code.** The seed still mixes the two (`biceps` and
+`c_leitura` next to `FLEXÃO` and `ESCREVER DIÁLOGOS`), and the new actions follow the
+catalog as it reads today — ESPORTE, REDES SOCIAIS, VÍDEO. The rename needs the label layer
+in the same pass, or the interface starts showing SPORT and SOCIAL MEDIA to a Portuguese
+reader, and that crosses the API and the web client. Node keys are cheap to rename:
 `attr_edges`, `action_contributions` and `action_templates` all point at node **ids**, no
 client stores a key, and the only files that spell them out are `backend/data/attributes_tree.json`
 and `scripts/attributes.py` — the frozen `*.pre_engine.json` seeds keep the old keys, and the
@@ -502,8 +534,9 @@ base's name, so renaming one action touches all of them at once.
 
 ### Sources for the population
 
-What each source is actually for, in the order it feeds the calculation — not in the order
-a bibliography would list them.
+For the pass after this one — the conceptual tree and the anatomical weights. What each
+source is actually for, in the order it feeds the calculation, not in the order a
+bibliography would list them.
 
 **Anatomical attributes** (muscle → share of the limb):
 
@@ -539,10 +572,12 @@ anatomical-conceptual link, more advanced and optional for the MVP).
 ### Adding actions to the catalog
 
 The shop has no admin screen. `/shop/packages` and `/shop/catalog` are assembled from
-`action_contributions` (which attributes an action feeds) joined with `action_templates`
-(its unit, difficulty and prices), so adding a shop item means rows in both — and for now
-a migration is how you add them. Both blocks live in
-`backend/data/attributes_tree.json`:
+`action_templates` (unit, difficulty, prices, `log_only`), with `action_contributions`
+saying which attributes each one feeds and, through them, which practice it is filed
+under. The catalog is therefore the set of templates: a template is what carries the code
+an id comes from, so nothing listed in the shop is unbuyable, and a log action with no
+contributions at all still appears. Adding a shop item means a migration; both blocks live
+in `backend/data/attributes_tree.json`:
 
 1. `contributions` — one entry per leaf the action feeds, name in caps. By convention an
    action carries two budgets that each sum to `1.0`: its leaves under the practice roots
@@ -552,8 +587,8 @@ a migration is how you add them. Both blocks live in
    registered under), its `code` (from `attributes.py code-for PARENT`), `type` (the unit,
    see `Action._TYPE_MAP`), `diff` 0–5, `cost` in build points to acquire it, either
    `token_gain` or `token_cost` — never both — and its six `tiers` (see "Marks and
-   tiers"). An action with contributions but no template still shows in the shop, but
-   cannot be bought: with no code there is no id.
+   tiers"). A log action skips step 1 entirely and its entry here carries
+   `"log_only": true` with `"parent": null` and the next free `5 00 00 ii` code.
 3. Write a migration that inserts the contributions and the template, and records the
    class numbers `code-for` reported as new in `id_class1` / `id_class2`. A fresh install
    does not need it — `d8e4` brings everything in line with the seed — but the database
@@ -584,12 +619,20 @@ The class numbers are registered too: `id_class1` gives each first-class attribu
 global digits, `id_class2` gives each second class two digits under its first. Both are
 numbered the first time an action needs them. `00` is reserved at every level.
 
+**`5 00 00 ii` is the log class.** A log action is registered under no attribute, so it has
+no class to name and takes the reserved one: `00` at both levels, which was already
+reserved everywhere, and the position among log actions. REDES SOCIAIS is `5 00 00 01`. It
+is the only shape whose `parent_node_id` is NULL, and `code-for` is not involved — there is
+no parent to ask about.
+
 **Ids never move.** The parent, the class numbers and the code are all stored rather than
 derived: if they were computed, a weight change could re-pick the parent, or an attribute
 inserted mid-path could shift every degree below it, and ids would change. After an
 action is registered, its id is data. The initial parents were the heaviest leaf of the
-body/mind branch; four ties (BURPEE, INSTAGRAM, TEA, AQUECIMENTO) went to the first leaf
-in the seed, and any parent can be changed with a migration.
+body/mind branch; ties went to the first leaf in the seed, and any parent can be changed
+with a migration. A freed code is not reused either: ESPORTE took `5 02 01 07` and not the
+`01` and `05` BASQUETE and FUTEBOL left behind, since a reused code would inherit their
+mark events.
 
 To add an action, `attributes.py code-for PARENT` names the next free code and says
 whether it opens a new class.
@@ -611,9 +654,10 @@ them in `tiers`:
 ```
 
 Five bounds define the six tiers and the labels are generated from the unit (`min`, `reps`,
-`km`, `m`, or any word). The 61 catalog actions got initial tiers — repetitions for
-calisthenics, km or minutes for cardio, minutes for study, dev work and leisure, cups for
-drinks, quality for meals — meant to be tuned.
+`km`, `m`, or any word). The 46 catalog actions carry tiers — repetitions for calisthenics,
+km or minutes for cardio, minutes for study, dev work and leisure, portions for
+GULOSEIMA — meant to be tuned. `max` mode still works and nothing uses it since the meals
+left: it was for events that do not add up.
 
 **The window.** An action yields at most `MARKS_PER_WINDOW` (5) marks every
 `MARK_WINDOW_HOURS` (6), counted in `mark_events`. The window is cumulative, so splitting a
@@ -621,8 +665,9 @@ session pays nothing extra: in `sum` mode a choice is worth the lower bound of i
 and the window pays the tier the total falls in minus what it already paid. Five
 "20–50" push-up records add up to 100, the 100–150 tier: +1, +0, +1, +0, +1 — 3 marks,
 not 5. One ">200" pays 5 and the action pays nothing more until the window frees up. `max`
-mode is for events that do not add up, like meals: the window pays the best tier chosen.
-A patch counts against its base's window, or two patches of one action would each get 5.
+mode is for events that do not add up: the window pays the best tier chosen.
+A patch counts against its base's window, or two patches of one action would each get 5 —
+a log action included, since it runs the same window.
 
 **One act, end to end,** is `perform_act` in `src/domain/acting.py`, used by the API and
 the CLI alike: tiers (the base's, for a patch) → window → marks (`marks_for`) → the act on
@@ -697,16 +742,22 @@ built yet.
 
 ### How the shop groups actions
 
-The shop groups by **practice** — Treino, Programação, Escrita, Literacia, Alimentação,
-Consumo, Prática Mental — while ids classify by body and mind region. The same action is
-filed two ways on purpose.
+The shop groups by **practice** — Treino, Escrita, Literacia, Programação, Prática
+Mental — while ids classify by body and mind region. The same action is filed two ways on
+purpose.
 
-The engine has no notion of kinds, so the six practice roots carry a display mark,
+The engine has no notion of kinds, so the practice roots carry a display mark,
 `attr_nodes.shop_group`, and `_theme_for` in `backend/main.py` is its only reader: an
 action goes under the primary parent of its heaviest leaf below a marked root. Scores,
 degrees and ids never look at the mark. Marked leaves are preferred explicitly rather
-than by weight — `WATER` feeds `hidratacao` and `c_bebida` both at `1.0`, and a tie would
+than by weight — `ESPORTE` feeds `aerobico` and `c_esportes` both at `1.0`, and a tie would
 otherwise be settled by row order.
+
+**Consumo is the exception, and not a practice.** Log actions feed no leaf, so there is
+nothing to group them by; they go in a section of their own keyed `_log`, which is not an
+attribute. `Alimentação` and `Consumo` used to be practice roots in the graph and are gone
+with the attributes under them — the shop section survived the attributes it was named
+after, because the shop needs somewhere to put five actions and the graph does not.
 
 ### Catalog balance
 
@@ -716,8 +767,8 @@ move anything: the old `value × type factor × difficulty multiplier` formula i
 `Action` is not called by acting. A note on an act is text only.
 
 Prices assume build points stay scarce: 100 at profile creation plus
-`BUILD_POINTS_PER_CHECKPOINT` (10) every checkpoint, against 240 bp to own the whole
-catalog.
+`BUILD_POINTS_PER_CHECKPOINT` (10) every checkpoint, against 204 bp to own the whole
+catalog. Log actions are free to acquire, as the leisure actions they replace were.
 
 ### The token economy
 
@@ -727,8 +778,8 @@ and the note never multiplies either side:
 
 | `token_gain` | who |
 | --- | --- |
-| 30 | escalada, surf, architecture |
-| 25 | endurance, team sports, feature, refactor |
+| 30 | escalada, architecture |
+| 25 | endurance, esporte, feature, refactor |
 | 20 | heavy lifts, the dev routine, the writing actions |
 | 15 | standard training, read, estudo |
 | 10 | caminhada, meditação, core work, board game |
@@ -736,14 +787,16 @@ and the note never multiplies either side:
 
 | `token_cost` | who |
 | --- | --- |
-| 20 | video games |
-| 15 | watch film, tiktok |
-| 12 | youtube, watch series, instagram |
-| 10 | twitter, guloseima |
+| 20 | jogos |
+| 12 | redes sociais, vídeo |
+| 10 | guloseima |
+| 0 | música |
 
-Nutrition sits at zero on both sides: eating is maintenance, not production. A profile
-starts with an empty stock, so the first leisure act runs a debt — spending is never
-blocked, the balance simply goes negative until productivity covers it.
+Every action that spends is a log action, which is the shape the pattern had all along:
+what costs tokens is consumption, and consumption is logged, not trained. Música sits at
+zero — background consumption that costs nothing and pays nothing. A profile starts with an
+empty stock, so the first leisure act runs a debt: spending is never blocked, the balance
+simply goes negative until productivity covers it.
 
 The stock caps at `max_tokens` (100, plus 5 per Tokens node in the skill tree) and
 anything past the cap is dropped. A productive day releases around 70, so a good day lands
@@ -770,8 +823,8 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 | GET | `/auth/me` | the account behind the token (id, username, creation date), its session's start and expiry, and how many sessions are active |
 | GET | `/user` | full state: marks, rank and level, resources, bonuses |
 | GET | `/journey` | stage and time left until the next checkpoint |
-| GET | `/actions` | the profile's actions, each with its six tiers, `path` (the primary chain to the attribute it is registered under) and `leaves` (what it feeds, with weights); a patch adds its `attributes` with their link weight |
-| POST | `/actions/{id}/act` | execute an action (`{option, note?}`; option is the tier, 0–5) |
+| GET | `/actions` | the profile's actions, each with its six tiers, `log_only`, `path` (the primary chain to the attribute it is registered under, empty for a log action) and `leaves` (what it feeds, with weights); a patch adds its `attributes` with their link weight |
+| POST | `/actions/{id}/act` | execute an action (`{option, note?}`; option is the tier, 0–5). The answer's `log_only` says whether `user_marks` moved |
 | GET | `/actions/{id}/window` | marks already earned in the action's 6-hour window, and its tiers |
 | GET | `/attributes` | every leaf with its rank and marks |
 | GET | `/attributes/roots` | every root with its rank and marks |
@@ -780,12 +833,12 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 | GET | `/user-attributes` | the user's own attributes as a tree, with rank, marks and the patches that train each, with their link weight |
 | PATCH | `/user-attributes/{id}` | rename (`{name}`) or move with its marks (`{parent_id}`, `null` for a root) |
 | POST | `/user-attributes` | create one (`{name, parent_id?}`), free |
-| POST | `/patches` | create a patch (`{base_action_id, name, attribute_ids, new_attributes}`), costs the base's price |
+| POST | `/patches` | create a patch (`{base_action_id, name, attribute_ids, new_attributes}`), costs the base's price; on a log base the attributes are refused, since it trains none |
 | PATCH | `/patches/{id}` | rename (`{name}`) or replace the attributes it trains (`{attribute_ids}`); kept links keep their weight |
 | PUT | `/patches/{id}/attributes/{attribute_id}` | set a link's weight (`{weight}`, above 0 and at most 1) |
 | DELETE | `/patches/{id}/attributes/{attribute_id}` | the attribute stops receiving the patch's marks |
 | GET | `/shop/packages` | available actions grouped by theme |
-| GET | `/shop/catalog` | the same, with each action's leaves and weights |
+| GET | `/shop/catalog` | the same, with each action's leaves and weights — none for a log action |
 | POST | `/shop/actions/buy` | buy an action (`{attribute, name}`) |
 | GET | `/skills/tree` | nodes, acquired ids, skill point balance and bonuses |
 | POST | `/skills/{id}/acquire` | acquire a node |
@@ -812,8 +865,9 @@ account, session, API — and the log out options. `me` is what the profile has 
 rank and marks, the leaves that gained marks most recently in two columns, the attributes
 of one degree as flat rows, and the actions grouped by their attribute of one degree. A
 single star button cycles each list by click: ★1, ★2, ★3 and ★p for the custom attributes;
-★1, ★2 and ★p for the patches, by base. Clicking an attribute or an action — not a recent
-one — opens it in `DetailModal.svelte` (see "Editing" above). The theme is dark and
+★1, ★2 and ★p for the patches, by base; log actions have no attribute to group by and sit
+in one of their own, *registro*. Clicking an attribute or an action — not a recent one —
+opens it in `DetailModal.svelte` (see "Editing" above). The theme is dark and
 monospaced.
 
 The home screen is a grid of windows you can drag between slots and the bottom tray —
@@ -857,9 +911,12 @@ Known rough edges, for whoever touches this next:
   The keys differ, but in the unified tree they sit side by side.
 - `storage.py` and `EVOVE_DATA_DIR` are leftovers from the JSON era. State lives in the
   database; the per-user directory is only used to locate legacy files.
-- **The seed is still the test population.** "What deserves an attribute", "Log actions" and
-  "Naming and language" describe the convention the next migration applies; none of it is in
-  the database yet. What is there: `nutricao`, `c_alimentacao` and their seven actions, one
-  action per sport (FUTEBOL, BASQUETE, VÔLEI, TÊNIS, SURF), one per platform (INSTAGRAM,
-  TIKTOK, TWITTER, YOUTUBE), leisure actions feeding `visual`, `auditivo` and `recompensa`,
-  and no `log_only` column on `action_templates`.
+- **The sensorial branch is thinly fed.** Leisure used to be most of what moved `visual`,
+  `auditivo` and `recompensa`; now `visual` has one feeder (ESCREVER DESCRIÇÕES), `auditivo`
+  one (PODCAST) and `recompensa` three (the AI-assisted dev actions). Since a parent is the
+  mean of its children, `sensorial` caps `mente` at a fifth of its weight. The conceptual
+  population is where those get feeders — nothing is broken, it is unbalanced.
+- **"Naming and language" is a convention, not the code.** Keys and action names are still
+  mixed Portuguese and English and there is no label layer; the i18n pass is separate.
+- **A log action still records `type` and `diff`.** Both are dead for every action (see
+  "Catalog balance"), and on a log action they are meaningless twice over.
