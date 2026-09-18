@@ -196,10 +196,11 @@ backend/
     orm.py                     table models
     repos.py                   repositories: dicts in, dicts out — never ORM entities
     storage.py                 per-user directory under ~/.local/share/evove (legacy)
-    static_data.py             skill tree hardcoded in Python
-  data/                        live seed: the attribute graph and the catalog
+    static_data.py             skill tree, and the attribute suggestion catalog
+  data/attributes_tree.json    live seed: the attribute graph and the catalog
+  data/attribute_suggestions.json  names offered when a user creates an attribute
   alembic/                     migrations
-  alembic/seeds/               frozen seed copies the older migrations read
+  alembic/seeds/               frozen seed copies the migrations read
   scripts/attributes.py        register attributes (subdivide, add, link…)
   scripts/migrate_json_to_db.py  legacy JSON importer
 apps/web/src/
@@ -299,7 +300,7 @@ Content tables also keep the logical id from the JSON era (`action_id`, `attr_id
 
 ### Migrations
 
-Twenty revisions in a chain:
+Twenty-one revisions in a chain:
 
 ```
 5638fb2a1810  initial schema
@@ -322,6 +323,7 @@ e2c7a9d4f6b1  patches and user attributes
 f3b8d1e7a4c2  marks and ranks replace scores, levels and xp
 a3c9e5f1b7d2  patch link weights
 b9f4c2e7a1d6  population: diet out, one action per practice, log actions
+c1a7e4b9d2f6  anatomical weights from published muscle volumes
 ```
 
 **No revision reads `backend/data/attributes_tree.json` any more.** Every one that seeds
@@ -532,42 +534,97 @@ are not cheap: `action_contributions.action_name`, `action_templates.action_name
 `actions.name` join on the string itself, and `engine_name` resolves a patch through its
 base's name, so renaming one action touches all of them at once.
 
-### Sources for the population
+### Where the weights come from
 
-For the pass after this one — the conceptual tree and the anatomical weights. What each
-source is actually for, in the order it feeds the calculation, not in the order a
-bibliography would list them.
+The weights inside the two limbs are the fraction of that limb's muscle volume each
+group holds, taken from the tables named below rather than picked by hand — `c1a7`.
+Everything else in the graph is still a judgement call.
 
-**Anatomical attributes** (muscle → share of the limb):
+| leaf | weight | leaf | weight |
+| --- | --- | --- | --- |
+| `deltoide` | 0.24 | `quadriceps` | 0.35 |
+| `triceps` | 0.24 | `gluteo` | 0.32 |
+| `biceps` | 0.18 | `panturrilha` | 0.17 |
+| `antebraco` | 0.34 | `posterior_coxa` | 0.16 |
 
-| Source | Use |
-| --- | --- |
-| Holzbaur et al. 2007 (upper limb) | Base table of fixed weights per muscle inside *braço* / *ombro*: the volume fraction becomes the static weight of the attribute in that limb |
-| Handsfield et al. 2014 (lower limb) | The same for *perna*; it also gives scaling formulas, so weights can vary by height and mass per profile |
-| Ito 1996 / Brookbush | Simpler alternative — weigh by **joint** (hip, knee, ankle) instead of by individual muscle. Less granular, easier to implement first |
-| ACE EMG studies | Not structural weight but **weight per exercise**: how much a given action patch (supino, agachamento) contributes to the target muscle against a reference exercise. This is what calibrates how much one mark of an action moves a muscle |
+**Upper limb — Holzbaur, Murray, Gold & Delp 2007**, "Upper limb muscle volumes in adult
+subjects", *J Biomech* 40:742-749, Table 2: 10 subjects, 32 muscles, 2554 cm³ of muscle in
+the limb, and the volume fraction of each. Deltoid 15.2%, triceps 14.5, anconeus 0.4,
+biceps 5.6, brachialis 5.7, brachioradialis 2.5, the eighteen forearm muscles 19.0
+together. The tree has four leaves, so the muscles are grouped onto them: `triceps` takes
+the elbow extensors, `biceps` the elbow flexors (brachialis with it), `antebraco` the
+brachioradialis and the forearm, `deltoide` the deltoid **alone** — the rotator cuff's
+16.7% is left out, because the leaf is Deltoide and not Ombro. Pectoralis and latissimus
+are in Holzbaur's total but sit under `tronco` here, so they leave the sum too. The four
+hold 62.9% of the limb and are renormalised over that.
 
-**Anatomical-conceptual attributes** (activity → brain region):
+**Lower limb — Ward, Eng, Smallwood & Lieber 2009**, "Are current measurements of lower
+extremity muscle architecture accurate?", *Clin Orthop Relat Res*, Table 3: 21 cadaver
+limbs, 83 ± 9 years. Masses in grams — quadriceps 897.8, gluteals 820.7, hamstrings 407.2,
+triceps surae 451.5 — over their 2577.2 g.
 
-| Source | Use |
-| --- | --- |
-| Penfield's homunculus and its revisions (Ghimire 2021, Emory) | Links "part of the body trained" to "cortical weight" — lets physical attributes also feed a general fine-motor-control attribute in proportion to cortical representation |
-| Fedorenko et al. (language network vs. MD network) | A **separation** criterion: language and general reasoning are distinct networks, which is the evidence for splitting two conceptual patches into sibling attributes |
-| Reading × mathematics meta-analysis (2025) | An **overlap** criterion: different domains share one cognitive-control network, which justifies a transversal attribute (focus / cognitive control) that takes marks from any conceptual patch on top of the subject's own attribute |
-| Physical exercise and cognition (hippocampus, prefrontal cortex) | Justification for a small bonus from physical attributes into cognitive ones (memory, focus) — only if that crossover is wanted in the design |
+**The caveat, in full.** Handsfield et al. 2014 is the in vivo source and was the first
+one reached for, but it publishes its fractions as Fig. 2A, a figure: the body of the paper
+carries none of the numbers. It does compare itself against Ward and finds the cadaver
+fractions consistent *"with a few exceptions"* — gluteus medius, psoas and vastus lateralis
+differ significantly — and two of those fall in the groups that rise here. Ward is the best
+source available as text, and that is what these weights rest on.
 
-**Purely conceptual attributes** (subjects, work, skills):
+`tronco` and `musculatura` are **not** touched: neither paper covers the abdominals or the
+erectors, and comparing Holzbaur's in vivo total against Ward's cadaver total would not
+mean anything. Nor is the `mente` branch: Penfield and Fedorenko were on the list for
+linking cortical weight to attributes, and that is still ahead, as is calibrating each
+action's contribution per exercise from the EMG work.
 
-| Source | Use |
-| --- | --- |
-| ISCED-F 2013 | A ready-made skeleton for the *estudar* branch. Its three levels (broad field → narrow field → detailed field) copy straight across as the patch hierarchy: Ciências naturais → Ciências físicas → Matemática. Nothing to invent |
-| O*NET Content Model — Basic and Cross-Functional Skills | Structure for work and productivity outside school: content skills (reading, writing, speaking, mathematics, science) and process skills (active learning, critical thinking, monitoring). Use it when a patch is a competence rather than a subject |
-| O*NET Abilities Taxonomy (cognitive, psychomotor, physical) | The only source that already holds all three domains in one tree — a cross-reference to check that no attribute here is left without a category |
-| O*NET frameworks in Excel / JSON-LD | Not theory, importable data: a seed for the patch tree instead of typing it out |
+### The suggestion catalog
 
-Suggested order: ISCED (conceptual) → O*NET Abilities (the cognitive bridge) → Holzbaur
-and Handsfield (anatomical) → ACE EMG (fine calibration) → Penfield and Fedorenko (the
-anatomical-conceptual link, more advanced and optional for the MVP).
+Nobody should have to invent the subdivisions of "what I study" from a blank text field, so
+the interface offers a ready-made list: `backend/data/attribute_suggestions.json`, served
+by `GET /attribute-suggestions` and rendered by `SuggestionPicker.svelte` in both places
+where an attribute is created.
+
+**It is not the attribute graph and never becomes it.** Nothing user-created can feed
+`attr_nodes` — `patch_attributes` references `user_attributes.id` and nothing else — so a
+taxonomy seeded as nodes would have no way to receive a mark, and since a parent is the
+weighted sum of its children, a branch of permanent zeros would drag its ancestors down.
+The catalog is therefore **text**: picking *Ciências naturais e matemática › Ciências
+físicas › Física* creates ordinary user attributes with those names. Only the label is
+copied, so renaming one in the JSON later renames nobody's attribute — there is no link
+back, and that is deliberate.
+
+Two catalogs, 128 entries, at most three levels:
+
+| catalog | what | source |
+| --- | --- | --- |
+| Matérias | 11 broad fields, 30 narrow, 43 detailed | UNESCO ISCED-F 2013 |
+| Competências | Essential and Transferable Skills, their 7 groups and 35 skills | O*NET Content Model |
+
+Every node keeps the official code (ISCED) and the official English title in
+`source_label`, next to the Portuguese `label` shown on screen. The labels are an
+**adaptation**, not an official translation: several ISCED names run past the 64 characters
+`user_attributes.name` holds, and the loader refuses the file if one does, so a bad edit
+fails at boot instead of as a 400 when somebody picks it. ISCED repeats a broad field's own
+name at the narrow level when a broad has a single narrow (011 Education, 061 ICTs); those
+are left out and their children attach to the broad field.
+
+**Picking a path.** `POST /user-attributes` takes `{"path": [...]}` besides
+`{name, parent_id?}`, and `new_attributes` in `POST /patches` takes `{"path": [...]}`
+besides a name — the same helper, in the patch's own transaction, so a patch that fails on
+build points leaves no attribute behind. Two rules decide what it creates:
+
+- **a level the profile already has by that name is reused where it sits, never moved.**
+  Names are unique per profile and the column is `utf8mb4_unicode_ci`, so "Física",
+  "FÍSICA" and "fisica" are one attribute — the column's collation decides, not a
+  comparison in Python, which would miss the accent. If Física was already a root, picking
+  the full path reuses the root and the chain is not formed: moving an attribute carries
+  its marks and changes what its old parent is worth, which stays the user's own
+  `PATCH /user-attributes/{id}`;
+- **an ancestor is created only when something below it has to be.** Picking a field the
+  profile already has creates nothing at all, rather than leaving an empty branch above it.
+
+The answer's `chain` says which levels were created and which were reused. And because a
+reused level may be a leaf holding marks, taking a child hands them down —
+`new_child_start`, the rule for every user attribute — so the shop says so before creating.
 
 ### Adding actions to the catalog
 
@@ -732,6 +789,9 @@ each save, so `actions.id` changes all the time. `patch_attributes` references t
 instead of going through `save_user`. The dead per-user `attributes` table was not an
 option for the same reason — every save wipes it.
 
+**Where they come from.** The shop's "+ atributo" and the patch wizard both offer the
+suggestion catalog next to the free-text field — see "The suggestion catalog".
+
 **Editing.** The `me` page opens any attribute or action in a page-sized modal — its marks
 and rank, what computes it and what it computes. Only what the user created changes there:
 a patch or a user attribute can be renamed and re-parented, and a user attribute's
@@ -830,10 +890,11 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 | GET | `/attributes/roots` | every root with its rank and marks |
 | GET | `/attributes/recent` | the leaves that most recently gained marks, custom ones included (`?limit=10`) |
 | GET | `/attributes/tree` | the whole graph; each child link says its `weight` and whether it is `primary`; a node can carry `patches` |
+| GET | `/attribute-suggestions` | the names the interface offers when creating an attribute (ISCED-F fields, O*NET skills); static, no token |
 | GET | `/user-attributes` | the user's own attributes as a tree, with rank, marks and the patches that train each, with their link weight |
 | PATCH | `/user-attributes/{id}` | rename (`{name}`) or move with its marks (`{parent_id}`, `null` for a root) |
-| POST | `/user-attributes` | create one (`{name, parent_id?}`), free |
-| POST | `/patches` | create a patch (`{base_action_id, name, attribute_ids, new_attributes}`), costs the base's price; on a log base the attributes are refused, since it trains none |
+| POST | `/user-attributes` | create one (`{name, parent_id?}`), free — or a suggestion's whole chain (`{path: [...]}`), reusing each level the profile already has |
+| POST | `/patches` | create a patch (`{base_action_id, name, attribute_ids, new_attributes}`), costs the base's price; an entry of `new_attributes` is a name, `{name, parent_id}` or `{path: [...]}`; on a log base the attributes are refused, since it trains none |
 | PATCH | `/patches/{id}` | rename (`{name}`) or replace the attributes it trains (`{attribute_ids}`); kept links keep their weight |
 | PUT | `/patches/{id}/attributes/{attribute_id}` | set a link's weight (`{weight}`, above 0 and at most 1) |
 | DELETE | `/patches/{id}/attributes/{attribute_id}` | the attribute stops receiving the patch's marks |
@@ -920,3 +981,9 @@ Known rough edges, for whoever touches this next:
   mixed Portuguese and English and there is no label layer; the i18n pass is separate.
 - **A log action still records `type` and `diff`.** Both are dead for every action (see
   "Catalog balance"), and on a log action they are meaningless twice over.
+- **The catalog's Portuguese is an adaptation.** Codes, hierarchy and English titles come
+  from the sources; the labels are shortened and reworded to fit 64 characters and to read
+  like something a person would name an attribute. `source_label` on every node is what
+  makes that auditable. O*NET also renames its own sections — what older writing calls
+  Basic and Cross-Functional Skills it now calls Essential and Transferable — so a refresh
+  means re-reading the model, not diffing against memory.

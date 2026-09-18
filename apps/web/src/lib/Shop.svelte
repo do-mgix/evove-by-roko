@@ -8,15 +8,19 @@
     formatCode,
     fetchUserAttributes,
     createUserAttribute,
+    createUserAttributePath,
     createPatch,
     flattenUserAttributes,
+    sameName,
     type CatalogGroup,
     type CatalogAction,
     type Action,
     type UserAttribute,
+    type NewAttributeSpec,
   } from "./api";
   import { userVersion, bumpUser } from "./store";
   import Modal from "./Modal.svelte";
+  import SuggestionPicker from "./SuggestionPicker.svelte";
 
   export let initialSection: string | null = null;
   void initialSection;
@@ -134,7 +138,8 @@
   let patchBaseQuery = "";
   let patchName = "";
   let patchAttrIds: Set<number> = new Set();
-  let patchNewAttrs: string[] = [];
+  let patchNewAttrs: NewAttributeSpec[] = [];
+  let patchPickerOpen = false;
   let patchNewAttrDraft = "";
   let patchBusy = false;
   let patchError: string | null = null;
@@ -171,6 +176,7 @@
     patchAttrIds = new Set();
     patchNewAttrs = [];
     patchNewAttrDraft = "";
+    patchPickerOpen = false;
     patchError = null;
     patchOpen = true;
   }
@@ -182,18 +188,27 @@
     patchAttrIds = next;
   }
 
-  /** A name that already exists selects that attribute instead of creating a twin. */
+  /** The name a spec ends up creating — a path trains its leaf. */
+  const specLabel = (n: NewAttributeSpec) => (typeof n === "string" ? n : n.path[n.path.length - 1]);
+
+  /** A name the profile already has selects that attribute instead of creating a
+   *  twin — the server would refuse the twin anyway, the name is unique. */
+  function addAttrNamed(spec: NewAttributeSpec) {
+    const label = specLabel(spec);
+    const existing = attrOptions.find((o) => sameName(o.name, label));
+    if (existing) patchAttrIds = new Set([...patchAttrIds, existing.id]);
+    else if (!patchNewAttrs.some((n) => sameName(specLabel(n), label))) patchNewAttrs = [...patchNewAttrs, spec];
+  }
+
   function addNewAttr() {
     const name = patchNewAttrDraft.trim().replace(/\s+/g, " ");
     if (!name) return;
-    const existing = attrOptions.find((o) => o.name.toLowerCase() === name.toLowerCase());
-    if (existing) patchAttrIds = new Set([...patchAttrIds, existing.id]);
-    else if (!patchNewAttrs.some((n) => n.toLowerCase() === name.toLowerCase())) patchNewAttrs = [...patchNewAttrs, name];
+    addAttrNamed(name);
     patchNewAttrDraft = "";
   }
 
-  function removeNewAttr(name: string) {
-    patchNewAttrs = patchNewAttrs.filter((n) => n !== name);
+  function removeNewAttr(spec: NewAttributeSpec) {
+    patchNewAttrs = patchNewAttrs.filter((n) => n !== spec);
   }
 
   async function submitPatch() {
@@ -222,20 +237,50 @@
   let attrParent: number | null = null;
   let attrBusy = false;
   let attrError: string | null = null;
+  let attrMode: "catalog" | "free" = "catalog";
+  /** A suggestion's whole path; the last level is the attribute being created. */
+  let attrPath: string[] = [];
+  /** Create the levels above it too, or only the one picked. */
+  let attrWithParents = true;
 
   function openAttr() {
     attrName = "";
     attrParent = null;
+    attrPath = [];
+    attrWithParents = true;
+    attrMode = "catalog";
     attrError = null;
     attrOpen = true;
   }
 
+  const allUserAttrs = (list: UserAttribute[]): UserAttribute[] =>
+    list.flatMap((a) => [a, ...allUserAttrs(a.children)]);
+
+  /** A level of the path the profile already has as a leaf holding marks: taking a
+   *  child hands them to it and the level becomes the mean of its children. Nothing
+   *  is lost, but the rank moves down a level, so say it before creating. */
+  $: attrSwallows =
+    attrWithParents && attrPath.length > 1
+      ? allUserAttrs(userAttrs).find(
+          (a) =>
+            a.is_leaf &&
+            (a.marks > 0 || a.rank_index > 0) &&
+            attrPath.slice(0, -1).some((p) => sameName(a.name, p)),
+        ) ?? null
+      : null;
+
+  $: attrReady = attrMode === "catalog" ? attrPath.length > 0 : attrName.trim().length > 0;
+
   async function submitAttr() {
-    if (!attrName.trim() || attrBusy) return;
+    if (!attrReady || attrBusy) return;
     attrBusy = true;
     attrError = null;
     try {
-      await createUserAttribute(attrName.trim(), attrParent);
+      if (attrMode === "catalog") {
+        await createUserAttributePath(attrWithParents ? attrPath : attrPath.slice(-1));
+      } else {
+        await createUserAttribute(attrName.trim(), attrParent);
+      }
       attrOpen = false;
       userAttrs = await fetchUserAttributes();
     } catch (e: any) {
@@ -421,7 +466,7 @@
           {/if}
           {#each patchNewAttrs as n (n)}
             <div class="new-attr">
-              <span>+ {n}</span>
+              <span title={typeof n === "string" ? n : n.path.join(" › ")}>+ {specLabel(n)}</span>
               <button class="link" on:click={() => removeNewAttr(n)}>remover</button>
             </div>
           {/each}
@@ -436,6 +481,18 @@
             />
             <button class="ghost" on:click={addNewAttr} disabled={!patchNewAttrDraft.trim()}>criar</button>
           </div>
+          <button class="link" on:click={() => (patchPickerOpen = !patchPickerOpen)}>
+            {patchPickerOpen ? "fechar catálogo" : "escolher do catálogo"}
+          </button>
+          {#if patchPickerOpen}
+            <SuggestionPicker
+              existing={attrOptions.map((o) => o.name)}
+              onPick={(p) => {
+                addAttrNamed({ path: p });
+                patchPickerOpen = false;
+              }}
+            />
+          {/if}
         </div>
       {/if}
     </div>
@@ -460,25 +517,61 @@
 {#if attrOpen}
   <Modal title="novo atributo" onClose={() => (attrOpen = false)}>
     <div class="wizard">
-      <div class="step">
-        <div class="step-title">nome</div>
-        <input class="field" type="text" maxlength="64" placeholder="física" bind:value={attrName} />
+      <div class="mode-row">
+        <button type="button" class="tab" class:on={attrMode === "catalog"} on:click={() => (attrMode = "catalog")}>
+          catálogo
+        </button>
+        <button type="button" class="tab" class:on={attrMode === "free"} on:click={() => (attrMode = "free")}>
+          livre
+        </button>
       </div>
-      <div class="step">
-        <div class="step-title">dentro de (opcional)</div>
-        <select class="field" bind:value={attrParent}>
-          <option value={null}>nenhum</option>
-          {#each attrOptions as o (o.id)}
-            <option value={o.id}>{o.path}</option>
-          {/each}
-        </select>
-      </div>
+
+      {#if attrMode === "catalog"}
+        <div class="step">
+          {#if attrPath.length}
+            <div class="step-title">escolhido</div>
+            <div class="new-attr">
+              <span>{attrPath.join(" › ")}</span>
+              <button class="link" on:click={() => (attrPath = [])}>trocar</button>
+            </div>
+            {#if attrPath.length > 1}
+              <label class="check-line">
+                <input type="checkbox" bind:checked={attrWithParents} />
+                <span>criar os níveis acima</span>
+              </label>
+            {/if}
+            {#if attrSwallows}
+              <p class="muted small">
+                {attrSwallows.name} já existe e guarda marcas: elas passam para o primeiro filho
+                e ele vira a média dos filhos.
+              </p>
+            {/if}
+          {:else}
+            <div class="step-title">escolher</div>
+            <SuggestionPicker existing={attrOptions.map((o) => o.name)} onPick={(p) => (attrPath = p)} />
+          {/if}
+        </div>
+      {:else}
+        <div class="step">
+          <div class="step-title">nome</div>
+          <input class="field" type="text" maxlength="64" placeholder="física" bind:value={attrName} />
+        </div>
+        <div class="step">
+          <div class="step-title">dentro de (opcional)</div>
+          <select class="field" bind:value={attrParent}>
+            <option value={null}>nenhum</option>
+            {#each attrOptions as o (o.id)}
+              <option value={o.id}>{o.path}</option>
+            {/each}
+          </select>
+        </div>
+      {/if}
       <p class="muted small">fica fora da árvore padrão e só é treinado por patches</p>
     </div>
     {#if attrError}<p class="error">{attrError}</p>{/if}
     <div class="confirm-row">
       <button class="ghost" on:click={() => (attrOpen = false)}>cancelar</button>
-      <button class="primary" on:click={submitAttr} disabled={!attrName.trim() || attrBusy}>
+      <button class="primary" on:click={submitAttr} disabled={!attrReady || attrBusy}>
         {attrBusy ? "..." : "criar"}
       </button>
     </div>

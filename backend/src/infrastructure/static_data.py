@@ -1,9 +1,20 @@
-"""Compatibility helpers for static game metadata.
+"""Static metadata that is not user data and not the attribute graph.
 
-The legacy JSON files under backend/data were removed when action metadata moved
-to the database. The skill tree never made it into a table, so it lives here.
 Action metadata (unit, difficulty, prices) comes from `repos.load_action_templates`.
+What is left lives here: the skill tree, small enough to be a literal below, and
+the attribute suggestion catalog, read from backend/data/attribute_suggestions.json
+because it is a few hundred lines of hand-curated text.
+
+The catalog is **not** a seed: no migration reads it and nothing it contains
+reaches `attr_nodes`. It is a list of names the interface offers when the user
+creates their own attributes, and only the text is copied — renaming a label here
+later renames nobody's attribute.
 """
+import json
+from pathlib import Path
+
+_SUGGESTIONS_FILE = Path(__file__).resolve().parents[2] / "data" / "attribute_suggestions.json"
+_SUGGESTIONS: dict | None = None
 
 _SKILL_TREE = {
     "nodes": [
@@ -39,3 +50,30 @@ def load_skill_tree() -> dict:
 def skill_nodes_by_id() -> dict:
     return {n["id"]: n for n in _SKILL_TREE["nodes"] if n.get("id")}
 
+
+
+def load_attribute_suggestions() -> dict:
+    """The suggestion catalog, validated once and cached.
+
+    The checks are the ones that would otherwise fail much later, as a 400 when
+    someone picks the offending entry: a label the user attribute column cannot
+    hold (1-64 characters), a duplicate key, a parent outside its own catalog.
+    """
+    global _SUGGESTIONS
+    if _SUGGESTIONS is None:
+        with _SUGGESTIONS_FILE.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        for catalog in data.get("catalogs", []):
+            keys = set()
+            for node in catalog.get("nodes", []):
+                label = " ".join(str(node.get("label", "")).split())
+                if not 1 <= len(label) <= 64:
+                    raise ValueError(f"{node.get('key')}: label must be 1-64 characters")
+                if node["key"] in keys:
+                    raise ValueError(f"duplicate suggestion key {node['key']}")
+                keys.add(node["key"])
+            for node in catalog.get("nodes", []):
+                if node.get("parent") and node["parent"] not in keys:
+                    raise ValueError(f"{node['key']}: parent {node['parent']} is not in the catalog")
+        _SUGGESTIONS = data
+    return _SUGGESTIONS

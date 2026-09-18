@@ -1,0 +1,873 @@
+{
+ "version": "2026-09",
+ "catalogs": [
+  {
+   "key": "isced_f_2013",
+   "name": "Matérias",
+   "source": "UNESCO, ISCED-F 2013 fields of education and training",
+   "note": "Códigos e títulos oficiais; os rótulos em português são adaptação, encurtados para caber em 64 caracteres.",
+   "nodes": [
+    {
+     "key": "isced_00",
+     "code": "00",
+     "label": "Formação geral",
+     "source_label": "Generic programmes and qualifications",
+     "parent": null
+    },
+    {
+     "key": "isced_001",
+     "code": "001",
+     "label": "Formação básica",
+     "source_label": "Basic programmes and qualifications",
+     "parent": "isced_00"
+    },
+    {
+     "key": "isced_002",
+     "code": "002",
+     "label": "Alfabetização e numeramento",
+     "source_label": "Literacy and numeracy",
+     "parent": "isced_00"
+    },
+    {
+     "key": "isced_003",
+     "code": "003",
+     "label": "Desenvolvimento pessoal",
+     "source_label": "Personal skills and development",
+     "parent": "isced_00"
+    },
+    {
+     "key": "isced_01",
+     "code": "01",
+     "label": "Educação",
+     "source_label": "Education",
+     "parent": null
+    },
+    {
+     "key": "isced_0111",
+     "code": "0111",
+     "label": "Ciências da educação",
+     "source_label": "Education science",
+     "parent": "isced_01"
+    },
+    {
+     "key": "isced_02",
+     "code": "02",
+     "label": "Artes e humanidades",
+     "source_label": "Arts and humanities",
+     "parent": null
+    },
+    {
+     "key": "isced_021",
+     "code": "021",
+     "label": "Artes",
+     "source_label": "Arts",
+     "parent": "isced_02"
+    },
+    {
+     "key": "isced_0211",
+     "code": "0211",
+     "label": "Audiovisual",
+     "source_label": "Audio-visual techniques and media production",
+     "parent": "isced_021"
+    },
+    {
+     "key": "isced_0212",
+     "code": "0212",
+     "label": "Design",
+     "source_label": "Fashion, interior and industrial design",
+     "parent": "isced_021"
+    },
+    {
+     "key": "isced_0213",
+     "code": "0213",
+     "label": "Belas artes",
+     "source_label": "Fine arts",
+     "parent": "isced_021"
+    },
+    {
+     "key": "isced_0214",
+     "code": "0214",
+     "label": "Artesanato",
+     "source_label": "Handicrafts",
+     "parent": "isced_021"
+    },
+    {
+     "key": "isced_0215",
+     "code": "0215",
+     "label": "Música e artes cênicas",
+     "source_label": "Music and performing arts",
+     "parent": "isced_021"
+    },
+    {
+     "key": "isced_022",
+     "code": "022",
+     "label": "Humanidades",
+     "source_label": "Humanities (except languages)",
+     "parent": "isced_02"
+    },
+    {
+     "key": "isced_0221",
+     "code": "0221",
+     "label": "Religião e teologia",
+     "source_label": "Religion and theology",
+     "parent": "isced_022"
+    },
+    {
+     "key": "isced_0222",
+     "code": "0222",
+     "label": "História e arqueologia",
+     "source_label": "History and archaeology",
+     "parent": "isced_022"
+    },
+    {
+     "key": "isced_0223",
+     "code": "0223",
+     "label": "Filosofia e ética",
+     "source_label": "Philosophy and ethics",
+     "parent": "isced_022"
+    },
+    {
+     "key": "isced_023",
+     "code": "023",
+     "label": "Idiomas",
+     "source_label": "Languages",
+     "parent": "isced_02"
+    },
+    {
+     "key": "isced_0231",
+     "code": "0231",
+     "label": "Aprendizado de idiomas",
+     "source_label": "Language acquisition",
+     "parent": "isced_023"
+    },
+    {
+     "key": "isced_0232",
+     "code": "0232",
+     "label": "Literatura e linguística",
+     "source_label": "Literature and linguistics",
+     "parent": "isced_023"
+    },
+    {
+     "key": "isced_03",
+     "code": "03",
+     "label": "Ciências sociais e comunicação",
+     "source_label": "Social sciences, journalism and information",
+     "parent": null
+    },
+    {
+     "key": "isced_031",
+     "code": "031",
+     "label": "Ciências sociais e comportamentais",
+     "source_label": "Social and behavioural sciences",
+     "parent": "isced_03"
+    },
+    {
+     "key": "isced_0311",
+     "code": "0311",
+     "label": "Economia",
+     "source_label": "Economics",
+     "parent": "isced_031"
+    },
+    {
+     "key": "isced_0312",
+     "code": "0312",
+     "label": "Ciência política",
+     "source_label": "Political sciences and civics",
+     "parent": "isced_031"
+    },
+    {
+     "key": "isced_0313",
+     "code": "0313",
+     "label": "Psicologia",
+     "source_label": "Psychology",
+     "parent": "isced_031"
+    },
+    {
+     "key": "isced_0314",
+     "code": "0314",
+     "label": "Sociologia e estudos culturais",
+     "source_label": "Sociology and cultural studies",
+     "parent": "isced_031"
+    },
+    {
+     "key": "isced_032",
+     "code": "032",
+     "label": "Jornalismo e informação",
+     "source_label": "Journalism and information",
+     "parent": "isced_03"
+    },
+    {
+     "key": "isced_0321",
+     "code": "0321",
+     "label": "Jornalismo",
+     "source_label": "Journalism and reporting",
+     "parent": "isced_032"
+    },
+    {
+     "key": "isced_0322",
+     "code": "0322",
+     "label": "Biblioteconomia e arquivologia",
+     "source_label": "Library, information and archival studies",
+     "parent": "isced_032"
+    },
+    {
+     "key": "isced_04",
+     "code": "04",
+     "label": "Negócios, administração e direito",
+     "source_label": "Business, administration and law",
+     "parent": null
+    },
+    {
+     "key": "isced_041",
+     "code": "041",
+     "label": "Negócios e administração",
+     "source_label": "Business and administration",
+     "parent": "isced_04"
+    },
+    {
+     "key": "isced_0411",
+     "code": "0411",
+     "label": "Contabilidade",
+     "source_label": "Accounting and taxation",
+     "parent": "isced_041"
+    },
+    {
+     "key": "isced_0412",
+     "code": "0412",
+     "label": "Finanças",
+     "source_label": "Finance, banking and insurance",
+     "parent": "isced_041"
+    },
+    {
+     "key": "isced_0413",
+     "code": "0413",
+     "label": "Gestão",
+     "source_label": "Management and administration",
+     "parent": "isced_041"
+    },
+    {
+     "key": "isced_0414",
+     "code": "0414",
+     "label": "Marketing e publicidade",
+     "source_label": "Marketing and advertising",
+     "parent": "isced_041"
+    },
+    {
+     "key": "isced_042",
+     "code": "042",
+     "label": "Direito",
+     "source_label": "Law",
+     "parent": "isced_04"
+    },
+    {
+     "key": "isced_05",
+     "code": "05",
+     "label": "Ciências naturais e matemática",
+     "source_label": "Natural sciences, mathematics and statistics",
+     "parent": null
+    },
+    {
+     "key": "isced_051",
+     "code": "051",
+     "label": "Ciências biológicas",
+     "source_label": "Biological and related sciences",
+     "parent": "isced_05"
+    },
+    {
+     "key": "isced_0511",
+     "code": "0511",
+     "label": "Biologia",
+     "source_label": "Biology",
+     "parent": "isced_051"
+    },
+    {
+     "key": "isced_0512",
+     "code": "0512",
+     "label": "Bioquímica",
+     "source_label": "Biochemistry",
+     "parent": "isced_051"
+    },
+    {
+     "key": "isced_052",
+     "code": "052",
+     "label": "Meio ambiente",
+     "source_label": "Environment",
+     "parent": "isced_05"
+    },
+    {
+     "key": "isced_0521",
+     "code": "0521",
+     "label": "Ciências ambientais",
+     "source_label": "Environmental sciences",
+     "parent": "isced_052"
+    },
+    {
+     "key": "isced_053",
+     "code": "053",
+     "label": "Ciências físicas",
+     "source_label": "Physical sciences",
+     "parent": "isced_05"
+    },
+    {
+     "key": "isced_0531",
+     "code": "0531",
+     "label": "Química",
+     "source_label": "Chemistry",
+     "parent": "isced_053"
+    },
+    {
+     "key": "isced_0532",
+     "code": "0532",
+     "label": "Ciências da Terra",
+     "source_label": "Earth sciences",
+     "parent": "isced_053"
+    },
+    {
+     "key": "isced_0533",
+     "code": "0533",
+     "label": "Física",
+     "source_label": "Physics",
+     "parent": "isced_053"
+    },
+    {
+     "key": "isced_054",
+     "code": "054",
+     "label": "Matemática e estatística",
+     "source_label": "Mathematics and statistics",
+     "parent": "isced_05"
+    },
+    {
+     "key": "isced_0541",
+     "code": "0541",
+     "label": "Matemática",
+     "source_label": "Mathematics",
+     "parent": "isced_054"
+    },
+    {
+     "key": "isced_0542",
+     "code": "0542",
+     "label": "Estatística",
+     "source_label": "Statistics",
+     "parent": "isced_054"
+    },
+    {
+     "key": "isced_06",
+     "code": "06",
+     "label": "Computação e TI",
+     "source_label": "Information and Communication Technologies (ICTs)",
+     "parent": null
+    },
+    {
+     "key": "isced_0612",
+     "code": "0612",
+     "label": "Banco de dados e redes",
+     "source_label": "Database and network design and administration",
+     "parent": "isced_06"
+    },
+    {
+     "key": "isced_0613",
+     "code": "0613",
+     "label": "Desenvolvimento de software",
+     "source_label": "Software and applications development and analysis",
+     "parent": "isced_06"
+    },
+    {
+     "key": "isced_07",
+     "code": "07",
+     "label": "Engenharia e construção",
+     "source_label": "Engineering, manufacturing and construction",
+     "parent": null
+    },
+    {
+     "key": "isced_071",
+     "code": "071",
+     "label": "Engenharia",
+     "source_label": "Engineering and engineering trades",
+     "parent": "isced_07"
+    },
+    {
+     "key": "isced_0713",
+     "code": "0713",
+     "label": "Eletricidade e energia",
+     "source_label": "Electricity and energy",
+     "parent": "isced_071"
+    },
+    {
+     "key": "isced_0714",
+     "code": "0714",
+     "label": "Eletrônica e automação",
+     "source_label": "Electronics and automation",
+     "parent": "isced_071"
+    },
+    {
+     "key": "isced_0715",
+     "code": "0715",
+     "label": "Mecânica e metalurgia",
+     "source_label": "Mechanics and metal trades",
+     "parent": "isced_071"
+    },
+    {
+     "key": "isced_0716",
+     "code": "0716",
+     "label": "Veículos e aeronaves",
+     "source_label": "Motor vehicles, ships and aircraft",
+     "parent": "isced_071"
+    },
+    {
+     "key": "isced_072",
+     "code": "072",
+     "label": "Produção e processamento",
+     "source_label": "Manufacturing and processing",
+     "parent": "isced_07"
+    },
+    {
+     "key": "isced_073",
+     "code": "073",
+     "label": "Arquitetura e construção",
+     "source_label": "Architecture and construction",
+     "parent": "isced_07"
+    },
+    {
+     "key": "isced_0731",
+     "code": "0731",
+     "label": "Arquitetura e urbanismo",
+     "source_label": "Architecture and town planning",
+     "parent": "isced_073"
+    },
+    {
+     "key": "isced_0732",
+     "code": "0732",
+     "label": "Engenharia civil",
+     "source_label": "Building and civil engineering",
+     "parent": "isced_073"
+    },
+    {
+     "key": "isced_08",
+     "code": "08",
+     "label": "Agropecuária e veterinária",
+     "source_label": "Agriculture, forestry, fisheries and veterinary",
+     "parent": null
+    },
+    {
+     "key": "isced_081",
+     "code": "081",
+     "label": "Agricultura",
+     "source_label": "Agriculture",
+     "parent": "isced_08"
+    },
+    {
+     "key": "isced_082",
+     "code": "082",
+     "label": "Silvicultura",
+     "source_label": "Forestry",
+     "parent": "isced_08"
+    },
+    {
+     "key": "isced_083",
+     "code": "083",
+     "label": "Pesca",
+     "source_label": "Fisheries",
+     "parent": "isced_08"
+    },
+    {
+     "key": "isced_084",
+     "code": "084",
+     "label": "Veterinária",
+     "source_label": "Veterinary",
+     "parent": "isced_08"
+    },
+    {
+     "key": "isced_09",
+     "code": "09",
+     "label": "Saúde e bem-estar",
+     "source_label": "Health and welfare",
+     "parent": null
+    },
+    {
+     "key": "isced_091",
+     "code": "091",
+     "label": "Saúde",
+     "source_label": "Health",
+     "parent": "isced_09"
+    },
+    {
+     "key": "isced_0911",
+     "code": "0911",
+     "label": "Odontologia",
+     "source_label": "Dental studies",
+     "parent": "isced_091"
+    },
+    {
+     "key": "isced_0912",
+     "code": "0912",
+     "label": "Medicina",
+     "source_label": "Medicine",
+     "parent": "isced_091"
+    },
+    {
+     "key": "isced_0913",
+     "code": "0913",
+     "label": "Enfermagem",
+     "source_label": "Nursing and midwifery",
+     "parent": "isced_091"
+    },
+    {
+     "key": "isced_0915",
+     "code": "0915",
+     "label": "Terapia e reabilitação",
+     "source_label": "Therapy and rehabilitation",
+     "parent": "isced_091"
+    },
+    {
+     "key": "isced_0916",
+     "code": "0916",
+     "label": "Farmácia",
+     "source_label": "Pharmacy",
+     "parent": "isced_091"
+    },
+    {
+     "key": "isced_092",
+     "code": "092",
+     "label": "Assistência social",
+     "source_label": "Welfare",
+     "parent": "isced_09"
+    },
+    {
+     "key": "isced_0923",
+     "code": "0923",
+     "label": "Serviço social",
+     "source_label": "Social work and counselling",
+     "parent": "isced_092"
+    },
+    {
+     "key": "isced_10",
+     "code": "10",
+     "label": "Serviços",
+     "source_label": "Services",
+     "parent": null
+    },
+    {
+     "key": "isced_101",
+     "code": "101",
+     "label": "Serviços pessoais",
+     "source_label": "Personal services",
+     "parent": "isced_10"
+    },
+    {
+     "key": "isced_1013",
+     "code": "1013",
+     "label": "Hotelaria e gastronomia",
+     "source_label": "Hotel, restaurants and catering",
+     "parent": "isced_101"
+    },
+    {
+     "key": "isced_1014",
+     "code": "1014",
+     "label": "Ciências do esporte",
+     "source_label": "Sports",
+     "parent": "isced_101"
+    },
+    {
+     "key": "isced_1015",
+     "code": "1015",
+     "label": "Turismo e lazer",
+     "source_label": "Travel, tourism and leisure",
+     "parent": "isced_101"
+    },
+    {
+     "key": "isced_102",
+     "code": "102",
+     "label": "Higiene e saúde ocupacional",
+     "source_label": "Hygiene and occupational health services",
+     "parent": "isced_10"
+    },
+    {
+     "key": "isced_103",
+     "code": "103",
+     "label": "Segurança",
+     "source_label": "Security services",
+     "parent": "isced_10"
+    },
+    {
+     "key": "isced_104",
+     "code": "104",
+     "label": "Transporte",
+     "source_label": "Transport services",
+     "parent": "isced_10"
+    }
+   ]
+  },
+  {
+   "key": "onet_skills",
+   "name": "Competências",
+   "source": "O*NET Content Model, Worker Requirements (Essential and Transferable Skills)",
+   "note": "Hierarquia e títulos do modelo oficial; rótulos em português são adaptação.",
+   "nodes": [
+    {
+     "key": "onet_essential_skills",
+     "label": "Habilidades essenciais",
+     "source_label": "Essential Skills",
+     "parent": null
+    },
+    {
+     "key": "onet_foundational_areas",
+     "label": "Bases",
+     "source_label": "Foundational Areas",
+     "parent": "onet_essential_skills"
+    },
+    {
+     "key": "onet_reading_comprehension",
+     "label": "Compreensão de leitura",
+     "source_label": "Reading Comprehension",
+     "parent": "onet_foundational_areas"
+    },
+    {
+     "key": "onet_active_listening",
+     "label": "Escuta ativa",
+     "source_label": "Active Listening",
+     "parent": "onet_foundational_areas"
+    },
+    {
+     "key": "onet_writing",
+     "label": "Escrita",
+     "source_label": "Writing",
+     "parent": "onet_foundational_areas"
+    },
+    {
+     "key": "onet_speaking",
+     "label": "Comunicação oral",
+     "source_label": "Speaking",
+     "parent": "onet_foundational_areas"
+    },
+    {
+     "key": "onet_mathematics",
+     "label": "Raciocínio matemático",
+     "source_label": "Mathematics",
+     "parent": "onet_foundational_areas"
+    },
+    {
+     "key": "onet_science",
+     "label": "Método científico",
+     "source_label": "Science",
+     "parent": "onet_foundational_areas"
+    },
+    {
+     "key": "onet_ways_of_working",
+     "label": "Modos de trabalhar",
+     "source_label": "Ways of Working",
+     "parent": "onet_essential_skills"
+    },
+    {
+     "key": "onet_critical_thinking",
+     "label": "Pensamento crítico",
+     "source_label": "Critical Thinking",
+     "parent": "onet_ways_of_working"
+    },
+    {
+     "key": "onet_active_learning",
+     "label": "Aprendizagem ativa",
+     "source_label": "Active Learning",
+     "parent": "onet_ways_of_working"
+    },
+    {
+     "key": "onet_learning_strategies",
+     "label": "Estratégias de aprendizagem",
+     "source_label": "Learning Strategies",
+     "parent": "onet_ways_of_working"
+    },
+    {
+     "key": "onet_monitoring",
+     "label": "Automonitoramento",
+     "source_label": "Monitoring",
+     "parent": "onet_ways_of_working"
+    },
+    {
+     "key": "onet_transferable_skills",
+     "label": "Habilidades transferíveis",
+     "source_label": "Transferable Skills",
+     "parent": null
+    },
+    {
+     "key": "onet_social_skills",
+     "label": "Habilidades sociais",
+     "source_label": "Social Skills",
+     "parent": "onet_transferable_skills"
+    },
+    {
+     "key": "onet_social_perceptiveness",
+     "label": "Percepção social",
+     "source_label": "Social Perceptiveness",
+     "parent": "onet_social_skills"
+    },
+    {
+     "key": "onet_coordination",
+     "label": "Coordenação com outros",
+     "source_label": "Coordination",
+     "parent": "onet_social_skills"
+    },
+    {
+     "key": "onet_persuasion",
+     "label": "Persuasão",
+     "source_label": "Persuasion",
+     "parent": "onet_social_skills"
+    },
+    {
+     "key": "onet_negotiation",
+     "label": "Negociação",
+     "source_label": "Negotiation",
+     "parent": "onet_social_skills"
+    },
+    {
+     "key": "onet_instructing",
+     "label": "Ensinar",
+     "source_label": "Instructing",
+     "parent": "onet_social_skills"
+    },
+    {
+     "key": "onet_service_orientation",
+     "label": "Orientação a serviço",
+     "source_label": "Service Orientation",
+     "parent": "onet_social_skills"
+    },
+    {
+     "key": "onet_complex_problem_solving_skills",
+     "label": "Resolução de problemas",
+     "source_label": "Complex Problem Solving Skills",
+     "parent": "onet_transferable_skills"
+    },
+    {
+     "key": "onet_complex_problem_solving",
+     "label": "Problemas complexos",
+     "source_label": "Complex Problem Solving",
+     "parent": "onet_complex_problem_solving_skills"
+    },
+    {
+     "key": "onet_technical_skills",
+     "label": "Habilidades técnicas",
+     "source_label": "Technical Skills",
+     "parent": "onet_transferable_skills"
+    },
+    {
+     "key": "onet_operations_analysis",
+     "label": "Análise de requisitos",
+     "source_label": "Operations Analysis",
+     "parent": "onet_technical_skills"
+    },
+    {
+     "key": "onet_technology_design",
+     "label": "Projeto de tecnologia",
+     "source_label": "Technology Design",
+     "parent": "onet_technical_skills"
+    },
+    {
+     "key": "onet_equipment_selection",
+     "label": "Seleção de equipamento",
+     "source_label": "Equipment Selection",
+     "parent": "onet_technical_skills"
+    },
+    {
+     "key": "onet_installation",
+     "label": "Instalação",
+     "source_label": "Installation",
+     "parent": "onet_technical_skills"
+    },
+    {
+     "key": "onet_programming",
+     "label": "Programação",
+     "source_label": "Programming",
+     "parent": "onet_technical_skills"
+    },
+    {
+     "key": "onet_operations_monitoring",
+     "label": "Monitoramento de operação",
+     "source_label": "Operations Monitoring",
+     "parent": "onet_technical_skills"
+    },
+    {
+     "key": "onet_operation_and_control",
+     "label": "Operação e controle",
+     "source_label": "Operation and Control",
+     "parent": "onet_technical_skills"
+    },
+    {
+     "key": "onet_equipment_maintenance",
+     "label": "Manutenção de equipamento",
+     "source_label": "Equipment Maintenance",
+     "parent": "onet_technical_skills"
+    },
+    {
+     "key": "onet_troubleshooting",
+     "label": "Diagnóstico de falhas",
+     "source_label": "Troubleshooting",
+     "parent": "onet_technical_skills"
+    },
+    {
+     "key": "onet_repairing",
+     "label": "Reparo",
+     "source_label": "Repairing",
+     "parent": "onet_technical_skills"
+    },
+    {
+     "key": "onet_quality_control_analysis",
+     "label": "Controle de qualidade",
+     "source_label": "Quality Control Analysis",
+     "parent": "onet_technical_skills"
+    },
+    {
+     "key": "onet_systems_skills",
+     "label": "Sistemas",
+     "source_label": "Systems Skills",
+     "parent": "onet_transferable_skills"
+    },
+    {
+     "key": "onet_judgment_and_decision_making",
+     "label": "Julgamento e decisão",
+     "source_label": "Judgment and Decision Making",
+     "parent": "onet_systems_skills"
+    },
+    {
+     "key": "onet_systems_analysis",
+     "label": "Análise de sistemas",
+     "source_label": "Systems Analysis",
+     "parent": "onet_systems_skills"
+    },
+    {
+     "key": "onet_systems_evaluation",
+     "label": "Avaliação de sistemas",
+     "source_label": "Systems Evaluation",
+     "parent": "onet_systems_skills"
+    },
+    {
+     "key": "onet_resource_management_skills",
+     "label": "Gestão de recursos",
+     "source_label": "Resource Management Skills",
+     "parent": "onet_transferable_skills"
+    },
+    {
+     "key": "onet_time_management",
+     "label": "Gestão do tempo",
+     "source_label": "Time Management",
+     "parent": "onet_resource_management_skills"
+    },
+    {
+     "key": "onet_management_of_financial_resources",
+     "label": "Gestão financeira",
+     "source_label": "Management of Financial Resources",
+     "parent": "onet_resource_management_skills"
+    },
+    {
+     "key": "onet_management_of_material_resources",
+     "label": "Gestão de materiais",
+     "source_label": "Management of Material Resources",
+     "parent": "onet_resource_management_skills"
+    },
+    {
+     "key": "onet_management_of_personnel_resources",
+     "label": "Gestão de pessoas",
+     "source_label": "Management of Personnel Resources",
+     "parent": "onet_resource_management_skills"
+    }
+   ]
+  }
+ ]
+}

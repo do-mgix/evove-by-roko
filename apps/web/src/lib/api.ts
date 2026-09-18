@@ -327,13 +327,71 @@ export function createUserAttribute(name: string, parentId: number | null) {
     "/user-attributes", { name, parent_id: parentId });
 }
 
+/** One level of a suggestion's path, as the server resolved it. */
+export type AttrChainStep = { id: number; name: string; parent_id: number | null; created: boolean };
+
+/** Create a suggestion's whole path at once. A level the profile already has by
+ *  that name is reused where it sits — `created` says which were new. */
+export function createUserAttributePath(path: string[]) {
+  return postJson<{ id: number; name: string; parent_id: number | null; chain: AttrChainStep[] }>(
+    "/user-attributes", { path });
+}
+
+/** An attribute to create with a patch: a name, or a suggestion's whole path. */
+export type NewAttributeSpec = string | { path: string[] };
+
 export function createPatch(body: {
   base_action_id: string;
   name: string;
   attribute_ids: number[];
-  new_attributes: string[];
+  new_attributes: NewAttributeSpec[];
 }) {
   return postJson<{ id: string; name: string; cost: number; build_points: number }>("/patches", body);
+}
+
+/** A node of the suggestion catalog. It is not part of the attribute graph: only
+ *  `label` is copied, into a user attribute of that name. */
+export type SuggestionNode = {
+  key: string;
+  code?: string;
+  label: string;
+  source_label: string;
+  parent: string | null;
+};
+export type SuggestionCatalog = {
+  key: string;
+  name: string;
+  source: string;
+  note?: string;
+  nodes: SuggestionNode[];
+};
+
+let suggestionsOnce: Promise<SuggestionCatalog[]> | null = null;
+
+/** The catalog is static and the same for everyone: fetch it once per page load. */
+export function fetchAttributeSuggestions(): Promise<SuggestionCatalog[]> {
+  if (!suggestionsOnce) {
+    suggestionsOnce = request("/attribute-suggestions")
+      .then((res) => {
+        if (!res.ok) throw new Error(`Failed to fetch suggestions (${res.status})`);
+        return res.json();
+      })
+      .then((d: { catalogs: SuggestionCatalog[] }) => d.catalogs ?? [])
+      .catch((e) => {
+        suggestionsOnce = null;   // a failed fetch must not be cached
+        throw e;
+      });
+  }
+  return suggestionsOnce;
+}
+
+/** Compare names the way the database does: `user_attributes.name` is
+ *  utf8mb4_unicode_ci, so case and accents do not distinguish two attributes.
+ *  A plain toLowerCase() would call "Fisica" and "Física" different. */
+export function sameName(a: string, b: string): boolean {
+  const fold = (s: string) =>
+    s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
+  return fold(a) === fold(b);
 }
 
 /** Every user attribute once, with its path, for pickers. */

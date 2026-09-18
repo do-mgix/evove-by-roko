@@ -25,6 +25,7 @@ from src.domain.skills import (  # noqa: E402
     SkillError,
 )
 from src.infrastructure.static_data import (  # noqa: E402
+    load_attribute_suggestions,
     load_skill_tree,
     skill_nodes_by_id,
 )
@@ -1188,14 +1189,31 @@ def list_user_attributes(username: str = Depends(current_username)):
     return [with_patches(view(r["id"], by_id, kids, memo)) for r in kids.get(None, [])]
 
 
+@app.get("/attribute-suggestions")
+def attribute_suggestions():
+    """Names the interface can offer when the user creates an attribute: the ISCED-F
+    fields of education and the O*NET skills, adapted to Portuguese.
+
+    This is not the attribute graph and never becomes it — nothing user-created can
+    feed `attr_nodes`. Picking one creates an ordinary user attribute with that text.
+    Static and the same for everyone, so no token, like `/shop/packages`.
+    """
+    return load_attribute_suggestions()
+
+
 @app.post("/user-attributes")
 def post_user_attribute(payload: dict, username: str = Depends(current_username)):
-    """Body: {name, parent_id?}. Free. Under a parent, the new attribute starts so
-    that the parent keeps its value."""
+    """Body: {name, parent_id?} or {path: [...]}. Free. Under a parent, the new
+    attribute starts so that the parent keeps its value.
+
+    `path` is a suggestion's whole chain — ["Ciências naturais", "Física"]: each
+    level the user already has by that name is reused where it is, the rest is
+    created, and the answer's `chain` says which was which."""
     p = payload or {}
-    parent_id = _attribute_id(p.get("parent_id"))
     try:
-        return repos.create_user_attribute(username, p.get("name", ""), parent_id)
+        if p.get("path") is not None:
+            return repos.create_user_attribute_path(username, p["path"])
+        return repos.create_user_attribute(username, p.get("name", ""), _attribute_id(p.get("parent_id")))
     except PatchError as e:
         raise HTTPException(status_code=e.status, detail=str(e))
 
@@ -1232,7 +1250,11 @@ def patch_user_attribute(attr_id: int, payload: dict, username: str = Depends(cu
 @app.post("/patches")
 def post_patch(payload: dict, username: str = Depends(current_username)):
     """Body: {base_action_id, name, attribute_ids, new_attributes}. Costs the base's
-    price in build points; the id is the base's id plus the lowest free two digits."""
+    price in build points; the id is the base's id plus the lowest free two digits.
+
+    An entry of `new_attributes` is a name, `{name, parent_id}`, or `{path: [...]}`
+    for a suggestion's whole chain — all created in the same transaction as the
+    patch, so a payment that fails leaves no attribute behind."""
     p = payload or {}
     _load_user(username)  # run any due daily tick before the patch is written
     try:

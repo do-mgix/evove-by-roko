@@ -1301,19 +1301,72 @@ def load_patch_links(username: str) -> dict[str, dict[int, float]]:
         s.close()
 
 
-def _checked_attribute_name(s: Session, u: orm.User, name, exclude_id: int | None = None) -> str:
+def _normalized_attribute_name(name) -> str:
     from src.domain.user_attributes import PatchError
 
     name = " ".join(str(name or "").split())
     if not name or len(name) > 64:
         raise PatchError("attribute name must be 1-64 characters")
-    # the column's collation decides equality, the same one the unique key uses
-    query = select(orm.UserAttribute.id).where(orm.UserAttribute.user_id == u.id, orm.UserAttribute.name == name)
+    return name
+
+
+def _attribute_by_name(s: Session, u: orm.User, name: str, exclude_id: int | None = None):
+    """The user's attribute with this name, or None. The column's collation decides
+    equality, the same one the unique key uses — so 'Física' and 'FISICA' are one
+    attribute, which a comparison in Python would miss."""
+    query = select(orm.UserAttribute).where(orm.UserAttribute.user_id == u.id,
+                                            orm.UserAttribute.name == name)
     if exclude_id is not None:
         query = query.where(orm.UserAttribute.id != exclude_id)
-    if s.execute(query).first():
+    return s.execute(query).scalars().first()
+
+
+def _checked_attribute_name(s: Session, u: orm.User, name, exclude_id: int | None = None) -> str:
+    from src.domain.user_attributes import PatchError
+
+    name = _normalized_attribute_name(name)
+    if _attribute_by_name(s, u, name, exclude_id) is not None:
         raise PatchError(f"attribute '{name}' already exists", 409)
     return name
+
+
+def _ensure_attribute_path(s: Session, u: orm.User, labels: list, now: datetime) -> list[dict]:
+    """Resolve a suggestion's path — ["Ciências naturais", "Física"] — into the
+    user's own attributes, creating only what is missing. Returns one entry per
+    level, each with `created`, the last one being the leaf the caller wants.
+
+    Two rules, both deliberate. An attribute the user already has by that name
+    **is** that attribute wherever it sits: it is reused in place and never moved,
+    because moving one carries its marks and changes what its old parent means —
+    that stays an explicit PATCH by the user. And an ancestor is created only when
+    something below it has to be created, so picking a field the user already has
+    does not leave an empty branch above it.
+    """
+    from src.domain.user_attributes import PatchError
+
+    names = [_normalized_attribute_name(x) for x in (labels or [])]
+    if not names:
+        raise PatchError("path must name at least one attribute")
+    if len(names) > 4:
+        raise PatchError("path is at most 4 levels deep")
+    rows = [_attribute_by_name(s, u, n) for n in names]
+    # start at the deepest level the user already has: that one is reused where it
+    # is, and only what hangs below it is created. Nothing exists -> build it whole.
+    deepest = max((i for i, r in enumerate(rows) if r is not None), default=-1)
+    start = max(deepest, 0)
+    names, rows = names[start:], rows[start:]
+
+    out, parent_id = [], None
+    for name, row in zip(names, rows):
+        if row is None:
+            row = _insert_user_attribute(s, u, name, parent_id, now)
+            created = True
+        else:
+            created = False
+        out.append({"id": row.id, "name": row.name, "parent_id": row.parent_id,
+                    "created": created})
+        parent_id = row.id
+    return out
 
 
 def _owned_attribute_ids(s: Session, u: orm.User, raw_ids: list) -> list[int]:
@@ -1368,6 +1421,25 @@ def create_user_attribute(username: str, name: str, parent_id: int | None = None
         s.close()
 
 
+def create_user_attribute_path(username: str, labels: list) -> dict:
+    """Create a suggestion's whole path at once, reusing what the user already has.
+    The answer is the leaf, plus the `chain` that reached it."""
+    now = datetime.now()
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        chain = _ensure_attribute_path(s, u, labels, now)
+        s.commit()
+        leaf = chain[-1]
+        return {"id": leaf["id"], "name": leaf["name"], "parent_id": leaf["parent_id"],
+                "chain": chain}
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
 def create_patch(username: str, base_action_id: str, name: str,
                  attribute_ids: list, new_attributes: list) -> dict:
     """Pay the base's price, create the new attributes, the patch action and its
@@ -1400,6 +1472,11 @@ def create_patch(username: str, base_action_id: str, name: str,
 
         ids = _owned_attribute_ids(s, u, attribute_ids)
         for spec in new_attributes or []:
+            if isinstance(spec, dict) and spec.get("path"):
+                # a suggestion: its whole path, in this same transaction, and the
+                # patch trains the leaf
+                ids.append(_ensure_attribute_path(s, u, spec["path"], now)[-1]["id"])
+                continue
             if isinstance(spec, dict):
                 parent = spec.get("parent_id")
                 row = _insert_user_attribute(s, u, spec.get("name"), int(parent) if parent is not None else None, now)

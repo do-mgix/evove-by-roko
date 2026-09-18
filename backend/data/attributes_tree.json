@@ -109,20 +109,20 @@
     { "parent": "musculatura", "child": "tronco", "weight": 0.33 },
     { "parent": "musculatura", "child": "memb_inf", "weight": 0.34 },
 
-    { "parent": "memb_sup", "child": "biceps", "weight": 0.3 },
-    { "parent": "memb_sup", "child": "triceps", "weight": 0.3 },
-    { "parent": "memb_sup", "child": "deltoide", "weight": 0.25 },
-    { "parent": "memb_sup", "child": "antebraco", "weight": 0.15 },
+    { "parent": "memb_sup", "child": "biceps", "weight": 0.18 },
+    { "parent": "memb_sup", "child": "triceps", "weight": 0.24 },
+    { "parent": "memb_sup", "child": "deltoide", "weight": 0.24 },
+    { "parent": "memb_sup", "child": "antebraco", "weight": 0.34 },
 
     { "parent": "tronco", "child": "peitoral", "weight": 0.3 },
     { "parent": "tronco", "child": "dorsal", "weight": 0.3 },
     { "parent": "tronco", "child": "core", "weight": 0.2 },
     { "parent": "tronco", "child": "lombar", "weight": 0.2 },
 
-    { "parent": "memb_inf", "child": "quadriceps", "weight": 0.3 },
-    { "parent": "memb_inf", "child": "posterior_coxa", "weight": 0.25 },
-    { "parent": "memb_inf", "child": "gluteo", "weight": 0.25 },
-    { "parent": "memb_inf", "child": "panturrilha", "weight": 0.2 },
+    { "parent": "memb_inf", "child": "quadriceps", "weight": 0.35 },
+    { "parent": "memb_inf", "child": "posterior_coxa", "weight": 0.16 },
+    { "parent": "memb_inf", "child": "gluteo", "weight": 0.32 },
+    { "parent": "memb_inf", "child": "panturrilha", "weight": 0.17 },
 
     { "parent": "cardiovascular", "child": "aerobico", "weight": 0.6 },
     { "parent": "cardiovascular", "child": "anaerobico", "weight": 0.4 },
