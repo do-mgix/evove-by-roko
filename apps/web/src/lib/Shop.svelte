@@ -12,6 +12,7 @@
     createPatch,
     flattenUserAttributes,
     sameName,
+    fold,
     type CatalogGroup,
     type CatalogAction,
     type Action,
@@ -87,10 +88,10 @@
     openSet = next;
   }
 
-  $: q = query.trim().toLowerCase();
+  $: q = fold(query.trim());
   $: filteredView = groups.map((g) => {
     const matches = q
-      ? g.actions.filter((a) => a.name.toLowerCase().includes(q))
+      ? g.actions.filter((a) => fold(a.name).includes(q))
       : g.actions;
     return { group: g, actions: matches };
   });
@@ -144,9 +145,8 @@
   let patchBusy = false;
   let patchError: string | null = null;
 
-  $: baseOptions = baseActions.filter((a) =>
-    a.name.toLowerCase().includes(patchBaseQuery.trim().toLowerCase()),
-  );
+  $: patchBaseQ = fold(patchBaseQuery.trim());
+  $: baseOptions = baseActions.filter((a) => fold(a.name).includes(patchBaseQ));
   $: patchCost = patchBase ? costByName.get(patchBase.name.toUpperCase()) ?? 0 : 0;
   $: nextPatchId = patchBase ? nextFreePatchId(patchBase, userActions) : "";
   // a log action is logged, not trained: its patches only separate entries in

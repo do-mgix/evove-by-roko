@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { fetchAttributeSuggestions, sameName } from "./api";
+  import { fetchAttributeSuggestions, fold, sameName } from "./api";
   import type { SuggestionCatalog, SuggestionNode } from "./api";
 
   /** Names the profile already has, so a suggestion can say it will be reused. */
@@ -32,8 +32,6 @@
     }
     return out;
   }
-
-  const fold = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 
   // no query: one level at a time, so nothing ever renders the whole catalog.
   // with a query: the matches, capped.

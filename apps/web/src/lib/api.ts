@@ -385,13 +385,17 @@ export function fetchAttributeSuggestions(): Promise<SuggestionCatalog[]> {
   return suggestionsOnce;
 }
 
+/** Case and accents dropped, as utf8mb4_unicode_ci drops them: "natacao"
+ *  and "NATAÇÃO" fold to the same string. For searching and comparing names. */
+export function fold(s: string): string {
+  return s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+}
+
 /** Compare names the way the database does: `user_attributes.name` is
  *  utf8mb4_unicode_ci, so case and accents do not distinguish two attributes.
  *  A plain toLowerCase() would call "Fisica" and "Física" different. */
 export function sameName(a: string, b: string): boolean {
-  const fold = (s: string) =>
-    s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
-  return fold(a) === fold(b);
+  return fold(a).trim() === fold(b).trim();
 }
 
 /** Every user attribute once, with its path, for pickers. */

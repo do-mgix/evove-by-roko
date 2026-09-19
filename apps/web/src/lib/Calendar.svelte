@@ -5,6 +5,7 @@
     fetchLogsByDate,
     fetchActions,
     createAgendaItem,
+    fold,
     type CalendarMonth,
     type LogEntry,
     type Action,
@@ -112,7 +113,7 @@
 
   $: actionSuggestions = eventActionQuery.trim()
     ? actions
-        .filter((a) => a.name.toLowerCase().includes(eventActionQuery.trim().toLowerCase()))
+        .filter((a) => fold(a.name).includes(fold(eventActionQuery.trim())))
         .slice(0, 6)
     : [];
 

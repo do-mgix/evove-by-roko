@@ -8,6 +8,7 @@
     actOnAction,
     fetchActionWindow,
     formatCode,
+    fold,
     type Action,
     type UserState,
     type AgendaToday,
@@ -129,10 +130,11 @@
     5: "letters", 6: "lines", 7: "words", 8: "group",
   };
 
+  $: textQuery = fold(query.trim());
   $: filtered =
     searchMode === "dial"
       ? byPrefix
-      : actions.filter((a) => a.name.toLowerCase().includes(query.trim().toLowerCase()));
+      : actions.filter((a) => fold(a.name).includes(textQuery));
 
   $: if ($userVersion !== lastUserVersion) {
     lastUserVersion = $userVersion;

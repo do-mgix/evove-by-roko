@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import Modal from "./Modal.svelte";
-  import { fetchActions, fetchAttributeTree, flattenAttributeNodes, createAgendaItem, updateAgendaItem, type AgendaItem } from "./api";
+  import { fetchActions, fetchAttributeTree, flattenAttributeNodes, createAgendaItem, updateAgendaItem, fold, type AgendaItem } from "./api";
 
   export let onClose: () => void;
   export let onCreated: (item: AgendaItem) => void;
@@ -138,7 +138,7 @@
 
   $: filteredSuggestions = label.trim()
     ? suggestions
-        .filter((s) => s.name.toLowerCase().includes(label.trim().toLowerCase()))
+        .filter((s) => fold(s.name).includes(fold(label.trim())))
         .slice(0, 8)
     : [];
 
