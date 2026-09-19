@@ -32,7 +32,8 @@
   let query = "";
   let loading = true;
   let error: string | null = null;
-  let inputEl: HTMLInputElement;
+  let nameEl: HTMLInputElement;
+  let idEl: HTMLInputElement;
   let selectedAction: Action | null = null;
   let acting: string | null = null;
   let lastAct: { name: string; marks: number; window: number } | null = null;
@@ -57,22 +58,30 @@
   });
 
   // ---- dial input ----
-  // Numeric mode: the buffer is an action id and nothing else. No secondary
-  // operators — matching an id goes straight to the note modal.
-  let searchMode: "text" | "dial" = "text";
+  // Two searches, one under the other: by name, and by id. The id buffer is an
+  // action id and nothing else — no secondary operators, and matching an id goes
+  // straight to the note modal. Whichever was typed in last is the one that filters.
   let dialBuffer = "";
+  let padOpen = false;
 
   $: byPrefix = actions.filter((a) => a.id.startsWith(dialBuffer));
 
-  function toggleDial() {
-    searchMode = searchMode === "dial" ? "text" : "dial";
-    dialBuffer = "";
-    if (searchMode === "dial") {
-      primeAudio();          // the click is the gesture browsers require
-      setTimeout(() => inputEl?.focus(), 0);
-    } else {
-      query = "";
+  function openPad() {
+    if (padOpen) return;
+    padOpen = true;
+    primeAudio();            // the tap is the gesture browsers require
+  }
+
+  function togglePad() {
+    if (padOpen) padOpen = false;
+    else {
+      openPad();
+      setTimeout(() => idEl?.focus(), 0);
     }
+  }
+
+  function onNameInput() {
+    dialBuffer = "";
   }
 
   /** Fire as soon as the buffer names exactly one action and nothing longer
@@ -93,6 +102,7 @@
   }
 
   function pushDigit(d: string) {
+    query = "";
     dialBuffer += d;
     tryResolve();
   }
@@ -131,10 +141,7 @@
   };
 
   $: textQuery = fold(query.trim());
-  $: filtered =
-    searchMode === "dial"
-      ? byPrefix
-      : actions.filter((a) => fold(a.name).includes(textQuery));
+  $: filtered = dialBuffer ? byPrefix : actions.filter((a) => fold(a.name).includes(textQuery));
 
   $: if ($userVersion !== lastUserVersion) {
     lastUserVersion = $userVersion;
@@ -148,7 +155,8 @@
   }
 
   onMount(async () => {
-    inputEl?.focus();
+    // on a phone, focusing would throw the keyboard over the list before anything is asked
+    if (!window.matchMedia(MOBILE_QUERY).matches) nameEl?.focus();
     try {
       const [actionsRes, userRes, agendaRes] = await Promise.all([
         fetchActions(),
@@ -406,31 +414,43 @@
               </div>
               <div class="window-body">
                 {#if widgetId === "actions"}
-                  <div class="search-row">
-                    <input
-                      type="text"
-                      class:dial={searchMode === "dial"}
-                      placeholder={searchMode === "dial" ? "id da ação" : "Buscar ação..."}
-                      value={searchMode === "dial" ? formatCode(dialBuffer) : query}
-                      readonly={searchMode === "dial" && isMobile}
-                      inputmode={searchMode === "dial" ? (isMobile ? "none" : "numeric") : "text"}
-                      bind:this={inputEl}
-                      on:input={(e) => {
-                        if (searchMode === "text") query = e.currentTarget.value;
-                      }}
-                      on:keydown={searchMode === "dial" ? onDialKey : onSearchKey}
-                    />
-                    <button
-                      type="button"
-                      class="dial-toggle"
-                      class:on={searchMode === "dial"}
-                      on:click={toggleDial}
-                      title={searchMode === "dial" ? "buscar por nome" : "buscar por id"}
-                    >
-                      123
-                    </button>
+                  <div class="searches">
+                    <div class="search-field">
+                      <input
+                        type="text"
+                        placeholder="buscar ação..."
+                        enterkeyhint="go"
+                        bind:value={query}
+                        bind:this={nameEl}
+                        on:input={onNameInput}
+                        on:focus={() => (padOpen = false)}
+                        on:keydown={onSearchKey}
+                      />
+                    </div>
+                    <div class="search-field" class:on={padOpen}>
+                      <input
+                        type="text"
+                        class="dial"
+                        placeholder="id da ação"
+                        value={formatCode(dialBuffer)}
+                        readonly={isMobile}
+                        inputmode={isMobile ? "none" : "numeric"}
+                        bind:this={idEl}
+                        on:click={openPad}
+                        on:keydown={onDialKey}
+                      />
+                      <button
+                        type="button"
+                        class="dial-toggle"
+                        class:on={padOpen}
+                        on:click={togglePad}
+                        title={padOpen ? "fechar teclado" : "teclado numérico"}
+                      >
+                        123
+                      </button>
+                    </div>
                   </div>
-                  {#if searchMode === "dial"}
+                  {#if padOpen}
                     <DialPad
                       buffer={dialBuffer}
                       touch={isMobile}
@@ -800,35 +820,45 @@
     border-style: solid;
     color: #cccccc;
   }
-  .search-row {
+  .searches {
     display: flex;
+    flex-direction: column;
     gap: 0.35rem;
-    align-items: stretch;
+    margin-bottom: 0.5rem;
   }
-  .search-row input { flex: 1; min-width: 0; }
-  .search-row input.dial {
+  .search-field {
+    display: flex;
+    align-items: stretch;
+    border: 1px solid #333333;
+    border-radius: 4px;
+  }
+  .search-field:focus-within,
+  .search-field.on { border-color: #00e5ff; }
+  .search-field input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    margin: 0;
+  }
+  .search-field input.dial {
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.06em;
   }
   .dial-toggle {
     flex: 0 0 auto;
-    padding: 0 0.6rem;
-    background: #000000;
-    border: 1px solid #333333;
-    border-radius: 3px;
+    padding: 0 0.75rem;
+    background: transparent;
+    border: none;
+    border-left: 1px solid #333333;
     color: #808080;
     font: inherit;
     font-size: 0.7rem;
     letter-spacing: 0.08em;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: color 0.15s;
   }
-  .dial-toggle:hover { border-color: #808080; color: #cccccc; }
-  .dial-toggle.on {
-    border-color: #00e5ff;
-    color: #00e5ff;
-    background: #000000;
-  }
+  .dial-toggle:hover { color: #cccccc; }
+  .dial-toggle.on { color: #00e5ff; }
   @keyframes fade {
     0%, 70% { opacity: 1; }
     100% { opacity: 0; }

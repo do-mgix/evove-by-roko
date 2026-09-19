@@ -13,6 +13,21 @@ body, html, #app {
   overflow: hidden;
 }
 
+/* Behave like an app inside a web view, not like a page: no pull-to-refresh or
+   bounce on the shell, no gray flash on tap, no double-tap zoom delay, and no
+   font inflation when the phone is turned. */
+html, body {
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+button, a, input, select, textarea, [role="button"] {
+  touch-action: manipulation;
+}
+
 /* Hide scrollbars across the app while preserving scroll behavior */
 * {
   scrollbar-width: none;

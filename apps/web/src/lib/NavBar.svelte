@@ -2,14 +2,14 @@
   export let current: string;
   export let onNav: (page: string) => void;
 
+  // home sits in the middle, where a thumb rests on a phone. Profile and the agenda
+  // live inside me; skills is on hold, so it has no entry (the page is still in App).
   const items = [
-    { id: "profile", label: "profile", icon: "@" },
-    { id: "home", label: "home", icon: "◆" },
-    { id: "agenda", label: "agenda", icon: "▦" },
-    { id: "journey", label: "journey", icon: "↝" },
     { id: "shop", label: "shop", icon: "$" },
-    { id: "skills", label: "skills", icon: "✦" },
     { id: "me", label: "me", icon: "◈" },
+    { id: "home", label: "início", icon: "◆", main: true },
+    { id: "journey", label: "journey", icon: "↝" },
+    { id: "soon", label: "soon", icon: "⋯", title: "coming soon" },
   ];
 </script>
 
@@ -17,9 +17,11 @@
   {#each items as item (item.id)}
     <button
       class="nav-btn"
+      class:main={item.main}
       class:active={current === item.id}
       on:click={() => onNav(item.id)}
-      title={item.label}
+      title={item.title ?? item.label}
+      aria-current={current === item.id ? "page" : undefined}
     >
       <span class="icon">{item.icon}</span>
       <span class="label">{item.label}</span>
@@ -38,32 +40,6 @@
     height: 100vh;
     box-sizing: border-box;
     width: 72px;
-  }
-
-  @media (max-width: 768px) {
-    .navbar {
-      flex-direction: row;
-      align-items: stretch;
-      justify-content: space-around;
-      width: 100%;
-      height: auto;
-      gap: 0;
-      padding: 0.35rem 0.25rem;
-      padding-bottom: calc(0.35rem + env(safe-area-inset-bottom, 0px));
-      border-right: none;
-      border-top: 1px solid #333333;
-      flex-shrink: 0;
-    }
-    .nav-btn {
-      flex: 1;
-      min-width: 0;
-      padding: 0.4rem 0.15rem;
-    }
-  }
-
-  /* Seven targets across a narrow phone: drop the words, keep the glyphs. */
-  @media (max-width: 380px) {
-    .nav-btn .label { display: none; }
   }
   .nav-btn {
     display: flex;
@@ -96,5 +72,42 @@
     font-size: 0.65rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+  /* início is the one boxed target: the screen the app opens on */
+  .nav-btn.main .icon {
+    display: grid;
+    place-items: center;
+    width: 2.1rem;
+    height: 2.1rem;
+    border: 1px solid #333333;
+    border-radius: 6px;
+  }
+  .nav-btn.main.active .icon { border-color: #00e5ff; }
+
+  @media (max-width: 768px) {
+    .navbar {
+      flex-direction: row;
+      align-items: stretch;
+      justify-content: space-around;
+      width: 100%;
+      height: auto;
+      gap: 0;
+      padding: 0.25rem 0.25rem;
+      padding-bottom: calc(0.25rem + env(safe-area-inset-bottom, 0px));
+      border-right: none;
+      border-top: 1px solid #333333;
+      flex-shrink: 0;
+    }
+    .nav-btn {
+      flex: 1;
+      min-width: 0;
+      min-height: 3.25rem;
+      padding: 0.35rem 0.15rem;
+    }
+    .nav-btn.main .icon {
+      width: 1.9rem;
+      height: 1.9rem;
+    }
   }
 </style>

@@ -793,6 +793,10 @@
 
   @media (max-width: 768px) {
     .page { padding: 0.75rem 0.9rem; }
+    /* title, two buttons and the badge on one line: each keeps its words together */
+    .topbar { gap: 0.5rem; }
+    .make { white-space: nowrap; }
+    .bp-badge { padding: 0.4rem 0; gap: 0.35rem; }
     .actions li { padding-left: 1.2rem; }
     .details { grid-template-columns: 1fr; gap: 0.15rem 0; }
     .details dd { margin-bottom: 0.5rem; }

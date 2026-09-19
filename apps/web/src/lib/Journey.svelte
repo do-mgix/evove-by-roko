@@ -1,5 +1,16 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
+
+  // five columns shrink to unreadable circles at phone width; three stay legible
+  const NARROW_QUERY = "(max-width: 520px)";
+  let narrow = false;
+  onMount(() => {
+    const mq = window.matchMedia(NARROW_QUERY);
+    const apply = () => (narrow = mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  });
   import { fetchJourney, type JourneyState } from "./api";
 
   let state: JourneyState | null = null;
@@ -35,7 +46,7 @@
   // Path map: zigzag layout of stages around current
   const SHOW_BEFORE = 4;
   const SHOW_AFTER = 8;
-  const COLS = 5;
+  $: COLS = narrow ? 3 : 5;
 
   $: stages = (() => {
     if (!state) return [] as { n: number; x: number; y: number; status: "done" | "current" | "future" }[];
@@ -59,7 +70,8 @@
     return out;
   })();
 
-  $: viewW = 80 + COLS * 130;
+  // the same 80 of margin on both sides of the outer columns
+  $: viewW = 160 + (COLS - 1) * 130;
   $: viewH = stages.length > 0 ? stages[stages.length - 1].y + 80 : 200;
 </script>
 
@@ -224,5 +236,10 @@
   }
   .stage-node.current circle {
     filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.5));
+  }
+
+  @media (max-width: 768px) {
+    .page { padding: 0.75rem 0.9rem; }
+    .countdown-card { padding: 0.5rem 0.25rem; margin-bottom: 0.75rem; }
   }
 </style>
