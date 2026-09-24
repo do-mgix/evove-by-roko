@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- styles.xml references these, and the Capacitor template ships without
+         them, so the build needs this file to resolve.
+
+         The web app is pure black with white text (src/app.css), so the native
+         shell uses the same palette: the window, the splash and the system bars
+         are black, which means nothing flashes light before the WebView paints
+         its first frame. -->
+    <color name="colorPrimary">#000000</color>
+    <color name="colorPrimaryDark">#000000</color>
+    <color name="colorAccent">#FFFFFF</color>
+    <color name="evoveBlack">#000000</color>
+</resources>

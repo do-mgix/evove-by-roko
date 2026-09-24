@@ -66,6 +66,23 @@ python apps/cli/main.py
 That needs `rich` and `readchar` (`pip install -r apps/cli/requirements.txt`) plus the
 backend requirements, since it imports the same domain code.
 
+### 4. Android client
+
+The web client also ships as an APK: the same `dist/` bundle inside a WebView. It needs a
+JDK 21 and the Android SDK (platform 36, build-tools 36) reachable through `JAVA_HOME` and
+`ANDROID_HOME` — no Android Studio.
+
+```bash
+cd apps/web
+echo 'VITE_API_BASE=http://<lan-ip>:8000' > .env.local   # the phone is not localhost
+npm run apk          # build + cap sync + gradlew assembleDebug
+npm run apk:install  # the same, then adb install -r on the connected device
+```
+
+The APK lands in `apps/web/android/app/build/outputs/apk/debug/`. The first build downloads
+Gradle and the AndroidX dependencies and takes a few minutes; after that it is seconds.
+"Android client" below says what the native shell adds.
+
 ### Development loop
 
 Editing source is enough — nothing needs a rebuild:
@@ -207,6 +224,8 @@ apps/web/src/
   App.svelte                   screen switching by state, no router
   lib/api.ts                   HTTP client and API types
   lib/*.svelte                 screens and panels
+apps/web/capacitor.config.ts   app id, app name and WebView settings for the APK
+apps/web/android/              Capacitor shell: Gradle project, black theme, debug cleartext
 apps/cli/
   main.py                      single-key menu
   user_selector.py             profile picker (up to 4)
@@ -936,6 +955,41 @@ The home screen is a grid of windows you can drag between slots and the bottom t
 the key `roko_username`; without it the user picker takes over. Two stores (`logsVersion`,
 `userVersion`) act as signals telling panels to refetch after an act.
 
+## Android client
+
+Capacitor 8 wraps the built `dist/` in a WebView. There is no second codebase: `npm run
+apk` builds the web client, `cap sync` copies the bundle into
+`android/app/src/main/assets/public`, and Gradle packages it. `apps/web/android/` is an
+ordinary Gradle project, versioned — generated once by `cap add android` and edited by hand
+since. The identifiers live in `capacitor.config.ts`: `com.evove.app`, app name *Evove*,
+`webDir: dist`.
+
+Three things the template does not get right for this app:
+
+- **The API is not on the phone.** `VITE_API_BASE` is baked into the bundle at build time,
+  and its default — `http://localhost:8000` — resolves to the phone itself. `.env.local`
+  holds the LAN address of the machine running the backend, and stays out of git because it
+  changes with the network.
+- **Cleartext and mixed content.** Android blocks plain HTTP since API 28, and the bundle is
+  served from `https://localhost` inside the WebView, which makes any call to an http API
+  mixed content. `android/app/src/debug/AndroidManifest.xml` allows cleartext for debug
+  builds only, and `allowMixedContent` in `capacitor.config.ts` lets those requests through.
+  Both are for the LAN loop and should go once the API answers over HTTPS.
+- **Black.** The web app is black on black (`src/app.css`), so the native shell matches:
+  `styles.xml`, the launcher background and the WebView background. Otherwise every cold
+  start flashes white before the first frame. `colors.xml` is ours too — the template
+  references `@color/colorPrimary` without defining it anywhere, and without that file the
+  build does not resolve.
+
+The bottom nav pads itself by `env(safe-area-inset-bottom)` (`lib/NavBar.svelte`), which
+Capacitor feeds from the real window insets: `index.html` declares `viewport-fit=cover`,
+which is what makes WebView 140+ pass them through. Older WebViews report nothing to
+`env()`; there Capacitor pads the native view instead, so the nav clears the gesture bar
+either way.
+
+Only debug builds are set up. A release APK needs a signing keystore and a `signingConfig`
+in `android/app/build.gradle`, and an API it can reach over HTTPS.
+
 ## Terminal client
 
 A single-key menu over the same database: `l` lists actions, `a` executes one — listing its
@@ -961,6 +1015,9 @@ Known rough edges, for whoever touches this next:
   (`ProjectItem` does not exist; the declared type is `Project`, and `/projects` returns
   `{items: [...]}` rather than an array), and `ProjectsPanel.svelte:16` and `:44` following
   from it. The app still runs — Vite does not type-check in `dev` — but `check` is red.
+- **The APK is a development build.** It still carries Capacitor's default launcher icon,
+  and the API address is frozen into the bundle at build time, so changing networks means
+  rebuilding. An icon, a signing keystore and an HTTPS API are what a release needs.
 - **Leftovers of xp.** The `xp`/`score` columns, `Action`'s score formula and the five
   "XP I–V" skills remain but pay nothing; the skills need a new effect.
 - **A fourth, dead notion of attribute.** The per-user tables `attributes`,

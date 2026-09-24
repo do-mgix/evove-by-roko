@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug-only overlay, merged into the main manifest for debug builds.
+
+     Android blocks plain HTTP since API 28, and in development the backend is
+     FastAPI over http:// on the LAN (see VITE_API_BASE in apps/web/.env.local).
+     Allowing cleartext here keeps that out of the release manifest, where the
+     API is expected to be served over HTTPS. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application
+        android:usesCleartextTraffic="true"
+        tools:targetApi="28" />
+</manifest>

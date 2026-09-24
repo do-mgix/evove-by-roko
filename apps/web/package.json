@@ -7,9 +7,12 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json"
+    "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
+    "apk": "npm run build && cap sync android && cd android && ./gradlew assembleDebug",
+    "apk:install": "npm run apk && adb install -r android/app/build/outputs/apk/debug/app-debug.apk"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
     "@sveltejs/vite-plugin-svelte": "^7.0.0",
     "@tsconfig/svelte": "^5.0.8",
     "@types/node": "^24.12.2",
@@ -17,5 +20,9 @@
     "svelte-check": "^4.4.6",
     "typescript": "~6.0.2",
     "vite": "^8.0.10"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2"
   }
 }
