@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
     "apk": "npm run build && cap sync android && cd android && ./gradlew assembleDebug",
-    "apk:install": "npm run apk && adb install -r android/app/build/outputs/apk/debug/app-debug.apk"
+    "apk:install": "npm run apk && adb install -r android/app/build/outputs/apk/debug/app-debug.apk",
+    "apk:release": "npm run build && cap sync android && cd android && ./gradlew assembleRelease"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.2",

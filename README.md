@@ -77,6 +77,7 @@ cd apps/web
 echo 'VITE_API_BASE=http://<lan-ip>:8000' > .env.local   # the phone is not localhost
 npm run apk          # build + cap sync + gradlew assembleDebug
 npm run apk:install  # the same, then adb install -r on the connected device
+npm run apk:release  # signed release APK, if android/keystore.properties is there
 ```
 
 The APK lands in `apps/web/android/app/build/outputs/apk/debug/`. The first build downloads
@@ -226,6 +227,7 @@ apps/web/src/
   lib/*.svelte                 screens and panels
 apps/web/capacitor.config.ts   app id, app name and WebView settings for the APK
 apps/web/android/              Capacitor shell: Gradle project, black theme, debug cleartext
+apps/web/scripts/android-icon.sh  launcher icons, cut from the wordmark
 apps/cli/
   main.py                      single-key menu
   user_selector.py             profile picker (up to 4)
@@ -987,8 +989,21 @@ which is what makes WebView 140+ pass them through. Older WebViews report nothin
 `env()`; there Capacitor pads the native view instead, so the nav clears the gesture bar
 either way.
 
-Only debug builds are set up. A release APK needs a signing keystore and a `signingConfig`
-in `android/app/build.gradle`, and an API it can reach over HTTPS.
+The launcher icon is the first "e" of the wordmark in `apps/cli/assets/media/evovepng.png`,
+white on black — the whole word is unreadable at 48dp. `scripts/android-icon.sh` cuts that
+letter out and writes every density: the adaptive foreground, which stays inside the 66dp
+safe zone the launcher mask leaves alone, plus square and round legacy icons for launchers
+that predate adaptive icons. The adaptive background is `@color/ic_launcher_background`,
+black, and the same letter serves as the `monochrome` layer for themed icons on Android 13+.
+
+`npm run apk:release` produces a signed release APK. What signs it is described by
+`android/keystore.properties`, which is not versioned: it names a keystore outside the
+repository — `~/keystores/evove-release.jks` on this machine — and carries its passwords.
+`app/build.gradle` tolerates its absence, so the project still configures and debug builds
+still work on a machine that does not have it; only `assembleRelease` comes out unsigned.
+**That pair is not reproducible.** Whoever holds it can publish updates of `com.evove.app`,
+and losing it means the app can never be updated on the Play Store again — only
+republished under another package name. Back it up off this machine.
 
 ## Terminal client
 
@@ -1015,9 +1030,9 @@ Known rough edges, for whoever touches this next:
   (`ProjectItem` does not exist; the declared type is `Project`, and `/projects` returns
   `{items: [...]}` rather than an array), and `ProjectsPanel.svelte:16` and `:44` following
   from it. The app still runs — Vite does not type-check in `dev` — but `check` is red.
-- **The APK is a development build.** It still carries Capacitor's default launcher icon,
-  and the API address is frozen into the bundle at build time, so changing networks means
-  rebuilding. An icon, a signing keystore and an HTTPS API are what a release needs.
+- **The APK's API address is frozen at build time.** `VITE_API_BASE` goes into the bundle,
+  so a new network means a rebuild — and a release build, which cannot use cleartext, needs
+  the API on HTTPS before it is good for anything.
 - **Leftovers of xp.** The `xp`/`score` columns, `Action`'s score formula and the five
   "XP I–V" skills remain but pay nothing; the skills need a new effect.
 - **A fourth, dead notion of attribute.** The per-user tables `attributes`,
