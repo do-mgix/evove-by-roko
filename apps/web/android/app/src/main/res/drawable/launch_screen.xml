@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What sits behind the WebView: black, with the wordmark in the bottom-right
+     corner, at the margins the mobile load screen of the visual identity uses
+     (see scripts/android-splash.sh). It is the whole launch screen on API 30 and
+     below, and on 31+ it is what the system splash — the launcher icon on black
+     — hands off to while the bundle boots.
+
+     The bitmap draws at its intrinsic size rather than filling the item, so the
+     wordmark keeps its proportions on any screen. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/evoveBlack" />
+    <item android:right="35dp" android:bottom="24dp">
+        <bitmap
+            android:src="@drawable/splash_wordmark"
+            android:gravity="bottom|right" />
+    </item>
+</layer-list>

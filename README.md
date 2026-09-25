@@ -227,7 +227,8 @@ apps/web/src/
   lib/*.svelte                 screens and panels
 apps/web/capacitor.config.ts   app id, app name and WebView settings for the APK
 apps/web/android/              Capacitor shell: Gradle project, black theme, debug cleartext
-apps/web/scripts/android-icon.sh  launcher icons, cut from the wordmark
+apps/web/scripts/android-icon.sh    launcher icons, cut from the wordmark
+apps/web/scripts/android-splash.sh  launch screen wordmark, cut from the load screen
 apps/cli/
   main.py                      single-key menu
   user_selector.py             profile picker (up to 4)
@@ -995,6 +996,15 @@ letter out and writes every density: the adaptive foreground, which stays inside
 safe zone the launcher mask leaves alone, plus square and round legacy icons for launchers
 that predate adaptive icons. The adaptive background is `@color/ic_launcher_background`,
 black, and the same letter serves as the `monochrome` layer for themed icons on Android 13+.
+
+What sits behind the WebView while the bundle boots is the load screen of the visual
+identity: "evove / by roko" in the bottom-right corner of black, from
+`apps/cli/assets/media/evove-mobile-loadscreen.png`. `scripts/android-splash.sh` cuts that
+block out and `drawable/launch_screen.xml` places it at the margins the original uses — as
+a layer-list rather than the source image, so the bitmap draws at its own size and keeps its
+proportions instead of being stretched to whatever screen it lands on. On API 31+ the system
+splash comes first, the launcher icon on black, and hands off to it. Capacitor's own
+`splash.png` in eleven orientations and densities is gone; nothing referenced it.
 
 `npm run apk:release` produces a signed release APK. What signs it is described by
 `android/keystore.properties`, which is not versioned: it names a keystore outside the
