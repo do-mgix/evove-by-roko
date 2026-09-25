@@ -971,13 +971,14 @@ Three things the template does not get right for this app:
 
 - **The API is not on the phone.** `VITE_API_BASE` is baked into the bundle at build time,
   and its default — `http://localhost:8000` — resolves to the phone itself. `.env.local`
-  holds the LAN address of the machine running the backend, and stays out of git because it
-  changes with the network.
-- **Cleartext and mixed content.** Android blocks plain HTTP since API 28, and the bundle is
-  served from `https://localhost` inside the WebView, which makes any call to an http API
-  mixed content. `android/app/src/debug/AndroidManifest.xml` allows cleartext for debug
-  builds only, and `allowMixedContent` in `capacitor.config.ts` lets those requests through.
-  Both are for the LAN loop and should go once the API answers over HTTPS.
+  holds the public HTTPS address of the backend and stays out of git. For now that is a
+  cloudflared quick tunnel (`cloudflared tunnel --url http://localhost:8000`), whose
+  `*.trycloudflare.com` URL changes whenever the tunnel restarts — the APK has to be rebuilt
+  when it does. A named tunnel on our own domain replaces it before the tester phase.
+- **HTTPS only.** Android blocks plain HTTP since API 28, and the bundle is served from
+  `https://localhost` inside the WebView, so an http API would also be mixed content. The
+  app allows neither: there is no cleartext exception and no `allowMixedContent`, and the
+  API must answer over HTTPS in debug and release alike.
 - **Black.** The web app is black on black (`src/app.css`), so the native shell matches:
   `styles.xml`, the launcher background and the WebView background. Otherwise every cold
   start flashes white before the first frame. `colors.xml` is ours too — the template
