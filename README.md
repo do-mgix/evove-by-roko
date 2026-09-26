@@ -1040,7 +1040,8 @@ Known rough edges, for whoever touches this next:
   `DATABASE_URL` pointing at `postgresql://…`), while `docker-compose.yml` brings up MySQL
   and sets `DATABASE_URL` on both services itself. Its `JWT_SECRET` is stale too: sessions
   are opaque tokens in a table, not signed ones. Nothing on the current path reads that
-  file.
+  file. It is no longer versioned, but its old values remain in the git history, so none
+  of them should be reused.
 - **`npm run check` reports 3 type errors** under `apps/web/src/lib/` — `api.ts:421`
   (`ProjectItem` does not exist; the declared type is `Project`, and `/projects` returns
   `{items: [...]}` rather than an array), and `ProjectsPanel.svelte:16` and `:44` following
