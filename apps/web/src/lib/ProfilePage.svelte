@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { API_BASE, fetchSessionInfo, fetchUser, type SessionInfo, type UserState } from "./api";
+  import { API_BASE, deleteAccount, fetchSessionInfo, fetchUser, type SessionInfo, type UserState } from "./api";
 
   export let onLogout: (everywhere: boolean) => void;
 
@@ -9,6 +9,31 @@
   let loading = true;
   let error: string | null = null;
   let confirmAll = false;
+
+  // Deleting asks for the password again, and only then for the click.
+  let deleting = false;
+  let deletePassword = "";
+  let deleteBusy = false;
+  let deleteError: string | null = null;
+
+  function cancelDelete() {
+    deleting = false;
+    deletePassword = "";
+    deleteError = null;
+  }
+
+  async function confirmDelete() {
+    if (!deletePassword || deleteBusy) return;
+    deleteBusy = true;
+    deleteError = null;
+    try {
+      await deleteAccount(deletePassword);
+    } catch (e: any) {
+      deleteError = e?.message ?? "erro";
+    } finally {
+      deleteBusy = false;
+    }
+  }
 
   onMount(async () => {
     try {
@@ -90,6 +115,36 @@
         </button>
       {/if}
     </div>
+  </section>
+
+  <section class="card">
+    <h2>excluir conta</h2>
+    {#if deleting}
+      <p class="warn">
+        Apaga a conta e todos os dados dela — atributos, ações, registros, agenda e
+        projetos — em todos os dispositivos. Não pode ser desfeito.
+      </p>
+      <input
+        class="password"
+        type="password"
+        placeholder="sua senha"
+        autocomplete="current-password"
+        bind:value={deletePassword}
+        on:keydown={(e) => e.key === "Enter" && confirmDelete()}
+      />
+      <div class="confirm">
+        <button class="danger" disabled={!deletePassword || deleteBusy} on:click={confirmDelete}>
+          {deleteBusy ? "..." : "excluir para sempre"}
+        </button>
+        <button class="ghost" on:click={cancelDelete}>cancelar</button>
+      </div>
+      {#if deleteError}<p class="error">{deleteError}</p>{/if}
+    {:else}
+      <button class="exit" on:click={() => (deleting = true)}>
+        <span class="exit-label">excluir conta</span>
+        <span class="muted-sub">apaga a conta e todos os dados</span>
+      </button>
+    {/if}
   </section>
 </section>
 
@@ -208,6 +263,29 @@
     color: #808080;
   }
   .ghost:hover { color: #cccccc; }
+  .danger:disabled { opacity: 0.4; cursor: not-allowed; }
+  .warn {
+    margin: 0 0 0.75rem;
+    color: #cccccc;
+    font-size: 0.85rem;
+    line-height: 1.45;
+  }
+  .password {
+    display: block;
+    width: 100%;
+    max-width: 20rem;
+    box-sizing: border-box;
+    background: #000000;
+    border: 1px solid #333333;
+    border-radius: 4px;
+    color: #ffffff;
+    padding: 0.55rem 0.8rem;
+    font: inherit;
+    font-size: 0.9rem;
+    outline: none;
+    margin-bottom: 0.75rem;
+  }
+  .password:focus { border-color: #ff4d4d; }
 
   @media (max-width: 768px) {
     .page { padding: 0.75rem 0.9rem; }

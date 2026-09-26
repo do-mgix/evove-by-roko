@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#000000" />
+  <title>evove · excluir conta</title>
+  <style>
+    html, body {
+      margin: 0;
+      background: #000000;
+      color: #ffffff;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    main {
+      max-width: 28rem;
+      margin: 0 auto;
+      padding: 3rem 1rem;
+      box-sizing: border-box;
+    }
+    h1 {
+      margin: 0 0 1.5rem;
+      font-size: 1.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+    }
+    p, li { color: #cccccc; font-size: 0.95rem; line-height: 1.5; }
+    ul { padding-left: 1.2rem; }
+    form { margin-top: 2rem; }
+    input[type="text"], input[type="password"] {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      background: #000000;
+      border: 1px solid #333333;
+      border-radius: 4px;
+      color: #ffffff;
+      padding: 0.6rem 0.85rem;
+      font: inherit;
+      margin-bottom: 0.75rem;
+      outline: none;
+    }
+    input:focus { border-color: #ffffff; }
+    label.check {
+      display: flex;
+      gap: 0.5rem;
+      align-items: flex-start;
+      color: #cccccc;
+      font-size: 0.9rem;
+      margin: 0.5rem 0 1rem;
+    }
+    button {
+      width: 100%;
+      padding: 0.6rem 1rem;
+      border: 1px solid #ff4d4d;
+      border-radius: 4px;
+      background: #000000;
+      color: #ff4d4d;
+      font: inherit;
+      cursor: pointer;
+    }
+    button:hover:not(:disabled) { background: #ff4d4d; color: #000000; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .status { margin-top: 1rem; font-size: 0.9rem; }
+    .err { color: #ff4d4d; }
+    .ok { color: #ffffff; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>evove</h1>
+    <p>Nesta página você exclui sua conta do evove sem precisar do app. A exclusão é
+      imediata e não pode ser desfeita.</p>
+    <p>São apagados, junto com a conta:</p>
+    <ul>
+      <li>nome de usuário e senha;</li>
+      <li>atributos, ações, patches, marcas e níveis;</li>
+      <li>registros (logs), agenda e projetos;</li>
+      <li>todas as sessões abertas, em qualquer aparelho.</li>
+    </ul>
+    <p>Nada é guardado depois da exclusão.</p>
+
+    <form id="form">
+      <input id="username" type="text" placeholder="usuário" autocomplete="username" maxlength="24" required />
+      <input id="password" type="password" placeholder="senha" autocomplete="current-password" required />
+      <label class="check">
+        <input id="confirm" type="checkbox" />
+        <span>Entendo que a conta e todos os dados serão apagados para sempre.</span>
+      </label>
+      <button id="submit" type="submit" disabled>excluir minha conta</button>
+      <p id="status" class="status" role="status"></p>
+    </form>
+  </main>
+
+  <script>
+    const form = document.getElementById("form");
+    const username = document.getElementById("username");
+    const password = document.getElementById("password");
+    const confirmBox = document.getElementById("confirm");
+    const submit = document.getElementById("submit");
+    const status = document.getElementById("status");
+
+    function refresh() {
+      submit.disabled = !(username.value.trim() && password.value && confirmBox.checked);
+    }
+    [username, password, confirmBox].forEach((el) => el.addEventListener("input", refresh));
+
+    function show(text, kind) {
+      status.textContent = text;
+      status.className = "status " + kind;
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      submit.disabled = true;
+      show("excluindo...", "");
+      try {
+        // Sign in for a session, then delete through it with the password again.
+        const login = await fetch("/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: username.value.trim(), password: password.value }),
+        });
+        if (!login.ok) throw new Error("usuário ou senha incorretos");
+        const { token } = await login.json();
+        const del = await fetch("/auth/me", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+          body: JSON.stringify({ password: password.value }),
+        });
+        if (!del.ok) throw new Error("não foi possível excluir a conta (" + del.status + ")");
+        form.reset();
+        show("Conta excluída. Todos os dados foram apagados.", "ok");
+      } catch (err) {
+        show(err.message, "err");
+        refresh();
+      }
+    });
+  </script>
+</body>
+</html>

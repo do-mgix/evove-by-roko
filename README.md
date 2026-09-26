@@ -298,6 +298,14 @@ the next login.
 Login answers the same 401 for a wrong password and for a username that does not exist, so
 the response does not enumerate profiles. There is no endpoint that lists usernames.
 
+`DELETE /auth/me` deletes the profile, and the foreign keys cascade to everything it owns —
+state, actions, attributes, patches, marks, logs, agenda, projects and sessions. It asks for
+the password again (`{password}`), so a session left open on another device is not enough;
+a wrong one is 403 rather than 401, because the session is still valid and the web client
+drops to login on any 401. The profile page offers it, and `GET /excluir-conta` serves a
+plain page (`backend/pages/excluir-conta.html`) that does the same without the app — the
+public deletion URL the Play Store asks for, at `https://api.voide.shop/excluir-conta`.
+
 **Two things remain open, on purpose, for local use:** CORS still accepts every origin —
 tightening it would break reaching the dev server from a phone on the LAN — and the CLI
 talks straight to MySQL with no password, since whoever runs it already holds
@@ -903,6 +911,8 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 | POST | `/auth/logout` | revoke the current session |
 | POST | `/auth/logout-all` | revoke every session of the profile, on every device |
 | GET | `/auth/me` | the account behind the token (id, username, creation date), its session's start and expiry, and how many sessions are active |
+| DELETE | `/auth/me` | delete the profile and all its data (`{password}`; 403 if wrong) |
+| GET | `/excluir-conta` | public page to delete an account without the app; no token |
 | GET | `/user` | full state: marks, rank and level, resources, bonuses |
 | GET | `/journey` | stage and time left until the next checkpoint |
 | GET | `/actions` | the profile's actions, each with its six tiers, `log_only`, `path` (the primary chain to the attribute it is registered under, empty for a log action) and `leaves` (what it feeds, with weights); a patch adds its `attributes` with their link weight |

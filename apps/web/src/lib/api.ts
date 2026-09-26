@@ -103,6 +103,17 @@ export async function logoutEverywhere(): Promise<void> {
   }
 }
 
+/** Deletes the profile and all its data. The password is checked again by the
+ *  server; a wrong one throws without touching the session. On success the
+ *  session is gone too, so the app goes back to login as on a rejected one. */
+export async function deleteAccount(password: string): Promise<void> {
+  const res = await request("/auth/me", { method: "DELETE", body: JSON.stringify({ password }) });
+  if (res.status === 403) throw new Error("senha incorreta");
+  if (!res.ok) throw new Error(`falhou (${res.status})`);
+  clearSession();
+  onUnauthorized?.();
+}
+
 export type SessionInfo = {
   user_id: number;
   username: string;

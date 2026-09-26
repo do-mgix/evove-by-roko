@@ -4,7 +4,8 @@ from datetime import datetime
 from pathlib import Path
 
 import roman
-from fastapi import Depends, FastAPI, HTTPException, Header
+from fastapi import Body, Depends, FastAPI, HTTPException, Header
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 _BACKEND_DIR = Path(__file__).parent
@@ -436,6 +437,30 @@ def auth_me(authorization: str | None = Header(None), username: str = Depends(cu
     if not info:
         raise HTTPException(status_code=401, detail="invalid or expired session")
     return info
+
+
+@app.delete("/auth/me")
+def delete_account(payload: dict | None = Body(None), username: str = Depends(current_username)):
+    """Delete the profile and everything it owns, sessions included. Body:
+    {password}, checked again so a session left open on another device is not
+    enough to erase the account. A wrong password is 403, not 401: the session
+    itself is still valid, and the client drops to login on any 401."""
+    password = str((payload or {}).get("password", ""))
+    stored = repos.get_password_hash(username)
+    if not stored or not auth.verify_password(password, stored):
+        raise HTTPException(status_code=403, detail="wrong password")
+    repos.delete_user(username)
+    return {"ok": True}
+
+
+# Public page for deleting an account without the app, which the Play Store
+# requires to exist at a URL of its own.
+_DELETE_ACCOUNT_PAGE = _BACKEND_DIR / "pages" / "excluir-conta.html"
+
+
+@app.get("/excluir-conta", response_class=HTMLResponse, include_in_schema=False)
+def delete_account_page():
+    return HTMLResponse(_DELETE_ACCOUNT_PAGE.read_text(encoding="utf-8"))
 
 
 @app.get("/user")
