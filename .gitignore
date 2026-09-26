@@ -32,3 +32,6 @@ tests/
 build/
 dist/
 main.spec
+
+# Cloudflare tunnel token (docker-compose.yml, service tunnel)
+tunnel.env

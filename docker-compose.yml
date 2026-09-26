@@ -49,6 +49,21 @@ services:
     volumes:
       - ${HOME}/.local/share/evove:/root/.local/share/evove:ro
 
+  # Public HTTPS entrance for the API (api.voide.shop), so the APK works off the
+  # home network. The tunnel is managed in the Cloudflare dashboard, where its
+  # public hostname points at http://backend:8000; this container only holds the
+  # connection open. TUNNEL_TOKEN lives in tunnel.env, which is not versioned.
+  # Opt-in, since only the machine serving the API runs it:
+  #   docker compose --profile tunnel up -d tunnel
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    profiles: [tunnel]
+    depends_on:
+      - backend
+    command: tunnel --no-autoupdate run
+    env_file: tunnel.env
+
   cli:
     build:
       context: .

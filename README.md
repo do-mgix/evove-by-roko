@@ -974,7 +974,11 @@ Three things the template does not get right for this app:
   holds the public HTTPS address of the backend and stays out of git. For now that is a
   cloudflared quick tunnel (`cloudflared tunnel --url http://localhost:8000`), whose
   `*.trycloudflare.com` URL changes whenever the tunnel restarts — the APK has to be rebuilt
-  when it does. A named tunnel on our own domain replaces it before the tester phase.
+  when it does. Its replacement is the `tunnel` service in `docker-compose.yml`: a named
+  Cloudflare tunnel serving `https://api.voide.shop`, opt-in through a Compose profile
+  (`docker compose --profile tunnel up -d tunnel`) and fed its token by `tunnel.env`, which
+  is not versioned. The tunnel's hostname is set in the Cloudflare dashboard and points at
+  `http://backend:8000`, inside the Compose network.
 - **HTTPS only.** Android blocks plain HTTP since API 28, and the bundle is served from
   `https://localhost` inside the WebView, so an http API would also be mixed content. The
   app allows neither: there is no cleartext exception and no `allowMixedContent`, and the
