@@ -35,6 +35,8 @@ class User(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String(24), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Optional, and only used to recover the password. Stored lower-cased.
+    email: Mapped[str | None] = mapped_column(String(254), unique=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     state: Mapped["UserState"] = relationship(back_populates="user", uselist=False, cascade="all, delete-orphan")
@@ -60,6 +62,17 @@ class Session(Base):
     last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
     user: Mapped["User"] = relationship(back_populates="sessions")
+
+# one row per password-reset link sent; like sessions, only the digest is stored
+class PasswordReset(Base):
+    __tablename__ = "password_resets"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
 
 # user generic info
 class UserState(Base):

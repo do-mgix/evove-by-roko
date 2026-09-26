@@ -306,6 +306,22 @@ drops to login on any 401. The profile page offers it, and `GET /excluir-conta` 
 plain page (`backend/pages/excluir-conta.html`) that does the same without the app — the
 public deletion URL the Play Store asks for, at `https://api.voide.shop/excluir-conta`.
 
+A profile may carry an e-mail address (`users.email`, optional, lower-cased, unique), set
+at registration or from the profile page with the password (`PATCH /auth/me`). It exists
+only for recovery: `POST /auth/forgot` takes a username or an address, and when the profile
+has one it records a link in `password_resets` — a SHA-256 digest, 60 minutes, one per
+minute at most — and mails it after answering. The answer is the same `{ok: true}` either
+way, so it tells nothing about which profiles exist. The link opens `GET /redefinir-senha`
+(`backend/pages/redefinir-senha.html`) with the token in the URL fragment, which never
+reaches a server log; `POST /auth/reset` sets the new password, spends every open link of
+the profile and ends all its sessions.
+
+Mail goes out over SMTP configured by `mail.env` at the repository root, which Compose
+loads into the backend and git ignores (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`,
+`SMTP_PASSWORD`, `MAIL_FROM`). Without `SMTP_HOST` the backend prints the message, link
+included, to its log instead. Links point at `PUBLIC_BASE_URL`, `https://api.voide.shop`
+by default.
+
 **Two things remain open, on purpose, for local use:** CORS still accepts every origin —
 tightening it would break reaching the dev server from a phone on the LAN — and the CLI
 talks straight to MySQL with no password, since whoever runs it already holds
@@ -906,12 +922,16 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 | Method | Route | Purpose |
 | --- | --- | --- |
 | GET | `/health` | ping |
-| POST | `/auth/register` | create a profile and sign in (`{username, password}`) |
+| POST | `/auth/register` | create a profile and sign in (`{username, password, email?}`) |
 | POST | `/auth/login` | sign in (`{username, password}`) |
 | POST | `/auth/logout` | revoke the current session |
 | POST | `/auth/logout-all` | revoke every session of the profile, on every device |
 | GET | `/auth/me` | the account behind the token (id, username, creation date), its session's start and expiry, and how many sessions are active |
+| PATCH | `/auth/me` | set or clear the recovery e-mail (`{email, password}`; 403 if the password is wrong, 409 if the address is taken) |
 | DELETE | `/auth/me` | delete the profile and all its data (`{password}`; 403 if wrong) |
+| POST | `/auth/forgot` | mail a password-reset link (`{login}`, username or e-mail); same answer whether or not it exists; no token |
+| POST | `/auth/reset` | set a new password from a link (`{token, password}`); ends every session; no token |
+| GET | `/redefinir-senha` | public page to ask for a link and to set the new password from it; no token |
 | GET | `/excluir-conta` | public page to delete an account without the app; no token |
 | GET | `/user` | full state: marks, rank and level, resources, bonuses |
 | GET | `/journey` | stage and time left until the next checkpoint |

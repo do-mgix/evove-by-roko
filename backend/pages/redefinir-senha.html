@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="referrer" content="no-referrer" />
+  <title>evove · redefinir senha</title>
+  <style>
+    html, body {
+      margin: 0;
+      background: #000000;
+      color: #ffffff;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    main {
+      max-width: 28rem;
+      margin: 0 auto;
+      padding: 3rem 1rem;
+      box-sizing: border-box;
+    }
+    h1 {
+      margin: 0 0 1.5rem;
+      font-size: 1.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+    }
+    p { color: #cccccc; font-size: 0.95rem; line-height: 1.5; }
+    form { margin-top: 1.5rem; }
+    input {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      background: #000000;
+      border: 1px solid #333333;
+      border-radius: 4px;
+      color: #ffffff;
+      padding: 0.6rem 0.85rem;
+      font: inherit;
+      margin-bottom: 0.75rem;
+      outline: none;
+    }
+    input:focus { border-color: #ffffff; }
+    button {
+      width: 100%;
+      padding: 0.6rem 1rem;
+      border: 1px solid #ffffff;
+      border-radius: 4px;
+      background: #000000;
+      color: #ffffff;
+      font: inherit;
+      cursor: pointer;
+    }
+    button:hover:not(:disabled) { background: #ffffff; color: #000000; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .status { margin-top: 1rem; font-size: 0.9rem; }
+    .err { color: #ff4d4d; }
+    .ok { color: #ffffff; }
+    [hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>evove</h1>
+
+    <!-- Without a token: ask for the link. -->
+    <section id="request">
+      <p>Informe seu usuário ou o e-mail cadastrado. Se a conta tiver um e-mail, enviamos
+        um link para criar uma senha nova.</p>
+      <form id="request-form">
+        <input id="login" type="text" placeholder="usuário ou e-mail" autocomplete="username" required />
+        <button type="submit">enviar link</button>
+        <p id="request-status" class="status" role="status"></p>
+      </form>
+    </section>
+
+    <!-- With a token (from the e-mail): set the new password. -->
+    <section id="reset" hidden>
+      <p>Escolha uma senha nova, com pelo menos 8 caracteres. Ao salvar, todas as
+        sessões abertas são encerradas.</p>
+      <form id="reset-form">
+        <input id="password" type="password" placeholder="senha nova" autocomplete="new-password" required />
+        <input id="password2" type="password" placeholder="repita a senha" autocomplete="new-password" required />
+        <button id="reset-submit" type="submit" disabled>salvar senha</button>
+        <p id="reset-status" class="status" role="status"></p>
+      </form>
+    </section>
+  </main>
+
+  <script>
+    const token = new URLSearchParams(location.hash.slice(1)).get("token");
+
+    function show(el, text, kind) {
+      el.textContent = text;
+      el.className = "status " + kind;
+    }
+
+    async function post(path, body) {
+      const res = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return { ok: res.ok, body: await res.json().catch(() => ({})) };
+    }
+
+    if (token) {
+      // Keep the token out of the address bar once it has been read.
+      history.replaceState(null, "", location.pathname);
+      document.getElementById("request").hidden = true;
+      document.getElementById("reset").hidden = false;
+
+      const pw = document.getElementById("password");
+      const pw2 = document.getElementById("password2");
+      const submit = document.getElementById("reset-submit");
+      const status = document.getElementById("reset-status");
+      const refresh = () => { submit.disabled = !(pw.value.length >= 8 && pw.value === pw2.value); };
+      pw.addEventListener("input", refresh);
+      pw2.addEventListener("input", refresh);
+
+      document.getElementById("reset-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        submit.disabled = true;
+        show(status, "salvando...", "");
+        try {
+          const r = await post("/auth/reset", { token, password: pw.value });
+          if (!r.ok) {
+            throw new Error(r.body.detail === "invalid or expired link"
+              ? "Este link expirou ou já foi usado. Peça um novo."
+              : "Não foi possível salvar a senha.");
+          }
+          e.target.reset();
+          show(status, "Senha alterada. Entre no app com a senha nova, usuário " + r.body.username + ".", "ok");
+        } catch (err) {
+          show(status, err.message, "err");
+          refresh();
+        }
+      });
+    } else {
+      const status = document.getElementById("request-status");
+      document.getElementById("request-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const login = document.getElementById("login").value.trim();
+        if (!login) return;
+        show(status, "enviando...", "");
+        try {
+          await post("/auth/forgot", { login });
+          show(status, "Se a conta existir e tiver e-mail, o link chega em alguns minutos. Confira o spam.", "ok");
+        } catch {
+          show(status, "Não foi possível enviar agora. Tente de novo.", "err");
+        }
+      });
+    }
+  </script>
+</body>
+</html>

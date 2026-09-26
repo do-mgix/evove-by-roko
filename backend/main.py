@@ -1,10 +1,11 @@
+import os
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import roman
-from fastapi import Body, Depends, FastAPI, HTTPException, Header
+from fastapi import BackgroundTasks, Body, Depends, FastAPI, HTTPException, Header
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -32,6 +33,7 @@ from src.infrastructure.static_data import (  # noqa: E402
 )
 from src.infrastructure import repos  # noqa: E402
 from src.infrastructure import auth  # noqa: E402
+from src.infrastructure import mailer  # noqa: E402
 
 _GREEK = ['α','β','γ','δ','ε','ζ','η','θ','ι','κ','λ','μ','ν','ξ','ο','π','ρ','σ','τ','υ','φ','χ','ψ','ω']
 _LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -113,6 +115,17 @@ app.add_middleware(
 
 
 _USERNAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,24}$")
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _clean_email(raw) -> str | None:
+    """Lower-cased address, None when blank; 400 when it is not one."""
+    email = str(raw or "").strip().lower()
+    if not email:
+        return None
+    if len(email) > 254 or not _EMAIL_RE.match(email):
+        raise HTTPException(status_code=400, detail="invalid e-mail")
+    return email
 
 
 def _bearer_token(authorization: str | None) -> str | None:
@@ -386,7 +399,7 @@ def _issue_session(username: str) -> dict:
 
 @app.post("/auth/register")
 def register(payload: dict):
-    """Create a profile and sign it in. Body: {username, password}."""
+    """Create a profile and sign it in. Body: {username, password, email?}."""
     name = str((payload or {}).get("username", "")).strip()
     password = str((payload or {}).get("password", ""))
     if not _USERNAME_RE.match(name):
@@ -395,11 +408,18 @@ def register(payload: dict):
         password_hash = auth.hash_password(password)
     except auth.PasswordError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    email = _clean_email((payload or {}).get("email"))
     if repos.user_exists(name):
         raise HTTPException(status_code=409, detail=f"user '{name}' already exists")
 
     initial, initial_sequences = _initial_profile(name)
     repos.create_user(name, initial, initial_sequences, password_hash=password_hash)
+    if email:
+        try:
+            repos.set_email(name, email)
+        except repos.EmailTaken:
+            # the profile stands; the address can be set later from the profile
+            pass
     return _issue_session(name)
 
 
@@ -451,6 +471,80 @@ def delete_account(payload: dict | None = Body(None), username: str = Depends(cu
         raise HTTPException(status_code=403, detail="wrong password")
     repos.delete_user(username)
     return {"ok": True}
+
+
+@app.patch("/auth/me")
+def update_account(payload: dict, username: str = Depends(current_username)):
+    """Set or clear the recovery e-mail. Body: {email, password}; the password
+    is asked again because whoever controls the address can reset it."""
+    password = str((payload or {}).get("password", ""))
+    stored = repos.get_password_hash(username)
+    if not stored or not auth.verify_password(password, stored):
+        raise HTTPException(status_code=403, detail="wrong password")
+    email = _clean_email((payload or {}).get("email"))
+    try:
+        repos.set_email(username, email)
+    except repos.EmailTaken:
+        raise HTTPException(status_code=409, detail="e-mail already in use")
+    return {"ok": True, "email": email}
+
+
+_RESET_TTL_MINUTES = 60
+_RESET_COOLDOWN_SECONDS = 60
+_PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://api.voide.shop").rstrip("/")
+
+
+def _send_reset(username: str, email: str, token: str) -> None:
+    # The token rides in the fragment, which browsers never send to a server,
+    # so it stays out of access logs and the tunnel.
+    link = f"{_PUBLIC_BASE_URL}/redefinir-senha#token={token}"
+    mailer.send(
+        email,
+        "evove · redefinir senha",
+        f"Olá, {username}.\n\n"
+        f"Para criar uma senha nova no evove, abra o link abaixo. Ele vale por "
+        f"{_RESET_TTL_MINUTES} minutos e só pode ser usado uma vez.\n\n{link}\n\n"
+        "Se não foi você que pediu, ignore este e-mail: a senha atual continua valendo.\n",
+    )
+
+
+@app.post("/auth/forgot")
+def forgot_password(payload: dict, background: BackgroundTasks):
+    """Body: {login}, a username or an e-mail address. Always answers the same,
+    and sends after answering, so neither the body nor the timing tells whether
+    the profile exists or has an address."""
+    login = str((payload or {}).get("login", "")).strip()
+    target = repos.recovery_target(login) if login else None
+    if target:
+        name, email = target
+        token = auth.new_session_token()
+        expires = datetime.now() + timedelta(minutes=_RESET_TTL_MINUTES)
+        if repos.create_password_reset(name, auth.token_digest(token), expires, _RESET_COOLDOWN_SECONDS):
+            background.add_task(_send_reset, name, email, token)
+    return {"ok": True}
+
+
+@app.post("/auth/reset")
+def reset_password(payload: dict):
+    """Body: {token, password}. Sets the password, spends every open link of
+    the profile and ends all its sessions; the new password is what logs in."""
+    token = str((payload or {}).get("token", "")).strip()
+    try:
+        password_hash = auth.hash_password(str((payload or {}).get("password", "")))
+    except auth.PasswordError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    username = repos.use_password_reset(auth.token_digest(token), password_hash) if token else None
+    if not username:
+        raise HTTPException(status_code=400, detail="invalid or expired link")
+    return {"ok": True, "username": username}
+
+
+_RESET_PAGE = _BACKEND_DIR / "pages" / "redefinir-senha.html"
+
+
+@app.get("/redefinir-senha", response_class=HTMLResponse, include_in_schema=False)
+def reset_password_page():
+    return HTMLResponse(_RESET_PAGE.read_text(encoding="utf-8"))
 
 
 # Public page for deleting an account without the app, which the Play Store

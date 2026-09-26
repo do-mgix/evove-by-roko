@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { API_BASE, deleteAccount, fetchSessionInfo, fetchUser, type SessionInfo, type UserState } from "./api";
+  import { API_BASE, deleteAccount, fetchSessionInfo, fetchUser, setRecoveryEmail, type SessionInfo, type UserState } from "./api";
 
   export let onLogout: (everywhere: boolean) => void;
 
@@ -9,6 +9,35 @@
   let loading = true;
   let error: string | null = null;
   let confirmAll = false;
+
+  // The recovery e-mail is changed with the password, like deleting.
+  let editingEmail = false;
+  let emailDraft = "";
+  let emailPassword = "";
+  let emailBusy = false;
+  let emailError: string | null = null;
+
+  function startEmail() {
+    editingEmail = true;
+    emailDraft = info?.email ?? "";
+    emailPassword = "";
+    emailError = null;
+  }
+
+  async function saveEmail() {
+    if (!emailPassword || emailBusy || !info) return;
+    emailBusy = true;
+    emailError = null;
+    try {
+      info = { ...info, email: await setRecoveryEmail(emailDraft.trim(), emailPassword) };
+      editingEmail = false;
+    } catch (e: any) {
+      emailError = e?.message ?? "erro";
+    } finally {
+      emailBusy = false;
+      emailPassword = "";
+    }
+  }
 
   // Deleting asks for the password again, and only then for the click.
   let deleting = false;
@@ -80,7 +109,35 @@
         <dt>user id</dt><dd>{info.user_id}</dd>
         <dt>username</dt><dd>{info.username}</dd>
         <dt>criada em</dt><dd>{info.created_at.slice(0, 10)}</dd>
+        <dt>e-mail</dt>
+        <dd>
+          {#if !editingEmail}
+            {info.email ?? "—"}
+            <button class="inline" on:click={startEmail}>{info.email ? "alterar" : "adicionar"}</button>
+          {/if}
+        </dd>
       </dl>
+      {#if editingEmail}
+        <div class="email-edit">
+          <p class="muted-sub">usado só para recuperar a senha; deixe vazio para remover</p>
+          <input class="password" type="email" placeholder="e-mail" autocomplete="email" bind:value={emailDraft} />
+          <input
+            class="password"
+            type="password"
+            placeholder="sua senha"
+            autocomplete="current-password"
+            bind:value={emailPassword}
+            on:keydown={(e) => e.key === "Enter" && saveEmail()}
+          />
+          <div class="confirm">
+            <button class="save" disabled={!emailPassword || emailBusy} on:click={saveEmail}>
+              {emailBusy ? "..." : "salvar"}
+            </button>
+            <button class="ghost" on:click={() => (editingEmail = false)}>cancelar</button>
+          </div>
+          {#if emailError}<p class="error">{emailError}</p>{/if}
+        </div>
+      {/if}
     </section>
 
     <section class="card">
@@ -264,6 +321,33 @@
   }
   .ghost:hover { color: #cccccc; }
   .danger:disabled { opacity: 0.4; cursor: not-allowed; }
+  .inline {
+    margin-left: 0.6rem;
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: #808080;
+    font: inherit;
+    font-size: 0.75rem;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .inline:hover { color: #ffffff; }
+  .email-edit { margin-top: 0.9rem; }
+  .email-edit .muted-sub { display: block; margin-bottom: 0.6rem; }
+  .email-edit .password:focus { border-color: #ffffff; }
+  .save {
+    padding: 0.45rem 0.85rem;
+    border: 1px solid #ffffff;
+    border-radius: 4px;
+    background: #000000;
+    color: #ffffff;
+    font: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .save:hover:not(:disabled) { background: #ffffff; color: #000000; }
+  .save:disabled { opacity: 0.4; cursor: not-allowed; }
   .warn {
     margin: 0 0 0.75rem;
     color: #cccccc;

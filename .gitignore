@@ -38,3 +38,6 @@ main.spec
 
 # Cloudflare tunnel token (docker-compose.yml, service tunnel)
 tunnel.env
+
+# SMTP credentials for password-reset e-mails (docker-compose.yml, service backend)
+mail.env

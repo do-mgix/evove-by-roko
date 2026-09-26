@@ -66,11 +66,11 @@ async function request(path: string, init: RequestInit = {}): Promise<Response> 
 
 export type Session = { token: string; username: string; expires_at: string };
 
-async function authCall(path: string, username: string, password: string): Promise<Session> {
+async function authCall(path: string, username: string, password: string, email?: string): Promise<Session> {
   const res = await fetch(`${BASE}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password, email }),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.detail || `falhou (${res.status})`);
@@ -82,8 +82,30 @@ export function login(username: string, password: string): Promise<Session> {
   return authCall("/auth/login", username, password);
 }
 
-export function register(username: string, password: string): Promise<Session> {
-  return authCall("/auth/register", username, password);
+export function register(username: string, password: string, email?: string): Promise<Session> {
+  return authCall("/auth/register", username, password, email);
+}
+
+/** Asks for a password-reset link. The server answers the same whether or not
+ *  the profile exists, so there is nothing to report but a network failure. */
+export async function forgotPassword(login: string): Promise<void> {
+  const res = await fetch(`${BASE}/auth/forgot`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ login }),
+  });
+  if (!res.ok) throw new Error(`falhou (${res.status})`);
+}
+
+/** Sets or clears the recovery e-mail; the password is checked again. */
+export async function setRecoveryEmail(email: string, password: string): Promise<string | null> {
+  const res = await request("/auth/me", { method: "PATCH", body: JSON.stringify({ email, password }) });
+  const body = await res.json().catch(() => ({}));
+  if (res.status === 403) throw new Error("senha incorreta");
+  if (res.status === 409) throw new Error("e-mail já usado por outra conta");
+  if (res.status === 400) throw new Error("e-mail inválido");
+  if (!res.ok) throw new Error(body.detail || `falhou (${res.status})`);
+  return body.email ?? null;
 }
 
 export async function logout(): Promise<void> {
@@ -118,6 +140,7 @@ export type SessionInfo = {
   user_id: number;
   username: string;
   created_at: string;
+  email: string | null;
   session: { created_at: string; expires_at: string };
   active_sessions: number;
 };

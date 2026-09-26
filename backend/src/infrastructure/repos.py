@@ -850,12 +850,105 @@ def session_info(token_hash: str) -> dict | None:
             "user_id": user.id,
             "username": user.username,
             "created_at": user.created_at.isoformat(),
+            "email": user.email,
             "session": {
                 "created_at": session.created_at.isoformat(),
                 "expires_at": session.expires_at.isoformat(),
             },
             "active_sessions": int(active),
         }
+    finally:
+        s.close()
+
+
+# ---------- password recovery ----------
+
+class EmailTaken(ValueError):
+    """Raised when another profile already uses the e-mail address."""
+
+
+def set_email(username: str, email: str | None) -> bool:
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        if not u:
+            return False
+        if email:
+            other = s.execute(select(orm.User.id).where(orm.User.email == email, orm.User.id != u.id)).first()
+            if other:
+                raise EmailTaken(email)
+        u.email = email
+        s.commit()
+        return True
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+def recovery_target(login: str) -> tuple[str, str] | None:
+    """(username, email) of the profile named by a username or an e-mail
+    address, when it has an address to send to."""
+    s = SessionLocal()
+    try:
+        row = s.execute(
+            select(orm.User.username, orm.User.email)
+            .where((orm.User.username == login) | (orm.User.email == login.lower()))
+        ).first()
+        if row is None or not row.email:
+            return None
+        return row.username, row.email
+    finally:
+        s.close()
+
+
+def create_password_reset(username: str, token_hash: str, expires_at: datetime, cooldown_seconds: int) -> bool:
+    """Record a reset link. False when the profile is gone or one was issued
+    within the cooldown, so a form cannot be used to flood an inbox."""
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        if not u:
+            return False
+        now = datetime.now()
+        recent = s.execute(
+            select(func.max(orm.PasswordReset.created_at)).where(orm.PasswordReset.user_id == u.id)
+        ).scalar_one()
+        if recent and (now - recent).total_seconds() < cooldown_seconds:
+            return False
+        s.query(orm.PasswordReset).filter(orm.PasswordReset.expires_at <= now).delete()
+        s.add(orm.PasswordReset(token_hash=token_hash, user_id=u.id, created_at=now, expires_at=expires_at))
+        s.commit()
+        return True
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+def use_password_reset(token_hash: str, password_hash: str) -> str | None:
+    """Spend a reset link: set the new hash, burn every open link of the
+    profile and end all its sessions. Returns the username, or None when the
+    link is unknown, used or expired."""
+    s = SessionLocal()
+    try:
+        reset = s.get(orm.PasswordReset, token_hash)
+        now = datetime.now()
+        if reset is None or reset.used_at is not None or reset.expires_at <= now:
+            return None
+        u = s.get(orm.User, reset.user_id)
+        u.password_hash = password_hash
+        s.query(orm.PasswordReset).filter(
+            orm.PasswordReset.user_id == u.id, orm.PasswordReset.used_at.is_(None)
+        ).update({"used_at": now})
+        s.query(orm.Session).filter_by(user_id=u.id).delete()
+        s.commit()
+        return u.username
+    except Exception:
+        s.rollback()
+        raise
     finally:
         s.close()
 

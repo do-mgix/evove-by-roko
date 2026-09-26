@@ -44,6 +44,11 @@ services:
     environment:
       DATABASE_URL: mysql+pymysql://${MYSQL_USER:-roko}:${MYSQL_PASSWORD:-rokopass}@db:3306/${MYSQL_DATABASE:-roko}?charset=utf8mb4
       TZ: America/Sao_Paulo
+    # SMTP for password-reset e-mails (src/infrastructure/mailer.py), not
+    # versioned. Without it the backend prints the reset link to its log.
+    env_file:
+      - path: mail.env
+        required: false
     ports:
       - "8000:8000"
     volumes:

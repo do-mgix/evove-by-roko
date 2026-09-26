@@ -1,10 +1,12 @@
 <script lang="ts">
-  import { login, register } from "./api";
+  import { forgotPassword, login, register } from "./api";
 
   export let onSelected: (name: string) => void;
 
-  let mode: "login" | "register" = "login";
+  let mode: "login" | "register" | "forgot" = "login";
   let username = "";
+  let email = "";
+  let sent = false;
   let password = "";
   let confirmPassword = "";
   let busy = false;
@@ -12,12 +14,13 @@
 
   $: canSubmit =
     username.trim().length > 0 &&
-    password.length >= 8 &&
-    (mode === "login" || password === confirmPassword);
+    (mode === "forgot" ||
+      (password.length >= 8 && (mode === "login" || password === confirmPassword)));
 
-  function switchMode(next: "login" | "register") {
+  function switchMode(next: "login" | "register" | "forgot") {
     mode = next;
     error = null;
+    sent = false;
     password = "";
     confirmPassword = "";
   }
@@ -27,8 +30,15 @@
     busy = true;
     error = null;
     try {
-      const fn = mode === "login" ? login : register;
-      const session = await fn(username.trim(), password);
+      if (mode === "forgot") {
+        await forgotPassword(username.trim());
+        sent = true;
+        return;
+      }
+      const session =
+        mode === "login"
+          ? await login(username.trim(), password)
+          : await register(username.trim(), password, email.trim() || undefined);
       password = "";
       confirmPassword = "";
       onSelected(session.username);
@@ -48,8 +58,30 @@
   <div class="card">
     <h1>evove</h1>
 
-    <p class="hint">{mode === "login" ? "entrar" : "criar perfil"}</p>
+    <p class="hint">{mode === "login" ? "entrar" : mode === "register" ? "criar perfil" : "recuperar senha"}</p>
 
+    {#if mode === "forgot"}
+      {#if sent}
+        <p class="sent">
+          Se a conta existir e tiver e-mail, o link para criar uma senha nova chega em
+          alguns minutos. Confira o spam.
+        </p>
+      {:else}
+        <input
+          type="text"
+          placeholder="usuário ou e-mail"
+          autocomplete="username"
+          bind:value={username}
+          on:keydown={onKey}
+        />
+        <div class="actions">
+          <button class="primary" on:click={submit} disabled={!canSubmit || busy}>
+            {busy ? "..." : "enviar link"}
+          </button>
+        </div>
+      {/if}
+      <button class="link" on:click={() => switchMode("login")}>voltar para entrar</button>
+    {:else}
     <input
       type="text"
       placeholder="usuário"
@@ -73,6 +105,13 @@
         bind:value={confirmPassword}
         on:keydown={onKey}
       />
+      <input
+        type="email"
+        placeholder="e-mail (opcional, para recuperar a senha)"
+        autocomplete="email"
+        bind:value={email}
+        on:keydown={onKey}
+      />
       {#if password.length > 0 && password.length < 8}
         <p class="rule">mínimo de 8 caracteres</p>
       {:else if confirmPassword.length > 0 && password !== confirmPassword}
@@ -89,6 +128,10 @@
     <button class="link" on:click={() => switchMode(mode === "login" ? "register" : "login")}>
       {mode === "login" ? "criar um perfil novo" : "já tenho um perfil"}
     </button>
+    {#if mode === "login"}
+      <button class="link" on:click={() => switchMode("forgot")}>esqueci a senha</button>
+    {/if}
+    {/if}
 
     {#if error}
       <p class="error">{error}</p>
@@ -194,6 +237,12 @@
   }
   .link:hover {
     color: #00e5ff;
+  }
+  .sent {
+    color: #cccccc;
+    font-size: 0.85rem;
+    line-height: 1.45;
+    margin: 0 0 0.5rem;
   }
   .error {
     color: #ff4d4d;
