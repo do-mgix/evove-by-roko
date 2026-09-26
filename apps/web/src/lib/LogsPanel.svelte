@@ -543,12 +543,13 @@
     border-color: #808080;
   }
   .row-btns .primary {
-    background: #00e5ff;
-    color: #000000;
-    border-color: #00e5ff;
+    background: #000000;
+    color: #ffffff;
+    border-color: #ffffff;
   }
   .row-btns .primary:hover:not(:disabled) {
-    background: #00a3b8;
+    background: #ffffff;
+    color: #000000;
   }
   .row-btns .danger {
     background: #ff4d4d;

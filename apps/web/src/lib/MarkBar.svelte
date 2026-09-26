@@ -4,6 +4,8 @@
   export let marks = 0;
   export let need = 3;
   export let size: "lg" | "md" = "lg";
+  /** Colour of the filled segments: white, or the yellow of attribute progress. */
+  export let tone: "white" | "gold" = "white";
   /** What floats over the bar; `marks/need` unless given. */
   export let label: string | null = null;
   /** Makes each segment a button: clicking the n-th picks n. */
@@ -17,7 +19,7 @@
 </script>
 
 <div
-  class="markbar {size}"
+  class="markbar {size} {tone}"
   class:continuous
   role="progressbar"
   aria-valuemin={0}
@@ -69,6 +71,8 @@
   .seg.pick:hover { background: #808080; }
   .seg.pick.on:hover { background: #cccccc; }
   .fill { height: 100%; background: #ffffff; }
+  .gold .seg.on, .gold .fill { background: #e8c547; }
+  .gold .seg.pick.on:hover { background: #c9a93a; }
   .count {
     position: absolute;
     inset: 0;

@@ -945,12 +945,13 @@
     border-color: #808080;
   }
   .primary {
-    background: #00e5ff;
-    color: #000000;
-    border-color: #00e5ff;
+    background: #000000;
+    color: #ffffff;
+    border-color: #ffffff;
   }
   .primary:hover:not(:disabled) {
-    background: #00a3b8;
+    background: #ffffff;
+    color: #000000;
   }
   .primary:disabled {
     opacity: 0.4;

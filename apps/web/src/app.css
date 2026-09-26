@@ -13,6 +13,13 @@ body, html, #app {
   overflow: hidden;
 }
 
+/* In the Android web view the interface reads small at arm's length. Every
+   font size in the app is in rem, so raising the root size scales the text and
+   the spacing built on it together. */
+html.native {
+  font-size: 112.5%;
+}
+
 /* Behave like an app inside a web view, not like a page: no pull-to-refresh or
    bounce on the shell, no gray flash on tap, no double-tap zoom delay, and no
    font inflation when the phone is turned. */

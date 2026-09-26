@@ -723,8 +723,8 @@
   }
   .ghost { background: transparent; color: #808080; border-color: #333333; }
   .ghost:hover { color: #cccccc; border-color: #808080; }
-  .primary { background: #00e5ff; color: #000000; border-color: #00e5ff; }
-  .primary:hover:not(:disabled) { background: #00a3b8; }
+  .primary { background: #000000; color: #ffffff; border-color: #ffffff; }
+  .primary:hover:not(:disabled) { background: #ffffff; color: #000000; }
   .primary:disabled { opacity: 0.4; cursor: not-allowed; }
 
   @media (max-width: 768px) {

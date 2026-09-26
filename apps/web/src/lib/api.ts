@@ -1,8 +1,17 @@
 const BASE = (import.meta as any).env?.VITE_API_BASE ?? "http://localhost:8000";
 export const API_BASE = BASE;
 
-const TOKEN_KEY = "roko_token";
-const USER_KEY = "roko_username";
+const TOKEN_KEY = "evove_token";
+const USER_KEY = "evove_username";
+
+// Keys from when the app was still called roko. The login screen is always the
+// entry point, so the old session is not carried over, just cleared.
+try {
+  localStorage.removeItem("roko_token");
+  localStorage.removeItem("roko_username");
+} catch {
+  /* no storage: nothing to clear */
+}
 
 export function getToken(): string | null {
   try {

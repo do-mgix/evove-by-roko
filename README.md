@@ -955,7 +955,7 @@ monospaced.
 
 The home screen is a grid of windows you can drag between slots and the bottom tray —
 `actions`, `agenda`, `logs` and `projects`. The profile name lives in `localStorage` under
-the key `roko_username`; without it the user picker takes over. Two stores (`logsVersion`,
+the key `evove_username`; without it the user picker takes over. Two stores (`logsVersion`,
 `userVersion`) act as signals telling panels to refetch after an act.
 
 ## Android client

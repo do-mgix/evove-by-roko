@@ -46,7 +46,7 @@
 
 <section class="page">
   <div class="card">
-    <h1>roko</h1>
+    <h1>evove</h1>
 
     <p class="hint">{mode === "login" ? "entrar" : "criar perfil"}</p>
 
@@ -102,7 +102,10 @@
     align-items: center;
     justify-content: center;
     width: 100%;
-    height: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 1rem;
+    box-sizing: border-box;
     color: #ffffff;
     font-family: Arial, Helvetica, sans-serif;
   }
@@ -158,18 +161,19 @@
   }
   .primary {
     padding: 0.55rem 1rem;
-    border: 1px solid #00e5ff;
+    border: 1px solid #ffffff;
     border-radius: 4px;
     font: inherit;
     font-size: 0.85rem;
     cursor: pointer;
     transition: all 0.15s;
-    background: #00e5ff;
-    color: #000000;
+    background: #000000;
+    color: #ffffff;
     flex: 1;
   }
   .primary:hover:not(:disabled) {
-    background: #00a3b8;
+    background: #ffffff;
+    color: #000000;
   }
   .primary:disabled {
     opacity: 0.4;

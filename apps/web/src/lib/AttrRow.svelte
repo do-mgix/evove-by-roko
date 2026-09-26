@@ -16,7 +16,7 @@
     {#if node.weight != null}<span class="weight">{Math.round(node.weight * 100)}%</span>{/if}
     <span class="rank">{node.rank}</span>
   </span>
-  <MarkBar marks={node.max ? node.need : node.marks} need={node.need} size="md" label={node.max ? "máx" : null} />
+  <MarkBar marks={node.max ? node.need : node.marks} need={node.need} size="md" tone="gold" label={node.max ? "máx" : null} />
   {#if note}<span class="note">{note}</span>{/if}
 {/snippet}
 
