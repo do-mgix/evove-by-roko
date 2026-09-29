@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { forgotPassword, login, register } from "./api";
+  import { API_BASE, forgotPassword, login, register } from "./api";
 
   export let onSelected: (name: string) => void;
 
@@ -137,11 +137,14 @@
       <p class="error">{error}</p>
     {/if}
   </div>
+  <a class="policy" href="{API_BASE}/privacidade" target="_blank" rel="noopener">política de privacidade</a>
 </section>
 
 <style>
   .page {
     display: flex;
+    flex-direction: column;
+    gap: 1rem;
     align-items: center;
     justify-content: center;
     width: 100%;
@@ -244,6 +247,11 @@
     line-height: 1.45;
     margin: 0 0 0.5rem;
   }
+  .policy {
+    color: #808080;
+    font-size: 0.72rem;
+  }
+  .policy:hover { color: #ffffff; }
   .error {
     color: #ff4d4d;
     font-size: 0.8rem;

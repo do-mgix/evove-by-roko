@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#000000" />
+  <title>evove · política de privacidade</title>
+  <style>
+    html, body {
+      margin: 0;
+      background: #000000;
+      color: #ffffff;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    main {
+      max-width: 40rem;
+      margin: 0 auto;
+      padding: 3rem 1rem 4rem;
+      box-sizing: border-box;
+    }
+    h1 {
+      margin: 0 0 0.5rem;
+      font-size: 1.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+    }
+    .updated { margin: 0 0 2rem; color: #808080; font-size: 0.85rem; }
+    h2 {
+      margin: 2.25rem 0 0.75rem;
+      font-size: 0.95rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #ffffff;
+    }
+    p, li { color: #cccccc; font-size: 0.95rem; line-height: 1.6; }
+    ul { padding-left: 1.2rem; }
+    li { margin-bottom: 0.35rem; }
+    strong { color: #ffffff; font-weight: normal; }
+    a { color: #ffffff; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>evove</h1>
+    <p class="updated">Política de privacidade · atualizada em 26 de setembro de 2026</p>
+
+    <p>O evove é um app para registrar ações do dia a dia e acompanhar a evolução de
+      atributos pessoais. Esta página explica quais dados o app guarda, para que servem,
+      com quem são compartilhados e como apagá-los. Ela vale para o app Android e para as
+      páginas em <strong>api.voide.shop</strong>.</p>
+
+    <h2>Quem cuida dos dados</h2>
+    <p>O evove é mantido por um desenvolvedor independente, que é o responsável pelos seus
+      dados (o controlador, nos termos da LGPD, Lei 13.709/2018). Para qualquer dúvida ou
+      pedido sobre seus dados, escreva para
+      <a href="mailto:mgx2988@gmail.com">mgx2988@gmail.com</a>.</p>
+
+    <h2>O que o app guarda</h2>
+    <ul>
+      <li><strong>Conta:</strong> o nome de usuário que você escolhe e a sua senha. A senha
+        nunca é guardada como texto: o servidor guarda só um hash (bcrypt), que não permite
+        recuperá-la.</li>
+      <li><strong>E-mail, se você informar:</strong> é opcional e serve apenas para enviar o
+        link de recuperação de senha. Não mandamos nenhum outro tipo de e-mail.</li>
+      <li><strong>O que você registra no app:</strong> atributos, ações, marcas e níveis,
+        registros com as notas que você escreve, agenda e projetos. Parte disso pode dizer
+        respeito aos seus hábitos e à sua atividade física. Esses dados existem para o app
+        mostrar a sua própria evolução, e para nada além disso.</li>
+      <li><strong>Sessões:</strong> quando você entra, o servidor guarda o hash do código de
+        acesso, a data de início, a validade (30 dias) e a última vez que ele foi usado. No
+        seu aparelho ficam o código de acesso e o nome de usuário, para as chamadas ao
+        servidor.</li>
+      <li><strong>Links de recuperação de senha:</strong> guardados como hash, valem 60
+        minutos e só podem ser usados uma vez.</li>
+      <li><strong>Registros técnicos:</strong> o servidor anota cada requisição (caminho,
+        horário e resultado) para investigar erros. Esses registros não trazem senha nem o
+        conteúdo do que você registrou.</li>
+    </ul>
+
+    <h2>O que o app não faz</h2>
+    <ul>
+      <li>Não mostra anúncios.</li>
+      <li>Não usa ferramentas de análise, rastreamento ou perfil de publicidade.</li>
+      <li>Não vende nem aluga seus dados para ninguém.</li>
+      <li>Não acessa localização, contatos, câmera, microfone ou arquivos do aparelho. A única
+        permissão que o app pede é acesso à internet.</li>
+    </ul>
+
+    <h2>Com quem os dados passam</h2>
+    <p>Os dados ficam num servidor próprio, no Brasil. Dois serviços participam do caminho:</p>
+    <ul>
+      <li><strong>Cloudflare:</strong> toda conexão com api.voide.shop passa pela Cloudflare,
+        que protege e entrega o tráfego com criptografia (HTTPS). Para isso, a Cloudflare
+        processa o endereço IP do seu aparelho e o tráfego em trânsito, podendo fazê-lo fora
+        do Brasil.</li>
+      <li><strong>Google (Gmail):</strong> os e-mails de recuperação de senha saem por uma conta
+        do Gmail. Quando você pede um link, o seu endereço de e-mail e a mensagem passam pelo
+        Google.</li>
+    </ul>
+    <p>Fora esses casos, os dados só seriam entregues a terceiros se uma ordem judicial ou a
+      lei exigisse.</p>
+
+    <h2>Por que os dados são tratados</h2>
+    <p>Os dados da conta e o que você registra são tratados para prestar o serviço que você
+      pediu ao criar a conta (execução de contrato, art. 7º, V, da LGPD). O e-mail é tratado
+      porque você escolheu informá-lo para recuperar a senha, e pode ser removido a qualquer
+      momento no perfil. Os registros técnicos existem para manter o serviço funcionando e
+      seguro (legítimo interesse, art. 7º, IX).</p>
+
+    <h2>Por quanto tempo</h2>
+    <p>Os dados ficam guardados enquanto a conta existir. Sessões expiram em 30 dias, e links
+      de recuperação, em 60 minutos. Quando você exclui a conta, tudo o que está ligado a ela
+      é apagado do banco de dados na hora: conta, e-mail, registros, agenda, projetos,
+      sessões e links.</p>
+
+    <h2>Seus direitos</h2>
+    <p>Pela LGPD, você pode pedir a qualquer momento:</p>
+    <ul>
+      <li>confirmação de que tratamos seus dados, e acesso a eles;</li>
+      <li>correção de dados incompletos ou errados;</li>
+      <li>uma cópia dos seus dados;</li>
+      <li>a exclusão dos seus dados;</li>
+      <li>informação sobre com quem eles são compartilhados;</li>
+      <li>a revogação de um consentimento que você tenha dado, como o do e-mail.</li>
+    </ul>
+    <p>Boa parte disso você faz sozinho no app: o perfil mostra os dados da conta e permite
+      trocar ou remover o e-mail. Para excluir a conta, use o perfil do app ou a página
+      <a href="/excluir-conta">api.voide.shop/excluir-conta</a>, que funciona sem o app. Para o
+      resto, escreva para o e-mail acima, e a resposta vem em até 15 dias. Você também pode
+      reclamar à Autoridade Nacional de Proteção de Dados (ANPD).</p>
+
+    <h2>Segurança</h2>
+    <p>A conexão com o servidor é sempre criptografada (HTTPS). Senhas, códigos de acesso e
+      links de recuperação são guardados como hash, então uma cópia do banco não daria acesso
+      direto a nenhuma conta. Nenhum sistema é infalível: se acontecer um incidente que
+      possa afetar você, avisaremos você e a ANPD, como manda a lei.</p>
+
+    <h2>Crianças</h2>
+    <p>O evove não é feito para crianças menores de 13 anos, e não coletamos dados delas de
+      propósito. Se você souber de uma conta criada por uma criança, escreva para o e-mail
+      acima que ela será apagada.</p>
+
+    <h2>Mudanças nesta política</h2>
+    <p>Se esta política mudar, a data no topo muda junto. Se a mudança alterar o que é
+      guardado ou com quem é compartilhado, avisaremos no app antes de ela valer.</p>
+  </main>
+</body>
+</html>

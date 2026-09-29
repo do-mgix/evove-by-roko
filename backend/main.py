@@ -547,6 +547,15 @@ def reset_password_page():
     return HTMLResponse(_RESET_PAGE.read_text(encoding="utf-8"))
 
 
+_PRIVACY_PAGE = _BACKEND_DIR / "pages" / "privacidade.html"
+
+
+@app.get("/privacidade", response_class=HTMLResponse, include_in_schema=False)
+def privacy_page():
+    """The privacy policy, at the public URL the Play Store listing points to."""
+    return HTMLResponse(_PRIVACY_PAGE.read_text(encoding="utf-8"))
+
+
 # Public page for deleting an account without the app, which the Play Store
 # requires to exist at a URL of its own.
 _DELETE_ACCOUNT_PAGE = _BACKEND_DIR / "pages" / "excluir-conta.html"

@@ -316,6 +316,11 @@ way, so it tells nothing about which profiles exist. The link opens `GET /redefi
 reaches a server log; `POST /auth/reset` sets the new password, spends every open link of
 the profile and ends all its sessions.
 
+`GET /privacidade` serves the privacy policy (`backend/pages/privacidade.html`), the public
+URL the Play Store listing asks for. It states what is stored, who handles it on the way
+(Cloudflare, Gmail) and how deletion works; a change to any of that means a change to the
+page and its date.
+
 Mail goes out over SMTP configured by `mail.env` at the repository root, which Compose
 loads into the backend and git ignores (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`,
 `SMTP_PASSWORD`, `MAIL_FROM`). Without `SMTP_HOST` the backend prints the message, link
@@ -933,6 +938,7 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 | POST | `/auth/reset` | set a new password from a link (`{token, password}`); ends every session; no token |
 | GET | `/redefinir-senha` | public page to ask for a link and to set the new password from it; no token |
 | GET | `/excluir-conta` | public page to delete an account without the app; no token |
+| GET | `/privacidade` | the privacy policy, linked from the login screen and the profile; no token |
 | GET | `/user` | full state: marks, rank and level, resources, bonuses |
 | GET | `/journey` | stage and time left until the next checkpoint |
 | GET | `/actions` | the profile's actions, each with its six tiers, `log_only`, `path` (the primary chain to the attribute it is registered under, empty for a log action) and `leaves` (what it feeds, with weights); a patch adds its `attributes` with their link weight |

@@ -149,6 +149,10 @@
         <dt>api</dt><dd>{API_BASE}</dd>
       </dl>
     </section>
+
+    <p class="policy">
+      <a href="{API_BASE}/privacidade" target="_blank" rel="noopener">política de privacidade</a>
+    </p>
   {/if}
 
   <!-- Outside the load: signing out must work even when the details fail. -->
@@ -321,6 +325,9 @@
   }
   .ghost:hover { color: #cccccc; }
   .danger:disabled { opacity: 0.4; cursor: not-allowed; }
+  .policy { margin: 0 0 1rem; font-size: 0.78rem; }
+  .policy a { color: #808080; }
+  .policy a:hover { color: #ffffff; }
   .inline {
     margin-left: 0.6rem;
     padding: 0;
