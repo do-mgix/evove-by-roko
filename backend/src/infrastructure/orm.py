@@ -88,8 +88,11 @@ class UserState(Base):
     skill_points: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     stage: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     mode: Mapped[str] = mapped_column(String(32), default="progressive", nullable=False)
-    days_until_next_checkpoint: Mapped[int] = mapped_column(Integer, default=20, nullable=False)
-    last_checkpoint_check: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # journey mode (src.domain.journey): when the current stage began, how many
+    # of its smaller points were paid, and how many times the energy ran out
+    journey_started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    journey_points: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    journey_resets: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     date: Mapped[date] = mapped_column(Date, server_default=text("(CURRENT_DATE)"), nullable=False)
     user: Mapped[User] = relationship(back_populates="state")
 

@@ -14,11 +14,12 @@ if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
 
 from src.domain.action import Action  # noqa: E402
-from src.domain.act import ActError  # noqa: E402
+from src.domain.act import ENERGY_PENALTY_OUT_OF_AGENDA, ActError  # noqa: E402
 from src.domain.acting import perform_act, tiers_for, window_state  # noqa: E402
 from src.domain.marks import MARKS_PER_WINDOW, MarkError, options as tier_options  # noqa: E402
 from src.domain.agenda import collect_labels, DAY_NAMES as _DOMAIN_DAY_NAMES  # noqa: E402
 from src.domain.daily import apply_daily_tick  # noqa: E402
+from src.domain import journey as journey_mode  # noqa: E402
 from src.domain.user_attributes import PATCH_SEPARATOR, PatchError, engine_name  # noqa: E402
 from src.domain.attributes import node_total, rank_view, total_marks  # noqa: E402
 from src.domain.skills import (  # noqa: E402
@@ -177,12 +178,17 @@ def _apply_initial_grants(data: dict) -> bool:
     return True
 
 
+def _max_energy(data: dict) -> int:
+    bonuses = aggregate_bonuses(set(data.get("skills") or []), skill_nodes_by_id())
+    return journey_mode.BASE_MAX_ENERGY + int(bonuses.get("max_energy", 0) or 0)
+
+
 def _load_user(username: str) -> dict:
     data = repos.load_user_dict(username)
     if data is None:
         raise HTTPException(status_code=404, detail=f"user '{username}' not found")
     dirty = _apply_initial_grants(data)
-    dirty = apply_daily_tick(data) or dirty
+    dirty = apply_daily_tick(data, max_energy=_max_energy(data)) or dirty
     if dirty:
         repos.save_user_dict(username, data)
     return data
@@ -309,44 +315,17 @@ def health():
     return {"status": "ok"}
 
 
-def _checkpoint_interval_for_stage(stage: int) -> int:
-    return 19 + max(1, int(stage or 1))
-
-
 @app.get("/journey")
 def journey(username: str = Depends(current_username)):
-    from datetime import timedelta
+    """The current stage: its countdown, its smaller points and the energy left.
+    See src.domain.journey."""
     data = _load_user(username)
-    metadata = data.get("metadata", {}) or {}
-    stage = int(metadata.get("stage", 1) or 1)
-    days_until = int(metadata.get("days_until_next_checkpoint", _checkpoint_interval_for_stage(stage)) or _checkpoint_interval_for_stage(stage))
-    interval = _checkpoint_interval_for_stage(stage)
-
-    # Checkpoint triggers at start of the day when days_until reaches 0.
-    now = datetime.now()
-    next_midnight = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-    if days_until <= 0:
-        next_at = now
-    else:
-        next_at = next_midnight + timedelta(days=max(0, days_until - 1))
-    seconds_left = max(0, int((next_at - now).total_seconds()))
-    hours_left = seconds_left // 3600
-    minutes_left = (seconds_left % 3600) // 60
-
-    return {
-        "stage": stage,
-        "days_until_next_checkpoint": days_until,
-        "interval_for_current_stage": interval,
-        "next_checkpoint_at": next_at.isoformat(),
-        "seconds_left": seconds_left,
-        "hours_left": hours_left,
-        "minutes_left": minutes_left,
-    }
+    view = journey_mode.view(data.get("metadata", {}) or {}, datetime.now(), _max_energy(data))
+    return {**view, "energy_penalty": ENERGY_PENALTY_OUT_OF_AGENDA}
 
 
 def _initial_profile(name: str) -> tuple[dict, dict]:
     """The blank slate a freshly registered profile starts from."""
-    today = datetime.now().strftime("%Y-%m-%d")
     initial = {
         "username": name,
         "score": 0,
@@ -376,8 +355,7 @@ def _initial_profile(name: str) -> tuple[dict, dict]:
             },
             "tokens": 0,
             "max_tokens": 100,
-            "days_until_next_checkpoint": 20,
-            "last_checkpoint_check": today,
+            "journey_started_at": datetime.now().isoformat(timespec="seconds"),
         },
     }
     today_seq = datetime.now().strftime("%d %m %Y")
@@ -576,7 +554,7 @@ def user_state(username: str = Depends(current_username)):
     active_attrs = [s for s in user_leaf_scores.values() if s["marks"] > 0 or s["rank_index"] > 0]
     bonuses = aggregate_bonuses(set(data.get("skills") or []), skill_nodes_by_id())
     base_max_tokens = int(metadata.get("max_tokens", 100) or 100)
-    base_max_energy = 1000
+    base_max_energy = journey_mode.BASE_MAX_ENERGY
     seq = _ensure_sequences(username)
     return {
         "username": metadata.get("username") or data.get("username"),
@@ -599,7 +577,7 @@ def user_state(username: str = Depends(current_username)):
         "build_points": int(metadata.get("build_points", 0) or 0),
         "tokens": int(metadata.get("tokens", 0) or 0),
         "max_tokens": base_max_tokens + bonuses["max_tokens"],
-        "days_until_next_checkpoint": int(metadata.get("days_until_next_checkpoint", 0) or 0),
+        "checkpoint_seconds_left": journey_mode.view(metadata, datetime.now(), base_max_energy)["seconds_left"],
         "attributes_count": len(active_attrs),
         "bonuses": bonuses,
     }
@@ -1548,6 +1526,11 @@ def act_on_action(action_id: str, payload: dict | None = None, username: str = D
         "token_cost": outcome.token_cost,
         "tokens_wasted": outcome.tokens_wasted,
         "tokens": int(data.get("metadata", {}).get("tokens", 0) or 0),
+        "in_agenda": outcome.in_agenda,
+        "energy_penalty": outcome.energy_penalty,
+        "energy": int(data.get("metadata", {}).get("energy", 0) or 0),
+        # the energy ran out on this act: the journey is back at stage 1
+        "journey_reset": outcome.journey_reset,
         "log": log_entry,
     }
 

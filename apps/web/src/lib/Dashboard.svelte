@@ -36,7 +36,9 @@
   let idEl: HTMLInputElement;
   let selectedAction: Action | null = null;
   let acting: string | null = null;
-  let lastAct: { name: string; marks: number; window: number } | null = null;
+  let lastAct: { name: string; marks: number; window: number; penalty: number } | null = null;
+  // the energy ran out on an act: say so until dismissed, it is not a passing note
+  let journeyReset = false;
   let lastActTimer: any = null;
   let lastUserVersion = 0;
   let pendingNoteFor: Action | null = null;
@@ -207,7 +209,8 @@
         actions[idx] = { ...actions[idx], value: res.value, score: res.score };
         actions = actions;
       }
-      lastAct = { name: res.name, marks: res.marks, window: res.window_marks };
+      lastAct = { name: res.name, marks: res.marks, window: res.window_marks, penalty: res.energy_penalty };
+      if (res.journey_reset) journeyReset = true;
       bumpLogs();
       bumpUser();
       if (lastActTimer) clearTimeout(lastActTimer);
@@ -381,11 +384,17 @@
     <div class="statusbar">
       <span class="sb-item"><span class="sb-label">tokens</span>{user.tokens}/{user.max_tokens}</span>
       <span class="sb-sep">·</span>
-      <span class="sb-item"><span class="sb-label">energia</span>{user.energy}</span>
+      <span class="sb-item"><span class="sb-label">energia</span>{user.energy}/{user.max_energy ?? 1000}</span>
       {#if lastAct}
-        <span class="sb-act">+{lastAct.marks} {lastAct.marks === 1 ? "marca" : "marcas"} · {lastAct.name} · {lastAct.window}/5 na janela</span>
+        <span class="sb-act">+{lastAct.marks} {lastAct.marks === 1 ? "marca" : "marcas"} · {lastAct.name} · {lastAct.window}/5 na janela{#if lastAct.penalty} · −{lastAct.penalty} energia (fora da agenda){/if}</span>
       {/if}
     </div>
+    {#if journeyReset}
+      <div class="reset-note" role="alert">
+        <span>A energia acabou. A jornada voltou ao estágio 1.</span>
+        <button class="reset-ok" on:click={() => (journeyReset = false)}>ok</button>
+      </div>
+    {/if}
   {/if}
 
   <main class="grid-wrap">
@@ -988,5 +997,27 @@
   .tier-marks { color: #00e5ff; font-size: 0.75rem; font-variant-numeric: tabular-nums; }
   @media (max-width: 520px) {
     .tiers { grid-template-columns: repeat(2, 1fr); }
+  }
+  .reset-note {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0.5rem 1rem 0;
+    padding: 0.6rem 0.85rem;
+    border: 1px solid #ff4d4d;
+    border-radius: 4px;
+    color: #ff4d4d;
+    font-size: 0.85rem;
+  }
+  .reset-ok {
+    padding: 0.3rem 0.8rem;
+    border: 1px solid #ff4d4d;
+    border-radius: 4px;
+    background: #000000;
+    color: #ff4d4d;
+    font: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
   }
 </style>

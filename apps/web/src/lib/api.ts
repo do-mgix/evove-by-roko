@@ -204,6 +204,10 @@ export type ActResult = {
   token_cost: number;
   tokens_wasted: number;
   tokens: number;
+  in_agenda: boolean;
+  energy_penalty: number;  // energy this act cost: it was not on today's agenda
+  energy: number;
+  journey_reset: boolean;  // the energy ran out: the journey is back at stage 1
 };
 
 export async function actOnAction(id: string, opts: { option: number; note?: string }): Promise<ActResult> {
@@ -244,7 +248,7 @@ export type UserState = {
   build_points: number;
   tokens: number;
   max_tokens: number;
-  days_until_next_checkpoint: number;
+  checkpoint_seconds_left: number;
   attributes_count: number;
   max_energy?: number;
   bonuses?: { max_energy: number; max_tokens: number; xp_multiplier: number; points_multiplier: number };
@@ -594,14 +598,24 @@ export async function fetchProjects(): Promise<ProjectItem[]> {
   return res.json();
 }
 
+/** The current journey stage. Times are the server's; count down from the
+ *  `seconds_*` fields rather than parsing them, so the phone's clock and time
+ *  zone do not matter. */
 export type JourneyState = {
   stage: number;
-  days_until_next_checkpoint: number;
-  interval_for_current_stage: number;
+  stage_days: number;
+  started_at: string;
   next_checkpoint_at: string;
   seconds_left: number;
-  hours_left: number;
-  minutes_left: number;
+  points: { day: number; at: string; reached: boolean }[];
+  next_point_at: string;
+  seconds_to_next_point: number;
+  energy: number;
+  max_energy: number;
+  energy_penalty: number;
+  resets: number;
+  checkpoint_skill_points: number;
+  build_points_per_day: number;
 };
 
 export async function fetchJourney(): Promise<JourneyState> {

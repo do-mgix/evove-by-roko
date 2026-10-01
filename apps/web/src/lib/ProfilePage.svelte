@@ -79,6 +79,13 @@
   // Timestamps come back without a zone: print them as the server wrote them
   // instead of letting the browser guess one.
   const stamp = (iso: string) => iso.slice(0, 16).replace("T", " ");
+
+  function checkpointIn(seconds: number) {
+    const d = Math.floor(seconds / 86400);
+    const h = Math.floor((seconds % 86400) / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return d > 0 ? `${d}d ${h}h` : `${h}h ${m}m`;
+  }
 </script>
 
 <section class="page">
@@ -98,7 +105,7 @@
         <dl class="rows">
           <dt>day</dt><dd>{user.day} <span class="muted-sub">desde o primeiro login</span></dd>
           <dt>streak</dt><dd>{user.consecutive_days} <span class="muted-sub">dias consecutivos</span></dd>
-          <dt>stage</dt><dd>{user.stage} <span class="muted-sub">checkpoint em {user.days_until_next_checkpoint}d</span></dd>
+          <dt>stage</dt><dd>{user.stage} <span class="muted-sub">checkpoint em {checkpointIn(user.checkpoint_seconds_left)}</span></dd>
         </dl>
       </section>
     {/if}

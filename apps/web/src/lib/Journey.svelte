@@ -1,20 +1,10 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-
-  // five columns shrink to unreadable circles at phone width; three stay legible
-  const NARROW_QUERY = "(max-width: 520px)";
-  let narrow = false;
-  onMount(() => {
-    const mq = window.matchMedia(NARROW_QUERY);
-    const apply = () => (narrow = mq.matches);
-    apply();
-    mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
-  });
   import { fetchJourney, type JourneyState } from "./api";
 
   let state: JourneyState | null = null;
-  let nextAt: number | null = null;
+  // the countdowns run on the phone's clock from the seconds the server sent
+  let loadedAt = 0;
   let now = Date.now();
   let loading = true;
   let error: string | null = null;
@@ -23,7 +13,9 @@
   async function load() {
     try {
       state = await fetchJourney();
-      nextAt = new Date(state.next_checkpoint_at).getTime();
+      loadedAt = Date.now();
+      now = loadedAt;
+      error = null;
     } catch (e: any) {
       error = e?.message ?? "erro";
     } finally {
@@ -33,46 +25,56 @@
 
   onMount(() => {
     load();
-    tick = setInterval(() => (now = Date.now()), 1000);
+    tick = setInterval(() => {
+      now = Date.now();
+      // a point or the checkpoint just passed: the server pays it on the next load
+      // (at most every 5 s, in case the two clocks disagree by a little)
+      if (state && !loading && secondsToPoint === 0 && now - loadedAt > 5000) {
+        loading = true;
+        load();
+      }
+    }, 1000);
   });
   onDestroy(() => tick && clearInterval(tick));
 
-  $: secondsLeft = nextAt ? Math.max(0, Math.floor((nextAt - now) / 1000)) : 0;
-  $: hh = Math.floor(secondsLeft / 3600);
-  $: mm = Math.floor((secondsLeft % 3600) / 60);
-  $: ss = secondsLeft % 60;
-  $: pad = (n: number) => n.toString().padStart(2, "0");
+  $: elapsed = Math.floor((now - loadedAt) / 1000);
+  $: secondsLeft = state ? Math.max(0, state.seconds_left - elapsed) : 0;
+  $: secondsToPoint = state ? Math.max(0, state.seconds_to_next_point - elapsed) : 0;
+  $: nextIsCheckpoint = state ? state.points.every((p) => p.reached) : true;
 
-  // Path map: zigzag layout of stages around current
-  const SHOW_BEFORE = 4;
-  const SHOW_AFTER = 8;
-  $: COLS = narrow ? 3 : 5;
+  function split(total: number) {
+    return {
+      d: Math.floor(total / 86400),
+      h: Math.floor((total % 86400) / 3600),
+      m: Math.floor((total % 3600) / 60),
+      s: total % 60,
+    };
+  }
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  function short(total: number) {
+    const t = split(total);
+    if (t.d > 0) return `${t.d}d ${t.h}h`;
+    if (t.h > 0) return `${t.h}h ${pad(t.m)}m`;
+    return `${t.m}m ${pad(t.s)}s`;
+  }
 
-  $: stages = (() => {
-    if (!state) return [] as { n: number; x: number; y: number; status: "done" | "current" | "future" }[];
-    const cur = state.stage;
-    const start = Math.max(1, cur - SHOW_BEFORE);
-    const end = cur + SHOW_AFTER;
-    const out = [];
-    for (let n = start; n <= end; n++) {
-      const idx = n - start;
-      const row = Math.floor(idx / COLS);
-      const colInRow = idx % COLS;
-      // Zigzag: even rows left-to-right, odd rows right-to-left
-      const col = row % 2 === 0 ? colInRow : COLS - 1 - colInRow;
-      out.push({
-        n,
-        x: 80 + col * 130,
-        y: 80 + row * 130,
-        status: n < cur ? "done" : n === cur ? "current" : "future",
-      });
-    }
-    return out;
+  $: left = split(secondsLeft);
+  $: stageSeconds = state ? state.stage_days * 86400 : 1;
+  $: progress = state ? Math.min(1, Math.max(0, 1 - secondsLeft / stageSeconds)) : 0;
+  $: energyPct = state && state.max_energy > 0 ? state.energy / state.max_energy : 0;
+  $: actsLeft = state ? Math.ceil(state.energy / Math.max(1, state.energy_penalty)) : 0;
+  $: nextReward = (() => {
+    if (!state) return "";
+    const reached = state.points.filter((p) => p.reached);
+    const from = reached.length ? reached[reached.length - 1].day : 0;
+    const upcoming = state.points.find((p) => !p.reached);
+    const to = upcoming ? upcoming.day : state.stage_days;
+    const build = (to - from) * state.build_points_per_day;
+    return nextIsCheckpoint
+      ? `+${build} build · +${state.checkpoint_skill_points} skill`
+      : `+${build} build`;
   })();
-
-  // the same 80 of margin on both sides of the outer columns
-  $: viewW = 160 + (COLS - 1) * 130;
-  $: viewH = stages.length > 0 ? stages[stages.length - 1].y + 80 : 200;
+  $: unit = state && state.stage_days > 60 ? "mês" : state && state.stage_days > 14 ? "semana" : "dia";
 </script>
 
 <section class="page">
@@ -80,71 +82,63 @@
     <h1>journey</h1>
   </header>
 
-  {#if loading}
+  {#if loading && !state}
     <p class="muted">…</p>
-  {:else if error}
+  {:else if error && !state}
     <p class="error">{error}</p>
   {:else if state}
-    <div class="countdown-card">
-      <div class="cd-block">
-        <span class="cd-label">próximo checkpoint em</span>
-        <div class="cd-time">
-          <div class="cd-unit">
-            <span class="cd-num">{pad(hh)}</span>
-            <span class="cd-tag">h</span>
-          </div>
-          <span class="cd-sep">:</span>
-          <div class="cd-unit">
-            <span class="cd-num">{pad(mm)}</span>
-            <span class="cd-tag">m</span>
-          </div>
-          <span class="cd-sep">:</span>
-          <div class="cd-unit">
-            <span class="cd-num">{pad(ss)}</span>
-            <span class="cd-tag">s</span>
-          </div>
-        </div>
-        <span class="cd-sub">
-          {state.days_until_next_checkpoint} dias · stage {state.stage} (intervalo {state.interval_for_current_stage}d)
-        </span>
+    <div class="stage-line">
+      <span class="stage">estágio {state.stage}</span>
+      <span class="muted">{state.stage_days} {state.stage_days === 1 ? "dia" : "dias"}</span>
+      {#if state.resets > 0}
+        <span class="muted resets">{state.resets} {state.resets === 1 ? "reinício" : "reinícios"}</span>
+      {/if}
+    </div>
+
+    <div class="countdown">
+      <span class="label">próximo checkpoint em</span>
+      <div class="time">
+        {#if left.d > 0}
+          <span class="num">{left.d}</span><span class="tag">d</span>
+        {/if}
+        <span class="num">{pad(left.h)}</span><span class="tag">h</span>
+        <span class="num">{pad(left.m)}</span><span class="tag">m</span>
+        <span class="num">{pad(left.s)}</span><span class="tag">s</span>
       </div>
     </div>
 
-    <div class="map-wrap">
-      <svg viewBox="0 0 {viewW} {viewH}" preserveAspectRatio="xMidYMid meet" class="map">
-        <!-- Path lines connecting stages in order -->
-        {#each stages as s, i (s.n)}
-          {#if i < stages.length - 1}
-            {@const next = stages[i + 1]}
-            <path
-              d="M {s.x} {s.y} Q {(s.x + next.x) / 2} {s.y} {(s.x + next.x) / 2} {(s.y + next.y) / 2} T {next.x} {next.y}"
-              stroke={s.status === "done" || s.status === "current" ? "#00e5ff" : "#333333"}
-              stroke-width="2"
-              fill="none"
-              stroke-dasharray={s.status === "future" ? "6 5" : "0"}
-            />
-          {/if}
-        {/each}
-
-        <!-- Stage nodes -->
-        {#each stages as s (s.n)}
-          <g class="stage-node {s.status}">
-            <circle cx={s.x} cy={s.y} r="28"
-              fill={s.status === "current" ? "#000000" : s.status === "done" ? "#000000" : "#000000"}
-              stroke={s.status === "current" ? "#00e5ff" : s.status === "done" ? "#000000" : "#333333"}
-              stroke-width={s.status === "current" ? 3 : 2}
-            />
-            <text x={s.x} y={s.y + 5}
-              text-anchor="middle"
-              fill={s.status === "current" ? "#00e5ff" : s.status === "done" ? "#00e5ff" : "#808080"}
-              font-family="Arial, Helvetica, sans-serif"
-              font-size="14"
-              font-weight={s.status === "current" ? "bold" : "normal"}
-            >{s.n}</text>
-          </g>
-        {/each}
-      </svg>
+    <div class="track" aria-label="progresso do estágio">
+      <div class="fill" style="width: {progress * 100}%"></div>
+      {#each state.points as p (p.day)}
+        <span
+          class="tick"
+          class:reached={p.reached}
+          style="left: {(p.day / state.stage_days) * 100}%"
+          title="{unit} · dia {p.day}"
+        ></span>
+      {/each}
     </div>
+    <div class="track-legend">
+      <span>{state.points.filter((p) => p.reached).length}/{state.points.length} pontos</span>
+      <span>
+        {nextIsCheckpoint ? "checkpoint" : "próximo ponto"} em {short(secondsToPoint)} · {nextReward}
+      </span>
+    </div>
+
+    <section class="card">
+      <div class="energy-head">
+        <span class="label">energia</span>
+        <span class="energy-val">{state.energy}/{state.max_energy}</span>
+      </div>
+      <div class="energy-bar" class:low={energyPct <= 0.2}>
+        <div class="energy-fill" style="width: {energyPct * 100}%"></div>
+      </div>
+      <p class="rule">
+        Cada ação fora da agenda do dia custa {state.energy_penalty} de energia — cabem mais
+        {actsLeft}. Cada ponto e o checkpoint enchem a energia de novo. Se ela zerar, a
+        jornada volta ao estágio 1.
+      </p>
+    </section>
   {/if}
 </section>
 
@@ -155,13 +149,10 @@
     padding: 1.5rem 2rem;
     color: #ffffff;
     font-family: Arial, Helvetica, sans-serif;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+    overflow-y: auto;
+    max-width: 40rem;
   }
-  .head {
-    margin-bottom: 1rem;
-  }
+  .head { margin-bottom: 1rem; }
   h1 {
     margin: 0;
     color: #808080;
@@ -169,77 +160,117 @@
     letter-spacing: 0.1em;
     font-size: 1.05rem;
   }
-  .muted { color: #808080; }
+  .muted { color: #808080; font-size: 0.8rem; }
   .error { color: #ff4d4d; }
-
-  .countdown-card {
-    background: #000000;
-    border: 1px solid #000000;
-    border-radius: 6px;
-    padding: 1rem 1.5rem;
-    margin-bottom: 1.25rem;
-    background: linear-gradient(135deg, #000000, #000000 70%);
-  }
-  .cd-block {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    align-items: flex-start;
-  }
-  .cd-label {
+  .label {
     color: #808080;
     text-transform: uppercase;
     font-size: 0.7rem;
     letter-spacing: 0.1em;
   }
-  .cd-time {
+
+  .stage-line {
     display: flex;
     align-items: baseline;
-    gap: 0.4rem;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
   }
-  .cd-unit {
-    display: flex;
-    align-items: baseline;
-    gap: 0.15rem;
-  }
-  .cd-num {
+  .stage {
     color: #00e5ff;
     font-weight: bold;
-    font-size: 2rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .resets { margin-left: auto; }
+
+  .countdown {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-bottom: 1.5rem;
+  }
+  .time {
+    display: flex;
+    align-items: baseline;
+    gap: 0.2rem;
+  }
+  .num {
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 2.2rem;
     font-variant-numeric: tabular-nums;
   }
-  .cd-tag {
+  .tag {
+    color: #808080;
+    font-size: 0.8rem;
+    margin-right: 0.5rem;
+  }
+
+  .track {
+    position: relative;
+    height: 10px;
+    border-radius: 999px;
+    background: #333333;
+  }
+  .fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: 999px;
+    background: #00e5ff;
+  }
+  .tick {
+    position: absolute;
+    top: -3px;
+    width: 2px;
+    height: 16px;
+    margin-left: -1px;
+    background: #808080;
+  }
+  .tick.reached { background: #000000; }
+  .track-legend {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0.5rem 0 1.5rem;
     color: #808080;
     font-size: 0.75rem;
   }
-  .cd-sep {
-    color: #000000;
-    font-size: 1.4rem;
-  }
-  .cd-sub {
-    color: #808080;
-    font-size: 0.8rem;
-  }
 
-  .map-wrap {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    background: #000000;
+  .card {
     border: 1px solid #333333;
     border-radius: 6px;
-    padding: 0.5rem;
+    padding: 0.95rem 1.1rem;
   }
-  .map {
-    width: 100%;
-    height: auto;
+  .energy-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 0.5rem;
   }
-  .stage-node.current circle {
-    filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.5));
+  .energy-val {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.95rem;
+  }
+  .energy-bar {
+    height: 10px;
+    border-radius: 999px;
+    background: #333333;
+    overflow: hidden;
+  }
+  .energy-fill {
+    height: 100%;
+    background: #ffffff;
+  }
+  .energy-bar.low .energy-fill { background: #ff4d4d; }
+  .rule {
+    margin: 0.75rem 0 0;
+    color: #808080;
+    font-size: 0.78rem;
+    line-height: 1.45;
   }
 
   @media (max-width: 768px) {
     .page { padding: 0.75rem 0.9rem; }
-    .countdown-card { padding: 0.5rem 0.25rem; margin-bottom: 0.75rem; }
+    .num { font-size: 1.8rem; }
   }
 </style>

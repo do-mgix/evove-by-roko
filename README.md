@@ -206,7 +206,8 @@ backend/
     attributes.py              the attribute graph: marks, ranks, degree, registration rules
     user_attributes.py         patches and the attributes users create for them
     contributions.py           marks reaching the leaves
-    daily.py                   daily tick (token refill, checkpoint countdown)
+    daily.py                   the tick run on every load: journey progress, current date
+    journey.py                 journey mode: stage lengths, smaller points, energy running out
     skills.py                  skill tree rules and bonus aggregation
     ports.py                   WebInputInterrupt — how the domain asks the host for input
   src/infrastructure/
@@ -260,9 +261,9 @@ Enough vocabulary to read the code:
 | **user attribute** | an attribute a user created, outside the default graph, trained only by patches |
 | **log action** | an action logged for monitoring only (leisure): `log_only`, spends tokens, feeds no attribute — its marks stay on the action |
 | **tokens** | earned by executing productivity actions, spent on leisure ones, capped in stock |
-| **energy** | drained by acting outside today's agenda, refilled at each checkpoint |
-| **build points / skill points** | currencies for buying actions in the shop and nodes in the skill tree; both are paid out at checkpoints |
-| **stage / checkpoint** | a countdown that advances the profile and hands out rewards |
+| **energy** | drained by acting outside today's agenda, refilled at every journey point and checkpoint; at zero the journey restarts |
+| **build points / skill points** | currencies for buying actions in the shop and nodes in the skill tree; build points are paid per day survived, skill points at checkpoints |
+| **stage / checkpoint** | a journey stage of 1, 3, 7, 14, 30, 60 days, then doubling; surviving it to the checkpoint opens the next |
 
 The numbers behind all of this (tiers, the marks window, the rank table, the progression
 curve) live in `backend/src/domain/` and in `backend/data/*.json`.
@@ -878,8 +879,28 @@ move anything: the old `value × type factor × difficulty multiplier` formula i
 `Action` is not called by acting. A note on an act is text only.
 
 Prices assume build points stay scarce: 100 at profile creation plus
-`BUILD_POINTS_PER_CHECKPOINT` (10) every checkpoint, against 204 bp to own the whole
-catalog. Log actions are free to acquire, as the leisure actions they replace were.
+`journey.BUILD_POINTS_PER_DAY` (1) for every day the journey survives, against 204 bp to
+own the whole catalog. Log actions are free to acquire, as the leisure actions they replace were.
+
+### Journey mode
+
+The journey is a clock, not a map: stages last 1, 3, 7, 14, 30 and 60 days, then keep
+doubling (120, 240, 480...), so a late checkpoint can be a year or more away. Each stage is
+cut into smaller points — one a day up to 14 days, one a week for 30 and 60, one every 30
+days after that. Reaching a point refills the energy and pays `BUILD_POINTS_PER_DAY` for
+each day of the stretch just survived; the checkpoint does the same, adds skill points
+(`1 + ceil((stage + 1) / 4)`) and opens the next stage.
+
+Energy only drains. Every act that is not on today's agenda costs
+`ENERGY_PENALTY_OUT_OF_AGENDA` (10) of a tank of 1000 plus skill-tree bonuses; if it hits
+zero, the journey goes back to stage 1 right then, with a full tank, and
+`user_state.journey_resets` counts it. Points already earned stay earned. The act's answer
+says so in `journey_reset`, and the dashboard keeps a notice up until dismissed.
+
+A stage is timed from `user_state.journey_started_at`, and the next one starts when it
+ended, not when the profile is next loaded — `apply_daily_tick` runs `journey.advance` on
+every load and pays everything reached since, in order. `journey_points` is how many of
+the current stage's points were paid. The rules are all in `src/domain/journey.py`.
 
 ### The token economy
 
@@ -940,7 +961,7 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 | GET | `/excluir-conta` | public page to delete an account without the app; no token |
 | GET | `/privacidade` | the privacy policy, linked from the login screen and the profile; no token |
 | GET | `/user` | full state: marks, rank and level, resources, bonuses |
-| GET | `/journey` | stage and time left until the next checkpoint |
+| GET | `/journey` | the current stage: seconds to the checkpoint and to the next smaller point, the points, energy and its maximum, the penalty per act out of agenda, resets |
 | GET | `/actions` | the profile's actions, each with its six tiers, `log_only`, `path` (the primary chain to the attribute it is registered under, empty for a log action) and `leaves` (what it feeds, with weights); a patch adds its `attributes` with their link weight |
 | POST | `/actions/{id}/act` | execute an action (`{option, note?}`; option is the tier, 0–5). The answer's `log_only` says whether `user_marks` moved |
 | GET | `/actions/{id}/window` | marks already earned in the action's 6-hour window, and its tiers |

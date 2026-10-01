@@ -90,8 +90,6 @@ def _import_user_state(session, user: orm.User, data: dict):
     state.skill_points = int(metadata.get("skill_points", 0) or 0)
     state.stage = int(metadata.get("stage", 1) or 1)
     state.mode = str(metadata.get("mode", "progressive") or "progressive")
-    state.days_until_next_checkpoint = int(metadata.get("days_until_next_checkpoint", 20) or 20)
-    state.last_checkpoint_check = _parse_date(metadata.get("last_checkpoint_check"))
 
 
 def _import_tutorial(session, user: orm.User, data: dict):

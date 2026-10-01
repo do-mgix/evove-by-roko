@@ -6,7 +6,9 @@ together with the flat token flow, the energy penalty and the log line.
 src.domain.acting runs a whole act for both the web API and the CLI.
 """
 from dataclasses import dataclass, field
+from datetime import datetime
 
+from src.domain import journey
 from src.domain.agenda import is_action_in_agenda
 from src.domain.skills import aggregate_bonuses
 
@@ -29,6 +31,8 @@ class ActOutcome:
     tokens_wasted: int = 0
     window_marks: int = 0
     log_only: bool = False
+    # energy ran out on this act and the journey went back to stage 1
+    journey_reset: bool = False
     bonuses: dict = field(default_factory=dict)
 
 
@@ -52,7 +56,8 @@ def apply_act(
     Mutations:
       - data['actions'][action_id]: value (executions), score (marks earned on it)
       - data['marks']: the user's total marks, unless the action is `log_only`
-      - data['metadata']: tokens (earned or spent), energy (penalty)
+      - data['metadata']: tokens (earned or spent), energy (penalty); when the
+        energy runs out, the journey restarts (src.domain.journey.fail)
 
     A log action is leisure: it is logged, not trained. Its marks stay on the
     action row and never reach the profile's total or any attribute, which is
@@ -107,10 +112,15 @@ def apply_act(
         today_agenda_labels or set(),
     ) or bool(in_agenda_extra)
     applied_energy_penalty = 0
+    journey_reset = False
     if not in_agenda:
         cur = int(metadata.get("energy", 0) or 0)
         metadata["energy"] = max(0, cur - energy_penalty)
         applied_energy_penalty = energy_penalty
+        if metadata["energy"] <= 0:
+            max_energy = journey.BASE_MAX_ENERGY + int(bonuses.get("max_energy", 0) or 0)
+            journey.fail(metadata, datetime.now(), max_energy)
+            journey_reset = True
 
     head = f"{action.get('name', '')} [{option_label}]"
     note = (note or "").strip()
@@ -125,5 +135,6 @@ def apply_act(
         energy_penalty=applied_energy_penalty,
         in_agenda=in_agenda,
         log_only=log_only,
+        journey_reset=journey_reset,
         bonuses=bonuses,
     )

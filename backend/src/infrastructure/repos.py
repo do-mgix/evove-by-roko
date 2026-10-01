@@ -180,8 +180,12 @@ def _user_to_dict(s: Session, u: orm.User) -> dict:
         "build_points": state.build_points if state else 0,
         "tokens": state.tokens if state else 0,
         "max_tokens": state.max_tokens if state else 100,
-        "days_until_next_checkpoint": state.days_until_next_checkpoint if state else 20,
-        "last_checkpoint_check": _date_iso(state.last_checkpoint_check) if state else None,
+        "journey_started_at": (
+            state.journey_started_at.isoformat(timespec="seconds")
+            if state and state.journey_started_at else None
+        ),
+        "journey_points": state.journey_points if state else 0,
+        "journey_resets": state.journey_resets if state else 0,
         "date": _date_iso(state.date) if state else None,
         "tutorial": {
             t.key: {"status": t.status, "priority": t.priority} for t in tutorial_rows
@@ -241,8 +245,10 @@ def _write_state(s: Session, u: orm.User, data: dict):
     state.stage = int(md.get("stage", 1) or 1)
     state.mode = str(md.get("mode", "progressive") or "progressive")
     state.date = _parse_date(md.get("date")) or state.date
-    state.days_until_next_checkpoint = int(md.get("days_until_next_checkpoint", 20) or 20)
-    state.last_checkpoint_check = _parse_date(md.get("last_checkpoint_check"))
+    started = md.get("journey_started_at")
+    state.journey_started_at = datetime.fromisoformat(started) if started else None
+    state.journey_points = int(md.get("journey_points", 0) or 0)
+    state.journey_resets = int(md.get("journey_resets", 0) or 0)
 
 
 def _write_tutorial(s: Session, u: orm.User, data: dict):
