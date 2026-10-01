@@ -12,7 +12,7 @@ from sqlalchemy import select, update, func
 from sqlalchemy.orm import Session
 
 from src.infrastructure.db import SessionLocal
-from src.infrastructure import orm
+from src.infrastructure import auth, orm
 
 _LOG_TS_FMT = "%d %m %Y : %H:%M:%S"
 
@@ -346,6 +346,7 @@ def _log_to_dict(r: orm.Log) -> dict:
         "marks": int(r.marks or 0),
         "tokens": r.tokens,
         "coord": [r.day_num, r.order_in_day],
+        "period": r.period,
     }
 
 
@@ -379,6 +380,7 @@ def save_logs(username: str, logs: list[dict]) -> None:
                 tokens=int(log.get("tokens", 0) or 0),
                 day_num=day,
                 order_in_day=order,
+                period=log.get("period"),
             ))
         s.commit()
     except Exception:
@@ -415,6 +417,7 @@ def append_log(username: str, log: dict) -> None:
             tokens=int(log.get("tokens", 0) or 0),
             day_num=day,
             order_in_day=order,
+            period=log.get("period"),
         ))
         s.commit()
     except Exception:
@@ -458,6 +461,27 @@ def update_log_content(username: str, log_id: int, content: str) -> dict | None:
         if not row:
             return None
         row.content = str(content)
+        s.commit()
+        return _log_to_dict(row)
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+def set_log_period(username: str, log_id: int, period: str) -> dict | None:
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        if not u:
+            return None
+        row = s.execute(
+            select(orm.Log).where(orm.Log.user_id == u.id, orm.Log.log_id == int(log_id))
+        ).scalar_one_or_none()
+        if not row:
+            return None
+        row.period = period
         s.commit()
         return _log_to_dict(row)
     except Exception:
@@ -766,7 +790,9 @@ def create_session(username: str, token_hash: str, expires_at: datetime) -> bool
 def username_for_session(token_hash: str) -> str | None:
     """Resolve a session to its username, refusing expired ones.
 
-    Touches `last_seen_at` so open sessions can be told apart later.
+    Touches `last_seen_at` so open sessions can be told apart later, and
+    renews a session once half its life is gone: one in use never expires,
+    so the app stays signed in across launches.
     """
     s = SessionLocal()
     try:
@@ -784,6 +810,8 @@ def username_for_session(token_hash: str) -> str | None:
             s.commit()
             return None
         session.last_seen_at = now
+        if session.expires_at - now < auth.SESSION_TTL / 2:
+            session.expires_at = auth.session_expiry(now)
         s.commit()
         return username
     except Exception:

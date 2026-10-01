@@ -18,7 +18,7 @@ from src.domain.act import ENERGY_PENALTY_OUT_OF_AGENDA, ActError  # noqa: E402
 from src.domain.acting import perform_act, tiers_for, window_state  # noqa: E402
 from src.domain.marks import MARKS_PER_WINDOW, MarkError, options as tier_options  # noqa: E402
 from src.domain.agenda import collect_labels, DAY_NAMES as _DOMAIN_DAY_NAMES  # noqa: E402
-from src.domain.daily import apply_daily_tick  # noqa: E402
+from src.domain.daily import PERIODS, apply_daily_tick, period_of  # noqa: E402
 from src.domain import journey as journey_mode  # noqa: E402
 from src.domain.user_attributes import PATCH_SEPARATOR, PatchError, engine_name  # noqa: E402
 from src.domain.attributes import node_total, rank_view, total_marks  # noqa: E402
@@ -857,6 +857,7 @@ def logs_by_date(date: str, username: str = Depends(current_username)):
             "marks": int(log.get("marks", 0) or 0),
             "tokens": int(log.get("tokens", 0) or 0),
             "order": int(coord[1]),
+            "period": log.get("period"),
         })
     result.sort(key=lambda l: l.get("order", 0))
     return {"date": date, "day": target_day, "logs": result}
@@ -1023,7 +1024,16 @@ def delete_log(log_id: int, username: str = Depends(current_username)):
 
 @app.patch("/logs/{log_id}")
 def update_log(log_id: int, payload: dict, username: str = Depends(current_username)):
-    """Body: {note?: str, content?: str, day_delta?: int}."""
+    """Body: {note?: str, content?: str, day_delta?: int, period?: str}."""
+
+    if "period" in payload:
+        period = _period(payload.get("period"))
+        if period is None:
+            raise HTTPException(status_code=400, detail="period required")
+        updated = repos.set_log_period(username, int(log_id), period)
+        if updated is None:
+            raise HTTPException(status_code=404, detail=f"log {log_id} not found")
+        return updated
 
     if "day_delta" in payload and payload["day_delta"] is not None:
         delta = int(payload["day_delta"])
@@ -1081,6 +1091,7 @@ def list_logs(offset: int = 0, username: str = Depends(current_username)):
             "marks": int(log.get("marks", 0) or 0),
             "tokens": int(log.get("tokens", 0) or 0),
             "order": int(coord[1]),
+            "period": log.get("period"),
         })
     result.sort(key=lambda l: l.get("order", 0))
     return {"day": target_day, "offset": offset, "date": target_date.isoformat(), "logs": result}
@@ -1427,7 +1438,17 @@ def _today_agenda_labels(username: str) -> set[str]:
     return collect_labels(Agenda(username).items, day_name=day_name, iso_date=iso)
 
 
-def _append_log(username: str, content: str, marks: int, tokens: int = 0) -> dict | None:
+def _period(raw) -> str | None:
+    """A period from a request body; None when absent, 400 when not one."""
+    if raw is None or raw == "":
+        return None
+    if raw not in PERIODS:
+        raise HTTPException(status_code=400, detail=f"period must be one of {', '.join(PERIODS)}")
+    return raw
+
+
+def _append_log(username: str, content: str, marks: int, tokens: int = 0,
+                period: str | None = None) -> dict | None:
     logs = repos.load_logs(username)
     today_day = _day_for(username, datetime.now().date())
     max_id = 0
@@ -1455,6 +1476,7 @@ def _append_log(username: str, content: str, marks: int, tokens: int = 0) -> dic
         "marks": int(marks),
         "tokens": int(tokens),
         "coord": [today_day, next_order + 1],
+        "period": period or period_of(datetime.now()),
     }
     repos.append_log(username, entry)
     return entry
@@ -1462,8 +1484,10 @@ def _append_log(username: str, content: str, marks: int, tokens: int = 0) -> dic
 
 @app.post("/actions/{action_id}/act")
 def act_on_action(action_id: str, payload: dict | None = None, username: str = Depends(current_username)):
-    """Body: {option, note?}. `option` is the tier, 0-5; how many marks it yields
-    depends on what the action already earned in its 6-hour window."""
+    """Body: {option, note?, period?}. `option` is the tier, 0-5; how many marks
+    it yields depends on what the action already earned in its 6-hour window.
+    `period` (mo, ev, ni) files the log under that part of the day; it defaults
+    to the one the clock is in."""
     data = _load_user(username)
 
     action = (data.get("actions") or {}).get(action_id)
@@ -1473,6 +1497,7 @@ def act_on_action(action_id: str, payload: dict | None = None, username: str = D
     if p.get("option") is None:
         raise HTTPException(status_code=400, detail="choose a tier: option 0-5")
     note = str(p.get("note") or "").strip()
+    period = _period(p.get("period"))
 
     today_labels = _today_agenda_labels(username)
 
@@ -1508,7 +1533,7 @@ def act_on_action(action_id: str, payload: dict | None = None, username: str = D
 
     _record_activity(username)
     token_delta = (outcome.token_gain - outcome.tokens_wasted) - outcome.token_cost
-    log_entry = _append_log(username, outcome.log_content, outcome.marks, token_delta)
+    log_entry = _append_log(username, outcome.log_content, outcome.marks, token_delta, period)
 
     return {
         "id": action_id,

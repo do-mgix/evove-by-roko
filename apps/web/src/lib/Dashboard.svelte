@@ -6,10 +6,13 @@
     fetchUser,
     fetchAgendaToday,
     actOnAction,
+    currentPeriod,
+    PERIODS,
     fetchActionWindow,
     formatCode,
     fold,
     type Action,
+    type Period,
     type UserState,
     type AgendaToday,
   } from "./api";
@@ -42,6 +45,8 @@
   let lastActTimer: any = null;
   let lastUserVersion = 0;
   let pendingNoteFor: Action | null = null;
+  // the part of the day the act is filed under; the clock's unless changed
+  let period = currentPeriod();
   let noteValue = "";
   let noteInputEl: HTMLInputElement | undefined;
   let chosenTier: number | null = null;
@@ -177,6 +182,7 @@
 
   function promptNote(action: Action) {
     pendingNoteFor = action;
+    period = currentPeriod();
     noteValue = "";
     chosenTier = null;
     windowMarks = null;
@@ -196,10 +202,10 @@
     const note = noteValue.trim();
     pendingNoteFor = null;
     noteValue = "";
-    await doAct(action, note ? { option, note } : { option });
+    await doAct(action, note ? { option, note, period } : { option, period });
   }
 
-  async function doAct(action: Action, opts: { option: number; note?: string }) {
+  async function doAct(action: Action, opts: { option: number; note?: string; period?: Period }) {
     if (acting) return;
     acting = action.id;
     try {
@@ -552,6 +558,11 @@
           <span class="tier-label">{t.label}</span>
           <span class="tier-marks">{t.marks}</span>
         </button>
+      {/each}
+    </div>
+    <div class="periods" role="radiogroup" aria-label="período">
+      {#each PERIODS as p (p)}
+        <button class="period" class:chosen={period === p} role="radio" aria-checked={period === p} on:click={() => (period = p)}>{p}</button>
       {/each}
     </div>
     <input
@@ -998,6 +1009,19 @@
   @media (max-width: 520px) {
     .tiers { grid-template-columns: repeat(2, 1fr); }
   }
+  .periods { display: flex; gap: 0.4rem; margin-bottom: 0.75rem; }
+  .period {
+    flex: 1;
+    padding: 0.35rem 0;
+    border: 1px solid #333333;
+    border-radius: 4px;
+    background: #000000;
+    color: #808080;
+    font: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .period.chosen { border-color: #ffffff; color: #ffffff; }
   .reset-note {
     display: flex;
     align-items: center;

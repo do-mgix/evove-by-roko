@@ -14,6 +14,20 @@ from datetime import datetime
 from src.domain import journey
 
 
+# The three periods a day is logged in, as in the plain-text journal: morning,
+# afternoon ("ev") and night. Night runs past midnight until five.
+PERIODS = ("mo", "ev", "ni")
+
+
+def period_of(moment: datetime) -> str:
+    hour = moment.hour
+    if 5 <= hour < 12:
+        return "mo"
+    if 12 <= hour < 18:
+        return "ev"
+    return "ni"
+
+
 def apply_daily_tick(data: dict, now: datetime | None = None,
                      max_energy: int = journey.BASE_MAX_ENERGY) -> bool:
     """Mutates `data` in place: pays journey points and checkpoints reached by

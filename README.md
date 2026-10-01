@@ -293,8 +293,11 @@ there is no username to act as.
 Sessions are server-side and revocable: `POST /auth/logout` deletes the row and the token
 dies with it, and `POST /auth/logout-all` deletes every row of the profile, signing it out
 on every device. Only the SHA-256 of the token is stored, so a dump of `sessions` hands out
-nothing usable. Tokens last 30 days (`auth.SESSION_TTL`) and expired rows are cleared on
-the next login.
+nothing usable. Tokens last 30 days (`auth.SESSION_TTL`), and a session in use renews
+itself once half of that is gone, so it only lapses after 15 days untouched; expired rows
+are cleared on the next login. The web client keeps the token in `localStorage` and signs
+straight in with it on launch, checking it once against `/auth/me` — the app stays signed
+in across restarts until someone logs out.
 
 Login answers the same 401 for a wrong password and for a username that does not exist, so
 the response does not enumerate profiles. There is no endpoint that lists usernames.
@@ -922,11 +925,13 @@ and the note never multiplies either side:
 | 20 | jogos |
 | 12 | redes sociais, vídeo |
 | 10 | guloseima |
-| 0 | música |
+| 0 | música, ônibus, trabalho |
 
 Every action that spends is a log action, which is the shape the pattern had all along:
 what costs tokens is consumption, and consumption is logged, not trained. Música sits at
-zero — background consumption that costs nothing and pays nothing. A profile starts with an
+zero — background consumption that costs nothing and pays nothing — and so do ÔNIBUS and
+TRABALHO (`5 00 00 06`, `07`), which are there so a whole day can be logged: the ride and
+the job, taken generically, with the line or the task in the note. A profile starts with an
 empty stock, so the first leisure act runs a debt: spending is never blocked, the balance
 simply goes negative until productivity covers it.
 
@@ -963,7 +968,7 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 | GET | `/user` | full state: marks, rank and level, resources, bonuses |
 | GET | `/journey` | the current stage: seconds to the checkpoint and to the next smaller point, the points, energy and its maximum, the penalty per act out of agenda, resets |
 | GET | `/actions` | the profile's actions, each with its six tiers, `log_only`, `path` (the primary chain to the attribute it is registered under, empty for a log action) and `leaves` (what it feeds, with weights); a patch adds its `attributes` with their link weight |
-| POST | `/actions/{id}/act` | execute an action (`{option, note?}`; option is the tier, 0–5). The answer's `log_only` says whether `user_marks` moved |
+| POST | `/actions/{id}/act` | execute an action (`{option, note?, period?}`; option is the tier, 0–5; period is `mo`, `ev` or `ni`, the clock's by default). The answer's `log_only` says whether `user_marks` moved, `energy_penalty` and `journey_reset` what it cost the journey |
 | GET | `/actions/{id}/window` | marks already earned in the action's 6-hour window, and its tiers |
 | GET | `/attributes` | every leaf with its rank and marks |
 | GET | `/attributes/roots` | every root with its rank and marks |
@@ -984,7 +989,7 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 | POST | `/skills/{id}/acquire` | acquire a node |
 | GET | `/logs` | logs for one day — `?offset=0` today, `-1` yesterday, `+1` tomorrow |
 | GET | `/logs/by-date` | logs for a date (`?date=YYYY-MM-DD`) |
-| PATCH | `/logs/{id}` | edit the note (`{note}`) or move it across days (`{day_delta}`) |
+| PATCH | `/logs/{id}` | edit the note (`{note}`), move it across days (`{day_delta}`) or refile it under another period (`{period}`) |
 | DELETE | `/logs/{id}` | delete |
 | POST | `/logs/reorder` | reorder within a day (`{day, ids}`) |
 | GET | `/agenda` · `/agenda/today` | full agenda · today's agenda |

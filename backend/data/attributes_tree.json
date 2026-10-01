@@ -588,6 +588,8 @@
     { "action": "VÍDEO", "code": "5000002", "parent": null, "log_only": true, "type": 0, "diff": 0, "cost": 0, "token_cost": 12, "token_gain": 0, "tiers": {"unit": "min", "bounds": [20, 45, 90, 150, 240]} },
     { "action": "JOGOS", "code": "5000003", "parent": null, "log_only": true, "type": 0, "diff": 0, "cost": 0, "token_cost": 20, "token_gain": 0, "tiers": {"unit": "min", "bounds": [15, 30, 60, 120, 180]} },
     { "action": "MÚSICA", "code": "5000004", "parent": null, "log_only": true, "type": 0, "diff": 0, "cost": 0, "token_cost": 0, "token_gain": 0, "tiers": {"unit": "min", "bounds": [15, 30, 60, 120, 180]} },
-    { "action": "GULOSEIMA", "code": "5000005", "parent": null, "log_only": true, "type": 0, "diff": 0, "cost": 0, "token_cost": 10, "token_gain": 0, "tiers": {"unit": "porções", "bounds": [1, 2, 3, 4, 5]} }
+    { "action": "GULOSEIMA", "code": "5000005", "parent": null, "log_only": true, "type": 0, "diff": 0, "cost": 0, "token_cost": 10, "token_gain": 0, "tiers": {"unit": "porções", "bounds": [1, 2, 3, 4, 5]} },
+    { "action": "ÔNIBUS", "code": "5000006", "parent": null, "log_only": true, "type": 0, "diff": 0, "cost": 0, "token_cost": 0, "token_gain": 0, "tiers": {"unit": "min", "bounds": [15, 30, 60, 90, 120]} },
+    { "action": "TRABALHO", "code": "5000007", "parent": null, "log_only": true, "type": 0, "diff": 0, "cost": 0, "token_cost": 0, "token_gain": 0, "tiers": {"unit": "h", "bounds": [1, 2, 4, 6, 8]} }
   ]
 }

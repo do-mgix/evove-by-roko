@@ -320,6 +320,9 @@ class Log(Base):
     tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     day_num: Mapped[int] = mapped_column(Integer, default=0, nullable=False, index=True)
     order_in_day: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # part of the day it happened in — mo, ev or ni (src.domain.daily.PERIODS);
+    # picked when acting, so something logged later can still say when it was
+    period: Mapped[str | None] = mapped_column(String(2), nullable=True)
 
     user: Mapped[User] = relationship(back_populates="logs")
 

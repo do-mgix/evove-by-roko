@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { flip } from "svelte/animate";
-  import { fetchLogs, reorderLogs, deleteLog, updateLogNote, shiftLogDay, type LogEntry } from "./api";
+  import { fetchLogs, reorderLogs, deleteLog, updateLogNote, shiftLogDay, setLogPeriod, PERIODS, type LogEntry, type Period } from "./api";
   import { logsVersion } from "./store";
   import Modal from "./Modal.svelte";
 
@@ -149,6 +149,24 @@
     noteDraft = "";
   }
 
+  async function changePeriod(period: Period) {
+    if (!selected || saving || selected.period === period) return;
+    saving = true;
+    try {
+      await setLogPeriod(selected.id, period);
+      const idx = logs.findIndex((l) => l.id === selected!.id);
+      if (idx >= 0) {
+        logs[idx] = { ...logs[idx], period };
+        logs = logs;
+      }
+      selected = { ...selected, period };
+    } catch (e: any) {
+      error = e?.message ?? "erro ao salvar";
+    } finally {
+      saving = false;
+    }
+  }
+
   function startEdit() {
     if (!selected) return;
     noteDraft = currentNote(selected.content);
@@ -254,6 +272,7 @@
         >
           <button class="log-row" on:click={() => (selected = l)}>
             <span class="grip" aria-hidden="true">⋮⋮</span>
+            {#if l.period}<span class="period">{l.period}</span>{/if}
             <span class="content">{display(l.content)}</span>
             {#if l.tokens}
               <span class="tokens" class:spent={l.tokens < 0}>
@@ -273,6 +292,12 @@
     <dl class="details">
       <dt>id</dt><dd>{selected.id}</dd>
       <dt>timestamp</dt><dd>{selected.timestamp}</dd>
+      <dt>período</dt>
+      <dd class="periods">
+        {#each PERIODS as p (p)}
+          <button class="period-pick" class:on={selected.period === p} disabled={saving} on:click={() => changePeriod(p)}>{p}</button>
+        {/each}
+      </dd>
       <dt>order</dt><dd>{selected.order}</dd>
       <dt>marcas</dt><dd>+{selected.marks}</dd>
       {#if selected.tokens}
@@ -425,6 +450,25 @@
     font-size: 0.85rem;
     word-break: break-word;
   }
+  .period {
+    color: #808080;
+    font-size: 0.7rem;
+    text-transform: lowercase;
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+  }
+  .periods { display: flex; gap: 0.4rem; }
+  .period-pick {
+    padding: 0.2rem 0.6rem;
+    border: 1px solid #333333;
+    border-radius: 4px;
+    background: #000000;
+    color: #808080;
+    font: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .period-pick.on { border-color: #ffffff; color: #ffffff; }
   .content-full {
     color: #00e5ff;
   }

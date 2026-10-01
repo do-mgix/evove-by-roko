@@ -7,16 +7,25 @@
   import Journey from "./lib/Journey.svelte";
   import UserSelect from "./lib/UserSelect.svelte";
   import { onMount } from "svelte";
-  import { logout as apiLogout, logoutEverywhere, setUnauthorizedHandler } from "./lib/api";
+  import {
+    fetchSessionInfo,
+    getToken,
+    getUsername,
+    logout as apiLogout,
+    logoutEverywhere,
+    setUnauthorizedHandler,
+  } from "./lib/api";
 
-  // The login screen is always the entry point: a session kept in localStorage
-  // from a previous visit is not enough to skip it.
-  let username: string | null = null;
+  // A session kept from a previous launch signs straight in; the server renews
+  // it while it is in use, so the app stays signed in until someone logs out.
+  let username: string | null = getToken() ? getUsername() : null;
 
   // A rejected session anywhere in the app drops straight back to login,
   // instead of every panel failing on its own.
   onMount(() => {
     setUnauthorizedHandler(() => (username = null));
+    // check the kept session once; a 401 lands in the handler above
+    if (username) fetchSessionInfo().catch(() => {});
     return () => setUnauthorizedHandler(null);
   });
   let page = "home";

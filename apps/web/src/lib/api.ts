@@ -210,7 +210,7 @@ export type ActResult = {
   journey_reset: boolean;  // the energy ran out: the journey is back at stage 1
 };
 
-export async function actOnAction(id: string, opts: { option: number; note?: string }): Promise<ActResult> {
+export async function actOnAction(id: string, opts: { option: number; note?: string; period?: Period }): Promise<ActResult> {
   const res = await request(`/actions/${id}/act`, { method: "POST", body: JSON.stringify(opts) });
   if (!res.ok) {
     const detail = await res.json().catch(() => ({}));
@@ -488,6 +488,16 @@ export function flattenAttributeNodes(roots: AttrNode[]): { key: string; name: s
   return [...out.values()];
 }
 
+/** The part of the day a log is filed under, as in the plain-text journal. */
+export type Period = "mo" | "ev" | "ni";
+export const PERIODS: Period[] = ["mo", "ev", "ni"];
+
+/** The period the clock is in now: mo 5–12h, ev 12–18h, ni the rest. */
+export function currentPeriod(d = new Date()): Period {
+  const h = d.getHours();
+  return h >= 5 && h < 12 ? "mo" : h >= 12 && h < 18 ? "ev" : "ni";
+}
+
 export type LogEntry = {
   id: number;
   timestamp: string;
@@ -495,6 +505,7 @@ export type LogEntry = {
   marks: number;
   tokens: number;
   order: number;
+  period: Period | null;
 };
 
 export type LogsResponse = {
@@ -527,6 +538,18 @@ export async function updateLogNote(id: number, note: string): Promise<LogEntry>
   if (!res.ok) {
     const detail = await res.json().catch(() => ({}));
     throw new Error(detail.detail || `Failed to update log (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function setLogPeriod(id: number, period: Period): Promise<LogEntry> {
+  const res = await request(`/logs/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ period }),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(detail.detail || `Failed to set period (${res.status})`);
   }
   return res.json();
 }
