@@ -895,6 +895,40 @@ def session_info(token_hash: str) -> dict | None:
         s.close()
 
 
+# ---------- rank claims ----------
+
+def load_rank_claims(username: str) -> dict[str, int]:
+    """{node_key: highest rank index already claimed}."""
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        if not u:
+            return {}
+        rows = s.execute(select(orm.RankClaim).where(orm.RankClaim.user_id == u.id)).scalars().all()
+        return {r.node_key: r.claimed_rank for r in rows}
+    finally:
+        s.close()
+
+
+def set_rank_claim(username: str, node_key: str, claimed_rank: int) -> None:
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        if not u:
+            return
+        row = s.get(orm.RankClaim, (u.id, node_key))
+        if row is None:
+            s.add(orm.RankClaim(user_id=u.id, node_key=node_key, claimed_rank=claimed_rank))
+        else:
+            row.claimed_rank = claimed_rank
+        s.commit()
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
 # ---------- password recovery ----------
 
 class EmailTaken(ValueError):

@@ -21,7 +21,9 @@ from src.domain.agenda import collect_labels, DAY_NAMES as _DOMAIN_DAY_NAMES  # 
 from src.domain.daily import PERIODS, apply_daily_tick, period_of  # noqa: E402
 from src.domain import journey as journey_mode  # noqa: E402
 from src.domain.user_attributes import PATCH_SEPARATOR, PatchError, engine_name  # noqa: E402
-from src.domain.attributes import node_total, rank_view, total_marks  # noqa: E402
+from src.domain.attributes import (  # noqa: E402
+    CLAIM_SKILL_POINTS_PER_RANK, CLAIM_TOKENS_PER_RANK, claimable_ranks, node_total, rank_view, total_marks,
+)
 from src.domain.skills import (  # noqa: E402
     aggregate_bonuses,
     acquire_skill as _acquire_skill,
@@ -1109,15 +1111,60 @@ def _user_leaf_totals(username: str, tree) -> dict[str, float]:
     return _user_leaf_totals_from(repos.get_user_leaf_scores(username), tree)
 
 
-def _node_view(tree, key: str, totals: dict[str, float], memo: dict) -> dict:
-    """What every attribute endpoint says about one node, leaf or not."""
+def _node_view(tree, key: str, totals: dict[str, float], memo: dict,
+               claims: dict[str, int] | None = None) -> dict:
+    """What every attribute endpoint says about one node, leaf or not. With
+    `claims`, also how many of its ranks wait to be claimed and what they pay."""
     node = tree.nodes_by_key[key]
-    return {
+    out = {
         "key": key,
         "name": node.name,
         "degree": tree.degree(key),
         "is_leaf": tree.is_leaf(key),
         **rank_view(node_total(key, totals, tree, memo)),
+    }
+    if claims is not None:
+        n = claimable_ranks(out["rank_index"], claims.get(key, 0), out["degree"])
+        if n:
+            out["claim"] = {
+                "ranks": n,
+                "tokens": n * CLAIM_TOKENS_PER_RANK,
+                "skill_points": n * CLAIM_SKILL_POINTS_PER_RANK,
+            }
+    return out
+
+
+@app.post("/attributes/{key}/claim")
+def claim_rank(key: str, username: str = Depends(current_username)):
+    """Take the reward of every rank `key` reached and was not claimed yet:
+    tokens, capped like an act's, and skill points."""
+    data = _load_user(username)
+    tree = repos.load_attr_tree()
+    if key not in tree.nodes_by_key:
+        raise HTTPException(status_code=404, detail=f"attribute '{key}' not found")
+    claims = repos.load_rank_claims(username)
+    view = _node_view(tree, key, _user_leaf_totals(username, tree), {}, claims)
+    claim = view.get("claim")
+    if not claim:
+        raise HTTPException(status_code=409, detail="nothing to claim")
+
+    metadata = data.setdefault("metadata", {})
+    bonuses = aggregate_bonuses(set(data.get("skills") or []), skill_nodes_by_id())
+    cap = int(metadata.get("max_tokens", 100) or 100) + int(bonuses.get("max_tokens", 0) or 0)
+    tokens = int(metadata.get("tokens", 0) or 0)
+    gained = max(0, min(claim["tokens"], cap - tokens))
+    metadata["tokens"] = tokens + gained
+    metadata["skill_points"] = int(metadata.get("skill_points", 0) or 0) + claim["skill_points"]
+    _save_user(username, data)
+    repos.set_rank_claim(username, key, view["rank_index"])
+    return {
+        "key": key,
+        "ranks": claim["ranks"],
+        "tokens_gained": gained,
+        "tokens_wasted": claim["tokens"] - gained,
+        "skill_points_gained": claim["skill_points"],
+        "tokens": metadata["tokens"],
+        "skill_points": metadata["skill_points"],
     }
 
 
@@ -1225,9 +1272,10 @@ def attributes_tree(username: str = Depends(current_username)):
     totals = _user_leaf_totals(username, tree)
     memo: dict[str, float] = {}
     attachments = _patch_attachments(username, data)
+    claims = repos.load_rank_claims(username)
 
     def render(key: str, path: frozenset) -> dict:
-        out = _node_view(tree, key, totals, memo)
+        out = _node_view(tree, key, totals, memo, claims)
         if key in attachments:
             out["patches"] = attachments[key]
         if key in path:            # registration refuses cycles; never recurse forever

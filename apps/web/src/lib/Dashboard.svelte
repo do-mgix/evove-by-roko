@@ -149,6 +149,8 @@
 
   $: textQuery = fold(query.trim());
   $: filtered = dialBuffer ? byPrefix : actions.filter((a) => fold(a.name).includes(textQuery));
+  // the list stays folded until a name or an id is typed: the home is for acting, not browsing
+  $: searching = textQuery.length > 0 || dialBuffer.length > 0;
 
   $: if ($userVersion !== lastUserVersion) {
     lastUserVersion = $userVersion;
@@ -274,8 +276,9 @@
     2: { row: 1, col: 0 }, 3: { row: 1, col: 1 },
   };
 
-  let slots: (string | null)[] = ["actions", "agenda", "projects", "logs"];
-  const MOBILE_SLOTS = ["actions", "logs"];
+  // actions, then agenda, then logs — the order the day is worked in
+  let slots: (string | null)[] = ["actions", "agenda", "logs", "projects"];
+  const MOBILE_SLOTS = ["actions", "agenda", "logs"];
   $: visibleSlots = isMobile ? MOBILE_SLOTS : slots;
   let dragSource: { kind: "tray" | "slot"; widgetId: string; from?: number } | null = null;
   let dragOverIdx: number | null = null;
@@ -408,6 +411,7 @@
       {#each visibleSlots as widgetId, idx (idx)}
         <section
           class="cell"
+          class:folded={widgetId === "actions" && !searching}
           class:drag-over={!isMobile && dragOverIdx === idx && dragSource}
           on:dragover={(e) => !isMobile && onSlotDragOver(e, idx)}
           on:dragleave={onSlotDragLeave}
@@ -493,6 +497,8 @@
                         <span class="meta">→ shop</span>
                       </li>
                     </ul>
+                  {:else if !searching}
+                    <!-- folded until something is typed -->
                   {:else if filtered.length === 0}
                     <p class="muted">nenhuma ação encontrada</p>
                   {:else}
@@ -901,6 +907,7 @@
     }
     .grid-wrap { overflow: visible; }
     .grid.stacked .cell { min-height: 15rem; }
+    .grid.stacked .cell.folded { min-height: 0; }
     .statusbar { font-size: 0.72rem; }
     .sb-act { margin-left: 0; width: 100%; }
   }

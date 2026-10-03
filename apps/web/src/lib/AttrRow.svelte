@@ -8,6 +8,14 @@
   export let note: string | null = null;
   /** Makes the row a button. */
   export let onOpen: (() => void) | null = null;
+  /** With a reward waiting (`node.claim`), a tap takes it instead of opening. */
+  export let onClaim: (() => void) | null = null;
+
+  $: claimable = !!(node.claim && onClaim);
+  $: tap = claimable ? onClaim : onOpen;
+  $: gain = node.claim
+    ? [`+${node.claim.tokens}t`, `+${node.claim.skill_points} skill`].join(" · ")
+    : "";
 </script>
 
 {#snippet body()}
@@ -20,9 +28,10 @@
   {#if note}<span class="note">{note}</span>{/if}
 {/snippet}
 
-<li class="attr" class:custom={node.custom}>
-  {#if onOpen}
-    <button type="button" class="hit" on:click={onOpen}>{@render body()}</button>
+<li class="attr" class:custom={node.custom} class:claimable>
+  {#if claimable}<span class="gain">{gain}</span>{/if}
+  {#if tap}
+    <button type="button" class="hit" on:click={tap} title={claimable ? "tocar para receber" : undefined}>{@render body()}</button>
   {:else}
     {@render body()}
   {/if}
@@ -33,6 +42,23 @@
     list-style: none;
     min-width: 0;
     padding: 0.3rem 0 0.5rem;
+  }
+  .attr.claimable {
+    position: relative;
+    margin-top: 0.9rem;
+    padding: 0.4rem 0.55rem 0.5rem;
+    border: 1px solid #e8c547;
+    border-radius: 6px;
+  }
+  .gain {
+    position: absolute;
+    top: -0.8rem;
+    right: 0.5rem;
+    padding: 0 0.35rem;
+    background: #000000;
+    color: #e8c547;
+    font-size: 0.7rem;
+    font-variant-numeric: tabular-nums;
   }
   .hit {
     display: block;

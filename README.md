@@ -415,8 +415,17 @@ contribution weight — a 4-mark push-up session gives Calistenia (100%) 4 and T
 index *i* asking for `3 + i` (`rank_need`), 403 to finish Z, where progress stops at 28/28.
 A leaf stores its `rank_index` and the `marks` above it; any other attribute derives both
 from its total with the same table (`rank_view`). The `me` page draws every attribute as
-a thick white bar cut into one segment per mark, rounded only at its ends, with the count
-floating in the middle (`MarkBar.svelte`).
+a thick bar cut into one segment per mark, rounded only at its ends, with the count
+floating in the middle (`MarkBar.svelte`) — yellow for an attribute's progress.
+
+**Claiming ranks.** Every rank an attribute of degree 1 to 3 reaches pays once, when
+claimed: `CLAIM_TOKENS_PER_RANK` (10) tokens, capped like an act's, and
+`CLAIM_SKILL_POINTS_PER_RANK` (1) skill point. `/attributes/tree` marks a node with
+something waiting with `claim` (`{ranks, tokens, skill_points}`); the attributes tab of the
+`me` page draws it with a yellow border and the gain above it, and a tap calls
+`POST /attributes/{key}/claim`. `rank_claims` keeps the highest rank claimed per attribute,
+so ranks reached before claims existed are claimable too. Leaves and custom attributes are
+left out: the tab does not list leaves, and they would rank up far too often.
 
 **Losing marks.** Nothing decays continuously any more. A rank is a permanent checkpoint;
 the marks above it are progress that a trigger will be able to take away — the end of a
@@ -973,7 +982,8 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 | GET | `/attributes` | every leaf with its rank and marks |
 | GET | `/attributes/roots` | every root with its rank and marks |
 | GET | `/attributes/recent` | the leaves that most recently gained marks, custom ones included (`?limit=10`) |
-| GET | `/attributes/tree` | the whole graph; each child link says its `weight` and whether it is `primary`; a node can carry `patches` |
+| GET | `/attributes/tree` | the whole graph; each child link says its `weight` and whether it is `primary`; a node can carry `patches`, and `claim` when ranks wait to be claimed |
+| POST | `/attributes/{key}/claim` | take the tokens and skill points of every unclaimed rank of the attribute; 409 if none |
 | GET | `/attribute-suggestions` | the names the interface offers when creating an attribute (ISCED-F fields, O*NET skills); static, no token |
 | GET | `/user-attributes` | the user's own attributes as a tree, with rank, marks and the patches that train each, with their link weight |
 | PATCH | `/user-attributes/{id}` | rename (`{name}`) or move with its marks (`{parent_id}`, `null` for a root) |
@@ -1016,8 +1026,11 @@ opens it in `DetailModal.svelte` (see "Editing" above). The theme is dark and
 monospaced.
 
 The home screen is a grid of windows you can drag between slots and the bottom tray —
-`actions`, `agenda`, `logs` and `projects`. The profile name lives in `localStorage` under
-the key `evove_username`; without it the user picker takes over. Two stores (`logsVersion`,
+`actions`, `agenda`, `logs` and `projects`, in that order; a phone stacks the first three.
+The actions window lists nothing until a name or an id is typed: the home is for acting,
+not browsing. The agenda window adds items with its `+`. The profile name lives in
+`localStorage` under the key `evove_username`, next to the session token that signs the
+app straight in. Two stores (`logsVersion`,
 `userVersion`) act as signals telling panels to refetch after an act.
 
 ## Android client

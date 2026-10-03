@@ -63,6 +63,15 @@ class Session(Base):
 
     user: Mapped["User"] = relationship(back_populates="sessions")
 
+# the highest rank of an attribute whose reward the user already claimed
+class RankClaim(Base):
+    __tablename__ = "rank_claims"
+
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    node_key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    claimed_rank: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
 # one row per password-reset link sent; like sessions, only the digest is stored
 class PasswordReset(Base):
     __tablename__ = "password_resets"

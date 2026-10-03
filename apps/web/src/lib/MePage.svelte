@@ -6,6 +6,7 @@
     fetchUserAttributes,
     fetchActions,
     fetchRecentAttributes,
+    claimRank,
     formatCode,
     userAttrAsNode,
     type UserState,
@@ -14,7 +15,7 @@
     type Action,
     type RecentAttribute,
   } from "./api";
-  import { userVersion } from "./store";
+  import { bumpUser, userVersion } from "./store";
   import AttrRow from "./AttrRow.svelte";
   import MarkBar from "./MarkBar.svelte";
   import DetailModal, { type Subject } from "./DetailModal.svelte";
@@ -63,6 +64,40 @@
   }
 
   onMount(load);
+
+  // what the last claim paid, shown for a moment where the reward was
+  let claimed: { key: string; text: string } | null = null;
+  let claimedTimer: any = null;
+  let claiming = false;
+
+  /** Drops the reward from every copy of the node in the tree (a node with
+   *  several parents appears under each). */
+  function clearClaim(list: AttrNode[], key: string): AttrNode[] {
+    return list.map((n) => ({
+      ...n,
+      claim: n.key === key ? undefined : n.claim,
+      children: n.children ? clearClaim(n.children, key) : n.children,
+    }));
+  }
+
+  async function claim(node: AttrNode) {
+    if (claiming) return;
+    claiming = true;
+    try {
+      const r = await claimRank(node.key);
+      roots = clearClaim(roots, node.key);
+      const parts = [`+${r.tokens_gained}t`, `+${r.skill_points_gained} skill`];
+      if (r.tokens_wasted) parts.push(`${r.tokens_wasted}t além do limite`);
+      claimed = { key: node.key, text: parts.join(" · ") };
+      if (claimedTimer) clearTimeout(claimedTimer);
+      claimedTimer = setTimeout(() => (claimed = null), 2500);
+      bumpUser();
+    } catch (e: any) {
+      error = e?.message ?? "erro";
+    } finally {
+      claiming = false;
+    }
+  }
 
   $: if ($userVersion !== lastVersion) {
     lastVersion = $userVersion;
@@ -213,7 +248,12 @@
       {#if attrItems.length > 0}
         <ul class="list grid">
           {#each attrItems as item (item.node.key)}
-            <AttrRow node={item.node} onOpen={() => (subject = item.subject)} />
+            <AttrRow
+              node={item.node}
+              note={claimed?.key === item.node.key ? claimed.text : null}
+              onOpen={() => (subject = item.subject)}
+              onClaim={attrView === "p" ? null : () => claim(item.node)}
+            />
           {/each}
         </ul>
       {:else}

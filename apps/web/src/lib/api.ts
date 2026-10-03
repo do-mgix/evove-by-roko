@@ -282,7 +282,29 @@ export type AttrNode = {
   patches?: PatchAttachment[];
   // a user attribute drawn by the same component
   custom?: boolean;
+  // in /attributes/tree: ranks reached and not claimed yet, and what they pay
+  claim?: { ranks: number; tokens: number; skill_points: number };
 };
+
+export type ClaimResult = {
+  key: string;
+  ranks: number;
+  tokens_gained: number;
+  tokens_wasted: number;   // past the token cap
+  skill_points_gained: number;
+  tokens: number;
+  skill_points: number;
+};
+
+/** Takes the reward of every rank the attribute reached and was not claimed. */
+export async function claimRank(key: string): Promise<ClaimResult> {
+  const res = await request(`/attributes/${encodeURIComponent(key)}/claim`, { method: "POST" });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(detail.detail || `Failed to claim (${res.status})`);
+  }
+  return res.json();
+}
 
 /** An attribute the user created. Leaves hold the score; a parent is the mean of
  *  its children. */

@@ -55,6 +55,25 @@ def apply_rank_ups(marks: float, rank_index: int) -> tuple[float, int]:
     return max(0.0, marks), rank_index
 
 
+# ---------------------------------------------------------------- rank claims
+#
+# Every rank an attribute reaches can be claimed once, by tapping it in the
+# attributes tab: tokens and skill points per rank. Only the attributes that tab
+# lists can be claimed — degrees 1 to 3, the broad ones, which rank up slowly
+# because a parent is the weighted mean of its children.
+
+CLAIM_MAX_DEGREE = 3
+CLAIM_TOKENS_PER_RANK = 10
+CLAIM_SKILL_POINTS_PER_RANK = 1
+
+
+def claimable_ranks(rank_index: int, claimed: int, degree: int) -> int:
+    """Ranks reached and not yet claimed."""
+    if degree < 1 or degree > CLAIM_MAX_DEGREE:
+        return 0
+    return max(0, rank_index - claimed)
+
+
 def total_marks(marks: float, rank_index: int) -> float:
     return rank_base(rank_index) + marks
 
