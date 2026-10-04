@@ -1023,8 +1023,12 @@ an option is known by its color and its glyph, a sign from a script that does no
 (`GLYPHS`: round-capped strokes and dots, each a mutation of what the option used to show).
 The colors follow the order of discovery: yellow, pink, orange, blue, purple, cyan. The look
 is plain on purpose — the drifting, blurred cells of an earlier pass cost a third of a core
-on a mid phone: sharp quadrilaterals outlined in the option's color on black, with large
-glyphs; hover and press turn a cell white, and nothing on the screen animates. The cells
+on a mid phone: sharp quadrilaterals outlined in the option's color and washed faintly
+with it (12% fill), with large glyphs; press — and hover, where there is a real pointer —
+turns a cell white. The only motion is the screen coming on: each cell lights up like a
+tube set warming — a bright line opening into the picture, then a few quick flickers as it
+settles — at its own uneven delay (`DELAY`), once per visit and never under
+`prefers-reduced-motion`; transform and opacity only, so it costs nothing once done. The cells
 start at `TOP` (42%), where a thumb reaches — the upper part is left empty on purpose. There is no navigation bar — a tile opens its page full screen under a
 thin header (`lib/ScreenHeader.svelte`) that carries the same glyph and a `‹` back to the
 tiles.
@@ -1051,14 +1055,23 @@ from the tiles it leaves the app — without that listener Capacitor simply clos
 bottom: the display — the part of the screen the home leaves empty — where messages and
 what is being typed appear; the profile's actions as asymmetric cells, eight to a page
 (`jitteredGrid` in `homeLayout.ts`: a 2×4 grid whose inner vertices are nudged, seeded by
-the page so each page keeps its shape); and a bar with two blank buttons, the centre one
-turning the page and the right one going home. The keyboard opens on arrival
+the page so each page keeps its shape), washed faintly in agir's yellow and coming on like
+the home's tiles whenever a page appears — the tube animation's keyframes live in `app.css`
+for both; and a bar with two blank buttons, the centre one turning the page and the right
+one going home. The keyboard opens on arrival
 (`@capacitor/keyboard` on the phone, since focusing a field from code does not raise
 Android's), and while it is up the display is all there is above it. Typing filters by
 name, accents ignored, or by id when it is digits; when one action is left it is chosen
 without confirming, as is the first match on Enter or a tapped cell. Choosing closes the
-keyboard and the bar rises into the action's six tiers; a tier acts, in the clock's period,
-and the display says what it paid — marks, the window, energy, a journey restart. Android's
+keyboard and the bar rises into the action's six tiers; a tier acts, in the clock's period.
+
+What the act paid takes the whole screen (`lib/GainsScreen.svelte`), everything else gone,
+all in Zalando Sans Expanded: the action and tier at the top, then the tokens it moved, then
+the marks, with a bar for every attribute that grew — the segments the act filled blink
+where the bar grew (`MarkBar`'s `from`), and a crossed rank shows the old rank's bar filled
+to the end. Last comes roko's line, a fixed one for now (or the journey restart, if the
+energy ran out). A tap or back returns to the cells. The bars come from diffing `/attributes`
+taken when the action was chosen against the same after the act. Android's
 back undoes a choice before it leaves the screen (`setBackHandler` in `store.ts`). The
 manifest sets `adjustResize`, so the frame shrinks above the keyboard instead of under it.
 

@@ -7,12 +7,15 @@
     currentPeriod,
     fetchActionWindow,
     fetchActions,
+    fetchAttributes,
+    type AttrNode,
     fold,
     type Action,
   } from "./api";
   import { centroid, inset, jitteredGrid, type Point } from "./homeLayout";
   import { keyFeedback, primeAudio } from "./dtmf";
   import { bumpLogs, bumpUser, setBackHandler } from "./store";
+  import GainsScreen, { type Gain } from "./GainsScreen.svelte";
 
   /** Back to the tile home. */
   export let onHome: () => void;
@@ -24,6 +27,8 @@
   const ROWS = 4;
   const PER_PAGE = COLS * ROWS;
   const GAP = 5;
+  // a new page comes on cell by cell, like the home, at uneven moments
+  const DELAY = [0, 110, 60, 170, 30, 220, 140, 90];
 
   let actions: Action[] = [];
   let loading = true;
@@ -36,6 +41,10 @@
   let selected: Action | null = null;
   let windowMarks: number | null = null;
   let acting = false;
+  // the leaves as they stood when the action was chosen, to tell what the act moved
+  let before: Map<string, AttrNode> | null = null;
+  // after an act, everything gives way to what it paid
+  let gains: { title: string; tokens: number; marks: number; list: Gain[]; roko?: string } | null = null;
   // what the display says when nobody is typing: the last act, or an error
   let message: string[] = [];
   let input: HTMLInputElement;
@@ -148,6 +157,32 @@
         if (selected?.id === action.id) windowMarks = w.window_marks;
       })
       .catch(() => {});
+    before = null;
+    fetchAttributes()
+      .then((list) => {
+        if (selected?.id === action.id) before = new Map(list.map((a) => [a.key, a]));
+      })
+      .catch(() => {});
+  }
+
+  /** The leaves whose marks grew since `before`, with where each bar stood. */
+  function diff(prev: Map<string, AttrNode> | null, now: AttrNode[]): Gain[] {
+    if (!prev) return [];
+    return now
+      .filter((a) => a.total_marks > (prev.get(a.key)?.total_marks ?? 0))
+      .map((a) => {
+        const was = prev.get(a.key);
+        const rankBefore = was?.rank ?? "A";
+        // Still on the same rank: the bar grew from where it was. A rank crossed:
+        // the old rank's bar, filled to the end from where it stood — that is the
+        // growth worth seeing; a fresh rank at 0/n would show nothing.
+        if (was && was.rank_index === a.rank_index) {
+          return { key: a.key, name: a.name, rankBefore, rank: a.rank, from: was.marks, marks: a.max ? a.need : a.marks, need: a.need };
+        }
+        const need = was?.need ?? 3;
+        return { key: a.key, name: a.name, rankBefore, rank: a.rank, from: was?.marks ?? 0, marks: need, need };
+      })
+      .sort((x, y) => y.marks - y.from - (x.marks - x.from));
   }
 
   async function act(option: number) {
@@ -157,14 +192,18 @@
     keyFeedback(String((option % 9) + 1));
     acting = true;
     try {
+      const tier = (action.tiers ?? []).find((t) => t.index === option);
+      const prev = before;
       const r = await actOnAction(action.id, { option, period: currentPeriod() });
-      message = [
-        `+${r.marks} ${r.marks === 1 ? "marca" : "marcas"}`,
-        r.name,
-        `${r.window_marks}/${r.window_limit} na janela`,
-      ];
-      if (r.energy_penalty) message.push(`−${r.energy_penalty} energia`);
-      if (r.journey_reset) message.push("a energia acabou · jornada no estágio 1");
+      const now = r.log_only ? [] : await fetchAttributes().catch(() => []);
+      gains = {
+        title: tier ? `${r.name} · ${tier.label}` : r.name,
+        tokens: r.token_gain - r.tokens_wasted - r.token_cost,
+        marks: r.marks,
+        list: diff(prev, now),
+        roko: r.journey_reset ? "a energia acabou. a jornada recomeçou do primeiro estágio." : undefined,
+      };
+      message = [];
       bumpLogs();
       bumpUser();
       selected = null;
@@ -198,6 +237,10 @@
     window.addEventListener("resize", onResize);
     // a chosen action is undone by back before the page is left
     setBackHandler(() => {
+      if (gains) {
+        gains = null;
+        return true;
+      }
       if (selected) {
         cancel();
         return true;
@@ -223,6 +266,16 @@
   });
 </script>
 
+{#if gains}
+  <GainsScreen
+    title={gains.title}
+    tokens={gains.tokens}
+    marks={gains.marks}
+    gains={gains.list}
+    roko={gains.roko}
+    onDone={() => (gains = null)}
+  />
+{:else}
 <div class="act" class:typing={typing && keyboardUp} class:choosing={!!selected}>
   <!-- the display: messages, what is typed, what was chosen -->
   <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -273,8 +326,9 @@
     <div class="cells" bind:clientWidth={width} bind:clientHeight={height}>
       {#if width && height}
         <svg viewBox="0 0 {width} {height}" width={width} height={height}>
-          {#each cells as c (c.action.id)}
+          {#each cells as c, i (c.action.id)}
             <g class="cell" role="button" tabindex="0" aria-label={c.action.name}
+              style="--delay: {DELAY[i % DELAY.length]}ms"
               on:click={() => choose(c.action)}
               on:keydown={(e) => e.key === "Enter" && choose(c.action)}>
               <polygon points={c.points} />
@@ -295,6 +349,7 @@
     <button class="home-btn" aria-label="início" on:click={home}></button>
   </div>
 </div>
+{/if}
 
 <style>
   .act {
@@ -345,9 +400,23 @@
   .cells { flex: 1; min-height: 0; }
   .act.typing .cells { display: none; }
   svg { display: block; width: 100%; height: 100%; }
-  .cell { cursor: pointer; outline: none; }
+  .cell {
+    cursor: pointer;
+    outline: none;
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+    /* each page comes on like the home does (keyframes in app.css) */
+    animation:
+      tube-on 0.45s cubic-bezier(0.2, 0.8, 0.3, 1) var(--delay) both,
+      settle 0.35s steps(1) calc(var(--delay) + 0.45s) 1;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cell { animation: none; }
+  }
   polygon {
-    fill: #000000;
+    /* a faint wash of agir's yellow */
+    fill: var(--ink);
+    fill-opacity: 0.1;
     stroke: var(--ink);
     stroke-opacity: 0.55;
     stroke-width: 1.5;
@@ -360,8 +429,13 @@
     dominant-baseline: middle;
     text-transform: uppercase;
   }
-  .cell:hover polygon, .cell:focus-visible polygon, .cell:active polygon { stroke: #ffffff; stroke-opacity: 1; }
-  .cell:hover text, .cell:focus-visible text, .cell:active text { fill: #ffffff; }
+  .cell:focus-visible polygon, .cell:active polygon { stroke: #ffffff; stroke-opacity: 1; fill-opacity: 0.2; }
+  .cell:focus-visible text, .cell:active text { fill: #ffffff; }
+  /* hover only with a real pointer: on touch it sticks to the last cell tapped */
+  @media (hover: hover) {
+    .cell:hover polygon { stroke: #ffffff; stroke-opacity: 1; }
+    .cell:hover text { fill: #ffffff; }
+  }
 
   .tiers {
     flex: 1;
@@ -385,7 +459,10 @@
     font-family: var(--font-mono);
     cursor: pointer;
   }
-  .tier:active:not(:disabled), .tier:hover:not(:disabled) { border-color: #ffffff; color: #ffffff; }
+  .tier:active:not(:disabled) { border-color: #ffffff; color: #ffffff; }
+  @media (hover: hover) {
+    .tier:hover:not(:disabled) { border-color: #ffffff; color: #ffffff; }
+  }
   .tier:disabled { opacity: 0.4; }
   .tier-label { font-size: 0.85rem; }
   .tier-marks { font-size: 1.3rem; }
@@ -405,7 +482,10 @@
   }
   .page-btn { width: 34%; }
   .home-btn { position: absolute; right: 0; top: 0; bottom: 0; width: 18%; }
-  .page-btn:active, .home-btn:active, .page-btn:hover, .home-btn:hover { border-color: #ffffff; }
+  .page-btn:active, .home-btn:active { border-color: #ffffff; }
+  @media (hover: hover) {
+    .page-btn:hover, .home-btn:hover { border-color: #ffffff; }
+  }
   .pages {
     position: absolute;
     left: 0;

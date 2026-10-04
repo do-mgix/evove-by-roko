@@ -62,3 +62,24 @@ button, a, input, select, textarea, [role="button"] {
   width: 0;
   height: 0;
 }
+
+/* A tube set coming on: a bright line opening into the picture, then a few quick
+   flickers while it settles. Used where cells appear — the home, a page of
+   actions — each cell at its own uneven delay (--delay). Scale each cell about
+   its own centre (transform-box: fill-box) for it to read right. */
+@keyframes tube-on {
+  0% { transform: scale(0.15, 0.006); opacity: 0; }
+  12% { transform: scale(1, 0.006); opacity: 1; }
+  45% { transform: scale(1, 0.006); }
+  80% { transform: scale(1, 1.04); }
+  100% { transform: scale(1, 1); opacity: 1; }
+}
+@keyframes settle {
+  0% { opacity: 1; }
+  15% { opacity: 0.35; }
+  30% { opacity: 1; }
+  50% { opacity: 0.6; }
+  65% { opacity: 1; }
+  80% { opacity: 0.85; }
+  100% { opacity: 1; }
+}

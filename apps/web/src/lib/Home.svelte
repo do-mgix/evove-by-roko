@@ -19,6 +19,11 @@
   const TOP = 0.42;
   // half the gap between two cells, in pixels
   const GAP = 6;
+  // When the screen comes on, each cell lights up like a tube set warming, at
+  // its own moment: an uneven order reads as a machine, an even one as a menu.
+  const DELAY: Record<HomeOptionId, number> = {
+    act: 0, logs: 70, journey: 130, shop: 190, roko: 260, attributes: 340,
+  };
 
   let width = 0;
   let height = 0;
@@ -82,7 +87,7 @@
             on:pointerleave={() => pressed === c.id && (pressed = null)}
             on:pointercancel={() => (pressed = null)}
             on:keydown={(e) => onKey(e, c.id, c.tone)}
-            style="--color: {c.color}"
+            style="--color: {c.color}; --delay: {DELAY[c.id]}ms"
           >
             <polygon points={c.points} />
             <g class="glyph" transform="translate({c.cx - c.glyph / 2} {c.cy - c.glyph / 2}) scale({c.glyph / 24})">
@@ -122,9 +127,22 @@
     --ink: var(--color);
     cursor: pointer;
     outline: none;
+    /* scale each cell about its own centre */
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+    /* the tube comes on — a bright line opening into the picture — then the
+       picture settles with a few quick flickers */
+    animation:
+      tube-on 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) var(--delay) both,
+      settle 0.4s steps(1) calc(var(--delay) + 0.5s) 1;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cell { animation: none; }
   }
   polygon {
-    fill: #000000;
+    /* a faint wash of the option's own color */
+    fill: var(--color);
+    fill-opacity: 0.12;
     stroke: var(--ink);
     stroke-opacity: 0.55;
     stroke-width: 1.5;
@@ -141,11 +159,14 @@
   /* a hint, never a caption: the suggested cell's outline is lit */
   .cell.hint polygon { stroke-opacity: 1; stroke-width: 2.5; }
 
-  /* hover and press turn the cell white */
-  .cell:hover,
+  /* hover and press turn the cell white — hover only where there is a real
+     pointer: on a touch screen it sticks to the last cell tapped */
   .cell:focus-visible,
   .cell.pressed { --ink: #ffffff; }
-  .cell:hover polygon,
-  .cell:focus-visible polygon,
-  .cell.pressed polygon { stroke-opacity: 1; }
+  .cell:focus-visible polygon { stroke-opacity: 1; }
+  .cell.pressed polygon { stroke-opacity: 1; fill-opacity: 0.22; }
+  @media (hover: hover) {
+    .cell:hover { --ink: #ffffff; }
+    .cell:hover polygon { stroke-opacity: 1; }
+  }
 </style>

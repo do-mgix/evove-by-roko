@@ -10,6 +10,8 @@
   export let label: string | null = null;
   /** Makes each segment a button: clicking the n-th picks n. */
   export let onPick: ((units: number) => void) | null = null;
+  /** Segments filled before the last gain: the ones past it blink. */
+  export let from: number | null = null;
 
   $: segments = Math.max(1, Math.floor(need));
   $: filled = Math.max(0, Math.min(segments, Math.floor(marks)));
@@ -40,7 +42,7 @@
           on:click={() => onPick?.(i + 1)}
         ></button>
       {:else}
-        <span class="seg" class:on={i < filled}></span>
+        <span class="seg" class:on={i < filled} class:fresh={from !== null && i >= from && i < filled}></span>
       {/if}
     {/each}
   {/if}
@@ -71,6 +73,12 @@
   .seg.pick:hover { background: #808080; }
   .seg.pick.on:hover { background: #cccccc; }
   .fill { height: 100%; background: #ffffff; }
+  /* the segments the last gain filled, blinking where the bar grew */
+  .seg.fresh { animation: fresh 0.5s steps(1) 6; }
+  @keyframes fresh {
+    0% { opacity: 0.15; }
+    50% { opacity: 1; }
+  }
   .gold .seg.on, .gold .fill { background: #e8c547; }
   .gold .seg.pick.on:hover { background: #c9a93a; }
   .count {
