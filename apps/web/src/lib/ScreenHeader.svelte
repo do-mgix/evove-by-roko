@@ -54,12 +54,12 @@
     width: 1.6rem;
     height: 1.6rem;
     fill: none;
-    stroke: #e6e1d3;
+    stroke: #5fe3d0;
     stroke-width: 1.7;
     stroke-linecap: round;
     stroke-linejoin: round;
   }
-  .mark circle { fill: #e6e1d3; stroke: none; }
+  .mark circle { fill: #5fe3d0; stroke: none; }
   .title {
     font-family: var(--font-display);
     font-weight: 500;
