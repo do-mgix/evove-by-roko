@@ -1,5 +1,8 @@
 <script lang="ts">
-  import NavBar from "./lib/NavBar.svelte";
+  import Home from "./lib/Home.svelte";
+  import ScreenHeader from "./lib/ScreenHeader.svelte";
+  import RokoPage from "./lib/RokoPage.svelte";
+  import LogsPanel from "./lib/LogsPanel.svelte";
   import Dashboard from "./lib/Dashboard.svelte";
   import Shop from "./lib/Shop.svelte";
   import SkillTree from "./lib/SkillTree.svelte";
@@ -7,6 +10,7 @@
   import Journey from "./lib/Journey.svelte";
   import UserSelect from "./lib/UserSelect.svelte";
   import { onMount } from "svelte";
+  import type { HomeOptionId } from "./lib/homeLayout";
   import {
     fetchSessionInfo,
     getToken,
@@ -28,6 +32,8 @@
     if (username) fetchSessionInfo().catch(() => {});
     return () => setUnauthorizedHandler(null);
   });
+  // "home" is the tile screen; every other page opens over it, full screen,
+  // and going back always lands on the tiles
   let page = "home";
   let pageParams: Record<string, any> = {};
   let dashKey = 0;
@@ -35,14 +41,43 @@
   // agenda and profile are tabs of me now; the old names still land there
   const ME_TABS: Record<string, string> = { agenda: "agenda", profile: "profile" };
 
+  // a tile and the page it opens
+  const TILE_PAGE: Record<HomeOptionId, string> = {
+    act: "act", logs: "logs", shop: "shop", roko: "roko", attributes: "me", journey: "journey",
+  };
+  const TITLES: Record<string, string> = {
+    act: "agir", logs: "logs", shop: "shop", roko: "roko", me: "atributos", journey: "jornada", skills: "skills",
+  };
+
   function nav(p: string, params: Record<string, any> = {}) {
     if (p in ME_TABS) {
       params = { ...params, tab: ME_TABS[p] };
       p = "me";
     }
+    if (p === "home") return goHome();
+    // One history entry per visit away from the tiles: Android's back button
+    // walks the WebView history, so it lands on the tiles and, from there,
+    // leaves the app.
+    if (page === "home") history.pushState({ page: p }, "");
+    else history.replaceState({ page: p }, "");
     page = p;
     pageParams = params;
   }
+
+  function goHome() {
+    if (page === "home") return;
+    if (history.state?.page) history.back();   // the popstate below lands home
+    else page = "home";
+  }
+
+  onMount(() => {
+    const onPop = () => {
+      page = "home";
+      pageParams = {};
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  });
 
   function onSelected(name: string) {
     username = name;
@@ -59,27 +94,28 @@
 
 {#if !username}
   <UserSelect {onSelected} />
+{:else if page === "home"}
+  <Home onOpen={(id) => nav(TILE_PAGE[id])} />
 {:else}
   <div class="app">
-    <NavBar current={page} onNav={nav} />
-    <div class="page">
-      {#if page === "home"}
+    <ScreenHeader title={TITLES[page] ?? page} onBack={goHome} />
+    <div class="page" class:padded={page === "logs"}>
+      {#if page === "act"}
         {#key dashKey}
           <Dashboard onNav={nav} />
         {/key}
-      {:else if page === "journey"}
-        <Journey />
+      {:else if page === "logs"}
+        <LogsPanel />
       {:else if page === "shop"}
         <Shop initialSection={pageParams.section ?? null} />
+      {:else if page === "roko"}
+        <RokoPage />
       {:else if page === "me"}
         <MeTabs tab={pageParams.tab ?? "me"} onTab={(tab) => nav("me", { tab })} onLogout={logout} />
-      {:else if page === "soon"}
-        <section class="soon">
-          <span class="soon-icon">⋯</span>
-          <p>coming soon</p>
-        </section>
+      {:else if page === "journey"}
+        <Journey />
       {:else if page === "skills"}
-        <!-- on hold: no entry in the nav, kept for when it comes back -->
+        <!-- on hold: no tile, kept for when it comes back -->
         <SkillTree />
       {/if}
     </div>
@@ -89,43 +125,18 @@
 <style>
   .app {
     display: flex;
+    flex-direction: column;
     height: 100vh;
+    height: 100dvh;
     width: 100vw;
   }
   .page {
     flex: 1;
+    min-height: 0;
     min-width: 0;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: env(safe-area-inset-bottom);
   }
-  .soon {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    color: #808080;
-  }
-  .soon-icon { color: #333333; font-size: 2rem; line-height: 1; }
-  .soon p {
-    margin: 0;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-  }
-
-  /* column-reverse puts the page above the bar without reordering the markup,
-     so the nav keeps coming first for keyboard and screen readers. */
-  @media (max-width: 768px) {
-    .app {
-      flex-direction: column-reverse;
-      height: 100dvh;
-    }
-    .page {
-      flex: 1;
-      min-height: 0;
-      overflow-y: auto;
-      overflow-x: hidden;
-    }
-  }
+  .page.padded { padding: 0.75rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom)); box-sizing: border-box; }
 </style>

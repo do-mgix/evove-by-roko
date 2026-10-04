@@ -1014,8 +1014,28 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 ## Web client
 
 Svelte 5 with TypeScript and no router: `App.svelte` keeps the current screen in a
-variable and the sidebar switches between `profile`, `home`, `agenda`, `journey`, `shop`,
-`skills` and `me`. `profile` holds the journey (day, streak, stage), the technical details —
+variable, and the screen it starts on is the tile home.
+
+**The tile home** (`lib/Home.svelte`) covers the whole screen with the app's options as
+asymmetric quadrilaterals, each an icon and a name: *agir*, *shop*, *logs*, *atributos*,
+*roko* and *jornada*. There is no navigation bar — a tile opens its page full screen under
+a thin header (`lib/ScreenHeader.svelte`) whose `‹` goes back to the tiles. The shapes live
+in `lib/homeLayout.ts` as polygons normalized to the screen that share their vertices, so
+together they tile it; `Home.svelte` draws them in one SVG whose `viewBox` is the measured
+size in pixels — nothing is stretched — and moves every edge a few pixels inwards to open
+the gaps. Each option carries `unlocked`, the hook for revealing them little by little; a
+locked one is not drawn, and for now none is locked. A press sounds the option's DTMF key
+and buzzes, through the same `lib/dtmf.ts` as the dial. Opening a page pushes one history
+entry and `popstate` returns to the tiles, so Android's back button — which walks the
+WebView's history — goes back to them and, from there, leaves the app.
+
+*agir* is the acting page (`Dashboard.svelte`), *atributos* is `me` with its tabs, *roko* is
+a placeholder until roko talks. The tiles and headers use Zalando Sans Expanded, and
+JetBrains Mono is there for smaller text, both from the dial interface; they ship in
+`public/fonts/` with `@font-face` in `app.css` (`--font-display`, `--font-mono`), so
+the APK needs no network for them.
+
+`profile` holds the journey (day, streak, stage), the technical details —
 account, session, API — and the log out options. `me` is what the profile has earned: its
 rank and marks, the leaves that gained marks most recently in two columns, the attributes
 of one degree as flat rows, and the actions grouped by their attribute of one degree. A
@@ -1064,11 +1084,11 @@ Three things the template does not get right for this app:
   references `@color/colorPrimary` without defining it anywhere, and without that file the
   build does not resolve.
 
-The bottom nav pads itself by `env(safe-area-inset-bottom)` (`lib/NavBar.svelte`), which
+The tile home and the page headers pad themselves by `env(safe-area-inset-*)`, which
 Capacitor feeds from the real window insets: `index.html` declares `viewport-fit=cover`,
 which is what makes WebView 140+ pass them through. Older WebViews report nothing to
-`env()`; there Capacitor pads the native view instead, so the nav clears the gesture bar
-either way.
+`env()`; there Capacitor pads the native view instead, so the tiles clear the status and
+gesture bars either way.
 
 The launcher icon is the first "e" of the wordmark in `apps/cli/assets/media/evovepng.png`,
 white on black — the whole word is unreadable at 48dp. `scripts/android-icon.sh` cuts that

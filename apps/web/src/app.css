@@ -1,4 +1,21 @@
+/* Fonts of the dial interface, bundled so the APK needs no network for them.
+   Both are variable and SIL OFL; only the latin subset ships. */
+@font-face {
+  font-family: "Zalando Sans Expanded";
+  src: url("/fonts/zalando-sans-expanded-latin.woff2") format("woff2");
+  font-weight: 200 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/jetbrains-mono-latin.woff2") format("woff2");
+  font-weight: 100 800;
+  font-display: swap;
+}
+
 :root {
+  --font-display: "Zalando Sans Expanded", Arial, Helvetica, sans-serif;
+  --font-mono: "JetBrains Mono", "Courier New", monospace;
   color-scheme: dark;
   font-family: Arial, Helvetica, sans-serif;
   background: #000000;
