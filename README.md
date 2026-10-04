@@ -1063,8 +1063,9 @@ back undoes a choice before it leaves the screen (`setBackHandler` in `store.ts`
 manifest sets `adjustResize`, so the frame shrinks above the keyboard instead of under it.
 
 Home tiles open on `click`, not on the pointer going up: the click that follows a
-pointerup would land on whatever the next screen puts under the finger. `Dashboard.svelte`,
-the windowed page *agir* used to open, is no longer routed. The tiles and headers use Zalando Sans Expanded, and
+pointerup would land on whatever the next screen puts under the finger.
+
+The tiles and headers use Zalando Sans Expanded, and
 JetBrains Mono is there for smaller text, both from the dial interface; they ship in
 `public/fonts/` with `@font-face` in `app.css` (`--font-display`, `--font-mono`), so
 the APK needs no network for them.
@@ -1079,10 +1080,7 @@ in one of their own, *registro*. Clicking an attribute or an action — not a re
 opens it in `DetailModal.svelte` (see "Editing" above). The theme is dark and
 monospaced.
 
-The home screen is a grid of windows you can drag between slots and the bottom tray —
-`actions`, `agenda`, `logs` and `projects`, in that order; a phone stacks the first three.
-The actions window lists nothing until a name or an id is typed: the home is for acting,
-not browsing. The agenda window adds items with its `+`. The profile name lives in
+The profile name lives in
 `localStorage` under the key `evove_username`, next to the session token that signs the
 app straight in. Two stores (`logsVersion`,
 `userVersion`) act as signals telling panels to refetch after an act.

@@ -6,7 +6,7 @@ export function bumpLogs() {
   logsVersion.update((v) => v + 1);
 }
 
-// Bumped whenever user state changes (xp, build_points, attributes...). Dashboard/MePage refetch.
+// Bumped whenever user state changes (xp, build_points, attributes...). MePage and the like refetch.
 export const userVersion = writable(0);
 export function bumpUser() {
   userVersion.update((v) => v + 1);
