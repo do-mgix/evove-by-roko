@@ -24,11 +24,11 @@
     width: 6rem;
     height: 6rem;
     fill: none;
-    stroke: #5fe3d0;
+    stroke: #ff9a3c;
     stroke-width: 1;
     stroke-linecap: round;
   }
-  .eye circle { fill: #5fe3d0; stroke: none; }
+  .eye circle { fill: #ff9a3c; stroke: none; }
   .line {
     margin: 0;
     color: #808080;

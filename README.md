@@ -1016,33 +1016,27 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 Svelte 5 with TypeScript and no router: `App.svelte` keeps the current screen in a
 variable, and the screen it starts on is the tile home.
 
-**The tile home** (`lib/Home.svelte`) covers the whole screen with the app's options as
-asymmetric quadrilaterals: *agir*, *shop*, *roko*, *logs*, *atributos* and *jornada*. Nothing
-is written on them and nothing is colored — an option is known by its glyph alone, a sign
-from a script that does not exist (`GLYPHS`: round-capped strokes and dots, each a mutation
-of what the option used to show). The look is meant to read as organic, alien technology,
-in one color, teal: the tiles are dark cells lit faintly from inside, with a wall, a
-fainter inner membrane and rounded corners, apart by a wide black gap. They are painted on
-a canvas at a fraction of the screen's resolution (`RES` CSS pixels per canvas pixel) and
-scaled back up smoothly, so the signal is soft and never quite in focus; an invisible SVG
-of the same shapes on top takes the touches, the keyboard focus and the screen-reader
-names. The cells keep to the lower part of the screen, from `TOP` (42%) down, where a thumb
-reaches — the upper part is left empty on purpose; their walls drift slowly through a
-smooth displacement field (`displace`, six frames a second — the cost grows with the rate —
-and still under
-`prefers-reduced-motion`), and since neighbours sample the field at nearly the same places
-the gap between them holds as they move. There is no navigation bar — a tile opens its page full screen under a
+**The tile home** (`lib/Home.svelte`) covers the lower part of the screen with the app's
+options as asymmetric quadrilaterals: *agir* stands tall on the right, under the thumb, and
+*atributos*, *roko*, *shop*, *logs* and *jornada* fill the left. Nothing is written on them —
+an option is known by its color and its glyph, a sign from a script that does not exist
+(`GLYPHS`: round-capped strokes and dots, each a mutation of what the option used to show).
+The colors follow the order of discovery: yellow, pink, orange, blue, purple, cyan. The look
+is plain on purpose — the drifting, blurred cells of an earlier pass cost a third of a core
+on a mid phone: sharp quadrilaterals outlined in the option's color on black, with large
+glyphs; hover and press turn a cell white, and nothing on the screen animates. The cells
+start at `TOP` (42%), where a thumb reaches — the upper part is left empty on purpose. There is no navigation bar — a tile opens its page full screen under a
 thin header (`lib/ScreenHeader.svelte`) that carries the same glyph and a `‹` back to the
 tiles.
 
-Hints are never captions: the cell the interface suggests next breathes light outwards. `suggestedOption()` in `homeLayout.ts` picks it — for now always *agir*; it is
+Hints are never captions: the cell the interface suggests next has its outline lit. `suggestedOption()` in `homeLayout.ts` picks it — for now always *agir*; it is
 where a model predicting what the user does next will plug in. The shapes live
 in `lib/homeLayout.ts` as polygons normalized to the screen that share their vertices, so
 together they tile it; `Home.svelte` draws them in one SVG whose `viewBox` is the measured
 size in pixels — nothing is stretched — and moves every edge a few pixels inwards to open
 the gaps.
 
-The whole interface sits inside **the frame**: a fixed teal border, softly glowing, with rounded corners,
+The whole interface sits inside **the frame**: a fixed white border with rounded corners,
 drawn by `App.svelte` a few pixels in from the screen's edges and its safe areas, that
 stays put whatever is showing — tiles, a page or the login. Each option carries `unlocked`, the hook for revealing them little by little; a
 locked one is not drawn, and for now none is locked. A press sounds the option's DTMF key

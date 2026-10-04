@@ -147,9 +147,7 @@
     right: calc(env(safe-area-inset-right) + 8px);
     bottom: calc(env(safe-area-inset-bottom) + 8px);
     left: calc(env(safe-area-inset-left) + 8px);
-    border: 1.5px solid rgba(95, 227, 208, 0.75);
-    /* soft, as if the edge bled a little into the dark */
-    box-shadow: 0 0 6px rgba(95, 227, 208, 0.35), inset 0 0 6px rgba(95, 227, 208, 0.2);
+    border: 1.5px solid rgba(255, 255, 255, 0.7);
     border-radius: 28px;
     overflow: hidden;
     background: #000000;

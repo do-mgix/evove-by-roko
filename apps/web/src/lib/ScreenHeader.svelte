@@ -18,7 +18,7 @@
 <header class="screen-header">
   <button class="back" on:click={back} aria-label="voltar">‹</button>
   {#if option}
-    <svg class="mark" viewBox="0 0 24 24" role="img" aria-label={title}>
+    <svg class="mark" viewBox="0 0 24 24" role="img" aria-label={title} style="--color: {option.color}">
       <path d={GLYPHS[option.id].d} />
       {#each GLYPHS[option.id].dots as [x, y]}<circle cx={x} cy={y} r={DOT_R} />{/each}
     </svg>
@@ -54,12 +54,12 @@
     width: 1.6rem;
     height: 1.6rem;
     fill: none;
-    stroke: #5fe3d0;
+    stroke: var(--color);
     stroke-width: 1.7;
     stroke-linecap: round;
     stroke-linejoin: round;
   }
-  .mark circle { fill: #5fe3d0; stroke: none; }
+  .mark circle { fill: var(--color); stroke: none; }
   .title {
     font-family: var(--font-display);
     font-weight: 500;

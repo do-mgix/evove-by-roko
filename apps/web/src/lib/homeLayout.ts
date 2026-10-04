@@ -2,12 +2,10 @@
  *
  * Coordinates are normalized to the screen (0–1 on both axes, portrait) and the
  * shapes share their vertices, so together they tile the whole screen; Home.svelte
- * scales them to the measured size, insets every edge to open the gaps and lets the
- * outlines drift through a slow displacement field, so the tiles read as cells
- * rather than buttons.
+ * scales them to the area it draws in and insets every edge to open the gaps.
  *
- * Nothing is written on them and nothing is colored: an option is known by its
- * glyph alone, a sign from a script that does not exist.
+ * Nothing is written on them: an option is known by its glyph — a sign from a
+ * script that does not exist — and its color.
  *
  * `unlocked` is the hook for revealing the options little by little: a locked
  * option is not drawn. Everything is unlocked for now.
@@ -21,25 +19,29 @@ export type HomeOption = {
   id: HomeOptionId;
   /** for screen readers only — nothing is written on the tile */
   label: string;
+  /** its one color: outline and glyph */
+  color: string;
   /** the DTMF key it sounds like when pressed, as on the dial */
   tone: string;
   polygon: Point[];
   unlocked: boolean;
 };
 
+// Agir stands tall on the right, under the thumb; the other five fill the left.
+// Colors in the order of discovery: agir, shop, roko, logs, atributos, jornada.
 export const HOME_OPTIONS: HomeOption[] = [
-  { id: "attributes", label: "atributos", tone: "5", unlocked: true,
-    polygon: [[0, 0], [0.58, 0], [0.52, 0.29], [0, 0.25]] },
-  { id: "roko", label: "roko", tone: "3", unlocked: true,
-    polygon: [[0.58, 0], [1, 0], [1, 0.33], [0.52, 0.29]] },
-  { id: "shop", label: "shop", tone: "2", unlocked: true,
-    polygon: [[0, 0.25], [0.52, 0.29], [0.42, 0.55], [0, 0.586]] },
-  { id: "logs", label: "logs", tone: "4", unlocked: true,
-    polygon: [[0.52, 0.29], [0.8, 0.313], [0.77, 0.52], [0.42, 0.55]] },
-  { id: "journey", label: "jornada", tone: "6", unlocked: true,
-    polygon: [[0.8, 0.313], [1, 0.33], [1, 1], [0.7, 1]] },
-  { id: "act", label: "agir", tone: "1", unlocked: true,
-    polygon: [[0, 0.586], [0.77, 0.52], [0.7, 1], [0, 1]] },
+  { id: "act", label: "agir", color: "#ffd23f", tone: "1", unlocked: true,
+    polygon: [[0.62, 0], [1, 0], [1, 1], [0.56, 1]] },
+  { id: "attributes", label: "atributos", color: "#9b6bff", tone: "5", unlocked: true,
+    polygon: [[0, 0], [0.34, 0], [0.3, 0.36], [0, 0.32]] },
+  { id: "roko", label: "roko", color: "#ff9a3c", tone: "3", unlocked: true,
+    polygon: [[0.34, 0], [0.62, 0], [0.6, 0.34], [0.3, 0.36]] },
+  { id: "shop", label: "shop", color: "#ff6fb5", tone: "2", unlocked: true,
+    polygon: [[0, 0.32], [0.3, 0.36], [0.26, 0.662], [0, 0.68]] },
+  { id: "logs", label: "logs", color: "#4d8dff", tone: "4", unlocked: true,
+    polygon: [[0.3, 0.36], [0.6, 0.34], [0.5816, 0.64], [0.26, 0.662]] },
+  { id: "journey", label: "jornada", color: "#2fe0e6", tone: "6", unlocked: true,
+    polygon: [[0, 0.68], [0.5816, 0.64], [0.56, 1], [0, 1]] },
 ];
 
 export type Glyph = {
@@ -96,70 +98,7 @@ export function inset(points: Point[], d: number): Point[] {
 }
 
 
-/** The outline of a convex polygon with rounded corners, as a dense list of
- *  points — dense enough to bend smoothly once displaced. */
-export function outline(points: Point[], r: number, step = 10): Point[] {
-  const n = points.length;
-  const cut = (from: Point, to: Point): Point => {
-    const dx = to[0] - from[0];
-    const dy = to[1] - from[1];
-    const d = Math.hypot(dx, dy) || 1;
-    const k = Math.min(r, d / 2) / d;
-    return [from[0] + dx * k, from[1] + dy * k];
-  };
-  const out: Point[] = [];
-  for (let i = 0; i < n; i++) {
-    const p = points[i];
-    const a = cut(p, points[(i + n - 1) % n]);
-    const b = cut(p, points[(i + 1) % n]);
-    // the corner: a quadratic curve through the vertex
-    for (let s = 0; s < 6; s++) {
-      const t = s / 6;
-      const u = 1 - t;
-      out.push([u * u * a[0] + 2 * u * t * p[0] + t * t * b[0], u * u * a[1] + 2 * u * t * p[1] + t * t * b[1]]);
-    }
-    // the edge to the next corner, sampled every `step` pixels
-    const next = points[(i + 1) % n];
-    const c = cut(next, p);
-    const len = Math.hypot(c[0] - b[0], c[1] - b[1]);
-    const k = Math.max(1, Math.round(len / step));
-    for (let s = 0; s < k; s++) {
-      const t = s / k;
-      out.push([b[0] + (c[0] - b[0]) * t, b[1] + (c[1] - b[1]) * t]);
-    }
-  }
-  return out;
-}
-
-/** A slow, smooth displacement field. Neighbours sample it at nearly the same
- *  places, so their walls bend together and the gap between them holds. */
-export function displace(points: Point[], amp: number, t: number): Point[] {
-  return points.map(([x, y]) => [
-    x + amp * Math.sin(x / 83 + y / 131 + t),
-    y + amp * Math.cos(x / 109 - y / 97 + t * 1.3),
-  ]);
-}
-
-/** A closed, smooth path through `points` (Catmull-Rom as cubic Béziers). */
-export function smoothPath(points: Point[]): string {
-  const n = points.length;
-  const f = (v: number) => v.toFixed(1);
-  let d = `M${f(points[0][0])} ${f(points[0][1])}`;
-  for (let i = 0; i < n; i++) {
-    const p0 = points[(i + n - 1) % n];
-    const p1 = points[i];
-    const p2 = points[(i + 1) % n];
-    const p3 = points[(i + 2) % n];
-    const c1x = p1[0] + (p2[0] - p0[0]) / 6;
-    const c1y = p1[1] + (p2[1] - p0[1]) / 6;
-    const c2x = p2[0] - (p3[0] - p1[0]) / 6;
-    const c2y = p2[1] - (p3[1] - p1[1]) / 6;
-    d += `C${f(c1x)} ${f(c1y)} ${f(c2x)} ${f(c2y)} ${f(p2[0])} ${f(p2[1])}`;
-  }
-  return d + "Z";
-}
-
-/** The option the interface suggests next, which glows a little. A placeholder
+/** The option the interface suggests next, whose outline is lit. A placeholder
  *  for the model that will learn to predict what the user does: for now, acting. */
 export function suggestedOption(): HomeOptionId | null {
   return "act";
