@@ -1017,17 +1017,33 @@ Svelte 5 with TypeScript and no router: `App.svelte` keeps the current screen in
 variable, and the screen it starts on is the tile home.
 
 **The tile home** (`lib/Home.svelte`) covers the whole screen with the app's options as
-asymmetric quadrilaterals, each an icon and a name: *agir*, *shop*, *logs*, *atributos*,
-*roko* and *jornada*. There is no navigation bar — a tile opens its page full screen under
-a thin header (`lib/ScreenHeader.svelte`) whose `‹` goes back to the tiles. The shapes live
+asymmetric quadrilaterals: *agir*, *shop*, *roko*, *logs*, *atributos* and *jornada*. Nothing
+is written on them and nothing is colored — an option is known by its glyph alone, a sign
+from a script that does not exist (`GLYPHS`: round-capped strokes and dots, each a mutation
+of what the option used to show). The look is meant to read as organic, alien technology:
+the tiles are dark cells lit faintly from inside, with a bone-white wall, a fainter inner
+membrane and rounded corners, apart by a wide black gap; their walls drift slowly through a
+smooth displacement field (`displace`, ~24 frames a second, still under
+`prefers-reduced-motion`), and since neighbours sample the field at nearly the same places
+the gap between them holds as they move. There is no navigation bar — a tile opens its page full screen under a
+thin header (`lib/ScreenHeader.svelte`) that carries the same glyph and a `‹` back to the
+tiles.
+
+Hints are never captions: the cell the interface suggests next breathes light outwards. `suggestedOption()` in `homeLayout.ts` picks it — for now always *agir*; it is
+where a model predicting what the user does next will plug in. The shapes live
 in `lib/homeLayout.ts` as polygons normalized to the screen that share their vertices, so
 together they tile it; `Home.svelte` draws them in one SVG whose `viewBox` is the measured
 size in pixels — nothing is stretched — and moves every edge a few pixels inwards to open
-the gaps. Each option carries `unlocked`, the hook for revealing them little by little; a
+the gaps.
+
+The whole interface sits inside **the frame**: a fixed bone-white border with rounded corners,
+drawn by `App.svelte` a few pixels in from the screen's edges and its safe areas, that
+stays put whatever is showing — tiles, a page or the login. Each option carries `unlocked`, the hook for revealing them little by little; a
 locked one is not drawn, and for now none is locked. A press sounds the option's DTMF key
 and buzzes, through the same `lib/dtmf.ts` as the dial. Opening a page pushes one history
-entry and `popstate` returns to the tiles, so Android's back button — which walks the
-WebView's history — goes back to them and, from there, leaves the app.
+entry and `popstate` returns to the tiles, which covers the browser's back. Android's back
+button goes through `@capacitor/app` (`backButton`): from a page it returns to the tiles,
+from the tiles it leaves the app — without that listener Capacitor simply closes it.
 
 *agir* is the acting page (`Dashboard.svelte`), *atributos* is `me` with its tabs, *roko* is
 a placeholder until roko talks. The tiles and headers use Zalando Sans Expanded, and

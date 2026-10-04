@@ -1,33 +1,74 @@
 <script lang="ts">
-  import { HOME_OPTIONS, ICONS, centroid, inset, type HomeOptionId, type Point } from "./homeLayout";
+  import { onMount } from "svelte";
+  import {
+    DOT_R,
+    GLYPHS,
+    HOME_OPTIONS,
+    centroid,
+    displace,
+    inset,
+    outline,
+    smoothPath,
+    type HomeOptionId,
+    type Point,
+  } from "./homeLayout";
   import { keyFeedback, primeAudio } from "./dtmf";
 
   export let onOpen: (id: HomeOptionId) => void;
+  /** The option suggested next: it glows a little. Never named, only shown. */
+  export let hint: HomeOptionId | null = null;
 
-  // half the gap between two tiles, in pixels
-  const GAP = 3;
+  // half the gap between two cells, in pixels — the walls drift, so it is generous
+  const GAP = 8;
+  const RADIUS = 22;
+  // how far the walls drift, in pixels, and how fast (radians per second)
+  const DRIFT = 3.5;
+  const SPEED = 0.35;
 
   let width = 0;
   let height = 0;
   let pressed: HomeOptionId | null = null;
+  let t = 0;
 
-  $: tiles = HOME_OPTIONS.filter((o) => o.unlocked).map((o) => {
-    const px = o.polygon.map(([x, y]) => [x * width, y * height] as Point);
-    const shape = inset(px, GAP);
+  // The still part: each cell's rounded outline, its centre and its glyph size.
+  $: cells = HOME_OPTIONS.filter((o) => o.unlocked).map((o) => {
+    const shape = inset(o.polygon.map(([x, y]) => [x * width, y * height] as Point), GAP);
     const [cx, cy] = centroid(shape);
     const xs = shape.map((p) => p[0]);
     const ys = shape.map((p) => p[1]);
-    // the icon grows with the tile, within reason
-    const span = Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
-    const size = Math.max(22, Math.min(span * 0.34, 120));
-    return {
-      ...o,
-      points: shape.map((p) => p.join(",")).join(" "),
-      cx,
-      cy,
-      size,
-      labelSize: Math.max(11, Math.min(size * 0.3, 20)),
+    const w = Math.max(...xs) - Math.min(...xs);
+    const h = Math.max(...ys) - Math.min(...ys);
+    const ring = outline(shape, RADIUS);
+    // the inner membrane: the same outline drawn a few pixels in
+    const k = Math.max(0.8, 1 - 10 / Math.min(w, h));
+    const inner = ring.map(([x, y]) => [cx + (x - cx) * k, cy + (y - cy) * k] as Point);
+    return { ...o, ring, inner, cx, cy, glyph: Math.max(22, Math.min(w * 0.3, h * 0.24, 56)) };
+  });
+
+  // The living part: the walls drift through the field, all together.
+  $: drawn = cells.map((c) => ({
+    ...c,
+    wall: smoothPath(displace(c.ring, DRIFT, t)),
+    membrane: smoothPath(displace(c.inner, DRIFT * 1.6, t + 1.7)),
+  }));
+
+  onMount(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let frame = 0;
+    let last = performance.now();
+    let acc = 0;
+    const loop = (now: number) => {
+      acc += (now - last) / 1000;
+      last = now;
+      // ~24 frames a second is plenty for something this slow
+      if (acc >= 1 / 24) {
+        t += acc * SPEED;
+        acc = 0;
+      }
+      frame = requestAnimationFrame(loop);
     };
+    frame = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(frame);
   });
 
   function press(id: HomeOptionId, tone: string) {
@@ -53,44 +94,49 @@
 
 <div class="home">
   <div class="stage" bind:clientWidth={width} bind:clientHeight={height}>
-  {#if width > 0 && height > 0}
-    <svg viewBox="0 0 {width} {height}" width={width} height={height}>
-      {#each tiles as t (t.id)}
-        <g
-          class="tile"
-          class:pressed={pressed === t.id}
-          role="button"
-          tabindex="0"
-          aria-label={t.label}
-          on:pointerdown={() => press(t.id, t.tone)}
-          on:pointerup={() => release(t.id)}
-          on:pointerleave={() => pressed === t.id && (pressed = null)}
-          on:pointercancel={() => (pressed = null)}
-          on:keydown={(e) => onKey(e, t.id, t.tone)}
-          style="transform-origin: {t.cx}px {t.cy}px"
-        >
-          <polygon points={t.points} />
-          <path
-            class="icon"
-            d={ICONS[t.icon]}
-            transform="translate({t.cx - t.size / 2} {t.cy - t.size * 0.7}) scale({t.size / 24})"
-            stroke-width={24 / t.size * 2.2}
-          />
-          <text x={t.cx} y={t.cy + t.size * 0.55} font-size={t.labelSize}>{t.label.toUpperCase()}</text>
-        </g>
-      {/each}
-    </svg>
-  {/if}
+    {#if width > 0 && height > 0}
+      <svg viewBox="0 0 {width} {height}" width={width} height={height}>
+        <defs>
+          <!-- a faint light from inside each cell, like something alive -->
+          <radialGradient id="cell-light" cx="50%" cy="46%" r="70%">
+            <stop offset="0%" stop-color="#1c1b18" />
+            <stop offset="60%" stop-color="#0b0b0a" />
+            <stop offset="100%" stop-color="#050505" />
+          </radialGradient>
+        </defs>
+        {#each drawn as c (c.id)}
+          <g
+            class="cell"
+            class:pressed={pressed === c.id}
+            class:hint={hint === c.id && pressed !== c.id}
+            role="button"
+            tabindex="0"
+            aria-label={c.label}
+            on:pointerdown={() => press(c.id, c.tone)}
+            on:pointerup={() => release(c.id)}
+            on:pointerleave={() => pressed === c.id && (pressed = null)}
+            on:pointercancel={() => (pressed = null)}
+            on:keydown={(e) => onKey(e, c.id, c.tone)}
+            style="transform-origin: {c.cx}px {c.cy}px"
+          >
+            <path class="wall" d={c.wall} />
+            <path class="membrane" d={c.membrane} />
+            <g class="glyph" transform="translate({c.cx - c.glyph / 2} {c.cy - c.glyph / 2}) scale({c.glyph / 24})">
+              <path d={GLYPHS[c.id].d} stroke-width={(24 / c.glyph) * 1.7} />
+              {#each GLYPHS[c.id].dots as [x, y]}<circle cx={x} cy={y} r={DOT_R} />{/each}
+            </g>
+          </g>
+        {/each}
+      </svg>
+    {/if}
   </div>
 </div>
 
 <style>
+  /* fills the frame App draws around the whole interface */
   .home {
-    position: fixed;
+    position: absolute;
     inset: 0;
-    /* clear the status bar and the gesture bar on a phone */
-    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-    box-sizing: border-box;
     background: #000000;
     touch-action: manipulation;
     user-select: none;
@@ -104,38 +150,56 @@
     display: block;
     width: 100%;
     height: 100%;
+    overflow: visible;
   }
-  .tile {
+  .cell {
+    --bone: #e6e1d3;
     cursor: pointer;
     outline: none;
-    transition: transform 0.08s;
+    transition: transform 0.12s;
   }
-  polygon {
-    fill: #000000;
-    stroke: #ffffff;
-    stroke-width: 1;
-    transition: stroke 0.12s;
+  .wall {
+    fill: url(#cell-light);
+    stroke: var(--bone);
+    stroke-width: 1.2;
+    stroke-opacity: 0.75;
+    transition: stroke-opacity 0.15s, filter 0.15s;
   }
-  .icon {
+  .membrane {
     fill: none;
-    stroke: #cccccc;
-    stroke-linecap: square;
-    stroke-linejoin: miter;
-    transition: stroke 0.12s;
+    stroke: var(--bone);
+    stroke-width: 0.8;
+    stroke-opacity: 0.18;
   }
-  text {
-    fill: #808080;
-    font-family: var(--font-display);
-    font-weight: 500;
-    letter-spacing: 0.2em;
-    text-anchor: middle;
-    dominant-baseline: hanging;
-    transition: fill 0.12s;
+  .glyph path {
+    fill: none;
+    stroke: var(--bone);
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
-  .tile:focus-visible polygon { stroke-width: 2; }
-  .tile:hover .icon { stroke: #ffffff; }
-  .tile.pressed { transform: scale(0.98); }
-  .tile.pressed polygon { stroke: #00e5ff; }
-  .tile.pressed .icon { stroke: #00e5ff; }
-  .tile.pressed text { fill: #00e5ff; }
+  .glyph circle { fill: var(--bone); }
+  .glyph {
+    opacity: 0.85;
+    transition: opacity 0.15s, filter 0.15s;
+  }
+  .cell:focus-visible .wall { stroke-opacity: 1; stroke-width: 2; }
+  .cell.pressed { transform: scale(0.975); }
+  .cell.pressed .wall { stroke-opacity: 1; filter: drop-shadow(0 0 8px var(--bone)); }
+  .cell.pressed .glyph { opacity: 1; filter: drop-shadow(0 0 6px var(--bone)); }
+
+  /* a hint, never a caption: the suggested cell breathes light outwards */
+  .cell.hint .wall { animation: glow 3.2s ease-in-out infinite; }
+  .cell.hint .glyph { animation: wake 3.2s ease-in-out infinite; }
+  @keyframes glow {
+    0%, 100% { filter: drop-shadow(0 0 0 var(--bone)); stroke-opacity: 0.75; }
+    50% { filter: drop-shadow(0 0 12px var(--bone)); stroke-opacity: 1; }
+  }
+  @keyframes wake {
+    0%, 100% { opacity: 0.85; }
+    50% { opacity: 1; filter: drop-shadow(0 0 5px var(--bone)); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cell.hint .wall { animation: none; filter: drop-shadow(0 0 8px var(--bone)); }
+    .cell.hint .glyph { animation: none; }
+  }
 </style>

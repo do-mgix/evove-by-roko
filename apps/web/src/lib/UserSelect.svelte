@@ -148,8 +148,9 @@
     align-items: center;
     justify-content: center;
     width: 100%;
-    min-height: 100vh;
-    min-height: 100dvh;
+    min-height: 100%;
+    height: 100%;
+    overflow-y: auto;
     padding: 1rem;
     box-sizing: border-box;
     color: #ffffff;

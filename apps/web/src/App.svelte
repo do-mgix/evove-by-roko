@@ -10,7 +10,9 @@
   import Journey from "./lib/Journey.svelte";
   import UserSelect from "./lib/UserSelect.svelte";
   import { onMount } from "svelte";
-  import type { HomeOptionId } from "./lib/homeLayout";
+  import { App as NativeApp } from "@capacitor/app";
+  import { Capacitor } from "@capacitor/core";
+  import { HOME_OPTIONS, suggestedOption, type HomeOptionId } from "./lib/homeLayout";
   import {
     fetchSessionInfo,
     getToken,
@@ -45,6 +47,8 @@
   const TILE_PAGE: Record<HomeOptionId, string> = {
     act: "act", logs: "logs", shop: "shop", roko: "roko", attributes: "me", journey: "journey",
   };
+  // the tile a page belongs to, for the icon in its header
+  const PAGE_OPTION = Object.fromEntries(HOME_OPTIONS.map((o) => [TILE_PAGE[o.id], o]));
   const TITLES: Record<string, string> = {
     act: "agir", logs: "logs", shop: "shop", roko: "roko", me: "atributos", journey: "jornada", skills: "skills",
   };
@@ -55,9 +59,8 @@
       p = "me";
     }
     if (p === "home") return goHome();
-    // One history entry per visit away from the tiles: Android's back button
-    // walks the WebView history, so it lands on the tiles and, from there,
-    // leaves the app.
+    // One history entry per visit away from the tiles, so the browser's back
+    // lands on them; Android's back button is wired to the same below.
     if (page === "home") history.pushState({ page: p }, "");
     else history.replaceState({ page: p }, "");
     page = p;
@@ -76,7 +79,18 @@
       pageParams = {};
     };
     window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
+    // Android's back button: from a page, back to the tiles; from the tiles,
+    // out of the app. Without this listener Capacitor just closes the activity.
+    const backButton = Capacitor.isNativePlatform()
+      ? NativeApp.addListener("backButton", () => {
+          if (page !== "home") goHome();
+          else NativeApp.exitApp();
+        })
+      : null;
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      backButton?.then((h) => h.remove());
+    };
   });
 
   function onSelected(name: string) {
@@ -92,43 +106,57 @@
   }
 </script>
 
-{#if !username}
-  <UserSelect {onSelected} />
-{:else if page === "home"}
-  <Home onOpen={(id) => nav(TILE_PAGE[id])} />
-{:else}
-  <div class="app">
-    <ScreenHeader title={TITLES[page] ?? page} onBack={goHome} />
-    <div class="page" class:padded={page === "logs"}>
-      {#if page === "act"}
-        {#key dashKey}
-          <Dashboard onNav={nav} />
-        {/key}
-      {:else if page === "logs"}
-        <LogsPanel />
-      {:else if page === "shop"}
-        <Shop initialSection={pageParams.section ?? null} />
-      {:else if page === "roko"}
-        <RokoPage />
-      {:else if page === "me"}
-        <MeTabs tab={pageParams.tab ?? "me"} onTab={(tab) => nav("me", { tab })} onLogout={logout} />
-      {:else if page === "journey"}
-        <Journey />
-      {:else if page === "skills"}
-        <!-- on hold: no tile, kept for when it comes back -->
-        <SkillTree />
-      {/if}
+<!-- The frame: a fixed border around the whole interface, inside the screen's
+     margins, that stays put whatever is showing. -->
+<div class="frame">
+  {#if !username}
+    <UserSelect {onSelected} />
+  {:else if page === "home"}
+    <Home onOpen={(id) => nav(TILE_PAGE[id])} hint={suggestedOption()} />
+  {:else}
+    <div class="app">
+      <ScreenHeader option={PAGE_OPTION[page] ?? null} title={TITLES[page] ?? page} onBack={goHome} />
+      <div class="page" class:padded={page === "logs"}>
+        {#if page === "act"}
+          {#key dashKey}
+            <Dashboard onNav={nav} />
+          {/key}
+        {:else if page === "logs"}
+          <LogsPanel />
+        {:else if page === "shop"}
+          <Shop initialSection={pageParams.section ?? null} />
+        {:else if page === "roko"}
+          <RokoPage />
+        {:else if page === "me"}
+          <MeTabs tab={pageParams.tab ?? "me"} onTab={(tab) => nav("me", { tab })} onLogout={logout} />
+        {:else if page === "journey"}
+          <Journey />
+        {:else if page === "skills"}
+          <!-- on hold: no tile, kept for when it comes back -->
+          <SkillTree />
+        {/if}
+      </div>
     </div>
-  </div>
-{/if}
+  {/if}
+</div>
 
 <style>
+  .frame {
+    position: fixed;
+    top: calc(env(safe-area-inset-top) + 8px);
+    right: calc(env(safe-area-inset-right) + 8px);
+    bottom: calc(env(safe-area-inset-bottom) + 8px);
+    left: calc(env(safe-area-inset-left) + 8px);
+    border: 1.5px solid rgba(230, 225, 211, 0.8);
+    border-radius: 28px;
+    overflow: hidden;
+    background: #000000;
+  }
   .app {
     display: flex;
     flex-direction: column;
-    height: 100vh;
-    height: 100dvh;
-    width: 100vw;
+    height: 100%;
+    width: 100%;
   }
   .page {
     flex: 1;
@@ -136,7 +164,6 @@
     min-width: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    padding-bottom: env(safe-area-inset-bottom);
   }
-  .page.padded { padding: 0.75rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom)); box-sizing: border-box; }
+  .page.padded { padding: 0.75rem; box-sizing: border-box; }
 </style>
