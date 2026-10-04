@@ -3,7 +3,7 @@
   import ScreenHeader from "./lib/ScreenHeader.svelte";
   import RokoPage from "./lib/RokoPage.svelte";
   import LogsPanel from "./lib/LogsPanel.svelte";
-  import Dashboard from "./lib/Dashboard.svelte";
+  import ActScreen from "./lib/ActScreen.svelte";
   import Shop from "./lib/Shop.svelte";
   import SkillTree from "./lib/SkillTree.svelte";
   import MeTabs from "./lib/MeTabs.svelte";
@@ -13,6 +13,7 @@
   import { App as NativeApp } from "@capacitor/app";
   import { Capacitor } from "@capacitor/core";
   import { HOME_OPTIONS, suggestedOption, type HomeOptionId } from "./lib/homeLayout";
+  import { handleBack } from "./lib/store";
   import {
     fetchSessionInfo,
     getToken,
@@ -38,7 +39,6 @@
   // and going back always lands on the tiles
   let page = "home";
   let pageParams: Record<string, any> = {};
-  let dashKey = 0;
 
   // agenda and profile are tabs of me now; the old names still land there
   const ME_TABS: Record<string, string> = { agenda: "agenda", profile: "profile" };
@@ -83,6 +83,7 @@
     // out of the app. Without this listener Capacitor just closes the activity.
     const backButton = Capacitor.isNativePlatform()
       ? NativeApp.addListener("backButton", () => {
+          if (handleBack()) return;
           if (page !== "home") goHome();
           else NativeApp.exitApp();
         })
@@ -97,7 +98,6 @@
     username = name;
     page = "home";
     pageParams = {};
-    dashKey++;
   }
 
   async function logout(everywhere: boolean) {
@@ -113,15 +113,14 @@
     <UserSelect {onSelected} />
   {:else if page === "home"}
     <Home onOpen={(id) => nav(TILE_PAGE[id])} hint={suggestedOption()} />
+  {:else if page === "act"}
+    <!-- the acting screen has its own bar, with the way home, and no header -->
+    <ActScreen onHome={goHome} />
   {:else}
     <div class="app">
       <ScreenHeader option={PAGE_OPTION[page] ?? null} title={TITLES[page] ?? page} onBack={goHome} />
       <div class="page" class:padded={page === "logs"}>
-        {#if page === "act"}
-          {#key dashKey}
-            <Dashboard onNav={nav} />
-          {/key}
-        {:else if page === "logs"}
+        {#if page === "logs"}
           <LogsPanel />
         {:else if page === "shop"}
           <Shop initialSection={pageParams.section ?? null} />

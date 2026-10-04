@@ -1045,8 +1045,26 @@ entry and `popstate` returns to the tiles, which covers the browser's back. Andr
 button goes through `@capacitor/app` (`backButton`): from a page it returns to the tiles,
 from the tiles it leaves the app — without that listener Capacitor simply closes it.
 
-*agir* is the acting page (`Dashboard.svelte`), *atributos* is `me` with its tabs, *roko* is
-a placeholder until roko talks. The tiles and headers use Zalando Sans Expanded, and
+*atributos* is `me` with its tabs, *roko* is a placeholder until roko talks.
+
+**The acting screen** (`lib/ActScreen.svelte`) is what *agir* opens, with no header. Top to
+bottom: the display — the part of the screen the home leaves empty — where messages and
+what is being typed appear; the profile's actions as asymmetric cells, eight to a page
+(`jitteredGrid` in `homeLayout.ts`: a 2×4 grid whose inner vertices are nudged, seeded by
+the page so each page keeps its shape); and a bar with two blank buttons, the centre one
+turning the page and the right one going home. The keyboard opens on arrival
+(`@capacitor/keyboard` on the phone, since focusing a field from code does not raise
+Android's), and while it is up the display is all there is above it. Typing filters by
+name, accents ignored, or by id when it is digits; when one action is left it is chosen
+without confirming, as is the first match on Enter or a tapped cell. Choosing closes the
+keyboard and the bar rises into the action's six tiers; a tier acts, in the clock's period,
+and the display says what it paid — marks, the window, energy, a journey restart. Android's
+back undoes a choice before it leaves the screen (`setBackHandler` in `store.ts`). The
+manifest sets `adjustResize`, so the frame shrinks above the keyboard instead of under it.
+
+Home tiles open on `click`, not on the pointer going up: the click that follows a
+pointerup would land on whatever the next screen puts under the finger. `Dashboard.svelte`,
+the windowed page *agir* used to open, is no longer routed. The tiles and headers use Zalando Sans Expanded, and
 JetBrains Mono is there for smaller text, both from the dial interface; they ship in
 `public/fonts/` with `@font-face` in `app.css` (`--font-display`, `--font-mono`), so
 the APK needs no network for them.

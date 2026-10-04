@@ -48,8 +48,10 @@
     pressed = id;
   }
 
-  function release(id: HomeOptionId) {
-    if (pressed !== id) return;
+  // Opening waits for the click, not the pointer going up: the click that follows
+  // a pointerup would otherwise land on whatever the next screen puts under the
+  // finger — on agir, an action, chosen without being asked for.
+  function open(id: HomeOptionId) {
     pressed = null;
     onOpen(id);
   }
@@ -76,7 +78,7 @@
             tabindex="0"
             aria-label={c.label}
             on:pointerdown={() => press(c.id, c.tone)}
-            on:pointerup={() => release(c.id)}
+            on:click={() => open(c.id)}
             on:pointerleave={() => pressed === c.id && (pressed = null)}
             on:pointercancel={() => (pressed = null)}
             on:keydown={(e) => onKey(e, c.id, c.tone)}

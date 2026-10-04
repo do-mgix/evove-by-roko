@@ -104,6 +104,38 @@ export function suggestedOption(): HomeOptionId | null {
   return "act";
 }
 
+/** A grid of `cols` × `rows` quadrilaterals tiling the unit square, its inner
+ *  vertices nudged by up to `jitter` so no two pages look alike. Neighbours share
+ *  their vertices, so the cells still tile; `seed` makes a page look the same
+ *  every time it comes back. */
+export function jitteredGrid(cols: number, rows: number, seed: number, jitter = 0.28): Point[][] {
+  // a small deterministic generator: the same seed, the same page
+  let state = (seed * 2654435761) >>> 0 || 1;
+  const rand = () => {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    return ((state >>> 0) % 10000) / 10000 - 0.5;
+  };
+  const v: Point[][] = [];
+  for (let r = 0; r <= rows; r++) {
+    v.push([]);
+    for (let c = 0; c <= cols; c++) {
+      // edges stay on the border; inner vertices move by a share of a cell
+      const dx = c > 0 && c < cols ? (rand() * jitter) / cols : 0;
+      const dy = r > 0 && r < rows ? (rand() * jitter) / rows : 0;
+      v[r].push([c / cols + dx, r / rows + dy]);
+    }
+  }
+  const cells: Point[][] = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      cells.push([v[r][c], v[r][c + 1], v[r + 1][c + 1], v[r + 1][c]]);
+    }
+  }
+  return cells;
+}
+
 export function centroid(points: Point[]): Point {
   const n = points.length;
   return [
