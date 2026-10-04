@@ -15,7 +15,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import MarkBar from "./MarkBar.svelte";
-  import { keyFeedback, primeAudio } from "./dtmf";
+  import { primeAudio } from "./dtmf";
+  import { gains as gainsSound, tap } from "./sfx";
 
   /** The top line: what was done, and how much of it. */
   export let title: string;
@@ -30,6 +31,7 @@
   // Everything else is gone; the gains arrive one after the other.
   let step = 0;
   onMount(() => {
+    gainsSound();
     const timers = [
       setTimeout(() => (step = 1), 350), // tokens
       setTimeout(() => (step = 2), 1100), // marks and the bars
@@ -40,7 +42,7 @@
 
   function done() {
     primeAudio();
-    keyFeedback("#");
+    tap(0);
     onDone();
   }
 

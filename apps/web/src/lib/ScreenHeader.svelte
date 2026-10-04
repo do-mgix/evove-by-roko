@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { keyFeedback, primeAudio } from "./dtmf";
+  import { primeAudio } from "./dtmf";
+  import { tap } from "./sfx";
   import { DOT_R, GLYPHS, type HomeOption } from "./homeLayout";
 
   /** The option this page belongs to: its glyph stands for it, as on the tile. */
@@ -10,7 +11,7 @@
 
   function back() {
     primeAudio();
-    keyFeedback("*");
+    tap(0);
     onBack();
   }
 </script>

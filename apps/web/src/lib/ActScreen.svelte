@@ -13,7 +13,8 @@
     type Action,
   } from "./api";
   import { centroid, inset, jitteredGrid, type Point } from "./homeLayout";
-  import { keyFeedback, primeAudio } from "./dtmf";
+  import { primeAudio } from "./dtmf";
+  import { powerOn, tap } from "./sfx";
   import { bumpLogs, bumpUser, setBackHandler } from "./store";
   import GainsScreen, { type Gain } from "./GainsScreen.svelte";
 
@@ -147,7 +148,7 @@
   // ---- choosing, then acting ----
   function choose(action: Action) {
     primeAudio();
-    keyFeedback("#");
+    tap(9);
     selected = action;
     windowMarks = null;
     query = "";
@@ -189,7 +190,7 @@
     if (!selected || acting) return;
     const action = selected;
     primeAudio();
-    keyFeedback(String((option % 9) + 1));
+    tap(option + 1);
     acting = true;
     try {
       const tier = (action.tiers ?? []).find((t) => t.index === option);
@@ -221,14 +222,18 @@
   // ---- the bar ----
   function nextPage() {
     primeAudio();
-    keyFeedback("0");
-    if (selected) return cancel();
+    if (selected) {
+      tap(0);
+      return cancel();
+    }
     page = (page + 1) % pages;
+    // the new page comes on, with the sound of it
+    powerOn();
   }
 
   function home() {
     primeAudio();
-    keyFeedback("*");
+    tap(0);
     onHome();
   }
 
@@ -252,6 +257,7 @@
     raiseKeyboard();
     try {
       actions = await fetchActions();
+      if (actions.length) powerOn();
       if (!actions.length) message = ["nenhuma ação ainda", "adquira uma no shop"];
     } catch (e: any) {
       message = [e?.message ?? "erro ao carregar"];

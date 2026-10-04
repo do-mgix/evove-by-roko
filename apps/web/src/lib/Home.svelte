@@ -8,7 +8,9 @@
     type HomeOptionId,
     type Point,
   } from "./homeLayout";
-  import { keyFeedback, primeAudio } from "./dtmf";
+  import { onMount } from "svelte";
+  import { primeAudio } from "./dtmf";
+  import { powerOn, tap } from "./sfx";
 
   export let onOpen: (id: HomeOptionId) => void;
   /** The option suggested next: its outline is lit. Never named, only shown. */
@@ -47,9 +49,12 @@
     };
   });
 
+  // the screen comes on with a sound, when one has been allowed (after a tap)
+  onMount(() => powerOn());
+
   function press(id: HomeOptionId, tone: string) {
     primeAudio();
-    keyFeedback(tone);
+    tap(Number(tone));
     pressed = id;
   }
 
@@ -65,7 +70,7 @@
     if (e.key !== "Enter" && e.key !== " ") return;
     e.preventDefault();
     primeAudio();
-    keyFeedback(tone);
+    tap(Number(tone));
     onOpen(id);
   }
 </script>

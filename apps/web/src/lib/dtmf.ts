@@ -33,6 +33,11 @@ export function primeAudio(): void {
   }
 }
 
+/** The shared context, once primed — for the other sounds of the interface. */
+export function audioContext(): AudioContext | null {
+  return muted ? null : ctx;
+}
+
 export function setMuted(value: boolean): void {
   muted = value;
 }

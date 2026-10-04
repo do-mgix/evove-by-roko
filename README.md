@@ -1043,8 +1043,16 @@ the gaps.
 The whole interface sits inside **the frame**: a fixed white border with rounded corners,
 drawn by `App.svelte` a few pixels in from the screen's edges and its safe areas, that
 stays put whatever is showing — tiles, a page or the login. Each option carries `unlocked`, the hook for revealing them little by little; a
-locked one is not drawn, and for now none is locked. A press sounds the option's DTMF key
-and buzzes, through the same `lib/dtmf.ts` as the dial. Opening a page pushes one history
+locked one is not drawn, and for now none is locked. The interface has one sound (`lib/sfx.ts`), synthesized with Web
+Audio: a deep shimmer — one low, bell-like glint, or two a moment apart (220–450 Hz, each
+a pair of sines a hair apart, whose beating makes it twinkle), partly sent on into the echo
+— over a quiet impact (a triangle falling from 95 to 30 Hz, a sine under it, a dull burst),
+in a room with a moderate echo (a convolver over a generated 2 s impulse response). The
+impact is a triangle because a phone's speaker barely moves below 150 Hz; its overtones let
+the low pitch be heard anyway. It comes in three strengths — a light
+`tap` for every button, its pitch nudged per option, `powerOn` when a screen of cells comes
+on, and the full `gains` when an act pays out — and replaces the dial's DTMF tones, whose
+`lib/dtmf.ts` still holds the shared audio context and the buzz. Opening a page pushes one history
 entry and `popstate` returns to the tiles, which covers the browser's back. Android's back
 button goes through `@capacitor/app` (`backButton`): from a page it returns to the tiles,
 from the tiles it leaves the app — without that listener Capacitor simply closes it.
