@@ -377,7 +377,7 @@
     {:else if message.length}
       {#each message as line, i}<p class={i === 0 ? "big" : "small"}>{line}</p>{/each}
     {:else if selected && group}
-      <p class="big">{selected.name}</p>
+      <p class="big act">{selected.name}</p>
     {:else if group && here}
       <p class="small">
         {[
@@ -485,6 +485,9 @@
 
 <style>
   .shop {
+    /* the actions on sale wear agir's yellow, whatever their attribute; the
+       attribute's color is on the display and the bar */
+    --act: #ffd23f;
     position: absolute;
     inset: 0;
     padding: 10px;
@@ -514,6 +517,7 @@
   }
   .big { font-size: 1.6rem; line-height: 1.15; text-transform: uppercase; }
   .small { font-size: 0.85rem; opacity: 0.7; }
+  .big.act { color: var(--act); }
 
   .cells { flex: 1; min-height: 0; }
   svg { display: block; width: 100%; height: 100%; }
@@ -530,14 +534,14 @@
     .cell { animation: none; }
   }
   polygon {
-    fill: var(--ink);
+    fill: var(--act);
     fill-opacity: 0.12;
-    stroke: var(--ink);
+    stroke: var(--act);
     stroke-opacity: 0.6;
     stroke-width: 1.5;
   }
   text {
-    fill: var(--ink);
+    fill: var(--act);
     font-family: var(--font-mono);
     font-size: 11.5px;
     text-anchor: middle;
@@ -560,7 +564,7 @@
     justify-content: flex-end;
     gap: 1rem;
     padding: 1.4rem 1.5rem;
-    background: var(--ink);
+    background: var(--act);
     border: none;
     /* cut like a cell, not a box: in pixels, so a wide screen does not cut into the text */
     clip-path: polygon(0 14px, 100% 0, calc(100% - 10px) 100%, 6px calc(100% - 10px));
