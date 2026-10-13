@@ -1,892 +1,681 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onDestroy, onMount } from "svelte";
   import {
+    buyPackageAction,
+    fetchActions,
     fetchShopCatalog,
     fetchUser,
-    fetchActions,
-    buyPackageAction,
     formatCode,
-    fetchUserAttributes,
-    createUserAttribute,
-    createUserAttributePath,
-    createPatch,
-    flattenUserAttributes,
-    sameName,
-    fold,
-    type CatalogGroup,
     type CatalogAction,
-    type Action,
-    type UserAttribute,
-    type NewAttributeSpec,
+    type CatalogGroup,
   } from "./api";
-  import { userVersion, bumpUser } from "./store";
-  import Modal from "./Modal.svelte";
-  import SuggestionPicker from "./SuggestionPicker.svelte";
+  import { centroid, inset, type Point } from "./homeLayout";
+  import { primeAudio } from "./dtmf";
+  import { gains as gainsSound, powerOn, tap } from "./sfx";
+  import { bumpUser, setBackHandler, userVersion } from "./store";
+  import ShopForge from "./ShopForge.svelte";
 
+  /** Back to the tile home. */
+  export let onHome: () => void;
+  /** Kept for links that still name a section; the shop opens on its first screen. */
   export let initialSection: string | null = null;
   void initialSection;
 
-  let groups: CatalogGroup[] = [];
-  let buildPoints = 0;
-  let owned: Set<string> = new Set();
-  let loading = true;
-  let error: string | null = null;
-  let busy: string | null = null;
-  let selected: { group: CatalogGroup; action: CatalogAction } | null = null;
-  let query = "";
-  let openSet: Set<string> = new Set();
-  let lastUserVersion = 0;
+  // The shop is walked like the acting screen: a display on top, cells in the
+  // middle, a bar at the bottom. It opens on its first screen — where what is
+  // bought with points will live — and the grooved button at the bottom left is
+  // slid to walk the catalog, one attribute after the other, each in its color.
+  // A tap on that button goes back one step; the right one always goes home.
+
+  const SHOP_COLOR = "#ff6fb5";
+  const COLS = 2;
+  const ROWS = 5;
+  // a little smaller than the acting screen's cells: five rows, not four
+  const PER_PAGE = COLS * ROWS;
+  const GAP = 5;
+  const DELAY = [0, 110, 60, 170, 30, 220, 140, 90, 200, 50];
+  // the slider: a step every STEP pixels of drag, past TAP_SLOP it is no tap
+  const STEP = 34;
+  const TAP_SLOP = 6;
 
   const TYPE_LABEL: Record<number, string> = {
     0: "sessão", 1: "reps", 2: "segundos", 3: "minutos", 4: "horas",
     5: "letras", 6: "linhas", 7: "palavras", 8: "grupo",
   };
 
-  function priceLabel(cost: number) {
-    return cost > 0 ? `${cost} bp` : "adquirir";
+  let groups: CatalogGroup[] = [];
+  let buildPoints = 0;
+  let owned: Set<string> = new Set();
+  let loading = true;
+  let message: string[] = [];
+  let lastUserVersion = 0;
+
+  // where the slider stands: 0 is the first screen, then a page of a group each
+  let stop = 0;
+  // a cell tapped shows its stats; a tap on them asks; a tap on the question buys
+  let selected: CatalogAction | null = null;
+  let confirming = false;
+  let buying = false;
+  let forge: "patch" | "attr" | null = null;
+  let width = 0;
+  let height = 0;
+
+  // ---- the stops: the first screen, then every page of every group ----
+  type Stop = { group: number; page: number; pages: number } | null;
+
+  // groups by name, as the slider walks them; each takes its own hue, so sliding
+  // runs through the spectrum
+  $: sorted = [...groups].sort((a, b) => a.name.localeCompare(b.name, "pt"));
+  $: colors = sorted.map((_, i) => `hsl(${Math.round((i * 360) / Math.max(1, sorted.length) + 190) % 360} 95% 62%)`);
+  $: stops = [
+    null,
+    ...sorted.flatMap((g, gi) => {
+      const pages = Math.max(1, Math.ceil(g.actions.length / PER_PAGE));
+      return Array.from({ length: pages }, (_, page) => ({ group: gi, page, pages }));
+    }),
+  ] as Stop[];
+  $: if (stop >= stops.length) stop = stops.length - 1;
+  $: here = stops[stop] ?? null;
+  $: group = here ? sorted[here.group] : null;
+  $: color = here ? colors[here.group] : SHOP_COLOR;
+  $: onPage = group && here ? group.actions.slice(here.page * PER_PAGE, (here.page + 1) * PER_PAGE) : [];
+  $: cells = layout(onPage, stop, width, height);
+
+  // takes the set, so the template follows it when a purchase changes it
+  const isOwned = (a: CatalogAction, set: Set<string>) => set.has(a.name.toUpperCase());
+  // a free action still takes some room
+  const weight = (a: CatalogAction) => Math.max(1, a.cost);
+
+  /** The page's cells, two to a row, each as large as it costs: a row is as tall
+   *  as the sum of its costs, and split between its two by their costs. The rows
+   *  sit at the bottom, under the thumb; a short page does not stretch to fill. */
+  function layout(list: CatalogAction[], seed: number, w: number, h: number) {
+    if (!list.length || !w || !h) return [];
+    const rows: CatalogAction[][] = [];
+    for (let i = 0; i < list.length; i += COLS) rows.push(list.slice(i, i + COLS));
+    const used = Math.min(1, Math.max(rows.length, 2) / ROWS);
+    const top = 1 - used;
+
+    // row heights, never thinner than half an even share
+    const sums = rows.map((r) => r.reduce((s, a) => s + weight(a), 0));
+    const total = sums.reduce((s, x) => s + x, 0);
+    const floor = 0.5 / rows.length;
+    let shares = sums.map((s) => Math.max(floor, s / total));
+    const k = shares.reduce((s, x) => s + x, 0);
+    shares = shares.map((s) => s / k);
+
+    let state = ((seed + 7) * 2654435761) >>> 0 || 1;
+    const rand = () => {
+      state ^= state << 13;
+      state ^= state >>> 17;
+      state ^= state << 5;
+      return ((state >>> 0) % 10000) / 10000 - 0.5;
+    };
+
+    // the lines between rows run across the whole width, tilted a little
+    const lines: [number, number][] = [[top, top]];
+    let y = top;
+    shares.forEach((s, i) => {
+      y += s * used;
+      const inner = i < shares.length - 1;
+      const j = inner ? s * used * 0.25 : 0;
+      lines.push([y + rand() * j, y + rand() * j]);
+    });
+    const at = (line: [number, number], x: number) => line[0] + (line[1] - line[0]) * x;
+
+    const out: { action: CatalogAction; points: string; cx: number; cy: number; lines: string[]; small: boolean }[] = [];
+    rows.forEach((row, r) => {
+      const T = lines[r];
+      const B = lines[r + 1];
+      let polys: Point[][];
+      if (row.length === 1) {
+        polys = [[[0, T[0]], [1, T[1]], [1, B[1]], [0, B[0]]]];
+      } else {
+        const split = Math.min(0.75, Math.max(0.25, weight(row[0]) / sums[r]));
+        const sT = split + rand() * 0.08;
+        const sB = split + rand() * 0.08;
+        polys = [
+          [[0, at(T, 0)], [sT, at(T, sT)], [sB, at(B, sB)], [0, at(B, 0)]],
+          [[sT, at(T, sT)], [1, at(T, 1)], [1, at(B, 1)], [sB, at(B, sB)]],
+        ];
+      }
+      row.forEach((action, i) => {
+        const shape = inset(polys[i].map(([px, py]) => [px * w, py * h] as Point), GAP);
+        const [cx, cy] = centroid(shape);
+        const xs = shape.map((p) => p[0]);
+        const ys = shape.map((p) => p[1]);
+        const cellW = Math.max(...xs) - Math.min(...xs);
+        const cellH = Math.max(...ys) - Math.min(...ys);
+        const small = cellH < 52;
+        out.push({
+          action,
+          points: shape.map((p) => p.join(",")).join(" "),
+          cx,
+          cy,
+          lines: wrap(action.name, cellW, small ? 1 : cellH < 80 ? 2 : 3),
+          small,
+        });
+      });
+    });
+    return out;
   }
 
-  /** " · +20t" for productivity, " · -15t" for leisure, "" for neutral. */
-  function tokenLabel(a: { token_cost?: number; token_gain?: number }) {
-    if (a.token_gain) return ` · +${a.token_gain}t`;
-    if (a.token_cost) return ` · -${a.token_cost}t`;
-    return "";
+  /** Breaks a name into lines that fit a cell. */
+  function wrap(name: string, cellW: number, max: number): string[] {
+    const perLine = Math.max(5, Math.floor((cellW - 14) / 7.6));
+    const lines: string[] = [];
+    let line = "";
+    for (const word of name.split(/\s+/)) {
+      if (line && (line + " " + word).length > perLine) {
+        lines.push(line);
+        line = word;
+      } else line = line ? `${line} ${word}` : word;
+    }
+    if (line) lines.push(line);
+    return lines.slice(0, max);
   }
 
+  // ---- loading ----
   async function load() {
-    error = null;
     try {
-      const [cat, user, acts, attrs] = await Promise.all([
+      const [cat, user, acts] = await Promise.all([
         fetchShopCatalog(),
         fetchUser().catch(() => null),
         fetchActions().catch(() => []),
-        fetchUserAttributes().catch(() => []),
       ]);
       groups = cat;
       buildPoints = user?.build_points ?? 0;
-      userActions = acts;
-      userAttrs = attrs;
       owned = new Set(acts.map((a) => a.name.toUpperCase()));
     } catch (e: any) {
-      error = e?.message ?? "erro";
+      message = [e?.message ?? "erro ao carregar"];
     } finally {
       loading = false;
     }
   }
-
-  onMount(load);
 
   $: if ($userVersion !== lastUserVersion) {
     lastUserVersion = $userVersion;
     if (lastUserVersion > 0) load();
   }
 
-  function toggle(key: string) {
-    const next = new Set(openSet);
-    if (next.has(key)) next.delete(key);
-    else next.add(key);
-    openSet = next;
+  // ---- moving: the slider walks the stops, a tap on it goes back a step ----
+  function goTo(next: number) {
+    next = Math.max(0, Math.min(stops.length - 1, next));
+    if (next === stop) return;
+    stop = next;
+    selected = null;
+    confirming = false;
+    message = [];
+    tap(stop);
   }
 
-  $: q = fold(query.trim());
-  $: filteredView = groups.map((g) => {
-    const matches = q
-      ? g.actions.filter((a) => fold(a.name).includes(q))
-      : g.actions;
-    return { group: g, actions: matches };
-  });
-  $: matchCount = filteredView.reduce((n, v) => n + v.actions.length, 0);
-  $: if (q) {
-    const next = new Set<string>();
-    for (const v of filteredView) if (v.actions.length > 0) next.add(v.group.key);
-    openSet = next;
+  /** One step back: from the question to the stats, from the stats to the
+   *  cells, from the cells to the first screen. False when there is none. */
+  function back(): boolean {
+    if (confirming) confirming = false;
+    else if (selected) selected = null;
+    else if (stop > 0) {
+      stop = 0;
+      message = [];
+    } else return false;
+    return true;
   }
 
-  function buyKey(groupKey: string, name: string) {
-    return `${groupKey}:${name}`;
+  // the grooves follow the finger, and stop following past the last stop
+  let groove = 0;
+  let dragging = false;
+  let startX = 0;
+  let startStop = 0;
+  let startGroove = 0;
+  let moved = false;
+
+  function onDown(e: PointerEvent) {
+    primeAudio();
+    dragging = true;
+    moved = false;
+    startX = e.clientX;
+    startStop = stop;
+    startGroove = groove;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }
 
-  async function buy(group: CatalogGroup, action: CatalogAction) {
-    if (busy) return;
-    busy = buyKey(group.key, action.name);
-    error = null;
-    try {
-      const res = await buyPackageAction(action.package_attribute, action.name);
-      buildPoints = res.build_points;
-      owned = new Set([...owned, action.name.toUpperCase()]);
-      bumpUser();
-      if (selected?.action.name === action.name) selected = null;
-    } catch (e: any) {
-      error = e?.message ?? "erro";
-    } finally {
-      busy = null;
+  function onMove(e: PointerEvent) {
+    if (!dragging) return;
+    let dx = e.clientX - startX;
+    if (Math.abs(dx) > TAP_SLOP) moved = true;
+    if (!moved) return;
+    // a little give past either end, no more
+    const min = -startStop * STEP - STEP * 0.4;
+    const max = (stops.length - 1 - startStop) * STEP + STEP * 0.4;
+    dx = Math.max(min, Math.min(max, dx));
+    groove = startGroove + dx;
+    goTo(startStop + Math.trunc(dx / STEP));
+  }
+
+  function onUp() {
+    if (!dragging) return;
+    dragging = false;
+    if (moved) {
+      // the grooves settle on the step they stopped at
+      groove = startGroove + (stop - startStop) * STEP;
+      if (stop !== startStop) powerOn();
+      return;
     }
+    tap(0);
+    back();
   }
 
-  // ---- patches and user attributes ----
+  function onSliderKey(e: KeyboardEvent) {
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") goTo(stop + 1);
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") goTo(stop - 1);
+    else if (e.key === "Enter" || e.key === " " || e.key === "Backspace") back();
+    else return;
+    e.preventDefault();
+  }
 
-  let userActions: Action[] = [];
-  let userAttrs: UserAttribute[] = [];
+  // a mouse wheel walks it too
+  let wheelAcc = 0;
+  function onWheel(e: WheelEvent) {
+    e.preventDefault();
+    wheelAcc += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if (Math.abs(wheelAcc) < 40) return;
+    const dir = Math.sign(wheelAcc);
+    wheelAcc = 0;
+    const before = stop;
+    goTo(stop + dir);
+    groove += (stop - before) * STEP;
+  }
 
-  $: costByName = new Map(
-    groups.flatMap((g) => g.actions.map((a) => [a.name.toUpperCase(), a.cost] as [string, number])),
-  );
-  $: attrOptions = flattenUserAttributes(userAttrs);
-  $: baseActions = userActions.filter((a) => !a.base_action_id);
+  // ---- choosing, then buying ----
+  function choose(a: CatalogAction) {
+    primeAudio();
+    tap(9);
+    message = [];
+    selected = a;
+    confirming = false;
+  }
 
-  let patchOpen = false;
-  let patchBase: Action | null = null;
-  let patchBaseQuery = "";
-  let patchName = "";
-  let patchAttrIds: Set<number> = new Set();
-  let patchNewAttrs: NewAttributeSpec[] = [];
-  let patchPickerOpen = false;
-  let patchNewAttrDraft = "";
-  let patchBusy = false;
-  let patchError: string | null = null;
-
-  $: patchBaseQ = fold(patchBaseQuery.trim());
-  $: baseOptions = baseActions.filter((a) => fold(a.name).includes(patchBaseQ));
-  $: patchCost = patchBase ? costByName.get(patchBase.name.toUpperCase()) ?? 0 : 0;
-  $: nextPatchId = patchBase ? nextFreePatchId(patchBase, userActions) : "";
-  // a log action is logged, not trained: its patches only separate entries in
-  // the ledger, so they take no attribute and the step is skipped
-  $: patchIsLog = !!patchBase?.log_only;
-  $: patchReady =
-    !!patchBase &&
-    !!nextPatchId &&
-    patchName.trim().length > 0 &&
-    (patchIsLog || patchAttrIds.size + patchNewAttrs.length > 0) &&
-    buildPoints >= patchCost;
-
-  /** Mirrors the server: the base's id plus the lowest free two digits. */
-  function nextFreePatchId(base: Action, all: Action[]): string {
-    const used = new Set(all.filter((a) => a.base_action_id === base.id).map((a) => a.id.slice(base.id.length)));
-    for (let n = 1; n <= 99; n++) {
-      const suffix = String(n).padStart(2, "0");
-      if (!used.has(suffix)) return base.id + suffix;
+  async function press() {
+    if (!selected || buying || !group) return;
+    primeAudio();
+    if (isOwned(selected, owned)) {
+      tap(0);
+      return;
     }
-    return "";
-  }
-
-  function openPatch() {
-    patchBase = null;
-    patchBaseQuery = "";
-    patchName = "";
-    patchAttrIds = new Set();
-    patchNewAttrs = [];
-    patchNewAttrDraft = "";
-    patchPickerOpen = false;
-    patchError = null;
-    patchOpen = true;
-  }
-
-  function toggleAttr(id: number) {
-    const next = new Set(patchAttrIds);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    patchAttrIds = next;
-  }
-
-  /** The name a spec ends up creating — a path trains its leaf. */
-  const specLabel = (n: NewAttributeSpec) => (typeof n === "string" ? n : n.path[n.path.length - 1]);
-
-  /** A name the profile already has selects that attribute instead of creating a
-   *  twin — the server would refuse the twin anyway, the name is unique. */
-  function addAttrNamed(spec: NewAttributeSpec) {
-    const label = specLabel(spec);
-    const existing = attrOptions.find((o) => sameName(o.name, label));
-    if (existing) patchAttrIds = new Set([...patchAttrIds, existing.id]);
-    else if (!patchNewAttrs.some((n) => sameName(specLabel(n), label))) patchNewAttrs = [...patchNewAttrs, spec];
-  }
-
-  function addNewAttr() {
-    const name = patchNewAttrDraft.trim().replace(/\s+/g, " ");
-    if (!name) return;
-    addAttrNamed(name);
-    patchNewAttrDraft = "";
-  }
-
-  function removeNewAttr(spec: NewAttributeSpec) {
-    patchNewAttrs = patchNewAttrs.filter((n) => n !== spec);
-  }
-
-  async function submitPatch() {
-    if (!patchReady || !patchBase || patchBusy) return;
-    patchBusy = true;
-    patchError = null;
+    if (!confirming) {
+      tap(5);
+      confirming = true;
+      return;
+    }
+    if (buildPoints < selected.cost) {
+      tap(0);
+      confirming = false;
+      return;
+    }
+    const a = selected;
+    buying = true;
     try {
-      const res = await createPatch({
-        base_action_id: patchBase.id,
-        name: patchName.trim(),
-        attribute_ids: patchIsLog ? [] : [...patchAttrIds],
-        new_attributes: patchIsLog ? [] : patchNewAttrs,
-      });
+      const res = await buyPackageAction(a.package_attribute, a.name);
       buildPoints = res.build_points;
-      patchOpen = false;
+      owned = new Set([...owned, a.name.toUpperCase()]);
+      gainsSound();
+      message = ["adquirida", a.name.toLowerCase()];
+      selected = null;
+      confirming = false;
       bumpUser();
     } catch (e: any) {
-      patchError = e?.message ?? "erro";
+      message = [e?.message ?? "erro ao adquirir"];
+      confirming = false;
     } finally {
-      patchBusy = false;
+      buying = false;
     }
   }
 
-  let attrOpen = false;
-  let attrName = "";
-  let attrParent: number | null = null;
-  let attrBusy = false;
-  let attrError: string | null = null;
-  let attrMode: "catalog" | "free" = "catalog";
-  /** A suggestion's whole path; the last level is the attribute being created. */
-  let attrPath: string[] = [];
-  /** Create the levels above it too, or only the one picked. */
-  let attrWithParents = true;
-
-  function openAttr() {
-    attrName = "";
-    attrParent = null;
-    attrPath = [];
-    attrWithParents = true;
-    attrMode = "catalog";
-    attrError = null;
-    attrOpen = true;
+  function home() {
+    primeAudio();
+    tap(0);
+    onHome();
   }
 
-  const allUserAttrs = (list: UserAttribute[]): UserAttribute[] =>
-    list.flatMap((a) => [a, ...allUserAttrs(a.children)]);
+  function openForge(mode: "patch" | "attr") {
+    primeAudio();
+    tap(3);
+    forge = mode;
+  }
 
-  /** A level of the path the profile already has as a leaf holding marks: taking a
-   *  child hands them to it and the level becomes the mean of its children. Nothing
-   *  is lost, but the rank moves down a level, so say it before creating. */
-  $: attrSwallows =
-    attrWithParents && attrPath.length > 1
-      ? allUserAttrs(userAttrs).find(
-          (a) =>
-            a.is_leaf &&
-            (a.marks > 0 || a.rank_index > 0) &&
-            attrPath.slice(0, -1).some((p) => sameName(a.name, p)),
-        ) ?? null
-      : null;
+  const tokensLine = (a: CatalogAction) =>
+    a.token_gain ? `+${a.token_gain} tokens por execução` : a.token_cost ? `−${a.token_cost} tokens por execução` : null;
 
-  $: attrReady = attrMode === "catalog" ? attrPath.length > 0 : attrName.trim().length > 0;
-
-  async function submitAttr() {
-    if (!attrReady || attrBusy) return;
-    attrBusy = true;
-    attrError = null;
-    try {
-      if (attrMode === "catalog") {
-        await createUserAttributePath(attrWithParents ? attrPath : attrPath.slice(-1));
-      } else {
-        await createUserAttribute(attrName.trim(), attrParent);
+  onMount(() => {
+    setBackHandler(() => {
+      if (forge) {
+        forge = null;
+        return true;
       }
-      attrOpen = false;
-      userAttrs = await fetchUserAttributes();
-    } catch (e: any) {
-      attrError = e?.message ?? "erro";
-    } finally {
-      attrBusy = false;
-    }
-  }
+      return back();
+    });
+    load().then(() => groups.length && powerOn());
+  });
+
+  onDestroy(() => setBackHandler(null));
 </script>
 
-<section class="page">
-  <header class="topbar">
-    <span class="title">shop</span>
-    <button class="make" on:click={openPatch}>+ patch</button>
-    <button class="make" on:click={openAttr}>+ atributo</button>
-    <div class="bp-badge">
-      <span class="bp-label">build points</span>
-      <span class="bp-value">{buildPoints}</span>
-    </div>
-  </header>
-
-  <div class="search-row">
-    <input type="text" placeholder="Buscar ação..." bind:value={query} />
+<div class="shop" style="--ink: {color}">
+  <!-- the display: where the slider stands, what was chosen, what happened -->
+  <div class="display">
+    {#if loading}
+      <p class="small">…</p>
+    {:else if message.length}
+      {#each message as line, i}<p class={i === 0 ? "big" : "small"}>{line}</p>{/each}
+    {:else if selected && group}
+      <p class="big">{selected.name}</p>
+      <p class="small">{group.name}</p>
+    {:else if group && here}
+      <p class="big">{group.name}</p>
+      <p class="small">
+        {[
+          `${group.actions.length} ${group.actions.length === 1 ? "item" : "itens"}`,
+          here.pages > 1 ? `${here.page + 1}/${here.pages}` : null,
+          `${buildPoints} bp`,
+        ].filter(Boolean).join(" · ")}
+      </p>
+    {:else}
+      <p class="big">shop</p>
+      <p class="small">{buildPoints} build points</p>
+    {/if}
   </div>
 
-  {#if loading}
-    <p class="muted">…</p>
-  {:else if error}
-    <p class="error">{error}</p>
-  {:else if matchCount === 0}
-    <p class="muted">nenhuma ação</p>
-  {:else}
-    <div class="list">
-      {#each filteredView as v (v.group.key)}
-        {#if v.actions.length > 0}
-          {@const open = openSet.has(v.group.key)}
-          <button class="pkg-head" on:click={() => toggle(v.group.key)}>
-            <span class="caret">{open ? "▾" : "▸"}</span>
-            <span class="pkg-name">{v.group.name}</span>
-            <span class="pkg-count">{v.actions.length}</span>
-          </button>
-          {#if open}
-            <ul class="actions">
-              {#each v.actions as a (a.name)}
-                {@const acquired = owned.has(a.name.toUpperCase())}
-                <li class:owned={acquired}>
-                  <button class="info" on:click={() => (selected = { group: v.group, action: a })}>
-                    <span class="a-name">
-                      {#if a.code}<span class="a-code">{formatCode(a.code)}</span>{/if}{a.name}
-                    </span>
-                    <span class="a-meta">
-                      {TYPE_LABEL[a.type] ?? a.type} · d{a.diff}{tokenLabel(a)}
-                    </span>
-                  </button>
-                  {#if acquired}
-                    <span class="owned-tag">adquirida</span>
-                  {:else}
-                    <button
-                      class="buy"
-                      on:click|stopPropagation={() => buy(v.group, a)}
-                      disabled={busy === buyKey(v.group.key, a.name) || buildPoints < a.cost}
-                    >
-                      {busy === buyKey(v.group.key, a.name) ? "..." : priceLabel(a.cost)}
-                    </button>
-                  {/if}
-                </li>
-              {/each}
-            </ul>
-          {/if}
-        {/if}
-      {/each}
-    </div>
-  {/if}
-</section>
-
-{#if selected}
-  {@const selectedAcquired = owned.has(selected.action.name.toUpperCase())}
-  <Modal title={selectedAcquired ? "ação" : "adquirir ação"} onClose={() => (selected = null)}>
-    <dl class="details">
-      <dt>nome</dt><dd class="hl">{selected.action.name}</dd>
-      {#if selected.action.code}
-        <dt>id</dt><dd class="code">{formatCode(selected.action.code)}</dd>
-      {/if}
-      <dt>zona</dt><dd>{selected.group.name}</dd>
-      <dt>tipo</dt><dd>{TYPE_LABEL[selected.action.type] ?? selected.action.type}</dd>
-      <dt>dificuldade</dt><dd>d{selected.action.diff}</dd>
-      {#if selected.action.token_gain}
-        <dt>rende</dt><dd class="hl">+{selected.action.token_gain} tokens por execução</dd>
-      {:else if selected.action.token_cost}
-        <dt>consome</dt><dd>{selected.action.token_cost} tokens por execução</dd>
-      {/if}
-      {#if selectedAcquired}
-        <dt>status</dt><dd class="hl">adquirida</dd>
-      {:else}
-        <dt>custo</dt><dd>{selected.action.cost} bp</dd>
-        <dt>saldo</dt><dd>{buildPoints} bp</dd>
-      {/if}
-    </dl>
-    {#if selected.action.leaves && selected.action.leaves.length > 0}
-      <div class="leaves-block">
-        <div class="leaves-title">estimula</div>
-        <ul class="leaves">
-          {#each selected.action.leaves as l (l.key)}
-            <li><span class="leaf-name">{l.name}</span><span class="leaf-weight">{Math.round(l.weight * 100)}%</span></li>
-          {/each}
-        </ul>
-      </div>
-    {/if}
-    <div class="confirm-row">
-      <button class="ghost" on:click={() => (selected = null)}>fechar</button>
-      {#if !selectedAcquired}
-        <button
-          class="primary"
-          on:click={() => buy(selected!.group, selected!.action)}
-          disabled={busy !== null || buildPoints < selected.action.cost}
-        >
-          {busy ? "..." : priceLabel(selected.action.cost)}
-        </button>
-      {/if}
-    </div>
-  </Modal>
-{/if}
-
-{#if patchOpen}
-  <Modal title="novo patch" onClose={() => (patchOpen = false)}>
-    <div class="wizard">
-      <div class="step">
-        <div class="step-title">1 · ação base</div>
-        {#if patchBase}
-          <div class="chosen">
-            <span class="a-code">{formatCode(patchBase.id)}</span>
-            <span class="a-name">{patchBase.name}</span>
-            <button class="link" on:click={() => (patchBase = null)}>trocar</button>
-          </div>
-        {:else if baseActions.length === 0}
-          <p class="muted small">adquira uma ação na loja primeiro — o patch roda em cima dela</p>
+  {#if selected && group}
+    {@const a = selected}
+    {@const got = isOwned(a, owned)}
+    <!-- the colored area: the stats, then the question -->
+    <button class="panel" class:asking={confirming} class:got disabled={buying} on:click={press}>
+      {#if confirming}
+        {#if buildPoints < a.cost}
+          <span class="ask">faltam {a.cost - buildPoints} bp</span>
+          <span class="ask-sub">saldo {buildPoints} bp</span>
         {:else}
-          <input class="field" type="text" placeholder="buscar ação..." bind:value={patchBaseQuery} />
-          <ul class="pick-list">
-            {#each baseOptions as a (a.id)}
-              <li>
-                <button class="pick" on:click={() => (patchBase = a)}>
-                  <span class="a-code">{formatCode(a.id)}</span>
-                  <span class="a-name">{a.name}</span>
-                </button>
-              </li>
+          <span class="ask">{buying ? "…" : "adquirir?"}</span>
+          <span class="ask-sub">{a.cost} bp · saldo {buildPoints} bp</span>
+        {/if}
+      {:else}
+        <dl class="stats">
+          {#if a.code}<dt>id</dt><dd>{formatCode(a.code)}</dd>{/if}
+          <dt>tipo</dt><dd>{TYPE_LABEL[a.type] ?? a.type}</dd>
+          <dt>dificuldade</dt><dd>d{a.diff}</dd>
+          {#if tokensLine(a)}<dt>tokens</dt><dd>{tokensLine(a)}</dd>{/if}
+          {#if got}
+            <dt>status</dt><dd>adquirida</dd>
+          {:else}
+            <dt>custo</dt><dd>{a.cost} bp</dd>
+          {/if}
+        </dl>
+        {#if a.leaves.length}
+          <ul class="leaves">
+            {#each a.leaves as l (l.key)}
+              <li><span>{l.name}</span><span>{Math.round(l.weight * 100)}%</span></li>
             {/each}
           </ul>
         {/if}
-      </div>
-
-      {#if patchBase}
-        <div class="step">
-          <div class="step-title">2 · nome do patch</div>
-          <input class="field" type="text" maxlength="48" placeholder="física" bind:value={patchName} />
-        </div>
       {/if}
-
-      {#if patchBase && patchName.trim() && patchIsLog}
-        <div class="step">
-          <div class="step-title">3 · atributos</div>
-          <p class="muted small">
-            {patchBase.name} é registro, não treino: o patch separa as entradas no diário
-            e não treina atributo nenhum.
-          </p>
-        </div>
-      {:else if patchBase && patchName.trim()}
-        <div class="step">
-          <div class="step-title">3 · atributos</div>
-          {#if attrOptions.length > 0}
-            <ul class="check-list">
-              {#each attrOptions as o (o.id)}
-                <li>
-                  <label>
-                    <input type="checkbox" checked={patchAttrIds.has(o.id)} on:change={() => toggleAttr(o.id)} />
-                    <span>{o.path}</span>
-                  </label>
-                </li>
-              {/each}
-            </ul>
-          {:else if patchNewAttrs.length === 0}
-            <p class="muted small">nenhum atributo ainda — crie o primeiro</p>
-          {/if}
-          {#each patchNewAttrs as n (n)}
-            <div class="new-attr">
-              <span title={typeof n === "string" ? n : n.path.join(" › ")}>+ {specLabel(n)}</span>
-              <button class="link" on:click={() => removeNewAttr(n)}>remover</button>
-            </div>
+    </button>
+  {:else if group}
+    <div class="cells" bind:clientWidth={width} bind:clientHeight={height}>
+      {#if width && height}
+        <svg viewBox="0 0 {width} {height}" {width} {height}>
+          {#each cells as c, i (c.action.name)}
+            <g class="cell" class:got={isOwned(c.action, owned)} role="button" tabindex="0" aria-label={c.action.name}
+              style="--delay: {DELAY[i % DELAY.length]}ms"
+              on:click={() => choose(c.action)}
+              on:keydown={(e) => e.key === "Enter" && choose(c.action)}>
+              <polygon points={c.points} />
+              <text x={c.cx} y={c.cy - (c.lines.length * 14) / 2 + (c.small ? 7 : 0)}>
+                {#each c.lines as line, j}<tspan x={c.cx} dy={j === 0 ? 0 : 14}>{line}</tspan>{/each}
+                {#if !c.small}<tspan class="cost" x={c.cx} dy="16">{isOwned(c.action, owned) ? "✓" : c.action.cost ? `${c.action.cost} bp` : "grátis"}</tspan>{/if}
+              </text>
+            </g>
           {/each}
-          <div class="inline-new">
-            <input
-              class="field"
-              type="text"
-              maxlength="64"
-              placeholder="novo atributo"
-              bind:value={patchNewAttrDraft}
-              on:keydown={(e) => e.key === "Enter" && addNewAttr()}
-            />
-            <button class="ghost" on:click={addNewAttr} disabled={!patchNewAttrDraft.trim()}>criar</button>
-          </div>
-          <button class="link" on:click={() => (patchPickerOpen = !patchPickerOpen)}>
-            {patchPickerOpen ? "fechar catálogo" : "escolher do catálogo"}
-          </button>
-          {#if patchPickerOpen}
-            <SuggestionPicker
-              existing={attrOptions.map((o) => o.name)}
-              onPick={(p) => {
-                addAttrNamed({ path: p });
-                patchPickerOpen = false;
-              }}
-            />
-          {/if}
-        </div>
+        </svg>
       {/if}
     </div>
-
-    {#if patchBase}
-      <dl class="details">
-        <dt>id</dt><dd class="code">{nextPatchId ? formatCode(nextPatchId) : "sem ids livres"}</dd>
-        <dt>custo</dt><dd>{patchCost} bp</dd>
-        <dt>saldo</dt><dd>{buildPoints} bp</dd>
-      </dl>
-    {/if}
-    {#if patchError}<p class="error">{patchError}</p>{/if}
-    <div class="confirm-row">
-      <button class="ghost" on:click={() => (patchOpen = false)}>cancelar</button>
-      <button class="primary" on:click={submitPatch} disabled={!patchReady || patchBusy}>
-        {patchBusy ? "..." : patchCost > 0 ? `criar · ${patchCost} bp` : "criar"}
-      </button>
-    </div>
-  </Modal>
-{/if}
-
-{#if attrOpen}
-  <Modal title="novo atributo" onClose={() => (attrOpen = false)}>
-    <div class="wizard">
-      <div class="mode-row">
-        <button type="button" class="tab" class:on={attrMode === "catalog"} on:click={() => (attrMode = "catalog")}>
-          catálogo
-        </button>
-        <button type="button" class="tab" class:on={attrMode === "free"} on:click={() => (attrMode = "free")}>
-          livre
-        </button>
+  {:else}
+    <!-- the first screen: what is bought with points will stand here -->
+    <div class="first">
+      <div class="vault"></div>
+      <div class="makers">
+        <button class="maker" on:click={() => openForge("patch")}>+ patch</button>
+        <button class="maker" on:click={() => openForge("attr")}>+ atributo</button>
       </div>
+    </div>
+  {/if}
 
-      {#if attrMode === "catalog"}
-        <div class="step">
-          {#if attrPath.length}
-            <div class="step-title">escolhido</div>
-            <div class="new-attr">
-              <span>{attrPath.join(" › ")}</span>
-              <button class="link" on:click={() => (attrPath = [])}>trocar</button>
-            </div>
-            {#if attrPath.length > 1}
-              <label class="check-line">
-                <input type="checkbox" bind:checked={attrWithParents} />
-                <span>criar os níveis acima</span>
-              </label>
-            {/if}
-            {#if attrSwallows}
-              <p class="muted small">
-                {attrSwallows.name} já existe e guarda marcas: elas passam para o primeiro filho
-                e ele vira a média dos filhos.
-              </p>
-            {/if}
-          {:else}
-            <div class="step-title">escolher</div>
-            <SuggestionPicker existing={attrOptions.map((o) => o.name)} onPick={(p) => (attrPath = p)} />
-          {/if}
-        </div>
-      {:else}
-        <div class="step">
-          <div class="step-title">nome</div>
-          <input class="field" type="text" maxlength="64" placeholder="física" bind:value={attrName} />
-        </div>
-        <div class="step">
-          <div class="step-title">dentro de (opcional)</div>
-          <select class="field" bind:value={attrParent}>
-            <option value={null}>nenhum</option>
-            {#each attrOptions as o (o.id)}
-              <option value={o.id}>{o.path}</option>
-            {/each}
-          </select>
-        </div>
-      {/if}
-      <p class="muted small">fica fora da árvore padrão e só é treinado por patches</p>
-    </div>
-    {#if attrError}<p class="error">{attrError}</p>{/if}
-    <div class="confirm-row">
-      <button class="ghost" on:click={() => (attrOpen = false)}>cancelar</button>
-      <button class="primary" on:click={submitAttr} disabled={!attrReady || attrBusy}>
-        {attrBusy ? "..." : "criar"}
-      </button>
-    </div>
-  </Modal>
+  <div class="bar">
+    <!-- the grooved button: slid, it walks the catalog; tapped, it goes back -->
+    <div
+      class="slider"
+      class:dragging
+      role="slider"
+      tabindex="0"
+      aria-label="explorar o shop"
+      aria-valuemin={0}
+      aria-valuemax={stops.length - 1}
+      aria-valuenow={stop}
+      style="--groove: {groove}px"
+      on:pointerdown={onDown}
+      on:pointermove={onMove}
+      on:pointerup={onUp}
+      on:pointercancel={onUp}
+      on:keydown={onSliderKey}
+      on:wheel={onWheel}
+    ></div>
+    <!-- where it stands: a tick per stop, in its color -->
+    <span class="ticks" aria-hidden="true">
+      {#each stops as s, i}<i class:on={i === stop} style="--c: {s ? colors[s.group] : SHOP_COLOR}"></i>{/each}
+    </span>
+    <button class="home-btn" aria-label="início" on:click={home}></button>
+  </div>
+</div>
+
+{#if forge}
+  <ShopForge mode={forge} onClose={() => (forge = null)} />
 {/if}
 
 <style>
-  .page {
-    height: 100%;
+  .shop {
+    position: absolute;
+    inset: 0;
+    padding: 10px;
     box-sizing: border-box;
-    padding: 1.5rem 2rem;
-    color: #ffffff;
-    font-family: Arial, Helvetica, sans-serif;
     display: flex;
     flex-direction: column;
+    gap: 10px;
+    background: #000000;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .display {
+    flex: 0 0 24%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 0.4rem;
+    padding: 0.5rem 0.4rem;
     overflow: hidden;
   }
-  .topbar {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-bottom: 1rem;
+  .big, .small {
+    margin: 0;
+    font-family: var(--font-mono);
+    color: var(--ink);
+    overflow-wrap: anywhere;
   }
-  .title {
-    color: #808080;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    font-size: 1.05rem;
-  }
-  .bp-badge {
-    margin-left: auto;
-    display: flex;
-    align-items: baseline;
-    gap: 0.5rem;
-    background: #000000;
-    border: 1px solid #000000;
-    padding: 0.4rem 0.85rem;
-    border-radius: 4px;
-  }
-  .bp-label {
-    color: #808080;
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-  .bp-value { color: #00e5ff; font-weight: bold; font-size: 1rem; }
-  .search-row { margin-bottom: 0.75rem; }
-  .search-row input {
-    width: 100%;
-    box-sizing: border-box;
-    background: #000000;
-    border: 1px solid #333333;
-    border-radius: 4px;
-    color: #ffffff;
-    padding: 0.55rem 0.75rem;
-    font: inherit;
-    font-size: 0.9rem;
-    outline: none;
-  }
-  .search-row input:focus { border-color: #00e5ff; }
+  .big { font-size: 1.6rem; line-height: 1.15; text-transform: uppercase; }
+  .small { font-size: 0.85rem; opacity: 0.7; }
 
-  .list {
+  .cells { flex: 1; min-height: 0; }
+  svg { display: block; width: 100%; height: 100%; }
+  .cell {
+    cursor: pointer;
+    outline: none;
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+    animation:
+      tube-on 0.45s cubic-bezier(0.2, 0.8, 0.3, 1) var(--delay) both,
+      settle 0.35s steps(1) calc(var(--delay) + 0.45s) 1;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cell { animation: none; }
+  }
+  polygon {
+    fill: var(--ink);
+    fill-opacity: 0.12;
+    stroke: var(--ink);
+    stroke-opacity: 0.6;
+    stroke-width: 1.5;
+  }
+  text {
+    fill: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    text-anchor: middle;
+    dominant-baseline: middle;
+    text-transform: uppercase;
+  }
+  .cost { font-size: 10px; opacity: 0.7; }
+  /* what is already owned stays, faded, with no fill */
+  .cell.got polygon { fill-opacity: 0; stroke-opacity: 0.3; stroke-dasharray: 4 4; }
+  .cell.got text { opacity: 0.45; }
+  .cell:focus-visible polygon, .cell:active polygon { stroke: #ffffff; stroke-opacity: 1; fill-opacity: 0.25; }
+  .cell:focus-visible text, .cell:active text { fill: #ffffff; }
+  @media (hover: hover) {
+    .cell:hover polygon { stroke: #ffffff; stroke-opacity: 1; }
+    .cell:hover text { fill: #ffffff; }
+  }
+
+  .panel {
     flex: 1;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 1rem;
+    padding: 1.1rem 1rem;
+    background: var(--ink);
+    border: none;
+    /* cut like a cell, not a box */
+    clip-path: polygon(0 3%, 100% 0, 97% 100%, 2% 97%);
+    color: #000000;
+    font-family: var(--font-mono);
+    text-align: left;
+    cursor: pointer;
     overflow-y: auto;
-    display: flex;
-    flex-direction: column;
+    animation: tube-on 0.4s cubic-bezier(0.2, 0.8, 0.3, 1) both;
   }
-  .pkg-head {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    width: 100%;
-    padding: 0.5rem 0.95rem;
-    background: transparent;
-    border: none;
-    color: inherit;
-    font: inherit;
-    cursor: pointer;
-    text-align: left;
-  }
-  .pkg-head:hover { background: #000000; }
-  .caret {
-    color: #808080;
-    font-size: 0.75rem;
-    width: 1em;
-  }
-  .pkg-name {
-    color: #ffffff;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    font-size: 0.88rem;
-    flex: 1;
-  }
-  .pkg-count {
-    color: #808080;
-    font-size: 0.78rem;
-  }
-  .actions {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-  .actions li {
-    display: flex;
-    align-items: center;
-    padding: 0.45rem 0.95rem 0.45rem 2.1rem;
-  }
-  .actions li.owned { opacity: 0.4; }
-  .info {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.15rem;
-    flex: 1;
-    background: transparent;
-    border: none;
-    color: inherit;
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-    padding: 0.2rem 0;
-  }
-  .info:hover .a-name { color: #00e5ff; }
-  .a-name { color: #ffffff; font-size: 0.88rem; text-transform: lowercase; }
-  .a-meta { color: #808080; font-size: 0.7rem; }
-  .a-code {
-    color: #808080;
-    margin-right: 0.6rem;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-  }
-  .code { font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
-  .buy {
-    background: transparent;
-    border: 1px solid #333333;
-    color: #808080;
-    padding: 0.32rem 0.65rem;
-    border-radius: 4px;
-    font: inherit;
-    font-size: 0.75rem;
-    cursor: pointer;
-    transition: all 0.15s;
-    min-width: 72px;
-  }
-  .buy:hover:not(:disabled) {
-    border-color: #00e5ff;
-    color: #00e5ff;
-  }
-  .buy:disabled { opacity: 0.4; cursor: not-allowed; }
-  .owned-tag {
-    color: #808080;
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    padding: 0.3rem 0.5rem;
-  }
-
-  .muted { color: #808080; }
-  .error { color: #ff4d4d; }
-
-  .details {
+  .panel.got { opacity: 0.5; cursor: default; }
+  .panel.asking { justify-content: center; align-items: center; text-align: center; animation: none; }
+  .panel:disabled { cursor: wait; }
+  .stats {
     display: grid;
     grid-template-columns: max-content 1fr;
-    gap: 0.5rem 1rem;
-    margin: 0 0 1.25rem;
+    gap: 0.35rem 1rem;
+    margin: 0;
+    font-size: 0.85rem;
   }
-  .details dt {
-    color: #808080;
-    text-transform: uppercase;
-    font-size: 0.7rem;
-    letter-spacing: 0.05em;
-  }
-  .details dd { color: #ffffff; margin: 0; font-size: 0.9rem; }
-  .hl { color: #00e5ff; text-transform: lowercase; }
-  .leaves-block {
-    margin: 0 0 1.25rem;
-    padding: 0.6rem 0.75rem;
-    background: #000000;
-    border: 1px solid #333333;
-    border-radius: 4px;
-  }
-  .leaves-title {
-    color: #808080;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-size: 0.65rem;
-    margin-bottom: 0.4rem;
-  }
+  .stats dt { text-transform: uppercase; font-size: 0.7rem; opacity: 0.65; align-self: center; }
+  .stats dd { margin: 0; }
   .leaves {
     list-style: none;
     margin: 0;
-    padding: 0;
+    padding: 0.6rem 0 0;
+    border-top: 1.5px solid rgba(0, 0, 0, 0.35);
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
+    font-size: 0.8rem;
   }
-  .leaves li {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.78rem;
-  }
-  .leaf-name { color: #cccccc; }
-  .leaf-weight { color: #00e5ff; font-variant-numeric: tabular-nums; }
-  .confirm-row { display: flex; gap: 0.5rem; justify-content: flex-end; }
-  .ghost, .primary {
-    padding: 0.5rem 1rem;
-    border: 1px solid;
-    border-radius: 4px;
-    font: inherit;
-    font-size: 0.85rem;
-    cursor: pointer;
-  }
-  .ghost { background: transparent; color: #808080; border-color: #333333; }
-  .ghost:hover { color: #cccccc; border-color: #808080; }
-  .primary { background: #000000; color: #ffffff; border-color: #ffffff; }
-  .primary:hover:not(:disabled) { background: #ffffff; color: #000000; }
-  .primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  .leaves li { display: flex; justify-content: space-between; gap: 1rem; }
+  .ask { font-size: 2rem; text-transform: uppercase; }
+  .ask-sub { font-size: 0.85rem; opacity: 0.7; }
 
-  @media (max-width: 768px) {
-    .page { padding: 0.75rem 0.9rem; }
-    /* title, two buttons and the badge on one line: each keeps its words together */
-    .topbar { gap: 0.5rem; }
-    .make { white-space: nowrap; }
-    .bp-badge { padding: 0.4rem 0; gap: 0.35rem; }
-    .actions li { padding-left: 1.2rem; }
-    .details { grid-template-columns: 1fr; gap: 0.15rem 0; }
-    .details dd { margin-bottom: 0.5rem; }
-  }
-
-  .make {
-    background: transparent;
-    border: 1px solid #333333;
-    border-radius: 4px;
-    color: #ffffff;
-    padding: 0.35rem 0.7rem;
-    font: inherit;
-    font-size: 0.78rem;
-    cursor: pointer;
-  }
-  .make:hover { border-color: #00e5ff; color: #00e5ff; }
-  .wizard {
+  .first {
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.9rem;
-    margin-bottom: 0.9rem;
-    min-width: min(26rem, 80vw);
+    gap: 10px;
   }
-  .step-title {
-    color: #808080;
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin-bottom: 0.4rem;
+  /* empty for now: what points buy will fill it */
+  .vault {
+    flex: 1;
+    border: 1.5px dashed var(--ink);
+    opacity: 0.25;
   }
-  .field {
-    width: 100%;
-    box-sizing: border-box;
+  .makers { display: flex; gap: 8px; }
+  .maker {
+    flex: 1;
+    min-height: 3rem;
     background: #000000;
-    border: 1px solid #333333;
-    border-radius: 4px;
-    color: #ffffff;
-    padding: 0.5rem 0.65rem;
-    font: inherit;
-    font-size: 0.88rem;
+    border: 1.5px solid var(--ink);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .maker:active { border-color: #ffffff; color: #ffffff; }
+
+  .bar {
+    position: relative;
+    flex: 0 0 56px;
+    display: flex;
+    align-items: stretch;
+  }
+  .slider {
+    width: 40%;
+    border: 1.5px solid var(--ink);
+    /* the grooves: thin ridges that roll with the finger, like a thumb wheel */
+    background:
+      linear-gradient(90deg, #000000 0%, transparent 22%, transparent 78%, #000000 100%),
+      repeating-linear-gradient(90deg, var(--ink) 0 1.5px, transparent 1.5px 9px);
+    background-position: 0 0, var(--groove) 0;
+    background-size: 100% 100%, 100% 100%;
+    opacity: 0.85;
+    cursor: ew-resize;
+    touch-action: none;
     outline: none;
   }
-  .field:focus { border-color: #00e5ff; }
-  .pick-list,
-  .check-list {
-    list-style: none;
-    margin: 0.4rem 0 0;
-    padding: 0;
-    max-height: 12rem;
-    overflow-y: auto;
-    border: 1px solid #333333;
-    border-radius: 4px;
-  }
-  .pick {
-    display: flex;
-    gap: 0.6rem;
-    width: 100%;
-    background: transparent;
-    border: none;
-    border-bottom: 1px solid #333333;
-    color: #ffffff;
-    padding: 0.45rem 0.6rem;
-    font: inherit;
-    font-size: 0.85rem;
-    text-align: left;
+  .slider.dragging, .slider:focus-visible { border-color: #ffffff; opacity: 1; }
+  .home-btn {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 18%;
+    background: #000000;
+    border: 1.5px solid var(--ink);
     cursor: pointer;
   }
-  .pick:hover .a-name { color: #00e5ff; }
-  .check-list label {
+  .home-btn:active { border-color: #ffffff; }
+  @media (hover: hover) {
+    .home-btn:hover, .slider:hover { border-color: #ffffff; }
+  }
+  .ticks {
+    position: absolute;
+    left: 44%;
+    right: 21%;
+    top: 50%;
+    transform: translateY(-50%);
     display: flex;
-    gap: 0.5rem;
+    justify-content: center;
     align-items: center;
-    padding: 0.4rem 0.6rem;
-    font-size: 0.85rem;
-    cursor: pointer;
+    gap: 3px;
+    pointer-events: none;
   }
-  .check-list input { accent-color: #00e5ff; }
-  .chosen { display: flex; align-items: baseline; gap: 0.6rem; }
-  .link {
-    margin-left: auto;
-    background: none;
-    border: none;
-    color: #808080;
-    font: inherit;
-    font-size: 0.75rem;
-    text-decoration: underline;
-    cursor: pointer;
+  .ticks i {
+    flex: 0 1 6px;
+    height: 10px;
+    background: var(--c);
+    opacity: 0.25;
   }
-  .link:hover { color: #00e5ff; }
-  .new-attr { display: flex; align-items: baseline; gap: 0.5rem; margin-top: 0.35rem; color: #00e5ff; font-size: 0.85rem; }
-  .inline-new { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
-  .small { font-size: 0.72rem; margin: 0; }
+  .ticks i.on { opacity: 1; height: 18px; }
 </style>

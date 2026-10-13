@@ -116,14 +116,15 @@
   {:else if page === "act"}
     <!-- the acting screen has its own bar, with the way home, and no header -->
     <ActScreen onHome={goHome} />
+  {:else if page === "shop"}
+    <!-- so is the shop, walked the same way -->
+    <Shop onHome={goHome} initialSection={pageParams.section ?? null} />
   {:else}
     <div class="app">
       <ScreenHeader option={PAGE_OPTION[page] ?? null} title={TITLES[page] ?? page} onBack={goHome} />
       <div class="page" class:padded={page === "logs"}>
         {#if page === "logs"}
           <LogsPanel />
-        {:else if page === "shop"}
-          <Shop initialSection={pageParams.section ?? null} />
         {:else if page === "roko"}
           <RokoPage />
         {:else if page === "me"}
