@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, onMount } from "svelte";
+  import { onDestroy, onMount, tick } from "svelte";
   import {
     buyPackageAction,
     fetchActions,
@@ -64,9 +64,15 @@
   type Stop = { group: number; page: number; pages: number } | null;
 
   // groups by name, as the slider walks them; each takes its own hue, so sliding
-  // runs through the spectrum
-  $: sorted = [...groups].sort((a, b) => a.name.localeCompare(b.name, "pt"));
-  $: colors = sorted.map((_, i) => `hsl(${Math.round((i * 360) / Math.max(1, sorted.length) + 190) % 360} 95% 62%)`);
+  // runs through the spectrum. The hue comes from the whole catalog, so a group
+  // keeps its color when buying empties another.
+  $: byName = [...groups].sort((a, b) => a.name.localeCompare(b.name, "pt"));
+  $: hues = new Map(byName.map((g, i) => [g.key, Math.round((i * 360) / Math.max(1, byName.length) + 190) % 360]));
+  // what is owned leaves the shop; a group with nothing left leaves the slider
+  $: sorted = byName
+    .map((g) => ({ ...g, actions: g.actions.filter((a) => !owned.has(a.name.toUpperCase())) }))
+    .filter((g) => g.actions.length > 0);
+  $: colors = sorted.map((g) => `hsl(${hues.get(g.key) ?? 0} 95% 62%)`);
   $: stops = [
     null,
     ...sorted.flatMap((g, gi) => {
@@ -81,8 +87,6 @@
   $: onPage = group && here ? group.actions.slice(here.page * PER_PAGE, (here.page + 1) * PER_PAGE) : [];
   $: cells = layout(onPage, stop, width, height);
 
-  // takes the set, so the template follows it when a purchase changes it
-  const isOwned = (a: CatalogAction, set: Set<string>) => set.has(a.name.toUpperCase());
   // a free action still takes some room
   const weight = (a: CatalogAction) => Math.max(1, a.cost);
 
@@ -297,13 +301,19 @@
     confirming = false;
   }
 
+  /** After a purchase the stops shift: stay on the group's page, or the one now
+   *  in its place when the group is gone. */
+  async function stayOn(key: string, page: number) {
+    await tick();
+    const gi = sorted.findIndex((g) => g.key === key);
+    if (gi < 0) return;
+    const found = stops.findIndex((s) => s && s.group === gi && s.page === Math.min(page, s.pages - 1));
+    if (found >= 0) stop = found;
+  }
+
   async function press() {
     if (!selected || buying || !group) return;
     primeAudio();
-    if (isOwned(selected, owned)) {
-      tap(0);
-      return;
-    }
     if (!confirming) {
       tap(5);
       confirming = true;
@@ -315,11 +325,14 @@
       return;
     }
     const a = selected;
+    const at = here;
+    const key = group.key;
     buying = true;
     try {
       const res = await buyPackageAction(a.package_attribute, a.name);
       buildPoints = res.build_points;
       owned = new Set([...owned, a.name.toUpperCase()]);
+      stayOn(key, at?.page ?? 0);
       gainsSound();
       message = ["adquirida", a.name.toLowerCase()];
       selected = null;
@@ -365,9 +378,7 @@
       {#each message as line, i}<p class={i === 0 ? "big" : "small"}>{line}</p>{/each}
     {:else if selected && group}
       <p class="big">{selected.name}</p>
-      <p class="small">{group.name}</p>
     {:else if group && here}
-      <p class="big">{group.name}</p>
       <p class="small">
         {[
           `${group.actions.length} ${group.actions.length === 1 ? "item" : "itens"}`,
@@ -383,9 +394,8 @@
 
   {#if selected && group}
     {@const a = selected}
-    {@const got = isOwned(a, owned)}
     <!-- the colored area: the stats, then the question -->
-    <button class="panel" class:asking={confirming} class:got disabled={buying} on:click={press}>
+    <button class="panel" class:asking={confirming} disabled={buying} on:click={press}>
       {#if confirming}
         {#if buildPoints < a.cost}
           <span class="ask">faltam {a.cost - buildPoints} bp</span>
@@ -401,11 +411,7 @@
           <dt>tipo</dt><dd>{TYPE_LABEL[a.type] ?? a.type}</dd>
           <dt>dificuldade</dt><dd>d{a.diff}</dd>
           {#if tokensLine(a)}<dt>tokens</dt><dd>{tokensLine(a)}</dd>{/if}
-          {#if got}
-            <dt>status</dt><dd>adquirida</dd>
-          {:else}
-            <dt>custo</dt><dd>{a.cost} bp</dd>
-          {/if}
+          <dt>custo</dt><dd>{a.cost} bp</dd>
         </dl>
         {#if a.leaves.length}
           <ul class="leaves">
@@ -422,14 +428,14 @@
       {#if width && height}
         <svg viewBox="0 0 {width} {height}" {width} {height}>
           {#each cells as c, i (c.action.name)}
-            <g class="cell" class:got={isOwned(c.action, owned)} role="button" tabindex="0" aria-label={c.action.name}
+            <g class="cell" role="button" tabindex="0" aria-label={c.action.name}
               style="--delay: {DELAY[i % DELAY.length]}ms"
               on:click={() => choose(c.action)}
               on:keydown={(e) => e.key === "Enter" && choose(c.action)}>
               <polygon points={c.points} />
               <text x={c.cx} y={c.cy - (c.lines.length * 14) / 2 + (c.small ? 7 : 0)}>
                 {#each c.lines as line, j}<tspan x={c.cx} dy={j === 0 ? 0 : 14}>{line}</tspan>{/each}
-                {#if !c.small}<tspan class="cost" x={c.cx} dy="16">{isOwned(c.action, owned) ? "✓" : c.action.cost ? `${c.action.cost} bp` : "grátis"}</tspan>{/if}
+                {#if !c.small}<tspan class="cost" x={c.cx} dy="16">{c.action.cost ? `${c.action.cost} bp` : "grátis"}</tspan>{/if}
               </text>
             </g>
           {/each}
@@ -539,9 +545,6 @@
     text-transform: uppercase;
   }
   .cost { font-size: 10px; opacity: 0.7; }
-  /* what is already owned stays, faded, with no fill */
-  .cell.got polygon { fill-opacity: 0; stroke-opacity: 0.3; stroke-dasharray: 4 4; }
-  .cell.got text { opacity: 0.45; }
   .cell:focus-visible polygon, .cell:active polygon { stroke: #ffffff; stroke-opacity: 1; fill-opacity: 0.25; }
   .cell:focus-visible text, .cell:active text { fill: #ffffff; }
   @media (hover: hover) {
@@ -568,7 +571,6 @@
     overflow-y: auto;
     animation: tube-on 0.4s cubic-bezier(0.2, 0.8, 0.3, 1) both;
   }
-  .panel.got { opacity: 0.5; cursor: default; }
   .panel.asking { justify-content: center; align-items: center; text-align: center; animation: none; }
   .panel:disabled { cursor: wait; }
   /* on a wide screen the stats stay a column you can read, not a line across it */
