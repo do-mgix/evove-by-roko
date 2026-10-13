@@ -399,6 +399,7 @@
           <span class="ask-sub">{a.cost} bp · saldo {buildPoints} bp</span>
         {/if}
       {:else}
+        <div class="sheet">
         <dl class="stats">
           {#if a.code}<dt>id</dt><dd>{formatCode(a.code)}</dd>{/if}
           <dt>tipo</dt><dd>{TYPE_LABEL[a.type] ?? a.type}</dd>
@@ -417,6 +418,7 @@
             {/each}
           </ul>
         {/if}
+        </div>
       {/if}
     </button>
   {:else if group}
@@ -559,11 +561,11 @@
     flex-direction: column;
     justify-content: flex-end;
     gap: 1rem;
-    padding: 1.1rem 1rem;
+    padding: 1.4rem 1.5rem;
     background: var(--ink);
     border: none;
-    /* cut like a cell, not a box */
-    clip-path: polygon(0 3%, 100% 0, 97% 100%, 2% 97%);
+    /* cut like a cell, not a box: in pixels, so a wide screen does not cut into the text */
+    clip-path: polygon(0 14px, 100% 0, calc(100% - 10px) 100%, 6px calc(100% - 10px));
     color: #000000;
     font-family: var(--font-mono);
     text-align: left;
@@ -574,14 +576,26 @@
   .panel.got { opacity: 0.5; cursor: default; }
   .panel.asking { justify-content: center; align-items: center; text-align: center; animation: none; }
   .panel:disabled { cursor: wait; }
+  /* on a wide screen the stats stay a column you can read, not a line across it */
+  .sheet {
+    width: 100%;
+    max-width: 30rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    font-size: 1rem;
+  }
+  @media (min-width: 700px) {
+    .panel .sheet { font-size: 1.35rem; max-width: 36rem; }
+  }
   .stats {
     display: grid;
     grid-template-columns: max-content 1fr;
     gap: 0.35rem 1rem;
     margin: 0;
-    font-size: 0.85rem;
+    font-size: 0.85em;
   }
-  .stats dt { text-transform: uppercase; font-size: 0.7rem; opacity: 0.65; align-self: center; }
+  .stats dt { text-transform: uppercase; font-size: 0.82em; opacity: 0.7; align-self: center; }
   .stats dd { margin: 0; }
   .leaves {
     list-style: none;
@@ -591,7 +605,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
-    font-size: 0.8rem;
+    font-size: 0.8em;
   }
   .leaves li { display: flex; justify-content: space-between; gap: 1rem; }
   .ask { font-size: 2rem; text-transform: uppercase; }
