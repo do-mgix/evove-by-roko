@@ -24,7 +24,7 @@
   // The shop is walked like the acting screen: a display on top, cells in the
   // middle, a bar at the bottom. It opens on its first screen — where what is
   // bought with points will live — and the grooved button at the bottom right is
-  // slid to walk the catalog, one attribute after the other, each in its color.
+  // slid to walk the catalog, one attribute after the other. All of it is pink.
   // A tap on it goes back one step, and from the first screen, home.
 
   const SHOP_COLOR = "#ff6fb5";
@@ -63,16 +63,12 @@
   // ---- the stops: the first screen, then every page of every group ----
   type Stop = { group: number; page: number; pages: number } | null;
 
-  // groups by name, as the slider walks them; each takes its own hue, so sliding
-  // runs through the spectrum. The hue comes from the whole catalog, so a group
-  // keeps its color when buying empties another.
+  // groups by name, as the slider walks them
   $: byName = [...groups].sort((a, b) => a.name.localeCompare(b.name, "pt"));
-  $: hues = new Map(byName.map((g, i) => [g.key, Math.round((i * 360) / Math.max(1, byName.length) + 190) % 360]));
   // what is owned leaves the shop; a group with nothing left leaves the slider
   $: sorted = byName
     .map((g) => ({ ...g, actions: g.actions.filter((a) => !owned.has(a.name.toUpperCase())) }))
     .filter((g) => g.actions.length > 0);
-  $: colors = sorted.map((g) => `hsl(${hues.get(g.key) ?? 0} 95% 62%)`);
   $: stops = [
     null,
     ...sorted.flatMap((g, gi) => {
@@ -83,7 +79,6 @@
   $: if (stop >= stops.length) stop = stops.length - 1;
   $: here = stops[stop] ?? null;
   $: group = here ? sorted[here.group] : null;
-  $: color = here ? colors[here.group] : SHOP_COLOR;
   $: onPage = group && here ? group.actions.slice(here.page * PER_PAGE, (here.page + 1) * PER_PAGE) : [];
   $: cells = layout(onPage, stop, width, height);
 
@@ -369,7 +364,7 @@
   onDestroy(() => setBackHandler(null));
 </script>
 
-<div class="shop" style="--ink: {color}">
+<div class="shop" style="--ink: {SHOP_COLOR}">
   <!-- the display: where the slider stands, what was chosen, what happened -->
   <div class="display">
     {#if loading}
@@ -377,7 +372,7 @@
     {:else if message.length}
       {#each message as line, i}<p class={i === 0 ? "big" : "small"}>{line}</p>{/each}
     {:else if selected && group}
-      <p class="big act">{selected.name}</p>
+      <p class="big">{selected.name}</p>
     {:else if group && here}
       <p class="small">
         {[
@@ -454,9 +449,9 @@
   {/if}
 
   <div class="bar">
-    <!-- where it stands: a tick per stop, in its color -->
+    <!-- where it stands: a tick per stop -->
     <span class="ticks" aria-hidden="true">
-      {#each stops as s, i}<i class:on={i === stop} style="--c: {s ? colors[s.group] : SHOP_COLOR}"></i>{/each}
+      {#each stops as _, i}<i class:on={i === stop}></i>{/each}
     </span>
     <!-- the grooved button: slid, it walks the catalog; tapped, it goes back -->
     <div
@@ -485,9 +480,6 @@
 
 <style>
   .shop {
-    /* the actions on sale wear agir's yellow, whatever their attribute; the
-       attribute's color is on the display and the bar */
-    --act: #ffd23f;
     position: absolute;
     inset: 0;
     padding: 10px;
@@ -517,7 +509,6 @@
   }
   .big { font-size: 1.6rem; line-height: 1.15; text-transform: uppercase; }
   .small { font-size: 0.85rem; opacity: 0.7; }
-  .big.act { color: var(--act); }
 
   .cells { flex: 1; min-height: 0; }
   svg { display: block; width: 100%; height: 100%; }
@@ -534,14 +525,14 @@
     .cell { animation: none; }
   }
   polygon {
-    fill: var(--act);
+    fill: var(--ink);
     fill-opacity: 0.12;
-    stroke: var(--act);
+    stroke: var(--ink);
     stroke-opacity: 0.6;
     stroke-width: 1.5;
   }
   text {
-    fill: var(--act);
+    fill: var(--ink);
     font-family: var(--font-mono);
     font-size: 11.5px;
     text-anchor: middle;
@@ -564,7 +555,7 @@
     justify-content: flex-end;
     gap: 1rem;
     padding: 1.4rem 1.5rem;
-    background: var(--act);
+    background: var(--ink);
     border: none;
     /* cut like a cell, not a box: in pixels, so a wide screen does not cut into the text */
     clip-path: polygon(0 14px, 100% 0, calc(100% - 10px) 100%, 6px calc(100% - 10px));
@@ -679,7 +670,7 @@
   .ticks i {
     flex: 0 1 6px;
     height: 10px;
-    background: var(--c);
+    background: var(--ink);
     opacity: 0.25;
   }
   .ticks i.on { opacity: 1; height: 18px; }
