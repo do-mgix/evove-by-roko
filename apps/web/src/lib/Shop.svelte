@@ -22,10 +22,11 @@
   void initialSection;
 
   // The shop is walked like the acting screen: a display on top, cells in the
-  // middle, a bar at the bottom. It opens on its first screen — where what is
-  // bought with points will live — and the grooved button at the bottom right is
-  // slid to walk the catalog, one attribute after the other. All of it is pink.
-  // A tap on it goes back one step, and from the first screen, home.
+  // middle, a bar with two blank buttons at the bottom. It opens on its first
+  // screen — where what is bought with points will live — and the centre button
+  // turns the page, through the catalog one attribute after the other; with an
+  // action chosen it goes back a step instead. The right one goes home. All of
+  // it is pink.
 
   const SHOP_COLOR = "#ff6fb5";
   const COLS = 2;
@@ -34,9 +35,6 @@
   const PER_PAGE = COLS * ROWS;
   const GAP = 5;
   const DELAY = [0, 110, 60, 170, 30, 220, 140, 90, 200, 50];
-  // the slider: a step every STEP pixels of drag, past TAP_SLOP it is no tap
-  const STEP = 34;
-  const TAP_SLOP = 6;
 
   const TYPE_LABEL: Record<number, string> = {
     0: "sessão", 1: "reps", 2: "segundos", 3: "minutos", 4: "horas",
@@ -50,7 +48,7 @@
   let message: string[] = [];
   let lastUserVersion = 0;
 
-  // where the slider stands: 0 is the first screen, then a page of a group each
+  // where the pages stand: 0 is the first screen, then a page of a group each
   let stop = 0;
   // a cell tapped shows its stats; a tap on them asks; a tap on the question buys
   let selected: CatalogAction | null = null;
@@ -197,17 +195,7 @@
     if (lastUserVersion > 0) load();
   }
 
-  // ---- moving: the slider walks the stops, a tap on it goes back a step ----
-  function goTo(next: number) {
-    next = Math.max(0, Math.min(stops.length - 1, next));
-    if (next === stop) return;
-    stop = next;
-    selected = null;
-    confirming = false;
-    message = [];
-    tap(stop);
-  }
-
+  // ---- moving: the centre button turns the page, or goes back a step ----
   /** One step back: from the question to the stats, from the stats to the
    *  cells, from the cells to the first screen. False when there is none. */
   function back(): boolean {
@@ -220,71 +208,23 @@
     return true;
   }
 
-  // the grooves follow the finger, and stop following past the last stop
-  let groove = 0;
-  let dragging = false;
-  let startX = 0;
-  let startStop = 0;
-  let startGroove = 0;
-  let moved = false;
-
-  function onDown(e: PointerEvent) {
+  function nextPage() {
     primeAudio();
-    dragging = true;
-    moved = false;
-    startX = e.clientX;
-    startStop = stop;
-    startGroove = groove;
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  }
-
-  function onMove(e: PointerEvent) {
-    if (!dragging) return;
-    let dx = e.clientX - startX;
-    if (Math.abs(dx) > TAP_SLOP) moved = true;
-    if (!moved) return;
-    // a little give past either end, no more
-    const min = -startStop * STEP - STEP * 0.4;
-    const max = (stops.length - 1 - startStop) * STEP + STEP * 0.4;
-    dx = Math.max(min, Math.min(max, dx));
-    groove = startGroove + dx;
-    goTo(startStop + Math.trunc(dx / STEP));
-  }
-
-  function onUp() {
-    if (!dragging) return;
-    dragging = false;
-    if (moved) {
-      // the grooves settle on the step they stopped at
-      groove = startGroove + (stop - startStop) * STEP;
-      if (stop !== startStop) powerOn();
+    if (selected) {
+      tap(0);
+      back();
       return;
     }
+    stop = (stop + 1) % stops.length;
+    message = [];
+    // the new page comes on, with the sound of it
+    powerOn();
+  }
+
+  function home() {
+    primeAudio();
     tap(0);
-    if (!back()) onHome();
-  }
-
-  function onSliderKey(e: KeyboardEvent) {
-    if (e.key === "ArrowRight" || e.key === "ArrowDown") goTo(stop + 1);
-    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") goTo(stop - 1);
-    else if (e.key === "Enter" || e.key === " " || e.key === "Backspace") {
-      if (!back()) onHome();
-    }
-    else return;
-    e.preventDefault();
-  }
-
-  // a mouse wheel walks it too
-  let wheelAcc = 0;
-  function onWheel(e: WheelEvent) {
-    e.preventDefault();
-    wheelAcc += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-    if (Math.abs(wheelAcc) < 40) return;
-    const dir = Math.sign(wheelAcc);
-    wheelAcc = 0;
-    const before = stop;
-    goTo(stop + dir);
-    groove += (stop - before) * STEP;
+    onHome();
   }
 
   // ---- choosing, then buying ----
@@ -453,24 +393,9 @@
     <span class="ticks" aria-hidden="true">
       {#each stops as _, i}<i class:on={i === stop}></i>{/each}
     </span>
-    <!-- the grooved button: slid, it walks the catalog; tapped, it goes back -->
-    <div
-      class="slider"
-      class:dragging
-      role="slider"
-      tabindex="0"
-      aria-label="explorar o shop"
-      aria-valuemin={0}
-      aria-valuemax={stops.length - 1}
-      aria-valuenow={stop}
-      style="--groove: {groove}px"
-      on:pointerdown={onDown}
-      on:pointermove={onMove}
-      on:pointerup={onUp}
-      on:pointercancel={onUp}
-      on:keydown={onSliderKey}
-      on:wheel={onWheel}
-    ></div>
+    <!-- two blank buttons: the page, and home -->
+    <button class="page-btn" aria-label={selected ? "voltar" : "próxima página"} on:click={nextPage}></button>
+    <button class="home-btn" aria-label="início" on:click={home}></button>
   </div>
 </div>
 
@@ -635,34 +560,26 @@
     flex: 0 0 56px;
     display: flex;
     align-items: stretch;
-    justify-content: flex-end;
+    justify-content: center;
   }
-  .slider {
-    width: 40%;
+  .page-btn, .home-btn {
+    background: #000000;
     border: 1.5px solid var(--ink);
-    /* the grooves: thin ridges that roll with the finger, like a thumb wheel */
-    background:
-      linear-gradient(90deg, #000000 0%, transparent 22%, transparent 78%, #000000 100%),
-      repeating-linear-gradient(90deg, var(--ink) 0 1.5px, transparent 1.5px 9px);
-    background-position: 0 0, var(--groove) 0;
-    background-size: 100% 100%, 100% 100%;
-    opacity: 0.85;
-    cursor: ew-resize;
-    touch-action: none;
-    outline: none;
+    cursor: pointer;
   }
-  .slider.dragging, .slider:focus-visible { border-color: #ffffff; opacity: 1; }
+  .page-btn { width: 34%; }
+  .home-btn { position: absolute; right: 0; top: 0; bottom: 0; width: 18%; }
+  .page-btn:active, .home-btn:active { border-color: #ffffff; }
   @media (hover: hover) {
-    .slider:hover { border-color: #ffffff; }
+    .page-btn:hover, .home-btn:hover { border-color: #ffffff; }
   }
   .ticks {
     position: absolute;
     left: 0;
-    right: 44%;
+    right: 69%;
     top: 50%;
     transform: translateY(-50%);
     display: flex;
-    justify-content: center;
     align-items: center;
     gap: 3px;
     pointer-events: none;
