@@ -23,9 +23,9 @@
 
   // The shop is walked like the acting screen: a display on top, cells in the
   // middle, a bar at the bottom. It opens on its first screen — where what is
-  // bought with points will live — and the grooved button at the bottom left is
+  // bought with points will live — and the grooved button at the bottom right is
   // slid to walk the catalog, one attribute after the other, each in its color.
-  // A tap on that button goes back one step; the right one always goes home.
+  // A tap on it goes back one step, and from the first screen, home.
 
   const SHOP_COLOR = "#ff6fb5";
   const COLS = 2;
@@ -262,13 +262,15 @@
       return;
     }
     tap(0);
-    back();
+    if (!back()) onHome();
   }
 
   function onSliderKey(e: KeyboardEvent) {
     if (e.key === "ArrowRight" || e.key === "ArrowDown") goTo(stop + 1);
     else if (e.key === "ArrowLeft" || e.key === "ArrowUp") goTo(stop - 1);
-    else if (e.key === "Enter" || e.key === " " || e.key === "Backspace") back();
+    else if (e.key === "Enter" || e.key === " " || e.key === "Backspace") {
+      if (!back()) onHome();
+    }
     else return;
     e.preventDefault();
   }
@@ -329,12 +331,6 @@
     } finally {
       buying = false;
     }
-  }
-
-  function home() {
-    primeAudio();
-    tap(0);
-    onHome();
   }
 
   function openForge(mode: "patch" | "attr") {
@@ -452,6 +448,10 @@
   {/if}
 
   <div class="bar">
+    <!-- where it stands: a tick per stop, in its color -->
+    <span class="ticks" aria-hidden="true">
+      {#each stops as s, i}<i class:on={i === stop} style="--c: {s ? colors[s.group] : SHOP_COLOR}"></i>{/each}
+    </span>
     <!-- the grooved button: slid, it walks the catalog; tapped, it goes back -->
     <div
       class="slider"
@@ -470,11 +470,6 @@
       on:keydown={onSliderKey}
       on:wheel={onWheel}
     ></div>
-    <!-- where it stands: a tick per stop, in its color -->
-    <span class="ticks" aria-hidden="true">
-      {#each stops as s, i}<i class:on={i === stop} style="--c: {s ? colors[s.group] : SHOP_COLOR}"></i>{/each}
-    </span>
-    <button class="home-btn" aria-label="início" on:click={home}></button>
   </div>
 </div>
 
@@ -643,6 +638,7 @@
     flex: 0 0 56px;
     display: flex;
     align-items: stretch;
+    justify-content: flex-end;
   }
   .slider {
     width: 40%;
@@ -659,24 +655,13 @@
     outline: none;
   }
   .slider.dragging, .slider:focus-visible { border-color: #ffffff; opacity: 1; }
-  .home-btn {
-    position: absolute;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    width: 18%;
-    background: #000000;
-    border: 1.5px solid var(--ink);
-    cursor: pointer;
-  }
-  .home-btn:active { border-color: #ffffff; }
   @media (hover: hover) {
-    .home-btn:hover, .slider:hover { border-color: #ffffff; }
+    .slider:hover { border-color: #ffffff; }
   }
   .ticks {
     position: absolute;
-    left: 44%;
-    right: 21%;
+    left: 0;
+    right: 44%;
     top: 50%;
     transform: translateY(-50%);
     display: flex;
