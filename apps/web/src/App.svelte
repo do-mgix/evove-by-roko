@@ -150,45 +150,46 @@
     border: 1.5px solid rgba(255, 255, 255, 0.14);
     border-radius: 28px;
     overflow: hidden;
-    background: #ffffff;
-        /* the backdrop below stays under everything inside the frame */
+    /* the deep green the wave rises from */
+    background: #0a4d2c;
+    /* the backdrop below stays under everything inside the frame */
     isolation: isolate;
   }
-  /* The backdrop: a wave of energy running up the screen, in greens only — deep
-     green rising to a white crest and back — one wave per screen height,
-     without end. The layer is two screens tall with the wave in each half, so
-     sliding it up by one half loops seamlessly. Moved by transform, so the
-     phone only composites it. */
+  /* The backdrop: a radial wave of energy, in greens only — a ring cresting
+     white, spreading from the centre of the screen until it leaves the
+     corners, when the next one starts. One square layer, as wide as the ring
+     will need, grown from nothing by transform, so the phone only composites
+     it; outside the ring it is the frame's own deep green. */
   .frame::before {
     content: "";
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 200%;
+    top: 50%;
+    left: 50%;
+    width: 400vmax;
+    height: 400vmax;
+    margin: -200vmax 0 0 -200vmax;
     z-index: -1;
-    background: linear-gradient(
-        to bottom,
-        #0a4d2c 0%,
-        #0e6b3c 20%,
-        #16944f 36%,
-        #3ccf7c 45%,
-        #ffffff 50%,
-        #3ccf7c 55%,
-        #16944f 64%,
-        #0e6b3c 80%,
-        #0a4d2c 100%
-      )
-      0 0 / 100% 50% repeat-y;
-    animation: rise 6s linear infinite;
+    background: radial-gradient(
+      circle closest-side,
+      #0a4d2c 30%,
+      #0e6b3c 38%,
+      #16944f 43%,
+      #3ccf7c 47.5%,
+      #ffffff 50%,
+      #3ccf7c 52.5%,
+      #16944f 57%,
+      #0e6b3c 62%,
+      #0a4d2c 70%
+    );
+    animation: spread 6s linear infinite;
     pointer-events: none;
   }
-  @keyframes rise {
-    from { transform: translateY(0); }
-    to { transform: translateY(-50%); }
+  @keyframes spread {
+    from { transform: scale(0); }
+    to { transform: scale(1); }
   }
   @media (prefers-reduced-motion: reduce) {
-    .frame::before { animation: none; }
+    .frame::before { animation: none; transform: scale(0.3); }
   }
   /* the pages with a header stay on white, to be read */
   .app {
