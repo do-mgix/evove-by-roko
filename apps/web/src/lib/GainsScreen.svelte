@@ -87,7 +87,7 @@
     flex-direction: column;
     gap: 1.5rem;
     background: transparent;
-    color: #111111;
+    color: #ffffff;
     font-family: var(--font-display);
     text-transform: uppercase;
     letter-spacing: 0.12em;
@@ -100,7 +100,7 @@
     margin: 0;
     font-size: 0.95rem;
     font-weight: 500;
-    color: #a67c00;
+    color: #ffcc00;
   }
   .body {
     flex: 1;
@@ -117,10 +117,10 @@
     font-weight: 600;
     animation: arrive 0.35s ease-out;
   }
-  .line span { font-size: 0.95rem; font-weight: 400; color: #737373; }
-  .tokens { color: #0e9aa0; }
-  .tokens.spent { color: #c2307a; }
-  .marks { color: #a67c00; }
+  .line span { font-size: 0.95rem; font-weight: 400; color: rgba(255, 255, 255, 0.7); }
+  .tokens { color: #5ff3ff; }
+  .tokens.spent { color: #ff8cc6; }
+  .marks { color: #ffcc00; }
   .attr { animation: arrive 0.35s ease-out; }
   .attr-head {
     display: flex;
@@ -129,13 +129,13 @@
     margin-bottom: 0.4rem;
     font-size: 0.75rem;
   }
-  .attr-name { color: #111111; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .attr-rank { color: #a67c00; flex-shrink: 0; }
+  .attr-name { color: #ffffff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .attr-rank { color: #ffcc00; flex-shrink: 0; }
   .roko {
     margin: 0;
     font-size: 0.85rem;
     line-height: 1.5;
-    color: #c4640f;
+    color: #ffb070;
     animation: arrive 0.6s ease-out;
   }
   @keyframes arrive {

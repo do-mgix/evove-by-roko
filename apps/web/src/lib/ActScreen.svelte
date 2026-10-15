@@ -361,8 +361,8 @@
   .act {
     --ink: #ffcc00;
     --down: #ebb800;
-    /* agir's yellow deepened, for text on the white and on the yellow */
-    --deep: #8a6500;
+    /* text on the dark backdrop, and on the yellow */
+    --deep: #ffffff;
     --dark: #5c4300;
     position: absolute;
     inset: 0;

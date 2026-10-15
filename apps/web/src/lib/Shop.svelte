@@ -31,8 +31,8 @@
   const SHOP_COLOR = "#ff2d95";
   // pressed, a shade darker
   const SHOP_DOWN = "#e0157a";
-  // the pink deepened, for text on the white
-  const SHOP_DEEP = "#b0105f";
+  // text on the dark backdrop
+  const SHOP_DEEP = "#ffffff";
   const COLS = 2;
   const ROWS = 5;
   // a little smaller than the acting screen's cells: five rows, not four
@@ -539,7 +539,7 @@
   .vault {
     flex: 1;
     border-radius: 18px;
-    background: rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.1);
   }
   .makers { display: flex; gap: 8px; }
   .maker {

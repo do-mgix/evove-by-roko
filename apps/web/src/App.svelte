@@ -147,46 +147,45 @@
     right: calc(env(safe-area-inset-right) + 8px);
     bottom: calc(env(safe-area-inset-bottom) + 8px);
     left: calc(env(safe-area-inset-left) + 8px);
-    border: 1.5px solid rgba(80, 40, 60, 0.18);
+    border: 1.5px solid rgba(255, 255, 255, 0.14);
     border-radius: 28px;
     overflow: hidden;
     background: #ffffff;
-    box-shadow: 0 2px 10px rgba(80, 40, 60, 0.12);
-    /* the backdrop below stays under everything inside the frame */
+        /* the backdrop below stays under everything inside the frame */
     isolation: isolate;
   }
-  /* The backdrop: a soft gradient of the tiles' colors, three times the frame's
-     size, drifting slowly from one corner to the other and back — so the
-     screens alternate between pink, violet, blue, aqua and yellow behind the
-     cells. Moved by transform, so the phone only composites it. */
+  /* The backdrop: a deep gradient of the tiles' colors, three times the frame's
+     height, sliding up and down — so the screens alternate between pink,
+     violet, blue and teal behind the cells. Moved by transform, so the phone
+     only composites it. */
   .frame::before {
     content: "";
     position: absolute;
     top: 0;
     left: 0;
-    width: 300%;
+    width: 100%;
     height: 300%;
     z-index: -1;
     background: linear-gradient(
-      135deg,
-      #ffd6ea 0%,
-      #e6d6ff 20%,
-      #d3e3ff 40%,
-      #ccf6f6 60%,
-      #fff2c2 80%,
-      #ffdcc8 100%
+      to bottom,
+      #8c1a5c 0%,
+      #5a23b0 33%,
+      #2341b0 66%,
+      #0d7f8c 100%
     );
-    animation: drift 40s ease-in-out infinite alternate;
+    animation: drift 12s ease-in-out infinite alternate;
     pointer-events: none;
   }
   @keyframes drift {
     from { transform: translate(0, 0); }
-    to { transform: translate(-66.6%, -66.6%); }
+    to { transform: translateY(-66.6%); }
   }
   @media (prefers-reduced-motion: reduce) {
-    .frame::before { animation: none; transform: translate(-33.3%, -33.3%); }
+    .frame::before { animation: none; transform: translateY(-33.3%); }
   }
+  /* the pages with a header stay on white, to be read */
   .app {
+    background: #ffffff;
     display: flex;
     flex-direction: column;
     height: 100%;

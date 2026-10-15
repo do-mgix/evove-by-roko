@@ -249,10 +249,10 @@
     margin: 0 0 0.5rem;
   }
   .policy {
-    color: #737373;
+    color: rgba(255, 255, 255, 0.75);
     font-size: 0.72rem;
   }
-  .policy:hover { color: #111111; }
+  .policy:hover { color: #ffffff; }
   .error {
     color: #d93636;
     font-size: 0.8rem;
