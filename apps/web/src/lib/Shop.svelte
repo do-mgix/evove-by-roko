@@ -26,14 +26,16 @@
   // screen — where what is bought with points will live — and the centre button
   // turns the page, through the catalog one attribute after the other; with an
   // action chosen it goes back a step instead. The right one goes home. All of
-  // it is pink.
+  // it is pink, on white: the cells and buttons solid, lit from the top left.
 
   const SHOP_COLOR = "#ff6fb5";
+  // the pink deepened, for text on the white
+  const SHOP_DEEP = "#c2307a";
   const COLS = 2;
   const ROWS = 5;
   // a little smaller than the acting screen's cells: five rows, not four
   const PER_PAGE = COLS * ROWS;
-  const GAP = 5;
+  const GAP = 9;
   const DELAY = [0, 110, 60, 170, 30, 220, 140, 90, 200, 50];
 
   const TYPE_LABEL: Record<number, string> = {
@@ -304,7 +306,7 @@
   onDestroy(() => setBackHandler(null));
 </script>
 
-<div class="shop" style="--ink: {SHOP_COLOR}">
+<div class="shop" style="--ink: {SHOP_COLOR}; --deep: {SHOP_DEEP}">
   <!-- the display: where the slider stands, what was chosen, what happened -->
   <div class="display">
     {#if loading}
@@ -362,6 +364,19 @@
     <div class="cells" bind:clientWidth={width} bind:clientHeight={height}>
       {#if width && height}
         <svg viewBox="0 0 {width} {height}" {width} {height}>
+          <!-- a light from the top left: each cell a lit pink bead -->
+          <defs>
+            <radialGradient id="shop-cell" cx="32%" cy="26%" r="85%">
+              <stop offset="0" stop-color="#ffe0ef" />
+              <stop offset="0.4" stop-color={SHOP_COLOR} />
+              <stop offset="1" stop-color="#b8286f" />
+            </radialGradient>
+            <radialGradient id="shop-cell-down" cx="60%" cy="70%" r="85%">
+              <stop offset="0" stop-color="#ff9ccb" />
+              <stop offset="0.5" stop-color="#e2509a" />
+              <stop offset="1" stop-color="#9c1f5d" />
+            </radialGradient>
+          </defs>
           {#each cells as c, i (c.action.name)}
             <g class="cell" role="button" tabindex="0" aria-label={c.action.name}
               style="--delay: {DELAY[i % DELAY.length]}ms"
@@ -412,7 +427,9 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    background: #000000;
+    /* a white void with some depth: lighter where the light falls, greying to the edges */
+    background: radial-gradient(ellipse 120% 90% at 50% 30%, #ffffff 0%, #f7f3f5 50%, #e2dadf 100%);
+    color-scheme: light;
     user-select: none;
     -webkit-user-select: none;
   }
@@ -429,7 +446,7 @@
   .big, .small {
     margin: 0;
     font-family: var(--font-mono);
-    color: var(--ink);
+    color: var(--deep);
     overflow-wrap: anywhere;
   }
   .big { font-size: 1.6rem; line-height: 1.15; text-transform: uppercase; }
@@ -450,14 +467,17 @@
     .cell { animation: none; }
   }
   polygon {
-    fill: var(--ink);
-    fill-opacity: 0.12;
-    stroke: var(--ink);
-    stroke-opacity: 0.6;
-    stroke-width: 1.5;
+    fill: url(#shop-cell);
+    stroke: #ffffff;
+    stroke-opacity: 0.55;
+    stroke-width: 1;
+    filter: drop-shadow(0 4px 5px rgba(110, 20, 65, 0.35)) drop-shadow(0 1px 1px rgba(110, 20, 65, 0.3));
   }
   text {
-    fill: var(--ink);
+    fill: #ffffff;
+    paint-order: stroke;
+    stroke: rgba(120, 20, 70, 0.35);
+    stroke-width: 2px;
     font-family: var(--font-mono);
     font-size: 11.5px;
     text-anchor: middle;
@@ -465,11 +485,13 @@
     text-transform: uppercase;
   }
   .cost { font-size: 10px; opacity: 0.7; }
-  .cell:focus-visible polygon, .cell:active polygon { stroke: #ffffff; stroke-opacity: 1; fill-opacity: 0.25; }
-  .cell:focus-visible text, .cell:active text { fill: #ffffff; }
+  /* pressed: the light moves to the far side and the shadow shrinks under it */
+  .cell:focus-visible polygon, .cell:active polygon {
+    fill: url(#shop-cell-down);
+    filter: drop-shadow(0 1px 1px rgba(110, 20, 65, 0.4));
+  }
   @media (hover: hover) {
-    .cell:hover polygon { stroke: #ffffff; stroke-opacity: 1; }
-    .cell:hover text { fill: #ffffff; }
+    .cell:hover polygon { stroke-opacity: 1; }
   }
 
   .panel {
@@ -480,8 +502,9 @@
     justify-content: flex-end;
     gap: 1rem;
     padding: 1.4rem 1.5rem;
-    background: var(--ink);
+    background: radial-gradient(ellipse 110% 90% at 28% 18%, #ffd6ea 0%, var(--ink) 40%, #b8286f 100%);
     border: none;
+    filter: drop-shadow(0 6px 8px rgba(110, 20, 65, 0.3));
     /* cut like a cell, not a box: in pixels, so a wide screen does not cut into the text */
     clip-path: polygon(0 14px, 100% 0, calc(100% - 10px) 100%, 6px calc(100% - 10px));
     color: #000000;
@@ -538,22 +561,23 @@
   /* empty for now: what points buy will fill it */
   .vault {
     flex: 1;
-    border: 1.5px dashed var(--ink);
-    opacity: 0.25;
+    border-radius: 4px;
+    background: radial-gradient(ellipse 90% 80% at 50% 40%, #f4eff2 0%, #e8e0e5 100%);
+    box-shadow: inset 0 3px 10px rgba(80, 40, 60, 0.18), inset 0 -1px 0 rgba(255, 255, 255, 0.9);
   }
   .makers { display: flex; gap: 8px; }
   .maker {
     flex: 1;
-    min-height: 3rem;
-    background: #000000;
-    border: 1.5px solid var(--ink);
-    color: var(--ink);
+    min-height: 2.6rem;
+    border: none;
+    border-radius: 4px;
+    color: #ffffff;
+    text-shadow: 0 1px 1px rgba(120, 20, 70, 0.4);
     font-family: var(--font-mono);
     font-size: 0.8rem;
     text-transform: uppercase;
     cursor: pointer;
   }
-  .maker:active { border-color: #ffffff; color: #ffffff; }
 
   .bar {
     position: relative;
@@ -562,16 +586,26 @@
     align-items: stretch;
     justify-content: center;
   }
-  .page-btn, .home-btn {
-    background: #000000;
-    border: 1.5px solid var(--ink);
+  /* solid pink, lit from the top left, standing off the white */
+  .maker, .page-btn, .home-btn {
+    background: radial-gradient(ellipse 120% 140% at 30% 20%, #ffe0ef 0%, var(--ink) 42%, #b8286f 100%);
+    border: none;
+    border-radius: 4px;
+    box-shadow:
+      0 4px 8px rgba(110, 20, 65, 0.3),
+      0 1px 2px rgba(110, 20, 65, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      inset 0 -2px 3px rgba(110, 20, 65, 0.3);
     cursor: pointer;
+    transition: transform 0.06s, box-shadow 0.06s;
   }
-  .page-btn { width: 34%; }
-  .home-btn { position: absolute; right: 0; top: 0; bottom: 0; width: 18%; }
-  .page-btn:active, .home-btn:active { border-color: #ffffff; }
-  @media (hover: hover) {
-    .page-btn:hover, .home-btn:hover { border-color: #ffffff; }
+  .page-btn { width: 30%; margin: 4px 0; }
+  .home-btn { position: absolute; right: 0; top: 4px; bottom: 4px; width: 16%; }
+  /* pressed: pushed into the white, the light on the far side */
+  .maker:active, .page-btn:active, .home-btn:active {
+    background: radial-gradient(ellipse 120% 140% at 70% 80%, #ff9ccb 0%, #e2509a 45%, #9c1f5d 100%);
+    box-shadow: 0 1px 1px rgba(110, 20, 65, 0.35), inset 0 2px 4px rgba(80, 10, 45, 0.35);
+    transform: translateY(1px);
   }
   .ticks {
     position: absolute;
@@ -587,7 +621,7 @@
   .ticks i {
     flex: 0 1 6px;
     height: 10px;
-    background: var(--ink);
+    background: var(--deep);
     opacity: 0.25;
   }
   .ticks i.on { opacity: 1; height: 18px; }
