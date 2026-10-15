@@ -5,6 +5,7 @@
     HOME_OPTIONS,
     centroid,
     inset,
+    roundedPath,
     shade,
     type HomeOptionId,
     type Point,
@@ -22,6 +23,8 @@
   const TOP = 0.42;
   // half the gap between two cells, in pixels
   const GAP = 6;
+  // how round the cells' corners are, in pixels
+  const RADIUS = 14;
   // When the screen comes on, each cell lights up like a tube set warming, at
   // its own moment: an uneven order reads as a machine, an even one as a menu.
   const DELAY: Record<HomeOptionId, number> = {
@@ -43,7 +46,7 @@
     const h = Math.max(...ys) - Math.min(...ys);
     return {
       ...o,
-      points: shape.map((p) => p.join(",")).join(" "),
+      d: roundedPath(shape, RADIUS),
       cx,
       cy,
       glyph: Math.max(28, Math.min(w * 0.5, h * 0.5, 96)),
@@ -84,15 +87,14 @@
              light moves to the far side -->
         <defs>
           {#each cells as c (c.id)}
-            <radialGradient id="home-{c.id}" cx="32%" cy="26%" r="85%">
-              <stop offset="0" stop-color={shade(c.color, 0.7)} />
-              <stop offset="0.4" stop-color={c.color} />
-              <stop offset="1" stop-color={shade(c.color, -0.3)} />
+            <radialGradient id="home-{c.id}" cx="35%" cy="25%" r="100%">
+              <stop offset="0" stop-color={shade(c.color, 0.3)} />
+              <stop offset="0.55" stop-color={c.color} />
+              <stop offset="1" stop-color={shade(c.color, -0.1)} />
             </radialGradient>
-            <radialGradient id="home-{c.id}-down" cx="60%" cy="70%" r="85%">
-              <stop offset="0" stop-color={shade(c.color, 0.35)} />
-              <stop offset="0.5" stop-color={shade(c.color, -0.1)} />
-              <stop offset="1" stop-color={shade(c.color, -0.4)} />
+            <radialGradient id="home-{c.id}-down" cx="50%" cy="50%" r="80%">
+              <stop offset="0" stop-color={shade(c.color, -0.04)} />
+              <stop offset="1" stop-color={shade(c.color, -0.16)} />
             </radialGradient>
           {/each}
         </defs>
@@ -111,7 +113,7 @@
             on:keydown={(e) => onKey(e, c.id, c.tone)}
             style="--fill: url(#home-{c.id}); --fill-down: url(#home-{c.id}-down); --ink: {shade(c.color, -0.6)}; --delay: {DELAY[c.id]}ms"
           >
-            <polygon points={c.points} />
+            <path class="shape" d={c.d} />
             <g class="glyph" transform="translate({c.cx - c.glyph / 2} {c.cy - c.glyph / 2}) scale({c.glyph / 24})">
               <path d={GLYPHS[c.id].d} stroke-width={(24 / c.glyph) * 2.4} />
               {#each GLYPHS[c.id].dots as [x, y]}<circle cx={x} cy={y} r={DOT_R} />{/each}
@@ -160,13 +162,12 @@
   @media (prefers-reduced-motion: reduce) {
     .cell { animation: none; }
   }
-  polygon {
+  .shape {
     fill: var(--fill);
     stroke: #ffffff;
-    stroke-opacity: 0.55;
+    stroke-opacity: 0.4;
     stroke-width: 1;
-    stroke-linejoin: miter;
-    filter: drop-shadow(0 4px 5px rgba(60, 30, 50, 0.3)) drop-shadow(0 1px 1px rgba(60, 30, 50, 0.3));
+    filter: drop-shadow(0 2px 4px rgba(60, 30, 50, 0.16));
   }
   .glyph path {
     fill: none;
@@ -177,16 +178,16 @@
   .glyph circle { fill: var(--ink); }
 
   /* a hint, never a caption: the suggested cell's outline is lit */
-  .cell.hint polygon { stroke-opacity: 1; stroke-width: 2.5; }
+  .cell.hint .shape { stroke-opacity: 1; stroke-width: 2.5; }
 
   /* pressed: the light on the far side, the shadow shrunk under it — hover only
      where there is a real pointer: on a touch screen it sticks to the last cell */
-  .cell:focus-visible polygon { stroke-opacity: 1; }
-  .cell.pressed polygon {
+  .cell:focus-visible .shape { stroke-opacity: 1; }
+  .cell.pressed .shape {
     fill: var(--fill-down);
-    filter: drop-shadow(0 1px 1px rgba(60, 30, 50, 0.4));
+    filter: drop-shadow(0 1px 1px rgba(60, 30, 50, 0.18));
   }
   @media (hover: hover) {
-    .cell:hover polygon { stroke-opacity: 1; }
+    .cell:hover .shape { stroke-opacity: 1; }
   }
 </style>

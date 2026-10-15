@@ -146,6 +146,29 @@ export function shade(hex: string, t: number): string {
   return "#" + c.map((v) => v.toString(16).padStart(2, "0")).join("");
 }
 
+/** An SVG path of a polygon with its corners rounded by `r` pixels — less where
+ *  an edge is too short for it. */
+export function roundedPath(points: Point[], r: number): string {
+  const n = points.length;
+  const f = (v: number) => v.toFixed(1);
+  let d = "";
+  points.forEach((p, i) => {
+    const prev = points[(i + n - 1) % n];
+    const next = points[(i + 1) % n];
+    const toward = (q: Point): Point => {
+      const dx = q[0] - p[0];
+      const dy = q[1] - p[1];
+      const len = Math.hypot(dx, dy) || 1;
+      const k = Math.min(r, len / 2) / len;
+      return [p[0] + dx * k, p[1] + dy * k];
+    };
+    const a = toward(prev);
+    const b = toward(next);
+    d += `${i ? "L" : "M"}${f(a[0])},${f(a[1])} Q${f(p[0])},${f(p[1])} ${f(b[0])},${f(b[1])} `;
+  });
+  return d + "Z";
+}
+
 export function centroid(points: Point[]): Point {
   const n = points.length;
   return [

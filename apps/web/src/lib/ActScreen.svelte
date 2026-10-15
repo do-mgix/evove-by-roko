@@ -12,7 +12,7 @@
     fold,
     type Action,
   } from "./api";
-  import { centroid, inset, jitteredGrid, type Point } from "./homeLayout";
+  import { centroid, inset, jitteredGrid, roundedPath, type Point } from "./homeLayout";
   import { primeAudio } from "./dtmf";
   import { powerOn, tap } from "./sfx";
   import { bumpLogs, bumpUser, setBackHandler } from "./store";
@@ -84,7 +84,7 @@
       const [cx, cy] = centroid(shape);
       const xs = shape.map((p) => p[0]);
       const cellW = Math.max(...xs) - Math.min(...xs);
-      return { action, points: shape.map((p) => p.join(",")).join(" "), cx, cy, lines: wrap(action.name, cellW) };
+      return { action, d: roundedPath(shape, 12), cx, cy, lines: wrap(action.name, cellW) };
     });
   }
 
@@ -334,15 +334,14 @@
         <svg viewBox="0 0 {width} {height}" width={width} height={height}>
           <!-- a light from the top left: each cell a lit yellow bead -->
           <defs>
-            <radialGradient id="act-cell" cx="32%" cy="26%" r="85%">
-              <stop offset="0" stop-color="#fff6d6" />
-              <stop offset="0.4" stop-color="#ffd23f" />
-              <stop offset="1" stop-color="#d9a400" />
+            <radialGradient id="act-cell" cx="35%" cy="25%" r="100%">
+              <stop offset="0" stop-color="#ffe489" />
+              <stop offset="0.55" stop-color="#ffd23f" />
+              <stop offset="1" stop-color="#f2c22e" />
             </radialGradient>
-            <radialGradient id="act-cell-down" cx="60%" cy="70%" r="85%">
-              <stop offset="0" stop-color="#ffe17a" />
-              <stop offset="0.5" stop-color="#f0bb1c" />
-              <stop offset="1" stop-color="#b38600" />
+            <radialGradient id="act-cell-down" cx="50%" cy="50%" r="80%">
+              <stop offset="0" stop-color="#f7ca33" />
+              <stop offset="1" stop-color="#e6b31c" />
             </radialGradient>
           </defs>
           {#each cells as c, i (c.action.id)}
@@ -350,7 +349,7 @@
               style="--delay: {DELAY[i % DELAY.length]}ms"
               on:click={() => choose(c.action)}
               on:keydown={(e) => e.key === "Enter" && choose(c.action)}>
-              <polygon points={c.points} />
+              <path class="shape" d={c.d} />
               <text x={c.cx} y={c.cy - ((c.lines.length - 1) * 16) / 2}>
                 {#each c.lines as line, i}<tspan x={c.cx} dy={i === 0 ? 0 : 16}>{line}</tspan>{/each}
               </text>
@@ -435,12 +434,12 @@
   @media (prefers-reduced-motion: reduce) {
     .cell { animation: none; }
   }
-  polygon {
+  .shape {
     fill: url(#act-cell);
     stroke: #ffffff;
-    stroke-opacity: 0.6;
+    stroke-opacity: 0.45;
     stroke-width: 1;
-    filter: drop-shadow(0 4px 5px rgba(110, 80, 0, 0.3)) drop-shadow(0 1px 1px rgba(110, 80, 0, 0.3));
+    filter: drop-shadow(0 2px 4px rgba(110, 80, 0, 0.16));
   }
   text {
     fill: var(--dark);
@@ -452,12 +451,12 @@
   }
   /* pressed: the light moves to the far side and the shadow shrinks under it;
      hover only with a real pointer: on touch it sticks to the last cell tapped */
-  .cell:focus-visible polygon, .cell:active polygon {
+  .cell:focus-visible .shape, .cell:active .shape {
     fill: url(#act-cell-down);
-    filter: drop-shadow(0 1px 1px rgba(110, 80, 0, 0.4));
+    filter: drop-shadow(0 1px 1px rgba(110, 80, 0, 0.18));
   }
   @media (hover: hover) {
-    .cell:hover polygon { stroke-opacity: 1; }
+    .cell:hover .shape { stroke-opacity: 1; }
   }
 
   .tiers {
@@ -493,14 +492,10 @@
   .act.typing .bar { display: none; }
   /* solid yellow, lit from the top left, standing off the white */
   .tier, .page-btn, .home-btn {
-    background: radial-gradient(ellipse 120% 140% at 30% 20%, #fff6d6 0%, var(--ink) 42%, #d9a400 100%);
+    background: radial-gradient(ellipse 130% 150% at 35% 20%, #ffe489 0%, var(--ink) 55%, #f2c22e 100%);
     border: none;
-    border-radius: 4px;
-    box-shadow:
-      0 4px 8px rgba(110, 80, 0, 0.28),
-      0 1px 2px rgba(110, 80, 0, 0.35),
-      inset 0 1px 0 rgba(255, 255, 255, 0.7),
-      inset 0 -2px 3px rgba(110, 80, 0, 0.25);
+    border-radius: 16px;
+    box-shadow: 0 2px 4px rgba(110, 80, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.4);
     cursor: pointer;
     transition: transform 0.06s, box-shadow 0.06s;
   }
@@ -508,8 +503,8 @@
   .home-btn { position: absolute; right: 0; top: 4px; bottom: 4px; width: 16%; }
   /* pressed: pushed into the white, the light on the far side */
   .tier:active:not(:disabled), .page-btn:active, .home-btn:active {
-    background: radial-gradient(ellipse 120% 140% at 70% 80%, #ffe17a 0%, #f0bb1c 45%, #b38600 100%);
-    box-shadow: 0 1px 1px rgba(110, 80, 0, 0.35), inset 0 2px 4px rgba(80, 55, 0, 0.35);
+    background: #ecbd25;
+    box-shadow: 0 1px 1px rgba(110, 80, 0, 0.18), inset 0 1px 3px rgba(80, 55, 0, 0.2);
     transform: translateY(1px);
   }
   .pages {
