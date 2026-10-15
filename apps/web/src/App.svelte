@@ -154,10 +154,11 @@
         /* the backdrop below stays under everything inside the frame */
     isolation: isolate;
   }
-  /* The backdrop: energy running up a black screen — a green glow with a white
-     core, two pulses per screen height, rising without end. The layer is two
-     screens tall with the pulses repeating down it, so sliding it up by one
-     half loops seamlessly. Moved by transform, so the phone only composites it. */
+  /* The backdrop: a wave of energy running up the screen, in greens only — deep
+     green rising to a white crest and back — one wave per screen height,
+     without end. The layer is two screens tall with the wave in each half, so
+     sliding it up by one half loops seamlessly. Moved by transform, so the
+     phone only composites it. */
   .frame::before {
     content: "";
     position: absolute;
@@ -168,17 +169,17 @@
     z-index: -1;
     background: linear-gradient(
         to bottom,
-        #000000 0%,
-        #02140b 22%,
-        #08442a 38%,
-        #16b862 46.5%,
-        #f2fff7 50%,
-        #16b862 53.5%,
-        #08442a 62%,
-        #02140b 78%,
-        #000000 100%
+        #0a4d2c 0%,
+        #0e6b3c 20%,
+        #16944f 36%,
+        #3ccf7c 45%,
+        #ffffff 50%,
+        #3ccf7c 55%,
+        #16944f 64%,
+        #0e6b3c 80%,
+        #0a4d2c 100%
       )
-      0 0 / 100% 25% repeat-y;
+      0 0 / 100% 50% repeat-y;
     animation: rise 6s linear infinite;
     pointer-events: none;
   }
