@@ -155,7 +155,7 @@
     isolation: isolate;
   }
   /* The backdrop: energy running up a black screen — a green glow with a white
-     core, five pulses per screen height, rising without end. The layer is two
+     core, two pulses per screen height, rising without end. The layer is two
      screens tall with the pulses repeating down it, so sliding it up by one
      half loops seamlessly. Moved by transform, so the phone only composites it. */
   .frame::before {
@@ -178,7 +178,7 @@
         #02140b 78%,
         #000000 100%
       )
-      0 0 / 100% 10% repeat-y;
+      0 0 / 100% 25% repeat-y;
     animation: rise 6s linear infinite;
     pointer-events: none;
   }
