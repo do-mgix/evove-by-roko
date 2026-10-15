@@ -219,7 +219,7 @@
 <style>
   .page {
     padding: 1.75rem 2rem;
-    color: #ffffff;
+    color: #111111;
     font-family: Arial, Helvetica, sans-serif;
     height: 100%;
     overflow-y: auto;
@@ -233,25 +233,25 @@
   }
   h1 {
     margin: 0;
-    color: #ffffff;
+    color: #111111;
     font-size: 1.4rem;
     text-transform: uppercase;
     letter-spacing: 0.1em;
   }
   h2 {
     margin: 0 0 0.75rem;
-    color: #808080;
+    color: #737373;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     font-size: 0.85rem;
   }
-  .muted { color: #808080; font-size: 0.78rem; }
-  .muted-sub { color: #808080; font-size: 0.7rem; }
-  .error { color: #ff4d4d; }
+  .muted { color: #737373; font-size: 0.78rem; }
+  .muted-sub { color: #737373; font-size: 0.7rem; }
+  .error { color: #d93636; }
 
   .card {
-    background: #000000;
-    border: 1px solid #333333;
+    background: #ffffff;
+    border: 1px solid #d4d4d4;
     border-radius: 6px;
     padding: 0.95rem 1.1rem;
     margin-bottom: 1rem;
@@ -266,14 +266,14 @@
   }
   dt {
     align-self: center;
-    color: #808080;
+    color: #737373;
     text-transform: uppercase;
     font-size: 0.65rem;
     letter-spacing: 0.08em;
   }
   dd {
     margin: 0;
-    color: #ffffff;
+    color: #111111;
     font-size: 0.9rem;
     overflow-wrap: anywhere;
   }
@@ -289,17 +289,17 @@
     align-items: flex-start;
     gap: 0.2rem;
     padding: 0.6rem 0.85rem;
-    background: #000000;
-    border: 1px solid #333333;
+    background: #ffffff;
+    border: 1px solid #d4d4d4;
     border-radius: 4px;
-    color: #ffffff;
+    color: #111111;
     font: inherit;
     text-align: left;
     cursor: pointer;
     transition: border-color 0.15s;
   }
-  .exit:hover { border-color: #ff4d4d; }
-  .exit:hover .exit-label { color: #ff4d4d; }
+  .exit:hover { border-color: #d93636; }
+  .exit:hover .exit-label { color: #d93636; }
   .exit-label {
     font-size: 0.85rem;
     text-transform: uppercase;
@@ -321,50 +321,50 @@
     cursor: pointer;
   }
   .danger {
-    border: 1px solid #ff4d4d;
-    background: #ff4d4d;
-    color: #000000;
+    border: 1px solid #d93636;
+    background: #d93636;
+    color: #ffffff;
   }
   .ghost {
-    border: 1px solid #333333;
-    background: #000000;
-    color: #808080;
+    border: 1px solid #d4d4d4;
+    background: #ffffff;
+    color: #737373;
   }
-  .ghost:hover { color: #cccccc; }
+  .ghost:hover { color: #444444; }
   .danger:disabled { opacity: 0.4; cursor: not-allowed; }
   .policy { margin: 0 0 1rem; font-size: 0.78rem; }
-  .policy a { color: #808080; }
-  .policy a:hover { color: #ffffff; }
+  .policy a { color: #737373; }
+  .policy a:hover { color: #111111; }
   .inline {
     margin-left: 0.6rem;
     padding: 0;
     background: transparent;
     border: none;
-    color: #808080;
+    color: #737373;
     font: inherit;
     font-size: 0.75rem;
     text-decoration: underline;
     cursor: pointer;
   }
-  .inline:hover { color: #ffffff; }
+  .inline:hover { color: #111111; }
   .email-edit { margin-top: 0.9rem; }
   .email-edit .muted-sub { display: block; margin-bottom: 0.6rem; }
-  .email-edit .password:focus { border-color: #ffffff; }
+  .email-edit .password:focus { border-color: #111111; }
   .save {
     padding: 0.45rem 0.85rem;
-    border: 1px solid #ffffff;
+    border: 1px solid #111111;
     border-radius: 4px;
-    background: #000000;
-    color: #ffffff;
+    background: #ffffff;
+    color: #111111;
     font: inherit;
     font-size: 0.8rem;
     cursor: pointer;
   }
-  .save:hover:not(:disabled) { background: #ffffff; color: #000000; }
+  .save:hover:not(:disabled) { background: #111111; color: #ffffff; }
   .save:disabled { opacity: 0.4; cursor: not-allowed; }
   .warn {
     margin: 0 0 0.75rem;
-    color: #cccccc;
+    color: #444444;
     font-size: 0.85rem;
     line-height: 1.45;
   }
@@ -373,17 +373,17 @@
     width: 100%;
     max-width: 20rem;
     box-sizing: border-box;
-    background: #000000;
-    border: 1px solid #333333;
+    background: #ffffff;
+    border: 1px solid #d4d4d4;
     border-radius: 4px;
-    color: #ffffff;
+    color: #111111;
     padding: 0.55rem 0.8rem;
     font: inherit;
     font-size: 0.9rem;
     outline: none;
     margin-bottom: 0.75rem;
   }
-  .password:focus { border-color: #ff4d4d; }
+  .password:focus { border-color: #d93636; }
 
   @media (max-width: 768px) {
     .page { padding: 0.75rem 0.9rem; }

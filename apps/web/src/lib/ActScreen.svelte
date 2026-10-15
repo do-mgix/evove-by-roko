@@ -332,6 +332,19 @@
     <div class="cells" bind:clientWidth={width} bind:clientHeight={height}>
       {#if width && height}
         <svg viewBox="0 0 {width} {height}" width={width} height={height}>
+          <!-- a light from the top left: each cell a lit yellow bead -->
+          <defs>
+            <radialGradient id="act-cell" cx="32%" cy="26%" r="85%">
+              <stop offset="0" stop-color="#fff6d6" />
+              <stop offset="0.4" stop-color="#ffd23f" />
+              <stop offset="1" stop-color="#d9a400" />
+            </radialGradient>
+            <radialGradient id="act-cell-down" cx="60%" cy="70%" r="85%">
+              <stop offset="0" stop-color="#ffe17a" />
+              <stop offset="0.5" stop-color="#f0bb1c" />
+              <stop offset="1" stop-color="#b38600" />
+            </radialGradient>
+          </defs>
           {#each cells as c, i (c.action.id)}
             <g class="cell" role="button" tabindex="0" aria-label={c.action.name}
               style="--delay: {DELAY[i % DELAY.length]}ms"
@@ -360,6 +373,9 @@
 <style>
   .act {
     --ink: #ffd23f;
+    /* agir's yellow deepened, for text on the white and on the yellow */
+    --deep: #8a6500;
+    --dark: #5c4300;
     position: absolute;
     inset: 0;
     padding: 10px;
@@ -367,7 +383,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    background: #000000;
+    background: var(--void);
     user-select: none;
     -webkit-user-select: none;
   }
@@ -397,7 +413,7 @@
   .big, .small {
     margin: 0;
     font-family: var(--font-mono);
-    color: var(--ink);
+    color: var(--deep);
     overflow-wrap: anywhere;
   }
   .big { font-size: 1.6rem; line-height: 1.15; text-transform: uppercase; }
@@ -420,27 +436,28 @@
     .cell { animation: none; }
   }
   polygon {
-    /* a faint wash of agir's yellow */
-    fill: var(--ink);
-    fill-opacity: 0.1;
-    stroke: var(--ink);
-    stroke-opacity: 0.55;
-    stroke-width: 1.5;
+    fill: url(#act-cell);
+    stroke: #ffffff;
+    stroke-opacity: 0.6;
+    stroke-width: 1;
+    filter: drop-shadow(0 4px 5px rgba(110, 80, 0, 0.3)) drop-shadow(0 1px 1px rgba(110, 80, 0, 0.3));
   }
   text {
-    fill: var(--ink);
+    fill: var(--dark);
     font-family: var(--font-mono);
     font-size: 13px;
     text-anchor: middle;
     dominant-baseline: middle;
     text-transform: uppercase;
   }
-  .cell:focus-visible polygon, .cell:active polygon { stroke: #ffffff; stroke-opacity: 1; fill-opacity: 0.2; }
-  .cell:focus-visible text, .cell:active text { fill: #ffffff; }
-  /* hover only with a real pointer: on touch it sticks to the last cell tapped */
+  /* pressed: the light moves to the far side and the shadow shrinks under it;
+     hover only with a real pointer: on touch it sticks to the last cell tapped */
+  .cell:focus-visible polygon, .cell:active polygon {
+    fill: url(#act-cell-down);
+    filter: drop-shadow(0 1px 1px rgba(110, 80, 0, 0.4));
+  }
   @media (hover: hover) {
-    .cell:hover polygon { stroke: #ffffff; stroke-opacity: 1; }
-    .cell:hover text { fill: #ffffff; }
+    .cell:hover polygon { stroke-opacity: 1; }
   }
 
   .tiers {
@@ -458,16 +475,9 @@
     align-items: center;
     justify-content: center;
     gap: 0.3rem;
-    min-height: 4.5rem;
-    background: #000000;
-    border: 1.5px solid var(--ink);
-    color: var(--ink);
+    min-height: 4.2rem;
+    color: var(--dark);
     font-family: var(--font-mono);
-    cursor: pointer;
-  }
-  .tier:active:not(:disabled) { border-color: #ffffff; color: #ffffff; }
-  @media (hover: hover) {
-    .tier:hover:not(:disabled) { border-color: #ffffff; color: #ffffff; }
   }
   .tier:disabled { opacity: 0.4; }
   .tier-label { font-size: 0.85rem; }
@@ -481,16 +491,26 @@
     justify-content: center;
   }
   .act.typing .bar { display: none; }
-  .page-btn, .home-btn {
-    background: #000000;
-    border: 1.5px solid var(--ink);
+  /* solid yellow, lit from the top left, standing off the white */
+  .tier, .page-btn, .home-btn {
+    background: radial-gradient(ellipse 120% 140% at 30% 20%, #fff6d6 0%, var(--ink) 42%, #d9a400 100%);
+    border: none;
+    border-radius: 4px;
+    box-shadow:
+      0 4px 8px rgba(110, 80, 0, 0.28),
+      0 1px 2px rgba(110, 80, 0, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
+      inset 0 -2px 3px rgba(110, 80, 0, 0.25);
     cursor: pointer;
+    transition: transform 0.06s, box-shadow 0.06s;
   }
-  .page-btn { width: 34%; }
-  .home-btn { position: absolute; right: 0; top: 0; bottom: 0; width: 18%; }
-  .page-btn:active, .home-btn:active { border-color: #ffffff; }
-  @media (hover: hover) {
-    .page-btn:hover, .home-btn:hover { border-color: #ffffff; }
+  .page-btn { width: 30%; margin: 4px 0; }
+  .home-btn { position: absolute; right: 0; top: 4px; bottom: 4px; width: 16%; }
+  /* pressed: pushed into the white, the light on the far side */
+  .tier:active:not(:disabled), .page-btn:active, .home-btn:active {
+    background: radial-gradient(ellipse 120% 140% at 70% 80%, #ffe17a 0%, #f0bb1c 45%, #b38600 100%);
+    box-shadow: 0 1px 1px rgba(110, 80, 0, 0.35), inset 0 2px 4px rgba(80, 55, 0, 0.35);
+    transform: translateY(1px);
   }
   .pages {
     position: absolute;
@@ -503,8 +523,8 @@
   .pages i {
     width: 6px;
     height: 6px;
-    border: 1px solid var(--ink);
+    border: 1px solid var(--deep);
     opacity: 0.6;
   }
-  .pages i.on { background: var(--ink); opacity: 1; }
+  .pages i.on { background: var(--deep); opacity: 1; }
 </style>

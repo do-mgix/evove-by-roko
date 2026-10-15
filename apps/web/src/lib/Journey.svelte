@@ -147,7 +147,7 @@
     height: 100%;
     box-sizing: border-box;
     padding: 1.5rem 2rem;
-    color: #ffffff;
+    color: #111111;
     font-family: Arial, Helvetica, sans-serif;
     overflow-y: auto;
     max-width: 40rem;
@@ -155,15 +155,15 @@
   .head { margin-bottom: 1rem; }
   h1 {
     margin: 0;
-    color: #808080;
+    color: #737373;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     font-size: 1.05rem;
   }
-  .muted { color: #808080; font-size: 0.8rem; }
-  .error { color: #ff4d4d; }
+  .muted { color: #737373; font-size: 0.8rem; }
+  .error { color: #d93636; }
   .label {
-    color: #808080;
+    color: #737373;
     text-transform: uppercase;
     font-size: 0.7rem;
     letter-spacing: 0.1em;
@@ -176,7 +176,7 @@
     margin-bottom: 1.25rem;
   }
   .stage {
-    color: #00e5ff;
+    color: #00838f;
     font-weight: bold;
     text-transform: uppercase;
     letter-spacing: 0.08em;
@@ -195,13 +195,13 @@
     gap: 0.2rem;
   }
   .num {
-    color: #ffffff;
+    color: #111111;
     font-weight: bold;
     font-size: 2.2rem;
     font-variant-numeric: tabular-nums;
   }
   .tag {
-    color: #808080;
+    color: #737373;
     font-size: 0.8rem;
     margin-right: 0.5rem;
   }
@@ -210,13 +210,13 @@
     position: relative;
     height: 10px;
     border-radius: 999px;
-    background: #333333;
+    background: #d4d4d4;
   }
   .fill {
     position: absolute;
     inset: 0 auto 0 0;
     border-radius: 999px;
-    background: #00e5ff;
+    background: #00838f;
   }
   .tick {
     position: absolute;
@@ -224,20 +224,20 @@
     width: 2px;
     height: 16px;
     margin-left: -1px;
-    background: #808080;
+    background: #737373;
   }
-  .tick.reached { background: #000000; }
+  .tick.reached { background: #ffffff; }
   .track-legend {
     display: flex;
     justify-content: space-between;
     gap: 1rem;
     margin: 0.5rem 0 1.5rem;
-    color: #808080;
+    color: #737373;
     font-size: 0.75rem;
   }
 
   .card {
-    border: 1px solid #333333;
+    border: 1px solid #d4d4d4;
     border-radius: 6px;
     padding: 0.95rem 1.1rem;
   }
@@ -254,17 +254,17 @@
   .energy-bar {
     height: 10px;
     border-radius: 999px;
-    background: #333333;
+    background: #d4d4d4;
     overflow: hidden;
   }
   .energy-fill {
     height: 100%;
-    background: #ffffff;
+    background: #111111;
   }
-  .energy-bar.low .energy-fill { background: #ff4d4d; }
+  .energy-bar.low .energy-fill { background: #d93636; }
   .rule {
     margin: 0.75rem 0 0;
-    color: #808080;
+    color: #737373;
     font-size: 0.78rem;
     line-height: 1.45;
   }

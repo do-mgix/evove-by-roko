@@ -16,17 +16,20 @@
 :root {
   --font-display: "Zalando Sans Expanded", Arial, Helvetica, sans-serif;
   --font-mono: "JetBrains Mono", "Courier New", monospace;
-  color-scheme: dark;
+  /* a white void with some depth: lighter where the light falls, greying to the
+     edges. The full screens (home, agir, shop, gains) stand on it. */
+  --void: radial-gradient(ellipse 120% 90% at 50% 30%, #ffffff 0%, #f7f3f5 50%, #e2dadf 100%);
+  color-scheme: light;
   font-family: Arial, Helvetica, sans-serif;
-  background: #000000;
-  color: #ffffff;
+  background: #e2dadf;
+  color: #111111;
 }
 
 body, html, #app {
   margin: 0;
   padding: 0;
   min-height: 100vh;
-  background: #000000;
+  background: #e2dadf;
   overflow: hidden;
 }
 

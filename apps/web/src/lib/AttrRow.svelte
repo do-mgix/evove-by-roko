@@ -47,7 +47,7 @@
     position: relative;
     margin-top: 0.9rem;
     padding: 0.4rem 0.55rem 0.5rem;
-    border: 1px solid #e8c547;
+    border: 1px solid #b08a00;
     border-radius: 6px;
   }
   .gain {
@@ -55,8 +55,8 @@
     top: -0.8rem;
     right: 0.5rem;
     padding: 0 0.35rem;
-    background: #000000;
-    color: #e8c547;
+    background: #ffffff;
+    color: #b08a00;
     font-size: 0.7rem;
     font-variant-numeric: tabular-nums;
   }
@@ -71,7 +71,7 @@
     text-align: left;
     cursor: pointer;
   }
-  .hit:hover .name { color: #00e5ff; }
+  .hit:hover .name { color: #00838f; }
   .row {
     display: flex;
     align-items: baseline;
@@ -84,16 +84,16 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: #ffffff;
+    color: #111111;
     font-size: 0.85rem;
   }
-  .custom .name { color: #00e5ff; }
-  .weight { color: #808080; font-size: 0.7rem; font-variant-numeric: tabular-nums; }
-  .rank { color: #00e5ff; font-weight: bold; font-size: 0.8rem; }
+  .custom .name { color: #00838f; }
+  .weight { color: #737373; font-size: 0.7rem; font-variant-numeric: tabular-nums; }
+  .rank { color: #00838f; font-weight: bold; font-size: 0.8rem; }
   .note {
     display: block;
     margin-top: 0.3rem;
-    color: #808080;
+    color: #737373;
     font-size: 0.68rem;
     overflow: hidden;
     text-overflow: ellipsis;

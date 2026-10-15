@@ -55,7 +55,7 @@
     display: flex;
     gap: 0.25rem;
     padding: 0.75rem 2rem 0;
-    border-bottom: 1px solid #333333;
+    border-bottom: 1px solid #d4d4d4;
     flex: none;
   }
   .tab {
@@ -64,17 +64,17 @@
     border: none;
     border-bottom: 2px solid transparent;
     margin-bottom: -1px;
-    color: #808080;
+    color: #737373;
     font: inherit;
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     cursor: pointer;
   }
-  .tab:hover { color: #cccccc; }
+  .tab:hover { color: #444444; }
   .tab.on {
-    color: #00e5ff;
-    border-bottom-color: #00e5ff;
+    color: #00838f;
+    border-bottom-color: #00838f;
   }
   .body {
     flex: 1;

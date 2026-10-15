@@ -134,15 +134,15 @@
     flex: 1;
     padding: 0.3rem 0.5rem;
     background: transparent;
-    border: 1px solid #2a2a2a;
+    border: 1px solid #dddddd;
     color: #888;
     font: inherit;
     font-size: 0.75rem;
     cursor: pointer;
   }
   .tab.on {
-    border-color: #00e5ff;
-    color: #00e5ff;
+    border-color: #00838f;
+    color: #00838f;
   }
   .trail {
     display: flex;
@@ -160,7 +160,7 @@
     cursor: pointer;
   }
   .crumb:hover {
-    color: #00e5ff;
+    color: #00838f;
   }
   .sep {
     color: #444;
@@ -171,12 +171,12 @@
     padding: 0;
     max-height: 13rem;
     overflow-y: auto;
-    border: 1px solid #1e1e1e;
+    border: 1px solid #e4e4e4;
   }
   .results li {
     display: flex;
     align-items: stretch;
-    border-bottom: 1px solid #1a1a1a;
+    border-bottom: 1px solid #e8e8e8;
   }
   .results li:last-child {
     border-bottom: 0;
@@ -197,8 +197,8 @@
     cursor: pointer;
   }
   .hit:hover {
-    background: #141414;
-    color: #00e5ff;
+    background: #eeeeee;
+    color: #00838f;
   }
   .label {
     white-space: nowrap;
@@ -224,13 +224,13 @@
     width: 1.6rem;
     background: none;
     border: 0;
-    border-left: 1px solid #1a1a1a;
+    border-left: 1px solid #e8e8e8;
     color: #555;
     font: inherit;
     cursor: pointer;
   }
   .into:hover {
-    color: #00e5ff;
+    color: #00838f;
   }
   .empty,
   .source {

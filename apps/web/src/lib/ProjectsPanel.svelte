@@ -50,8 +50,8 @@
 
 <style>
   .panel {
-    background: #000000;
-    border: 1px solid #333333;
+    background: #ffffff;
+    border: 1px solid #d4d4d4;
     border-radius: 6px;
     padding: 0.85rem 1rem;
     overflow: auto;
@@ -64,8 +64,8 @@
   }
   .add-btn {
     background: transparent;
-    border: 1px solid #333333;
-    color: #808080;
+    border: 1px solid #d4d4d4;
+    color: #737373;
     width: 22px;
     height: 22px;
     border-radius: 4px;
@@ -75,11 +75,11 @@
     padding: 0;
   }
   .add-btn:hover {
-    border-color: #00e5ff;
-    color: #00e5ff;
+    border-color: #00838f;
+    color: #00838f;
   }
   .panel-title {
-    color: #808080;
+    color: #737373;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     font-size: 0.7rem;
@@ -90,10 +90,10 @@
     margin: 0;
   }
   li {
-    border-bottom: 1px solid #333333;
+    border-bottom: 1px solid #d4d4d4;
   }
   .empty {
-    color: #808080;
+    color: #737373;
     font-size: 0.85rem;
   }
   .row {
@@ -107,11 +107,11 @@
     border: none;
     font: inherit;
     font-size: 0.82rem;
-    color: #808080;
+    color: #737373;
     text-align: left;
     cursor: pointer;
   }
   .row:hover {
-    background: #000000;
+    background: #ffffff;
   }  
 </style>

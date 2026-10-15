@@ -127,20 +127,20 @@
     gap: 0.05rem;
     /* flat rectangles: the physical numpad is the real input here */
     height: 2.1rem;
-    background: #000000;
-    border: 1px solid #333333;
+    background: #ffffff;
+    border: 1px solid #d4d4d4;
     border-radius: 3px;
-    color: #cccccc;
+    color: #444444;
     font: inherit;
     cursor: pointer;
     user-select: none;
     transition: border-color 0.12s, color 0.12s, transform 0.08s;
   }
-  .key:hover:not(:disabled) { border-color: #808080; color: #ffffff; }
+  .key:hover:not(:disabled) { border-color: #737373; color: #111111; }
   .key.pressed,
   .key:active:not(:disabled) {
-    border-color: #00e5ff;
-    color: #00e5ff;
+    border-color: #00838f;
+    color: #00838f;
     transform: scale(0.96);
   }
   .key:disabled { opacity: 0.3; cursor: default; }
@@ -148,12 +148,12 @@
   .letters {
     font-size: 0.5rem;
     letter-spacing: 0.06em;
-    color: #808080;
+    color: #737373;
     text-transform: uppercase;
     min-height: 0.6rem;
   }
-  .aux .num { color: #808080; }
-  .ok.pressed .num, .ok:active:not(:disabled) .num { color: #00e5ff; }
+  .aux .num { color: #737373; }
+  .ok.pressed .num, .ok:active:not(:disabled) .num { color: #00838f; }
 
   /* Touch: tall keys sized for a thumb, since there is no physical keypad. */
   .dialpad.touch {
@@ -163,7 +163,7 @@
   .dialpad.touch .key {
     height: 3.4rem;
     border-radius: 8px;
-    box-shadow: 0 0 12px rgba(255, 255, 255, 0.04);
+    box-shadow: 0 0 12px rgba(0, 0, 0, 0.06);
   }
   .dialpad.touch .num { font-size: 1.25rem; }
   .dialpad.touch .letters { font-size: 0.55rem; }

@@ -427,9 +427,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    /* a white void with some depth: lighter where the light falls, greying to the edges */
-    background: radial-gradient(ellipse 120% 90% at 50% 30%, #ffffff 0%, #f7f3f5 50%, #e2dadf 100%);
-    color-scheme: light;
+    background: var(--void);
     user-select: none;
     -webkit-user-select: none;
   }

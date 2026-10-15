@@ -136,6 +136,16 @@ export function jitteredGrid(cols: number, rows: number, seed: number, jitter = 
   return cells;
 }
 
+/** A color moved toward white (t > 0) or black (t < 0), by |t| of the way:
+ *  the lit and the shaded side of a solid cell, and its ink. */
+export function shade(hex: string, t: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const to = t > 0 ? 255 : 0;
+  const k = Math.abs(t);
+  const c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => Math.round(v + (to - v) * k));
+  return "#" + c.map((v) => v.toString(16).padStart(2, "0")).join("");
+}
+
 export function centroid(points: Point[]): Point {
   const n = points.length;
   return [

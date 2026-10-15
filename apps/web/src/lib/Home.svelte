@@ -5,6 +5,7 @@
     HOME_OPTIONS,
     centroid,
     inset,
+    shade,
     type HomeOptionId,
     type Point,
   } from "./homeLayout";
@@ -79,6 +80,22 @@
   <div class="stage" bind:clientWidth={width} bind:clientHeight={height}>
     {#if width > 0 && height > 0}
       <svg viewBox="0 0 {width} {height}" width={width} height={height}>
+        <!-- each cell solid in its color, lit from the top left; pressed, the
+             light moves to the far side -->
+        <defs>
+          {#each cells as c (c.id)}
+            <radialGradient id="home-{c.id}" cx="32%" cy="26%" r="85%">
+              <stop offset="0" stop-color={shade(c.color, 0.7)} />
+              <stop offset="0.4" stop-color={c.color} />
+              <stop offset="1" stop-color={shade(c.color, -0.3)} />
+            </radialGradient>
+            <radialGradient id="home-{c.id}-down" cx="60%" cy="70%" r="85%">
+              <stop offset="0" stop-color={shade(c.color, 0.35)} />
+              <stop offset="0.5" stop-color={shade(c.color, -0.1)} />
+              <stop offset="1" stop-color={shade(c.color, -0.4)} />
+            </radialGradient>
+          {/each}
+        </defs>
         {#each cells as c (c.id)}
           <g
             class="cell"
@@ -92,7 +109,7 @@
             on:pointerleave={() => pressed === c.id && (pressed = null)}
             on:pointercancel={() => (pressed = null)}
             on:keydown={(e) => onKey(e, c.id, c.tone)}
-            style="--color: {c.color}; --delay: {DELAY[c.id]}ms"
+            style="--fill: url(#home-{c.id}); --fill-down: url(#home-{c.id}-down); --ink: {shade(c.color, -0.6)}; --delay: {DELAY[c.id]}ms"
           >
             <polygon points={c.points} />
             <g class="glyph" transform="translate({c.cx - c.glyph / 2} {c.cy - c.glyph / 2}) scale({c.glyph / 24})">
@@ -114,7 +131,7 @@
     /* keeps the square corners of the cells clear of the frame's round ones */
     padding: 10px;
     box-sizing: border-box;
-    background: #000000;
+    background: var(--void);
     touch-action: manipulation;
     user-select: none;
     -webkit-user-select: none;
@@ -129,7 +146,6 @@
     height: 100%;
   }
   .cell {
-    --ink: var(--color);
     cursor: pointer;
     outline: none;
     /* scale each cell about its own centre */
@@ -145,13 +161,12 @@
     .cell { animation: none; }
   }
   polygon {
-    /* a faint wash of the option's own color */
-    fill: var(--color);
-    fill-opacity: 0.12;
-    stroke: var(--ink);
+    fill: var(--fill);
+    stroke: #ffffff;
     stroke-opacity: 0.55;
-    stroke-width: 1.5;
+    stroke-width: 1;
     stroke-linejoin: miter;
+    filter: drop-shadow(0 4px 5px rgba(60, 30, 50, 0.3)) drop-shadow(0 1px 1px rgba(60, 30, 50, 0.3));
   }
   .glyph path {
     fill: none;
@@ -164,14 +179,14 @@
   /* a hint, never a caption: the suggested cell's outline is lit */
   .cell.hint polygon { stroke-opacity: 1; stroke-width: 2.5; }
 
-  /* hover and press turn the cell white — hover only where there is a real
-     pointer: on a touch screen it sticks to the last cell tapped */
-  .cell:focus-visible,
-  .cell.pressed { --ink: #ffffff; }
+  /* pressed: the light on the far side, the shadow shrunk under it — hover only
+     where there is a real pointer: on a touch screen it sticks to the last cell */
   .cell:focus-visible polygon { stroke-opacity: 1; }
-  .cell.pressed polygon { stroke-opacity: 1; fill-opacity: 0.22; }
+  .cell.pressed polygon {
+    fill: var(--fill-down);
+    filter: drop-shadow(0 1px 1px rgba(60, 30, 50, 0.4));
+  }
   @media (hover: hover) {
-    .cell:hover { --ink: #ffffff; }
     .cell:hover polygon { stroke-opacity: 1; }
   }
 </style>

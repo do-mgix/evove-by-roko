@@ -153,12 +153,12 @@
     overflow-y: auto;
     padding: 1rem;
     box-sizing: border-box;
-    color: #ffffff;
+    color: #111111;
     font-family: Arial, Helvetica, sans-serif;
   }
   .card {
-    background: #000000;
-    border: 1px solid #333333;
+    background: #ffffff;
+    border: 1px solid #d4d4d4;
     border-radius: 8px;
     padding: 2rem 2.5rem;
     width: 320px;
@@ -167,14 +167,14 @@
   }
   h1 {
     margin: 0 0 1.5rem;
-    color: #00e5ff;
+    color: #00838f;
     font-size: 1.5rem;
     text-transform: uppercase;
     letter-spacing: 0.15em;
     text-align: center;
   }
   .hint {
-    color: #808080;
+    color: #737373;
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -183,10 +183,10 @@
   input {
     width: 100%;
     box-sizing: border-box;
-    background: #000000;
-    border: 1px solid #333333;
+    background: #ffffff;
+    border: 1px solid #d4d4d4;
     border-radius: 4px;
-    color: #ffffff;
+    color: #111111;
     padding: 0.6rem 0.85rem;
     font: inherit;
     font-size: 0.95rem;
@@ -194,10 +194,10 @@
     margin-bottom: 0.75rem;
   }
   input:focus {
-    border-color: #00e5ff;
+    border-color: #00838f;
   }
   .rule {
-    color: #00e5ff;
+    color: #00838f;
     font-size: 0.75rem;
     margin: -0.35rem 0 0.75rem;
   }
@@ -208,19 +208,19 @@
   }
   .primary {
     padding: 0.55rem 1rem;
-    border: 1px solid #ffffff;
+    border: 1px solid #111111;
     border-radius: 4px;
     font: inherit;
     font-size: 0.85rem;
     cursor: pointer;
     transition: all 0.15s;
-    background: #000000;
-    color: #ffffff;
+    background: #ffffff;
+    color: #111111;
     flex: 1;
   }
   .primary:hover:not(:disabled) {
-    background: #ffffff;
-    color: #000000;
+    background: #111111;
+    color: #ffffff;
   }
   .primary:disabled {
     opacity: 0.4;
@@ -232,7 +232,7 @@
     margin-top: 0.9rem;
     background: transparent;
     border: none;
-    color: #808080;
+    color: #737373;
     font: inherit;
     font-size: 0.78rem;
     text-decoration: underline;
@@ -240,21 +240,21 @@
     padding: 0;
   }
   .link:hover {
-    color: #00e5ff;
+    color: #00838f;
   }
   .sent {
-    color: #cccccc;
+    color: #444444;
     font-size: 0.85rem;
     line-height: 1.45;
     margin: 0 0 0.5rem;
   }
   .policy {
-    color: #808080;
+    color: #737373;
     font-size: 0.72rem;
   }
-  .policy:hover { color: #ffffff; }
+  .policy:hover { color: #111111; }
   .error {
-    color: #ff4d4d;
+    color: #d93636;
     font-size: 0.8rem;
     margin-top: 0.75rem;
   }

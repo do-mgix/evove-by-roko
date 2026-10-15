@@ -318,7 +318,7 @@
 <style>
   .page {
     padding: 1.75rem 2rem;
-    color: #ffffff;
+    color: #111111;
     font-family: Arial, Helvetica, sans-serif;
     height: 100%;
     overflow-y: auto;
@@ -332,56 +332,56 @@
   }
   h1 {
     margin: 0;
-    color: #ffffff;
+    color: #111111;
     font-size: 1.4rem;
     text-transform: uppercase;
     letter-spacing: 0.1em;
   }
   h2 {
     margin: 0 0 0.75rem;
-    color: #808080;
+    color: #737373;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     font-size: 0.85rem;
   }
   h3 {
     margin: 0 0 0.35rem;
-    color: #00e5ff;
+    color: #00838f;
     font-size: 0.72rem;
     font-weight: normal;
     text-transform: uppercase;
     letter-spacing: 0.08em;
   }
-  .muted { color: #808080; font-size: 0.78rem; }
-  .error { color: #ff4d4d; }
-  .empty-note { color: #808080; font-size: 0.8rem; margin: 0; }
+  .muted { color: #737373; font-size: 0.78rem; }
+  .error { color: #d93636; }
+  .empty-note { color: #737373; font-size: 0.8rem; margin: 0; }
 
   .rank-large {
     display: flex;
     gap: 0.85rem;
     align-items: center;
-    background: #000000;
-    border: 1px solid #000000;
+    background: #ffffff;
+    border: 1px solid #ffffff;
     border-radius: 6px;
     padding: 0.6rem 0.95rem;
   }
   .rank-sym {
-    color: #00e5ff;
+    color: #00838f;
     font-size: 2.2rem;
     line-height: 1;
   }
   .rank-letter {
-    color: #00e5ff;
+    color: #00838f;
     font-weight: bold;
     font-size: 0.85rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
   }
-  .local-level { color: #808080; font-size: 0.75rem; }
+  .local-level { color: #737373; font-size: 0.75rem; }
 
   .xp-card {
-    background: #000000;
-    border: 1px solid #333333;
+    background: #ffffff;
+    border: 1px solid #d4d4d4;
     border-radius: 6px;
     padding: 0.85rem 1rem;
     margin-bottom: 1rem;
@@ -393,14 +393,14 @@
     margin-bottom: 0.5rem;
   }
   .xp-val {
-    color: #00e5ff;
+    color: #00838f;
     font-weight: bold;
     font-size: 1.1rem;
   }
 
   .card {
-    background: #000000;
-    border: 1px solid #333333;
+    background: #ffffff;
+    border: 1px solid #d4d4d4;
     border-radius: 6px;
     padding: 0.95rem 1.1rem;
     margin-bottom: 1rem;
@@ -422,17 +422,17 @@
     gap: 0.3rem;
     min-width: 3.2rem;
     padding: 0.3rem 0.65rem;
-    background: #000000;
-    border: 1px solid #333333;
+    background: #ffffff;
+    border: 1px solid #d4d4d4;
     border-radius: 4px;
-    color: #ffffff;
+    color: #111111;
     font: inherit;
     font-size: 0.85rem;
     font-variant-numeric: tabular-nums;
     cursor: pointer;
   }
-  .degree:hover { border-color: #00e5ff; }
-  .star { color: #00e5ff; }
+  .degree:hover { border-color: #00838f; }
+  .star { color: #00838f; }
 
   .list {
     list-style: none;
@@ -457,7 +457,7 @@
     align-items: start;
     gap: 0.9rem 2rem;
   }
-  .act { padding: 0.3rem 0; border-bottom: 1px solid #1a1a1a; }
+  .act { padding: 0.3rem 0; border-bottom: 1px solid #e8e8e8; }
   .act:last-child { border-bottom: none; }
   .act-hit {
     display: block;
@@ -470,14 +470,14 @@
     text-align: left;
     cursor: pointer;
   }
-  .act-hit:hover .a-name { color: #00e5ff; }
+  .act-hit:hover .a-name { color: #00838f; }
   .act-row {
     display: flex;
     align-items: baseline;
     gap: 0.6rem;
   }
   .code {
-    color: #808080;
+    color: #737373;
     font-size: 0.72rem;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
@@ -490,7 +490,7 @@
     overflow-wrap: anywhere;
   }
   .meta {
-    color: #808080;
+    color: #737373;
     font-size: 0.72rem;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
@@ -498,7 +498,7 @@
   .a-attrs {
     display: block;
     margin-top: 0.15rem;
-    color: #00e5ff;
+    color: #00838f;
     font-size: 0.72rem;
   }
 

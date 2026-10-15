@@ -346,8 +346,8 @@
 
 <style>
   .panel {
-    background: #000000;
-    border: 1px solid #333333;
+    background: #ffffff;
+    border: 1px solid #d4d4d4;
     border-radius: 6px;
     padding: 0.85rem 1rem;
     height: 100%;
@@ -367,7 +367,7 @@
     margin-bottom: 0.6rem;
   }
   .panel-title {
-    color: #808080;
+    color: #737373;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     font-size: 0.7rem;
@@ -376,19 +376,19 @@
     display: flex;
     align-items: baseline;
     gap: 0.5rem;
-    color: #808080;
+    color: #737373;
     font-size: 0.72rem;
   }
   .weekday {
-    color: #00e5ff;
+    color: #00838f;
     font-weight: bold;
     letter-spacing: 0.08em;
   }
   .rel {
-    color: #cccccc;
+    color: #444444;
   }
   .meta {
-    color: #808080;
+    color: #737373;
   }
   ul {
     list-style: none;
@@ -399,7 +399,7 @@
     min-height: 0;
   }
   li {
-    border-bottom: 1px solid #333333;
+    border-bottom: 1px solid #d4d4d4;
   }
   .log-row {
     display: flex;
@@ -417,10 +417,10 @@
     gap: 0.5rem;
   }
   .log-row:hover {
-    background: #000000;
+    background: #ffffff;
   }
   .grip {
-    color: #333333;
+    color: #d4d4d4;
     font-size: 0.7rem;
     cursor: grab;
     user-select: none;
@@ -429,7 +429,7 @@
     opacity: 0.3;
   }
   li.dragging .log-row {
-    background: #000000;
+    background: #ffffff;
   }
   .details {
     display: grid;
@@ -438,20 +438,20 @@
     margin: 0;
   }
   .details dt {
-    color: #808080;
+    color: #737373;
     text-transform: uppercase;
     font-size: 0.7rem;
     letter-spacing: 0.05em;
     margin: 0;
   }
   .details dd {
-    color: #ffffff;
+    color: #111111;
     margin: 0;
     font-size: 0.85rem;
     word-break: break-word;
   }
   .period {
-    color: #808080;
+    color: #737373;
     font-size: 0.7rem;
     text-transform: lowercase;
     font-variant-numeric: tabular-nums;
@@ -460,43 +460,43 @@
   .periods { display: flex; gap: 0.4rem; }
   .period-pick {
     padding: 0.2rem 0.6rem;
-    border: 1px solid #333333;
+    border: 1px solid #d4d4d4;
     border-radius: 4px;
-    background: #000000;
-    color: #808080;
+    background: #ffffff;
+    color: #737373;
     font: inherit;
     font-size: 0.8rem;
     cursor: pointer;
   }
-  .period-pick.on { border-color: #ffffff; color: #ffffff; }
+  .period-pick.on { border-color: #111111; color: #111111; }
   .content-full {
-    color: #00e5ff;
+    color: #00838f;
   }
   .content {
-    color: #ffffff;
+    color: #111111;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     max-width: 75%;
   }
   .xp {
-    color: #808080;
+    color: #737373;
     font-size: 0.75rem;
   }
   .tokens {
-    color: #00e5ff;
+    color: #00838f;
     font-size: 0.75rem;
     font-variant-numeric: tabular-nums;
   }
   .tokens.spent {
-    color: #00e5ff;
+    color: #00838f;
   }
   .empty {
-    color: #808080;
+    color: #737373;
     font-size: 0.85rem;
   }
   .empty.error {
-    color: #ff4d4d;
+    color: #d93636;
   }
   .nav {
     position: absolute;
@@ -505,7 +505,7 @@
     width: 36px;
     border: none;
     background: transparent;
-    color: #808080;
+    color: #737373;
     font-size: 2.4rem;
     line-height: 1;
     cursor: pointer;
@@ -524,12 +524,12 @@
     opacity: 1;
   }
   .nav:hover:not(:disabled) {
-    color: #00e5ff;
+    color: #00838f;
     transform: scale(1.2);
   }
   .nav:disabled {
     cursor: default;
-    color: #333333;
+    color: #d4d4d4;
   }
 
   .edit-block {
@@ -539,26 +539,26 @@
     gap: 0.6rem;
   }
   .edit-label {
-    color: #808080;
+    color: #737373;
     text-transform: uppercase;
     font-size: 0.7rem;
     letter-spacing: 0.05em;
   }
   .edit-input {
-    background: #000000;
-    border: 1px solid #333333;
+    background: #ffffff;
+    border: 1px solid #d4d4d4;
     border-radius: 4px;
-    color: #ffffff;
+    color: #111111;
     padding: 0.55rem 0.75rem;
     font: inherit;
     font-size: 0.9rem;
     outline: none;
   }
   .edit-input:focus {
-    border-color: #00e5ff;
+    border-color: #00838f;
   }
   .confirm-msg {
-    color: #ffffff;
+    color: #111111;
     margin: 0;
     font-size: 0.9rem;
   }
@@ -579,50 +579,50 @@
   }
   .row-btns .ghost {
     background: transparent;
-    color: #808080;
-    border-color: #333333;
+    color: #737373;
+    border-color: #d4d4d4;
   }
   .row-btns .ghost:hover:not(:disabled) {
-    color: #cccccc;
-    border-color: #808080;
+    color: #444444;
+    border-color: #737373;
   }
   .row-btns .primary {
-    background: #000000;
-    color: #ffffff;
-    border-color: #ffffff;
+    background: #ffffff;
+    color: #111111;
+    border-color: #111111;
   }
   .row-btns .primary:hover:not(:disabled) {
-    background: #ffffff;
-    color: #000000;
+    background: #111111;
+    color: #ffffff;
   }
   .row-btns .danger {
-    background: #ff4d4d;
-    color: #000000;
-    border-color: #ff4d4d;
+    background: #d93636;
+    color: #ffffff;
+    border-color: #d93636;
   }
   .row-btns .danger:hover:not(:disabled) {
-    background: #ff4d4d;
+    background: #d93636;
   }
   .row-btns .danger-ghost {
     background: transparent;
-    color: #ff4d4d;
-    border-color: #4d1a1a;
+    color: #d93636;
+    border-color: #f2c4c4;
   }
   .row-btns .danger-ghost:hover {
-    border-color: #ff4d4d;
-    background: #1a0000;
+    border-color: #d93636;
+    background: #fff0f0;
   }
   .row-btns .shift-day {
     background: transparent;
-    color: #00e5ff;
-    border-color: #000000;
+    color: #00838f;
+    border-color: #ffffff;
     font-size: 1rem;
     padding: 0.45rem 0.7rem;
     margin-right: auto;
   }
   .row-btns .shift-day:hover:not(:disabled) {
-    background: #000000;
-    border-color: #00e5ff;
+    background: #ffffff;
+    border-color: #00838f;
   }
   .row-btns button:disabled {
     opacity: 0.4;

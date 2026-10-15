@@ -360,16 +360,16 @@
 {/if}
 
 <style>
-  .a-name { color: #ffffff; font-size: 0.88rem; text-transform: lowercase; }
+  .a-name { color: #111111; font-size: 0.88rem; text-transform: lowercase; }
   .a-code {
-    color: #808080;
+    color: #737373;
     margin-right: 0.6rem;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
   .code { font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
-  .muted { color: #808080; }
-  .error { color: #ff4d4d; }
+  .muted { color: #737373; }
+  .error { color: #d93636; }
   .details {
     display: grid;
     grid-template-columns: max-content 1fr;
@@ -377,12 +377,12 @@
     margin: 0 0 1.25rem;
   }
   .details dt {
-    color: #808080;
+    color: #737373;
     text-transform: uppercase;
     font-size: 0.7rem;
     letter-spacing: 0.05em;
   }
-  .details dd { color: #ffffff; margin: 0; font-size: 0.9rem; }
+  .details dd { color: #111111; margin: 0; font-size: 0.9rem; }
   .confirm-row { display: flex; gap: 0.5rem; justify-content: flex-end; }
   .ghost, .primary {
     padding: 0.5rem 1rem;
@@ -392,10 +392,10 @@
     font-size: 0.85rem;
     cursor: pointer;
   }
-  .ghost { background: transparent; color: #808080; border-color: #333333; }
-  .ghost:hover { color: #cccccc; border-color: #808080; }
-  .primary { background: #000000; color: #ffffff; border-color: #ffffff; }
-  .primary:hover:not(:disabled) { background: #ffffff; color: #000000; }
+  .ghost { background: transparent; color: #737373; border-color: #d4d4d4; }
+  .ghost:hover { color: #444444; border-color: #737373; }
+  .primary { background: #ffffff; color: #111111; border-color: #111111; }
+  .primary:hover:not(:disabled) { background: #111111; color: #ffffff; }
   .primary:disabled { opacity: 0.4; cursor: not-allowed; }
   .wizard {
     display: flex;
@@ -405,7 +405,7 @@
     min-width: min(26rem, 80vw);
   }
   .step-title {
-    color: #808080;
+    color: #737373;
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
@@ -414,16 +414,16 @@
   .field {
     width: 100%;
     box-sizing: border-box;
-    background: #000000;
-    border: 1px solid #333333;
+    background: #ffffff;
+    border: 1px solid #d4d4d4;
     border-radius: 4px;
-    color: #ffffff;
+    color: #111111;
     padding: 0.5rem 0.65rem;
     font: inherit;
     font-size: 0.88rem;
     outline: none;
   }
-  .field:focus { border-color: #00e5ff; }
+  .field:focus { border-color: #00838f; }
   .pick-list,
   .check-list {
     list-style: none;
@@ -431,7 +431,7 @@
     padding: 0;
     max-height: 12rem;
     overflow-y: auto;
-    border: 1px solid #333333;
+    border: 1px solid #d4d4d4;
     border-radius: 4px;
   }
   .pick {
@@ -440,15 +440,15 @@
     width: 100%;
     background: transparent;
     border: none;
-    border-bottom: 1px solid #333333;
-    color: #ffffff;
+    border-bottom: 1px solid #d4d4d4;
+    color: #111111;
     padding: 0.45rem 0.6rem;
     font: inherit;
     font-size: 0.85rem;
     text-align: left;
     cursor: pointer;
   }
-  .pick:hover .a-name { color: #00e5ff; }
+  .pick:hover .a-name { color: #00838f; }
   .check-list label {
     display: flex;
     gap: 0.5rem;
@@ -457,20 +457,20 @@
     font-size: 0.85rem;
     cursor: pointer;
   }
-  .check-list input { accent-color: #00e5ff; }
+  .check-list input { accent-color: #00838f; }
   .chosen { display: flex; align-items: baseline; gap: 0.6rem; }
   .link {
     margin-left: auto;
     background: none;
     border: none;
-    color: #808080;
+    color: #737373;
     font: inherit;
     font-size: 0.75rem;
     text-decoration: underline;
     cursor: pointer;
   }
-  .link:hover { color: #00e5ff; }
-  .new-attr { display: flex; align-items: baseline; gap: 0.5rem; margin-top: 0.35rem; color: #00e5ff; font-size: 0.85rem; }
+  .link:hover { color: #00838f; }
+  .new-attr { display: flex; align-items: baseline; gap: 0.5rem; margin-top: 0.35rem; color: #00838f; font-size: 0.85rem; }
   .inline-new { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
   .small { font-size: 0.72rem; margin: 0; }
   @media (max-width: 768px) {

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { primeAudio } from "./dtmf";
   import { tap } from "./sfx";
-  import { DOT_R, GLYPHS, type HomeOption } from "./homeLayout";
+  import { DOT_R, GLYPHS, shade, type HomeOption } from "./homeLayout";
 
   /** The option this page belongs to: its glyph stands for it, as on the tile. */
   export let option: HomeOption | null = null;
@@ -19,7 +19,7 @@
 <header class="screen-header">
   <button class="back" on:click={back} aria-label="voltar">‹</button>
   {#if option}
-    <svg class="mark" viewBox="0 0 24 24" role="img" aria-label={title} style="--color: {option.color}">
+    <svg class="mark" viewBox="0 0 24 24" role="img" aria-label={title} style="--color: {shade(option.color, -0.3)}">
       <path d={GLYPHS[option.id].d} />
       {#each GLYPHS[option.id].dots as [x, y]}<circle cx={x} cy={y} r={DOT_R} />{/each}
     </svg>
@@ -34,23 +34,23 @@
     align-items: center;
     gap: 0.75rem;
     padding: 0.6rem 0.9rem;
-    border-bottom: 1px solid #333333;
-    background: #000000;
+    border-bottom: 1px solid #d4d4d4;
+    background: #ffffff;
     flex-shrink: 0;
   }
   .back {
     width: 2.2rem;
     height: 2.2rem;
-    background: #000000;
-    border: 1px solid #333333;
+    background: #ffffff;
+    border: 1px solid #d4d4d4;
     border-radius: 3px;
-    color: #cccccc;
+    color: #444444;
     font: inherit;
     font-size: 1.3rem;
     line-height: 1;
     cursor: pointer;
   }
-  .back:active { border-color: #00e5ff; color: #00e5ff; }
+  .back:active { border-color: #00838f; color: #00838f; }
   .mark {
     width: 1.6rem;
     height: 1.6rem;
@@ -67,6 +67,6 @@
     font-size: 0.85rem;
     letter-spacing: 0.2em;
     text-transform: uppercase;
-    color: #ffffff;
+    color: #111111;
   }
 </style>

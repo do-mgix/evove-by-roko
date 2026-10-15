@@ -61,33 +61,33 @@
   }
   .markbar.lg { height: 22px; }
   .markbar.md { height: 16px; }
-  .markbar.continuous { background: #333333; }
-  .seg { flex: 1; min-width: 2px; background: #333333; }
-  .seg.on { background: #ffffff; }
+  .markbar.continuous { background: #d4d4d4; }
+  .seg { flex: 1; min-width: 2px; background: #d4d4d4; }
+  .seg.on { background: #111111; }
   .seg.pick {
     border: none;
     padding: 0;
     margin: 0;
     cursor: pointer;
   }
-  .seg.pick:hover { background: #808080; }
-  .seg.pick.on:hover { background: #cccccc; }
-  .fill { height: 100%; background: #ffffff; }
+  .seg.pick:hover { background: #737373; }
+  .seg.pick.on:hover { background: #444444; }
+  .fill { height: 100%; background: #111111; }
   /* the segments the last gain filled, blinking where the bar grew */
   .seg.fresh { animation: fresh 0.5s steps(1) 6; }
   @keyframes fresh {
     0% { opacity: 0.15; }
     50% { opacity: 1; }
   }
-  .gold .seg.on, .gold .fill { background: #e8c547; }
-  .gold .seg.pick.on:hover { background: #c9a93a; }
+  .gold .seg.on, .gold .fill { background: #b08a00; }
+  .gold .seg.pick.on:hover { background: #8f7000; }
   .count {
     position: absolute;
     inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #808080;
+    color: #737373;
     font-size: 0.68rem;
     line-height: 1;
     font-variant-numeric: tabular-nums;

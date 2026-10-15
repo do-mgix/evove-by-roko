@@ -45,7 +45,7 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.55);
+    background: rgba(40, 20, 30, 0.3);
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
     z-index: 99;
@@ -58,12 +58,12 @@
     min-width: 320px;
     max-width: 90vw;
     max-height: 80vh;
-    background: #000000;
-    border: 1px solid #333333;
+    background: #ffffff;
+    border: 1px solid #d4d4d4;
     border-radius: 8px;
-    color: #ffffff;
+    color: #111111;
     font-family: Arial, Helvetica, sans-serif;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 20px 60px rgba(40, 20, 30, 0.18);
     z-index: 100;
     display: flex;
     flex-direction: column;
@@ -80,10 +80,10 @@
     justify-content: space-between;
     align-items: center;
     padding: 0.75rem 1rem;
-    border-bottom: 1px solid #333333;
+    border-bottom: 1px solid #d4d4d4;
   }
   .title {
-    color: #808080;
+    color: #737373;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     font-size: 0.75rem;
@@ -91,14 +91,14 @@
   .close {
     background: transparent;
     border: none;
-    color: #808080;
+    color: #737373;
     font-size: 1.4rem;
     line-height: 1;
     cursor: pointer;
     padding: 0 0.3rem;
   }
   .close:hover {
-    color: #ff4d4d;
+    color: #d93636;
   }
   .body {
     padding: 1rem 1.25rem;

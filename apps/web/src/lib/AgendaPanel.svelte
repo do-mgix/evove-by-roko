@@ -208,8 +208,8 @@
 
 <style>
   .panel {
-    background: #000000;
-    border: 1px solid #333333;
+    background: #ffffff;
+    border: 1px solid #d4d4d4;
     border-radius: 6px;
     padding: 0.85rem 1rem;
     overflow: auto;
@@ -222,8 +222,8 @@
   }
   .add-btn {
     background: transparent;
-    border: 1px solid #333333;
-    color: #808080;
+    border: 1px solid #d4d4d4;
+    color: #737373;
     width: 22px;
     height: 22px;
     border-radius: 4px;
@@ -233,11 +233,11 @@
     padding: 0;
   }
   .add-btn:hover {
-    border-color: #00e5ff;
-    color: #00e5ff;
+    border-color: #00838f;
+    color: #00838f;
   }
   .panel-title {
-    color: #808080;
+    color: #737373;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     font-size: 0.7rem;
@@ -248,7 +248,7 @@
     margin: 0;
   }
   li {
-    border-bottom: 1px solid #333333;
+    border-bottom: 1px solid #d4d4d4;
   }
   .row {
     display: grid;
@@ -261,29 +261,29 @@
     border: none;
     font: inherit;
     font-size: 0.82rem;
-    color: #808080;
+    color: #737373;
     text-align: left;
     cursor: pointer;
   }
   .row:hover {
-    background: #000000;
+    background: #ffffff;
   }
   li.active .row {
-    color: #00e5ff;
+    color: #00838f;
   }
   .time {
-    color: #808080;
+    color: #737373;
     font-size: 0.78rem;
   }
   li.active .time {
-    color: #00e5ff;
+    color: #00838f;
   }
   .check {
     font-size: 0.7rem;
     align-self: center;
   }
-  .check1 { color: #808080; }
-  .check2 { color: #00e5ff; }
+  .check1 { color: #737373; }
+  .check2 { color: #00838f; }
   .details {
     display: grid;
     grid-template-columns: max-content 1fr;
@@ -291,29 +291,29 @@
     margin: 0;
   }
   .details dt {
-    color: #808080;
+    color: #737373;
     text-transform: uppercase;
     font-size: 0.7rem;
     letter-spacing: 0.05em;
     margin: 0;
   }
   .details dd {
-    color: #ffffff;
+    color: #111111;
     margin: 0;
     font-size: 0.85rem;
   }
   .hl {
-    color: #00e5ff;
+    color: #00838f;
   }
   .empty {
-    color: #808080;
+    color: #737373;
     font-size: 0.85rem;
   }
   .action-block {
     margin-top: 0.8rem;
   }
   .confirm-msg {
-    color: #cccccc;
+    color: #444444;
     font-size: 0.85rem;
     margin: 0 0 0.6rem;
   }
@@ -323,8 +323,8 @@
   }
   .ghost {
     background: transparent;
-    border: 1px solid #333333;
-    color: #808080;
+    border: 1px solid #d4d4d4;
+    color: #737373;
     padding: 0.3rem 0.8rem;
     border-radius: 4px;
     cursor: pointer;
@@ -332,13 +332,13 @@
     font-size: 0.82rem;
   }
   .ghost:hover:not(:disabled) {
-    border-color: #00e5ff;
-    color: #00e5ff;
+    border-color: #00838f;
+    color: #00838f;
   }
   .danger {
     background: transparent;
-    border: 1px solid #4d1a1a;
-    color: #ff4d4d;
+    border: 1px solid #f2c4c4;
+    color: #d93636;
     padding: 0.3rem 0.8rem;
     border-radius: 4px;
     cursor: pointer;
@@ -346,13 +346,13 @@
     font-size: 0.82rem;
   }
   .danger:hover:not(:disabled) {
-    border-color: #ff4d4d;
-    color: #ff4d4d;
+    border-color: #d93636;
+    color: #d93636;
   }
   .danger-ghost {
     background: transparent;
     border: 1px solid transparent;
-    color: #cc6666;
+    color: #b34747;
     padding: 0.3rem 0.8rem;
     border-radius: 4px;
     cursor: pointer;
@@ -360,10 +360,10 @@
     font-size: 0.82rem;
   }
   .danger-ghost:hover {
-    color: #ff4d4d;
+    color: #d93636;
   }
   .err {
-    color: #ff4d4d;
+    color: #d93636;
     font-size: 0.8rem;
     margin: 0.4rem 0 0;
   }
