@@ -152,6 +152,39 @@
     overflow: hidden;
     background: #ffffff;
     box-shadow: 0 2px 10px rgba(80, 40, 60, 0.12);
+    /* the backdrop below stays under everything inside the frame */
+    isolation: isolate;
+  }
+  /* The backdrop: a soft gradient of the tiles' colors, three times the frame's
+     size, drifting slowly from one corner to the other and back — so the
+     screens alternate between pink, violet, blue, aqua and yellow behind the
+     cells. Moved by transform, so the phone only composites it. */
+  .frame::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 300%;
+    height: 300%;
+    z-index: -1;
+    background: linear-gradient(
+      135deg,
+      #ffd6ea 0%,
+      #e6d6ff 20%,
+      #d3e3ff 40%,
+      #ccf6f6 60%,
+      #fff2c2 80%,
+      #ffdcc8 100%
+    );
+    animation: drift 40s ease-in-out infinite alternate;
+    pointer-events: none;
+  }
+  @keyframes drift {
+    from { transform: translate(0, 0); }
+    to { transform: translate(-66.6%, -66.6%); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .frame::before { animation: none; transform: translate(-33.3%, -33.3%); }
   }
   .app {
     display: flex;

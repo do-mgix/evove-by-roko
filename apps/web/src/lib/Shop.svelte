@@ -26,11 +26,13 @@
   // screen — where what is bought with points will live — and the centre button
   // turns the page, through the catalog one attribute after the other; with an
   // action chosen it goes back a step instead. The right one goes home. All of
-  // it is pink, on white: the cells and buttons solid, lit from the top left.
+  // it is pink: the cells and buttons flat and vivid, over the drifting backdrop.
 
-  const SHOP_COLOR = "#ff6fb5";
+  const SHOP_COLOR = "#ff2d95";
+  // pressed, a shade darker
+  const SHOP_DOWN = "#e0157a";
   // the pink deepened, for text on the white
-  const SHOP_DEEP = "#c2307a";
+  const SHOP_DEEP = "#b0105f";
   const COLS = 2;
   const ROWS = 5;
   // a little smaller than the acting screen's cells: five rows, not four
@@ -306,7 +308,7 @@
   onDestroy(() => setBackHandler(null));
 </script>
 
-<div class="shop" style="--ink: {SHOP_COLOR}; --deep: {SHOP_DEEP}">
+<div class="shop" style="--ink: {SHOP_COLOR}; --deep: {SHOP_DEEP}; --down: {SHOP_DOWN}">
   <!-- the display: where the slider stands, what was chosen, what happened -->
   <div class="display">
     {#if loading}
@@ -364,18 +366,6 @@
     <div class="cells" bind:clientWidth={width} bind:clientHeight={height}>
       {#if width && height}
         <svg viewBox="0 0 {width} {height}" {width} {height}>
-          <!-- a light from the top left: each cell a lit pink bead -->
-          <defs>
-            <radialGradient id="shop-cell" cx="35%" cy="25%" r="100%">
-              <stop offset="0" stop-color="#ff9cca" />
-              <stop offset="0.55" stop-color={SHOP_COLOR} />
-              <stop offset="1" stop-color="#ec5ea3" />
-            </radialGradient>
-            <radialGradient id="shop-cell-down" cx="50%" cy="50%" r="80%">
-              <stop offset="0" stop-color="#f566ab" />
-              <stop offset="1" stop-color="#e05497" />
-            </radialGradient>
-          </defs>
           {#each cells as c, i (c.action.name)}
             <g class="cell" role="button" tabindex="0" aria-label={c.action.name}
               style="--delay: {DELAY[i % DELAY.length]}ms"
@@ -426,7 +416,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    background: var(--void);
+    background: transparent;
     user-select: none;
     -webkit-user-select: none;
   }
@@ -464,17 +454,10 @@
     .cell { animation: none; }
   }
   .shape {
-    fill: url(#shop-cell);
-    stroke: #ffffff;
-    stroke-opacity: 0.4;
-    stroke-width: 1;
-    filter: drop-shadow(0 2px 4px rgba(110, 20, 65, 0.16));
+    fill: var(--ink);
   }
   text {
     fill: #ffffff;
-    paint-order: stroke;
-    stroke: rgba(120, 20, 70, 0.35);
-    stroke-width: 2px;
     font-family: var(--font-mono);
     font-size: 11.5px;
     text-anchor: middle;
@@ -482,13 +465,12 @@
     text-transform: uppercase;
   }
   .cost { font-size: 10px; opacity: 0.7; }
-  /* pressed: the light moves to the far side and the shadow shrinks under it */
+  /* pressed: a shade darker */
   .cell:focus-visible .shape, .cell:active .shape {
-    fill: url(#shop-cell-down);
-    filter: drop-shadow(0 1px 1px rgba(110, 20, 65, 0.18));
+    fill: var(--down);
   }
   @media (hover: hover) {
-    .cell:hover .shape { stroke-opacity: 1; }
+    .cell:hover .shape { fill: var(--down); }
   }
 
   .panel {
@@ -499,11 +481,10 @@
     justify-content: flex-end;
     gap: 1rem;
     padding: 1.4rem 1.5rem;
-    background: radial-gradient(ellipse 120% 100% at 30% 15%, #ff9cca 0%, var(--ink) 55%, #ec5ea3 100%);
+    background: var(--ink);
     border: none;
     border-radius: 18px;
-    box-shadow: 0 2px 6px rgba(110, 20, 65, 0.16);
-    color: #000000;
+    color: #ffffff;
     font-family: var(--font-mono);
     text-align: left;
     cursor: pointer;
@@ -537,7 +518,7 @@
     list-style: none;
     margin: 0;
     padding: 0.6rem 0 0;
-    border-top: 1.5px solid rgba(0, 0, 0, 0.35);
+    border-top: 1.5px solid rgba(255, 255, 255, 0.5);
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
@@ -558,8 +539,7 @@
   .vault {
     flex: 1;
     border-radius: 18px;
-    background: rgba(120, 90, 105, 0.04);
-    box-shadow: inset 0 2px 8px rgba(80, 40, 60, 0.1), inset 0 -1px 0 rgba(255, 255, 255, 0.8);
+    background: rgba(255, 255, 255, 0.35);
   }
   .makers { display: flex; gap: 8px; }
   .maker {
@@ -567,7 +547,6 @@
     min-height: 2.6rem;
     border: none;
     color: #ffffff;
-    text-shadow: 0 1px 1px rgba(120, 20, 70, 0.3);
     font-family: var(--font-mono);
     font-size: 0.8rem;
     text-transform: uppercase;
@@ -581,22 +560,20 @@
     align-items: stretch;
     justify-content: center;
   }
-  /* solid pink, lit from the top left, standing off the white */
+  /* flat, vivid pink */
   .maker, .page-btn, .home-btn {
-    background: radial-gradient(ellipse 130% 150% at 35% 20%, #ff9cca 0%, var(--ink) 55%, #ec5ea3 100%);
+    background: var(--ink);
     border: none;
     border-radius: 16px;
-    box-shadow: 0 2px 4px rgba(110, 20, 65, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.35);
     cursor: pointer;
-    transition: transform 0.06s, box-shadow 0.06s;
+    transition: transform 0.06s, background 0.06s;
   }
   .page-btn { width: 30%; margin: 4px 0; }
   .home-btn { position: absolute; right: 0; top: 4px; bottom: 4px; width: 16%; }
-  /* pressed: pushed into the white, the light on the far side */
+  /* pressed: a shade darker, pushed in a little */
   .maker:active, .page-btn:active, .home-btn:active {
-    background: #e85a9f;
-    box-shadow: 0 1px 1px rgba(110, 20, 65, 0.18), inset 0 1px 3px rgba(80, 10, 45, 0.2);
-    transform: translateY(1px);
+    background: var(--down);
+    transform: scale(0.97);
   }
   .ticks {
     position: absolute;

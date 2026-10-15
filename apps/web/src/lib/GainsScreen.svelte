@@ -86,7 +86,7 @@
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
-    background: var(--void);
+    background: transparent;
     color: #111111;
     font-family: var(--font-display);
     text-transform: uppercase;

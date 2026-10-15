@@ -332,18 +332,6 @@
     <div class="cells" bind:clientWidth={width} bind:clientHeight={height}>
       {#if width && height}
         <svg viewBox="0 0 {width} {height}" width={width} height={height}>
-          <!-- a light from the top left: each cell a lit yellow bead -->
-          <defs>
-            <radialGradient id="act-cell" cx="35%" cy="25%" r="100%">
-              <stop offset="0" stop-color="#ffe489" />
-              <stop offset="0.55" stop-color="#ffd23f" />
-              <stop offset="1" stop-color="#f2c22e" />
-            </radialGradient>
-            <radialGradient id="act-cell-down" cx="50%" cy="50%" r="80%">
-              <stop offset="0" stop-color="#f7ca33" />
-              <stop offset="1" stop-color="#e6b31c" />
-            </radialGradient>
-          </defs>
           {#each cells as c, i (c.action.id)}
             <g class="cell" role="button" tabindex="0" aria-label={c.action.name}
               style="--delay: {DELAY[i % DELAY.length]}ms"
@@ -371,7 +359,8 @@
 
 <style>
   .act {
-    --ink: #ffd23f;
+    --ink: #ffcc00;
+    --down: #ebb800;
     /* agir's yellow deepened, for text on the white and on the yellow */
     --deep: #8a6500;
     --dark: #5c4300;
@@ -382,7 +371,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    background: var(--void);
+    background: transparent;
     user-select: none;
     -webkit-user-select: none;
   }
@@ -435,11 +424,7 @@
     .cell { animation: none; }
   }
   .shape {
-    fill: url(#act-cell);
-    stroke: #ffffff;
-    stroke-opacity: 0.45;
-    stroke-width: 1;
-    filter: drop-shadow(0 2px 4px rgba(110, 80, 0, 0.16));
+    fill: var(--ink);
   }
   text {
     fill: var(--dark);
@@ -449,14 +434,13 @@
     dominant-baseline: middle;
     text-transform: uppercase;
   }
-  /* pressed: the light moves to the far side and the shadow shrinks under it;
+  /* pressed: a shade darker;
      hover only with a real pointer: on touch it sticks to the last cell tapped */
   .cell:focus-visible .shape, .cell:active .shape {
-    fill: url(#act-cell-down);
-    filter: drop-shadow(0 1px 1px rgba(110, 80, 0, 0.18));
+    fill: var(--down);
   }
   @media (hover: hover) {
-    .cell:hover .shape { stroke-opacity: 1; }
+    .cell:hover .shape { fill: var(--down); }
   }
 
   .tiers {
@@ -490,22 +474,20 @@
     justify-content: center;
   }
   .act.typing .bar { display: none; }
-  /* solid yellow, lit from the top left, standing off the white */
+  /* flat, vivid yellow */
   .tier, .page-btn, .home-btn {
-    background: radial-gradient(ellipse 130% 150% at 35% 20%, #ffe489 0%, var(--ink) 55%, #f2c22e 100%);
+    background: var(--ink);
     border: none;
     border-radius: 16px;
-    box-shadow: 0 2px 4px rgba(110, 80, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.4);
     cursor: pointer;
-    transition: transform 0.06s, box-shadow 0.06s;
+    transition: transform 0.06s, background 0.06s;
   }
   .page-btn { width: 30%; margin: 4px 0; }
   .home-btn { position: absolute; right: 0; top: 4px; bottom: 4px; width: 16%; }
-  /* pressed: pushed into the white, the light on the far side */
+  /* pressed: a shade darker, pushed in a little */
   .tier:active:not(:disabled), .page-btn:active, .home-btn:active {
-    background: #ecbd25;
-    box-shadow: 0 1px 1px rgba(110, 80, 0, 0.18), inset 0 1px 3px rgba(80, 55, 0, 0.2);
-    transform: translateY(1px);
+    background: var(--down);
+    transform: scale(0.97);
   }
   .pages {
     position: absolute;

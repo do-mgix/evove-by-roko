@@ -83,21 +83,6 @@
   <div class="stage" bind:clientWidth={width} bind:clientHeight={height}>
     {#if width > 0 && height > 0}
       <svg viewBox="0 0 {width} {height}" width={width} height={height}>
-        <!-- each cell solid in its color, lit from the top left; pressed, the
-             light moves to the far side -->
-        <defs>
-          {#each cells as c (c.id)}
-            <radialGradient id="home-{c.id}" cx="35%" cy="25%" r="100%">
-              <stop offset="0" stop-color={shade(c.color, 0.3)} />
-              <stop offset="0.55" stop-color={c.color} />
-              <stop offset="1" stop-color={shade(c.color, -0.1)} />
-            </radialGradient>
-            <radialGradient id="home-{c.id}-down" cx="50%" cy="50%" r="80%">
-              <stop offset="0" stop-color={shade(c.color, -0.04)} />
-              <stop offset="1" stop-color={shade(c.color, -0.16)} />
-            </radialGradient>
-          {/each}
-        </defs>
         {#each cells as c (c.id)}
           <g
             class="cell"
@@ -111,7 +96,7 @@
             on:pointerleave={() => pressed === c.id && (pressed = null)}
             on:pointercancel={() => (pressed = null)}
             on:keydown={(e) => onKey(e, c.id, c.tone)}
-            style="--fill: url(#home-{c.id}); --fill-down: url(#home-{c.id}-down); --ink: {shade(c.color, -0.6)}; --delay: {DELAY[c.id]}ms"
+            style="--fill: {c.color}; --fill-down: {shade(c.color, -0.14)}; --ink: {shade(c.color, -0.6)}; --delay: {DELAY[c.id]}ms"
           >
             <path class="shape" d={c.d} />
             <g class="glyph" transform="translate({c.cx - c.glyph / 2} {c.cy - c.glyph / 2}) scale({c.glyph / 24})">
@@ -133,7 +118,7 @@
     /* keeps the square corners of the cells clear of the frame's round ones */
     padding: 10px;
     box-sizing: border-box;
-    background: var(--void);
+    background: transparent;
     touch-action: manipulation;
     user-select: none;
     -webkit-user-select: none;
@@ -165,9 +150,8 @@
   .shape {
     fill: var(--fill);
     stroke: #ffffff;
-    stroke-opacity: 0.4;
-    stroke-width: 1;
-    filter: drop-shadow(0 2px 4px rgba(60, 30, 50, 0.16));
+    stroke-opacity: 0;
+    stroke-width: 2.5;
   }
   .glyph path {
     fill: none;
@@ -180,12 +164,11 @@
   /* a hint, never a caption: the suggested cell's outline is lit */
   .cell.hint .shape { stroke-opacity: 1; stroke-width: 2.5; }
 
-  /* pressed: the light on the far side, the shadow shrunk under it — hover only
+  /* pressed: a shade darker — hover only
      where there is a real pointer: on a touch screen it sticks to the last cell */
   .cell:focus-visible .shape { stroke-opacity: 1; }
   .cell.pressed .shape {
     fill: var(--fill-down);
-    filter: drop-shadow(0 1px 1px rgba(60, 30, 50, 0.18));
   }
   @media (hover: hover) {
     .cell:hover .shape { stroke-opacity: 1; }
