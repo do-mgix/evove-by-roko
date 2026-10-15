@@ -154,34 +154,40 @@
         /* the backdrop below stays under everything inside the frame */
     isolation: isolate;
   }
-  /* The backdrop: a deep gradient of the tiles' colors, three times the frame's
-     height, sliding up and down — so the screens alternate between pink,
-     violet, blue and teal behind the cells. Moved by transform, so the phone
-     only composites it. */
+  /* The backdrop: energy running up a black screen — a green glow with a white
+     core, one pulse per screen height, rising without end. The layer is two
+     screens tall with the pulse in each half, so sliding it up by one half
+     loops seamlessly. Moved by transform, so the phone only composites it. */
   .frame::before {
     content: "";
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
-    height: 300%;
+    height: 200%;
     z-index: -1;
     background: linear-gradient(
-      to bottom,
-      #8c1a5c 0%,
-      #5a23b0 33%,
-      #2341b0 66%,
-      #0d7f8c 100%
-    );
-    animation: drift 12s ease-in-out infinite alternate;
+        to bottom,
+        #000000 0%,
+        #02140b 22%,
+        #08442a 38%,
+        #16b862 46.5%,
+        #f2fff7 50%,
+        #16b862 53.5%,
+        #08442a 62%,
+        #02140b 78%,
+        #000000 100%
+      )
+      0 0 / 100% 50% repeat-y;
+    animation: rise 6s linear infinite;
     pointer-events: none;
   }
-  @keyframes drift {
-    from { transform: translate(0, 0); }
-    to { transform: translateY(-66.6%); }
+  @keyframes rise {
+    from { transform: translateY(0); }
+    to { transform: translateY(-50%); }
   }
   @media (prefers-reduced-motion: reduce) {
-    .frame::before { animation: none; transform: translateY(-33.3%); }
+    .frame::before { animation: none; }
   }
   /* the pages with a header stay on white, to be read */
   .app {
