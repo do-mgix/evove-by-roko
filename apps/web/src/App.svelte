@@ -155,41 +155,34 @@
     /* the backdrop below stays under everything inside the frame */
     isolation: isolate;
   }
-  /* The backdrop: a radial wave of energy, in greens only — a ring cresting
-     white, spreading from the centre of the screen until it leaves the
-     corners, when the next one starts. One square layer, as wide as the ring
-     will need, grown from nothing by transform, so the phone only composites
-     it; outside the ring it is the frame's own deep green. */
+  /* The backdrop: a deep gradient of greens — forest, emerald, leaf, teal —
+     three times the frame's height, sliding up and down, so the screens
+     alternate between them behind the cells. Moved by transform, so the phone
+     only composites it. */
   .frame::before {
     content: "";
     position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 400vmax;
-    height: 400vmax;
-    margin: -200vmax 0 0 -200vmax;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 300%;
     z-index: -1;
-    background: radial-gradient(
-      circle closest-side,
-      #0a4d2c 30%,
-      #0e6b3c 38%,
-      #16944f 43%,
-      #3ccf7c 47.5%,
-      #ffffff 50%,
-      #3ccf7c 52.5%,
-      #16944f 57%,
-      #0e6b3c 62%,
-      #0a4d2c 70%
+    background: linear-gradient(
+      to bottom,
+      #0b3d22 0%,
+      #0f6b3f 33%,
+      #2f7d1c 66%,
+      #0c6b5c 100%
     );
-    animation: spread 6s linear infinite;
+    animation: drift 12s ease-in-out infinite alternate;
     pointer-events: none;
   }
-  @keyframes spread {
-    from { transform: scale(0); }
-    to { transform: scale(1); }
+  @keyframes drift {
+    from { transform: translateY(0); }
+    to { transform: translateY(-66.6%); }
   }
   @media (prefers-reduced-motion: reduce) {
-    .frame::before { animation: none; transform: scale(0.3); }
+    .frame::before { animation: none; transform: translateY(-33.3%); }
   }
   /* the pages with a header stay on white, to be read */
   .app {
