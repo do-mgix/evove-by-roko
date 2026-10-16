@@ -6,6 +6,8 @@
     HOME_ASPECT,
     HOME_COLS,
     HOME_ROWS,
+    SLANT,
+    formShape,
     polyPath,
     type HomeOptionId,
   } from "./homeLayout";
@@ -48,7 +50,7 @@
       const y0 = top + by * tall + GAP;
       const x1 = left + (bx + bw) * u - GAP;
       const y1 = top + (by + bh) * tall - GAP;
-      const shape: [number, number][] = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+      const shape = formShape(x0, y0, x1, y1, o.form, u * SLANT);
       return {
         ...o,
         d: polyPath(shape),

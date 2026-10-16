@@ -9,7 +9,7 @@
     type CatalogAction,
     type CatalogGroup,
   } from "./api";
-  import { GRID_COLS, SHRINK, drawBoxes, pack, polyPath, type Size } from "./homeLayout";
+  import { GRID_COLS, SHRINK, drawBoxes, formsFor, pack, polyPath, seeded, type Size } from "./homeLayout";
   import { primeAudio } from "./dtmf";
   import { gains as gainsSound, powerOn, tap } from "./sfx";
   import { bumpUser, setBackHandler, userVersion } from "./store";
@@ -105,7 +105,8 @@
         packed = pack(wanted);
       }
     }
-    return drawBoxes(packed.boxes, packed.rows, w, h, side, GAP, ASPECT).map((c, i) => {
+    const forms = formsFor(packed.boxes, seeded(seed));
+    return drawBoxes(packed.boxes, packed.rows, w, h, side, GAP, ASPECT, forms).map((c, i) => {
       const small = c.h < 52;
       // a quarter holds only the first letters of the name
       const name = list[i].name;

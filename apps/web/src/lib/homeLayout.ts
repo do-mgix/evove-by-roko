@@ -17,6 +17,27 @@ export type Point = [number, number];
 /** A place on a grid of squares: x, y, width and height, in squares. */
 export type Box = [number, number, number, number];
 
+/** How a cell's sides lean. A rectangle; a trapezoid narrowing upwards, its
+ *  sides / \ ; a prism (a parallelogram), both sides // ; or one of a pair of
+ *  neighbours sharing a slanted side — the left one's right side and the right
+ *  one's left side lean / together, so the two still fit as a rectangle. */
+export type Form = "rect" | "trap" | "prism" | "pairL" | "pairR";
+
+/** A rectangle's corners, clockwise from the top left, leaned into `form` by
+ *  `s` pixels. */
+export function formShape(x0: number, y0: number, x1: number, y1: number, form: Form, s: number): Point[] {
+  const [tl, tr, br, bl] =
+    form === "trap" ? [s, -s, 0, 0]
+    : form === "prism" ? [s, 0, -s, 0]
+    : form === "pairL" ? [0, s, -s, 0]
+    : form === "pairR" ? [s, 0, 0, -s]
+    : [0, 0, 0, 0];
+  return [[x0 + tl, y0], [x1 + tr, y0], [x1 + br, y1], [x0 + bl, y1]];
+}
+
+/** How far a slanted side leans, as a share of a unit's width. */
+export const SLANT = 0.2;
+
 export type HomeOption = {
   id: HomeOptionId;
   /** for screen readers only — nothing is written on the tile */
@@ -27,26 +48,28 @@ export type HomeOption = {
   tone: string;
   /** its place on the grid, in units */
   box: Box;
+  /** how its sides lean */
+  form: Form;
   unlocked: boolean;
 };
 
-// Roko and jornada stand narrow down the left; atributos wide on top; logs and
-// shop under it; agir a big block of three by three in the bottom-right
-// corner, under the thumb.
+// Roko (a prism) and jornada stand narrow down the left; atributos wide on top,
+// a trapezoid; logs and shop under it, sharing a slanted side; agir a big block
+// of three by three in the bottom-right corner, under the thumb.
 // All of them in jornada's neon cyan, each in a tone of its own.
 export const HOME_OPTIONS: HomeOption[] = [
   { id: "act", label: "agir", color: "#00f0ff", tone: "1", unlocked: true,
-    box: [1, 3, 3, 3] },
+    box: [1, 3, 3, 3], form: "rect" },
   { id: "attributes", label: "atributos", color: "#00c8ff", tone: "5", unlocked: true,
-    box: [1, 0, 3, 1] },
+    box: [1, 0, 3, 1], form: "trap" },
   { id: "roko", label: "roko", color: "#3dfff0", tone: "3", unlocked: true,
-    box: [0, 0, 1, 2] },
+    box: [0, 0, 1, 2], form: "prism" },
   { id: "shop", label: "shop", color: "#7af9ff", tone: "2", unlocked: true,
-    box: [3, 1, 1, 2] },
+    box: [3, 1, 1, 2], form: "pairR" },
   { id: "logs", label: "logs", color: "#00a8e8", tone: "4", unlocked: true,
-    box: [1, 1, 2, 2] },
+    box: [1, 1, 2, 2], form: "pairL" },
   { id: "journey", label: "jornada", color: "#00ffd0", tone: "6", unlocked: true,
-    box: [0, 2, 1, 4] },
+    box: [0, 2, 1, 4], form: "rect" },
 ];
 
 /** The home's grid: four units across, six down, each unit upright, 1.3 times
@@ -145,20 +168,46 @@ export function pack(sizes: Size[]): { boxes: Box[]; rows: number } {
  *  times as tall, gathered in the bottom-right corner of a w×h area, each pulled
  *  in by `gap` pixels on every side: plain, level rectangles. The polygon, its
  *  centre, width and height. */
-export function drawBoxes(boxes: Box[], rows: number, w: number, h: number, side: number, gap: number, aspect = 1) {
+export function drawBoxes(boxes: Box[], rows: number, w: number, h: number, side: number, gap: number, aspect = 1, forms: Form[] = []) {
   const tall = side * aspect;
   const left = w - GRID_COLS * side;
   const top = h - rows * tall;
-  return boxes.map(([bx, by, bw, bh]) => {
+  return boxes.map(([bx, by, bw, bh], i) => {
     // quarters sit closer together, or they would be all gap
     const g = bw < 1 ? gap / 2 : gap;
     const x0 = left + bx * side + g;
     const y0 = top + by * tall + g;
     const x1 = left + (bx + bw) * side - g;
     const y1 = top + (by + bh) * tall - g;
-    const shape: Point[] = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+    const shape = formShape(x0, y0, x1, y1, forms[i] ?? "rect", side * SLANT);
     return { shape, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, w: x1 - x0, h: y1 - y0 };
   });
+}
+
+/** Forms for the cells of packed rows: now and then two neighbours share a
+ *  slanted side, and the others are rectangles, trapezoids or prisms; quarters
+ *  stay rectangles. Drawn from `rand`, so the same page keeps its forms. */
+export function formsFor(boxes: Box[], rand: () => number): Form[] {
+  const forms: Form[] = boxes.map(() => "rect");
+  const byRow = new Map<number, number[]>();
+  boxes.forEach((b, i) => {
+    if (b[2] < 1) return;
+    byRow.set(b[1], [...(byRow.get(b[1]) ?? []), i]);
+  });
+  for (const row of byRow.values()) {
+    row.sort((a, b) => boxes[a][0] - boxes[b][0]);
+    for (let k = 0; k < row.length; k++) {
+      const i = row[k];
+      const j = row[k + 1];
+      const v = rand() + 0.5;
+      if (j !== undefined && boxes[i][0] + boxes[i][2] === boxes[j][0] && v < 0.35) {
+        forms[i] = "pairL";
+        forms[j] = "pairR";
+        k++;
+      } else forms[i] = v < 0.6 ? "rect" : v < 0.8 ? "trap" : "prism";
+    }
+  }
+  return forms;
 }
 
 /** A small deterministic generator, in −0.5…0.5: the same seed, the same page. */

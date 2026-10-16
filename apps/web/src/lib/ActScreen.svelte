@@ -12,7 +12,7 @@
     fold,
     type Action,
   } from "./api";
-  import { GRID_COLS, SHRINK, drawBoxes, pack, polyPath, seeded, type Size } from "./homeLayout";
+  import { GRID_COLS, SHRINK, drawBoxes, formsFor, pack, polyPath, seeded, type Size } from "./homeLayout";
   import { primeAudio } from "./dtmf";
   import { powerOn, tap } from "./sfx";
   import { bumpLogs, bumpUser, setBackHandler } from "./store";
@@ -96,7 +96,7 @@
     if (!list.length || !w || !h) return [];
     const rand = seeded(seed + 1);
     const { boxes, rows } = pack(sizes(list.length, rand));
-    return drawBoxes(boxes, rows, w, h, side, GAP, ASPECT).map((c, i) => ({
+    return drawBoxes(boxes, rows, w, h, side, GAP, ASPECT, formsFor(boxes, rand)).map((c, i) => ({
       action: list[i],
       d: polyPath(c.shape),
       cx: c.cx,
