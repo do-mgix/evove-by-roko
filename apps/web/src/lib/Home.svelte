@@ -4,9 +4,9 @@
     GLYPHS,
     HOME_OPTIONS,
     centroid,
-    inset,
+    cutRect,
     polyPath,
-    toCorner,
+    type Rect,
     type HomeOptionId,
   } from "./homeLayout";
   import { onMount } from "svelte";
@@ -35,7 +35,9 @@
   // Plain shapes, drawn once per size: nothing on this screen animates.
   $: cells = HOME_OPTIONS.filter((o) => o.unlocked).map((o) => {
     // the cells keep their places, shrunk into the bottom-right corner
-    const shape = inset(o.polygon.map(([x, y]) => toCorner([x, TOP + y * (1 - TOP)], width, height)), GAP);
+    const [x0, y0, x1, y1] = o.rect;
+    const rect: Rect = [x0, TOP + y0 * (1 - TOP), x1, TOP + y1 * (1 - TOP)];
+    const shape = cutRect(rect, width, height, GAP, o.cut);
     const [cx, cy] = centroid(shape);
     const xs = shape.map((p) => p[0]);
     const ys = shape.map((p) => p[1]);

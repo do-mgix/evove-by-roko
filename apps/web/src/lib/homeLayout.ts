@@ -1,8 +1,8 @@
 /** The home screen: the options that cover it, and what they look like.
  *
  * Coordinates are normalized to the screen (0–1 on both axes, portrait) and the
- * shapes share their vertices, so together they tile the whole screen; Home.svelte
- * scales them to the area it draws in and insets every edge to open the gaps.
+ * rectangles share their edges, so together they tile the area; Home.svelte
+ * scales them to where it draws and pulls every edge in to open the gaps.
  *
  * Nothing is written on them: an option is known by its glyph — a sign from a
  * script that does not exist — and its color.
@@ -14,6 +14,9 @@
 export type HomeOptionId = "act" | "logs" | "shop" | "roko" | "attributes" | "journey";
 
 export type Point = [number, number];
+/** x0, y0, x1, y1 */
+export type Rect = [number, number, number, number];
+export type Corner = "tl" | "tr" | "br" | "bl";
 
 export type HomeOption = {
   id: HomeOptionId;
@@ -23,25 +26,29 @@ export type HomeOption = {
   color: string;
   /** the DTMF key it sounds like when pressed, as on the dial */
   tone: string;
-  polygon: Point[];
+  /** its rectangle in the unit square, x0 y0 x1 y1 */
+  rect: Rect;
+  /** the corner cut off diagonally, if any */
+  cut: Corner | null;
   unlocked: boolean;
 };
 
 // Agir stands tall on the right, under the thumb; the other five fill the left.
+// Plain rectangles of different sizes, some with a corner cut off diagonally.
 // All of them in jornada's neon cyan, each in a tone of its own.
 export const HOME_OPTIONS: HomeOption[] = [
   { id: "act", label: "agir", color: "#00f0ff", tone: "1", unlocked: true,
-    polygon: [[0.62, 0], [1, 0], [1, 1], [0.56, 1]] },
+    rect: [0.6, 0, 1, 1], cut: "tl" },
   { id: "attributes", label: "atributos", color: "#00c8ff", tone: "5", unlocked: true,
-    polygon: [[0, 0], [0.34, 0], [0.3, 0.36], [0, 0.32]] },
+    rect: [0, 0, 0.27, 0.34], cut: null },
   { id: "roko", label: "roko", color: "#3dfff0", tone: "3", unlocked: true,
-    polygon: [[0.34, 0], [0.62, 0], [0.6, 0.34], [0.3, 0.36]] },
+    rect: [0.27, 0, 0.6, 0.34], cut: "br" },
   { id: "shop", label: "shop", color: "#7af9ff", tone: "2", unlocked: true,
-    polygon: [[0, 0.32], [0.3, 0.36], [0.26, 0.662], [0, 0.68]] },
+    rect: [0, 0.34, 0.34, 0.66], cut: "bl" },
   { id: "logs", label: "logs", color: "#00a8e8", tone: "4", unlocked: true,
-    polygon: [[0.3, 0.36], [0.6, 0.34], [0.5816, 0.64], [0.26, 0.662]] },
+    rect: [0.34, 0.34, 0.6, 0.66], cut: null },
   { id: "journey", label: "jornada", color: "#00ffd0", tone: "6", unlocked: true,
-    polygon: [[0, 0.68], [0.5816, 0.64], [0.56, 1], [0, 1]] },
+    rect: [0, 0.66, 0.6, 1], cut: "tr" },
 ];
 
 export type Glyph = {
@@ -66,107 +73,19 @@ export const GLYPHS: Record<HomeOptionId, Glyph> = {
 /** Dot radius on the 24×24 grid. */
 export const DOT_R = 1.5;
 
-/** Moves every edge of a convex polygon `d` inwards; vertices are where the moved
- *  edges meet. Works in screen pixels, so every gap is the same width. */
-export function inset(points: Point[], d: number): Point[] {
-  const n = points.length;
-  // orientation, so "inwards" is the same side for every edge
-  let area = 0;
-  for (let i = 0; i < n; i++) {
-    const [x1, y1] = points[i];
-    const [x2, y2] = points[(i + 1) % n];
-    area += x1 * y2 - x2 * y1;
-  }
-  const sign = area > 0 ? 1 : -1;
-  const lines = points.map((p, i) => {
-    const q = points[(i + 1) % n];
-    const dx = q[0] - p[0];
-    const dy = q[1] - p[1];
-    const len = Math.hypot(dx, dy) || 1;
-    // left normal for a counter-clockwise polygon
-    const nx = (-dy / len) * sign;
-    const ny = (dx / len) * sign;
-    return { p: [p[0] + nx * d, p[1] + ny * d] as Point, dir: [dx, dy] as Point };
-  });
-  return lines.map((a, i) => {
-    const b = lines[(i + n - 1) % n];
-    const cross = b.dir[0] * a.dir[1] - b.dir[1] * a.dir[0];
-    if (Math.abs(cross) < 1e-9) return a.p;
-    const t = ((a.p[0] - b.p[0]) * a.dir[1] - (a.p[1] - b.p[1]) * a.dir[0]) / cross;
-    return [b.p[0] + b.dir[0] * t, b.p[1] + b.dir[1] * t] as Point;
-  });
-}
-
-
 /** The option the interface suggests next, whose outline is lit. A placeholder
  *  for the model that will learn to predict what the user does: for now, acting. */
 export function suggestedOption(): HomeOptionId | null {
   return "act";
 }
 
-/** A grid of `cols` × `rows` quadrilaterals tiling the unit square, its inner
- *  vertices nudged by up to `jitter` so no two pages look alike. Neighbours share
- *  their vertices, so the cells still tile; `seed` makes a page look the same
- *  every time it comes back. */
-export function jitteredGrid(cols: number, rows: number, seed: number, jitter = 0.28): Point[][] {
-  // a small deterministic generator: the same seed, the same page
-  let state = (seed * 2654435761) >>> 0 || 1;
-  const rand = () => {
-    state ^= state << 13;
-    state ^= state >>> 17;
-    state ^= state << 5;
-    return ((state >>> 0) % 10000) / 10000 - 0.5;
-  };
-  const v: Point[][] = [];
-  for (let r = 0; r <= rows; r++) {
-    v.push([]);
-    for (let c = 0; c <= cols; c++) {
-      // edges stay on the border; inner vertices move by a share of a cell
-      const dx = c > 0 && c < cols ? (rand() * jitter) / cols : 0;
-      const dy = r > 0 && r < rows ? (rand() * jitter) / rows : 0;
-      v[r].push([c / cols + dx, r / rows + dy]);
-    }
-  }
-  const cells: Point[][] = [];
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      cells.push([v[r][c], v[r][c + 1], v[r + 1][c + 1], v[r + 1][c]]);
-    }
-  }
-  return cells;
-}
-
-/** A color moved toward white (t > 0) or black (t < 0), by |t| of the way:
- *  the lit and the shaded side of a solid cell, and its ink. */
+/** A color moved toward white (t > 0) or black (t < 0), by |t| of the way. */
 export function shade(hex: string, t: number): string {
   const n = parseInt(hex.slice(1), 16);
   const to = t > 0 ? 255 : 0;
   const k = Math.abs(t);
   const c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => Math.round(v + (to - v) * k));
   return "#" + c.map((v) => v.toString(16).padStart(2, "0")).join("");
-}
-
-/** An SVG path of a polygon with its corners rounded by `r` pixels — less where
- *  an edge is too short for it. */
-export function roundedPath(points: Point[], r: number): string {
-  const n = points.length;
-  const f = (v: number) => v.toFixed(1);
-  let d = "";
-  points.forEach((p, i) => {
-    const prev = points[(i + n - 1) % n];
-    const next = points[(i + 1) % n];
-    const toward = (q: Point): Point => {
-      const dx = q[0] - p[0];
-      const dy = q[1] - p[1];
-      const len = Math.hypot(dx, dy) || 1;
-      const k = Math.min(r, len / 2) / len;
-      return [p[0] + dx * k, p[1] + dy * k];
-    };
-    const a = toward(prev);
-    const b = toward(next);
-    d += `${i ? "L" : "M"}${f(a[0])},${f(a[1])} Q${f(p[0])},${f(p[1])} ${f(b[0])},${f(b[1])} `;
-  });
-  return d + "Z";
 }
 
 /** How much of each side of the screen the interface takes, shrunk into its
@@ -179,15 +98,50 @@ export function toCorner([x, y]: Point, w: number, h: number): Point {
   return [w * (1 - SHRINK) + x * w * SHRINK, h * (1 - SHRINK) + y * h * SHRINK];
 }
 
+/** A rectangle of the unit square, placed in the corner of a w×h area by
+ *  toCorner and pulled in by `gap` pixels on every side, with one corner cut
+ *  off diagonally by `cut` of its shorter side. Clockwise from the top left. */
+export function cutRect([x0, y0, x1, y1]: Rect, w: number, h: number, gap: number, corner: Corner | null, cut = 0.3): Point[] {
+  [x0, y0] = toCorner([x0, y0], w, h);
+  [x1, y1] = toCorner([x1, y1], w, h);
+  x0 += gap; y0 += gap; x1 -= gap; y1 -= gap;
+  const c = corner ? Math.min(x1 - x0, y1 - y0) * cut : 0;
+  return [
+    ...(corner === "tl" ? [[x0, y0 + c], [x0 + c, y0]] : [[x0, y0]]),
+    ...(corner === "tr" ? [[x1 - c, y0], [x1, y0 + c]] : [[x1, y0]]),
+    ...(corner === "br" ? [[x1, y1 - c], [x1 - c, y1]] : [[x1, y1]]),
+    ...(corner === "bl" ? [[x0 + c, y1], [x0, y1 - c]] : [[x0, y1]]),
+  ] as Point[];
+}
+
+/** A small deterministic generator, in −0.5…0.5: the same seed, the same page. */
+export function seeded(seed: number): () => number {
+  let state = ((seed + 7) * 2654435761) >>> 0 || 1;
+  return () => {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    return ((state >>> 0) % 10000) / 10000 - 0.5;
+  };
+}
+
+const CORNERS: Corner[] = ["tl", "tr", "br", "bl"];
+
+/** A corner to cut off, or none — about half the time. */
+export function pickCut(rand: () => number): Corner | null {
+  const v = rand() + 0.5;
+  return v < 0.5 ? null : CORNERS[Math.floor((v - 0.5) * 8) % 4];
+}
+
 /** An SVG path of a polygon, its corners left sharp. */
 export function polyPath(points: Point[]): string {
   return "M" + points.map((p) => p.map((v) => v.toFixed(1)).join(",")).join(" L") + " Z";
 }
 
+/** The centre of a shape's bounding box: where its glyph or name sits, a cut
+ *  corner not pulling it aside. */
 export function centroid(points: Point[]): Point {
-  const n = points.length;
-  return [
-    points.reduce((s, p) => s + p[0], 0) / n,
-    points.reduce((s, p) => s + p[1], 0) / n,
-  ];
+  const xs = points.map((p) => p[0]);
+  const ys = points.map((p) => p[1]);
+  return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
 }

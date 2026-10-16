@@ -9,7 +9,7 @@
     type CatalogAction,
     type CatalogGroup,
   } from "./api";
-  import { SHRINK, centroid, inset, polyPath, toCorner, type Point } from "./homeLayout";
+  import { SHRINK, centroid, cutRect, pickCut, polyPath, seeded } from "./homeLayout";
   import { primeAudio } from "./dtmf";
   import { gains as gainsSound, powerOn, tap } from "./sfx";
   import { bumpUser, setBackHandler, userVersion } from "./store";
@@ -104,43 +104,22 @@
     const k = shares.reduce((s, x) => s + x, 0);
     shares = shares.map((s) => s / k);
 
-    let state = ((seed + 7) * 2654435761) >>> 0 || 1;
-    const rand = () => {
-      state ^= state << 13;
-      state ^= state >>> 17;
-      state ^= state << 5;
-      return ((state >>> 0) % 10000) / 10000 - 0.5;
-    };
+    const rand = seeded(seed);
 
-    // the lines between rows run across the whole width, tilted a little
-    const lines: [number, number][] = [[top, top]];
+    // the lines between rows run straight across
+    const lines: number[] = [top];
     let y = top;
-    shares.forEach((s, i) => {
-      y += s * used;
-      const inner = i < shares.length - 1;
-      const j = inner ? s * used * 0.25 : 0;
-      lines.push([y + rand() * j, y + rand() * j]);
-    });
-    const at = (line: [number, number], x: number) => line[0] + (line[1] - line[0]) * x;
+    shares.forEach((s) => lines.push((y += s * used)));
 
     const out: { action: CatalogAction; d: string; cx: number; cy: number; lines: string[]; small: boolean }[] = [];
     rows.forEach((row, r) => {
       const T = lines[r];
       const B = lines[r + 1];
-      let polys: Point[][];
-      if (row.length === 1) {
-        polys = [[[0, T[0]], [1, T[1]], [1, B[1]], [0, B[0]]]];
-      } else {
-        const split = Math.min(0.75, Math.max(0.25, weight(row[0]) / sums[r]));
-        const sT = split + rand() * 0.08;
-        const sB = split + rand() * 0.08;
-        polys = [
-          [[0, at(T, 0)], [sT, at(T, sT)], [sB, at(B, sB)], [0, at(B, 0)]],
-          [[sT, at(T, sT)], [1, at(T, 1)], [1, at(B, 1)], [sB, at(B, sB)]],
-        ];
-      }
+      // two to a row, split by their costs; some with a corner cut off
+      const split = Math.min(0.75, Math.max(0.25, weight(row[0]) / sums[r]));
+      const spans: [number, number][] = row.length === 1 ? [[0, 1]] : [[0, split], [split, 1]];
       row.forEach((action, i) => {
-        const shape = inset(polys[i].map((p) => toCorner(p, w, h)), GAP);
+        const shape = cutRect([spans[i][0], T, spans[i][1], B], w, h, GAP, pickCut(rand));
         const [cx, cy] = centroid(shape);
         const xs = shape.map((p) => p[0]);
         const ys = shape.map((p) => p[1]);

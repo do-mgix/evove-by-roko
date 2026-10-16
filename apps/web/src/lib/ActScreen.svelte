@@ -12,7 +12,7 @@
     fold,
     type Action,
   } from "./api";
-  import { SHRINK, centroid, inset, jitteredGrid, polyPath, toCorner } from "./homeLayout";
+  import { SHRINK, centroid, cutRect, pickCut, polyPath, seeded } from "./homeLayout";
   import { primeAudio } from "./dtmf";
   import { powerOn, tap } from "./sfx";
   import { bumpLogs, bumpUser, setBackHandler } from "./store";
@@ -69,23 +69,33 @@
   $: onPage = shown.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
   $: cells = layout(onPage, page, width, height);
 
+  /** The page's cells: rows a little taller or shorter than an even share,
+   *  each split in two somewhere about the middle, and some with a corner cut
+   *  off — the same for the same page every time. */
   function layout(list: Action[], seed: number, w: number, h: number) {
     if (!list.length || !w || !h) return [];
+    const rand = seeded(seed + 1);
     const rows = Math.ceil(list.length / COLS);
-    let polys = jitteredGrid(COLS, rows, seed + 1);
-    // an odd count: the last cell spans the last row
-    if (list.length % COLS === 1) {
-      const a = polys[polys.length - 2];
-      const b = polys[polys.length - 1];
-      polys = [...polys.slice(0, -2), [a[0], b[1], b[2], a[3]]];
-    }
-    return list.map((action, i) => {
-      const shape = inset(polys[i].map((p) => toCorner(p, w, h)), GAP);
-      const [cx, cy] = centroid(shape);
-      const xs = shape.map((p) => p[0]);
-      const cellW = Math.max(...xs) - Math.min(...xs);
-      return { action, d: polyPath(shape), cx, cy, lines: wrap(action.name, cellW) };
+    const heights = Array.from({ length: rows }, () => 1 + rand() * 0.6);
+    const total = heights.reduce((s, x) => s + x, 0);
+    const out: { action: Action; d: string; cx: number; cy: number; lines: string[] }[] = [];
+    let y = 0;
+    heights.forEach((rh, r) => {
+      const y1 = y + rh / total;
+      const row = list.slice(r * COLS, (r + 1) * COLS);
+      // an odd count: the last cell spans the last row
+      const split = 0.5 + rand() * 0.36;
+      const spans: [number, number][] = row.length === 1 ? [[0, 1]] : [[0, split], [split, 1]];
+      row.forEach((action, i) => {
+        const shape = cutRect([spans[i][0], y, spans[i][1], y1], w, h, GAP, pickCut(rand));
+        const [cx, cy] = centroid(shape);
+        const xs = shape.map((p) => p[0]);
+        const cellW = Math.max(...xs) - Math.min(...xs);
+        out.push({ action, d: polyPath(shape), cx, cy, lines: wrap(action.name, cellW) });
+      });
+      y = y1;
     });
+    return out;
   }
 
   /** Breaks a name into lines that fit a cell, at most three. */
