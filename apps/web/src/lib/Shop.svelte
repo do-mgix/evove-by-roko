@@ -10,6 +10,7 @@
     type CatalogGroup,
   } from "./api";
   import { GRID_COLS, GRID_GAP, SLANT, drawBoxes, formsFor, gridUnit, packFree, polyPath, seeded } from "./homeLayout";
+  import Icon from "./Icon.svelte";
   import { primeAudio } from "./dtmf";
   import { gains as gainsSound, powerOn, tap } from "./sfx";
   import { bumpUser, setBackHandler, userVersion } from "./store";
@@ -22,7 +23,7 @@
   void initialSection;
 
   // The shop is walked like the acting screen: a display on top, cells in the
-  // middle, a bar with two blank buttons at the bottom. It opens on its first
+  // middle, a bar with two buttons — an arrow, a circle — at the bottom. It opens on its first
   // screen — where what is bought with points will live — and the centre button
   // turns the page, through the catalog one attribute after the other; with an
   // action chosen it goes back a step instead. The right one goes home. All of
@@ -354,9 +355,9 @@
     <span class="ticks" aria-hidden="true">
       {#each stops as _, i}<i class:on={i === stop}></i>{/each}
     </span>
-    <!-- two blank buttons: the page, and home -->
-    <button class="page-btn" aria-label={selected ? "voltar" : "próxima página"} on:click={nextPage}></button>
-    <button class="home-btn" aria-label="início" on:click={home}></button>
+    <!-- two buttons: the page (back a step with something chosen), and home -->
+    <button class="page-btn" aria-label={selected ? "voltar" : "próxima página"} on:click={nextPage}><Icon name={selected ? "left" : "right"} /></button>
+    <button class="home-btn" aria-label="início" on:click={home}><Icon name="circle" size={16} /></button>
   </div>
 </div>
 
@@ -539,9 +540,11 @@
     background: transparent;
     border: 1.5px solid var(--ink);
     border-radius: 0;
+    color: var(--ink);
     cursor: pointer;
     transition: background 0.06s;
   }
+  .page-btn, .home-btn { display: flex; align-items: center; justify-content: center; }
   /* pressed, a wash of the cyan */
   .page-btn { grid-column: 3 / 6; }
   .maker:active, .page-btn:active, .home-btn:active {

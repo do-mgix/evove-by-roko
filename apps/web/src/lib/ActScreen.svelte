@@ -13,6 +13,7 @@
     type Action,
   } from "./api";
   import { GRID_COLS, GRID_GAP, SLANT, drawBoxes, formsFor, gridUnit, packFree, polyPath, seeded } from "./homeLayout";
+  import Icon from "./Icon.svelte";
   import { primeAudio } from "./dtmf";
   import { powerOn, tap } from "./sfx";
   import { bumpLogs, bumpUser, setBackHandler } from "./store";
@@ -23,7 +24,7 @@
 
   // The screen, top to bottom: the display (messages, and what is being typed),
   // the actions as cells — or, once one is chosen, its tiers — and the bar with
-  // two blank buttons: the centre one turns the page, the right one goes home.
+  // two buttons: the arrow turns the page, the circle goes home.
   // On the grid every screen shares; a button here takes SCALE × SCALE of its
   // squares, or sizes between, like 2×3.
   const SCALE = 2;
@@ -365,11 +366,11 @@
     </div>
   {/if}
 
-  <!-- two blank buttons: the page, and home -->
+  <!-- two buttons: the page (back a step with something chosen), and home -->
   <div class="bar">
     <span class="pages" aria-hidden="true">{#if pages > 1}{#each Array(pages) as _, i}<i class:on={i === page}></i>{/each}{/if}</span>
-    <button class="page-btn" aria-label={selected ? "cancelar" : "próxima página"} on:click={nextPage}></button>
-    <button class="home-btn" aria-label="início" on:click={home}></button>
+    <button class="page-btn" aria-label={selected ? "cancelar" : "próxima página"} on:click={nextPage}><Icon name={selected ? "left" : "right"} /></button>
+    <button class="home-btn" aria-label="início" on:click={home}><Icon name="circle" size={16} /></button>
   </div>
 </div>
 {/if}
@@ -510,9 +511,11 @@
     background: transparent;
     border: 1.5px solid var(--ink);
     border-radius: 0;
+    color: var(--ink);
     cursor: pointer;
     transition: background 0.06s;
   }
+  .page-btn, .home-btn { display: flex; align-items: center; justify-content: center; }
   /* pressed, a wash of the cyan */
   .page-btn { grid-column: 3 / 6; }
   .tier:active:not(:disabled), .page-btn:active, .home-btn:active {

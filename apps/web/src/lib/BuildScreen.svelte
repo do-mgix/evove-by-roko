@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
-  import { GRID_COLS, GRID_GAP, SLANT, formShape, gridUnit, polyPath, type Box, type Form } from "./homeLayout";
+  import { DOT_R, GRID_COLS, GRID_GAP, SLANT, formShape, formsFor, gridUnit, packFree, polyPath, type Box, type Form } from "./homeLayout";
+  import { BUTTON_ICONS, ICONS, type IconName } from "./icons";
+  import Icon from "./Icon.svelte";
   import { primeAudio } from "./dtmf";
   import { powerOn, tap } from "./sfx";
   import { setBackHandler } from "./store";
@@ -10,16 +12,22 @@
 
   // A page for building buttons on the grid: the grid's squares lie faint in
   // the bottom-right corner; a tap on one square and then another makes a button
-  // across the rectangle between them. A tap on a button turns it to the next
-  // form; two quick taps take it away. What is built is kept on this device.
+  // across the rectangle between them, wearing an icon. A tap on a button turns
+  // it to the next form, a long press to the next icon, and two quick taps take
+  // it away. The bar's wide button throws a whole layout at random. What is
+  // built is kept on this device.
 
   const FORMS: Form[] = ["rect", "trap", "prism", "pairL", "pairR"];
   const GAP = GRID_GAP;
   // two taps closer than this are one double tap
   const DOUBLE_MS = 280;
+  // a press held this long is a long press
+  const LONG_MS = 450;
+  // the sizes a random layout draws from, in squares
+  const SIZES: [number, number][] = [[1, 1], [2, 1], [1, 2], [2, 2], [3, 2], [2, 3], [3, 3]];
   const KEY = "evove_built";
 
-  type Built = { box: Box; form: Form };
+  type Built = { box: Box; form: Form; icon?: IconName };
 
   let built: Built[] = load();
   // the first square of a button being made
@@ -28,6 +36,9 @@
   let height = 0;
   // a button tapped once, waiting to see whether a second tap follows
   let pending: { index: number; timer: ReturnType<typeof setTimeout> } | null = null;
+  // a press being held, and whether it already turned into a long press
+  let holding: ReturnType<typeof setTimeout> | null = null;
+  let held = false;
 
   // the grid every screen shares
   $: side = gridUnit(width);
@@ -68,7 +79,13 @@
     const y0 = t + y * s + GAP;
     const x1 = l + (x + w) * s - GAP;
     const y1 = t + (y + h) * s - GAP;
-    return { d: polyPath(formShape(x0, y0, x1, y1, b.form, s * SLANT)), form: b.form };
+    return {
+      d: polyPath(formShape(x0, y0, x1, y1, b.form, s * SLANT)),
+      icon: b.icon ?? null,
+      cx: (x0 + x1) / 2,
+      cy: (y0 + y1) / 2,
+      size: Math.min(36, Math.min(x1 - x0, y1 - y0) * 0.42),
+    };
   }
 
   function square(x: number, y: number) {
@@ -92,13 +109,41 @@
       return;
     }
     tap(7);
-    built = [...built, { box, form: "rect" }];
+    built = [...built, { box, form: "rect", icon: pick(BUTTON_ICONS) }];
     save();
+  }
+
+  const pick = <T,>(list: T[]): T => list[Math.floor(Math.random() * list.length)];
+
+  /** A press on a button: held long enough, it turns the button's icon. */
+  function press(index: number) {
+    held = false;
+    if (holding) clearTimeout(holding);
+    holding = setTimeout(() => {
+      holding = null;
+      held = true;
+      primeAudio();
+      tap(3);
+      built = built.map((b, i) =>
+        i === index ? { ...b, icon: BUTTON_ICONS[(BUTTON_ICONS.indexOf(b.icon ?? "dots") + 1) % BUTTON_ICONS.length] } : b,
+      );
+      save();
+    }, LONG_MS);
+  }
+
+  function release() {
+    if (holding) clearTimeout(holding);
+    holding = null;
   }
 
   function button(index: number) {
     primeAudio();
     first = null;
+    // the click that ends a long press is not a tap
+    if (held) {
+      held = false;
+      return;
+    }
     if (pending && pending.index === index) {
       // the second of two quick taps: away with it
       clearTimeout(pending.timer);
@@ -120,6 +165,28 @@
     };
   }
 
+  /** A whole layout at random: buttons of assorted sizes packed into the
+   *  bottom-right corner while they fit, in assorted forms and icons. */
+  function shuffle() {
+    primeAudio();
+    first = null;
+    if (!rows) return;
+    const rand = () => Math.random() - 0.5;
+    const want = 4 + Math.floor(Math.random() * 6);
+    let sizes: [number, number][] = [];
+    for (let k = 0; k < want * 3 && sizes.length < want; k++) {
+      const next = [...sizes, pick(SIZES)];
+      if (packFree(next, GRID_COLS).rows <= rows) sizes = next;
+    }
+    const { boxes, rows: used } = packFree(sizes, GRID_COLS);
+    // packed from the top: lower them to the bottom of the grid
+    const lowered = boxes.map(([x, y, w, h]): Box => [x, y + rows - used, w, h]);
+    const forms = formsFor(lowered, rand);
+    built = lowered.map((box, i) => ({ box, form: forms[i], icon: pick(BUTTON_ICONS) }));
+    save();
+    powerOn();
+  }
+
   function home() {
     primeAudio();
     tap(0);
@@ -138,10 +205,11 @@
   onDestroy(() => {
     setBackHandler(null);
     if (pending) clearTimeout(pending.timer);
+    release();
   });
 </script>
 
-<div class="build" style="--cell: {side ? `${side - 2 * GAP}px` : '18%'}; --gap: {GAP}px">
+<div class="build" style="--unit: {side || 52}px; --row: {(side || 52) * GRID_COLS}px; --gap: {GAP}px">
   <div class="display">
     <p class="small">{first ? "toque outra casa" : built.length ? `${built.length} ${built.length === 1 ? "botão" : "botões"}` : "toque duas casas"}</p>
   </div>
@@ -167,22 +235,34 @@
           {/if}
         {/each}
         {#each cells as c, i (built[i])}
-          <path
+          <g
             class="cell"
-            d={c.d}
             role="button"
             tabindex="0"
             aria-label="botão {i + 1}"
+            on:pointerdown={() => press(i)}
+            on:pointerup={release}
+            on:pointerleave={release}
+            on:pointercancel={release}
             on:click={() => button(i)}
             on:keydown={(e) => e.key === "Enter" && button(i)}
-          />
+          >
+            <path class="shape" d={c.d} />
+            {#if c.icon}
+              <g class="icon" transform="translate({c.cx - c.size / 2} {c.cy - c.size / 2}) scale({c.size / 24})">
+                {#if ICONS[c.icon].d}<path d={ICONS[c.icon].d} stroke-width={(24 / c.size) * 1.8} />{/if}
+                {#each ICONS[c.icon].dots as [x, y]}<circle cx={x} cy={y} r={DOT_R * 1.2} />{/each}
+              </g>
+            {/if}
+          </g>
         {/each}
       </svg>
     {/if}
   </div>
 
   <div class="bar">
-    <button class="home-btn" aria-label="início" on:click={home}></button>
+    <button class="shuffle-btn" aria-label="layout aleatório" on:click={shuffle}><Icon name="shuffle" /></button>
+    <button class="home-btn" aria-label="início" on:click={home}><Icon name="circle" size={16} /></button>
   </div>
 </div>
 
@@ -230,40 +310,52 @@
   }
   .square.first { fill-opacity: 0.25; stroke-opacity: 1; }
 
-  /* a built button: see-through, its outline in the neon */
+  /* a built button: see-through, its outline and icon in the neon */
   .cell {
-    fill: var(--ink);
-    fill-opacity: 0.1;
-    stroke: var(--ink);
-    stroke-width: 1.5;
-    stroke-linejoin: miter;
     cursor: pointer;
     outline: none;
     transform-box: fill-box;
     transform-origin: 50% 50%;
     animation: tube-on 0.4s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+    -webkit-touch-callout: none;
   }
-  .cell:active, .cell:focus-visible { fill-opacity: 0.3; }
+  .shape {
+    fill: var(--ink);
+    fill-opacity: 0.1;
+    stroke: var(--ink);
+    stroke-width: 1.5;
+    stroke-linejoin: miter;
+  }
+  .cell:active .shape, .cell:focus-visible .shape { fill-opacity: 0.3; }
+  .icon path { fill: none; stroke: var(--ink); stroke-linecap: round; stroke-linejoin: round; }
+  .icon circle { fill: var(--ink); }
+  .icon { pointer-events: none; }
   @media (prefers-reduced-motion: reduce) {
     .cell { animation: none; }
   }
 
-  /* the grid's bottom row */
+  /* the grid's bottom row: the shuffle across three squares, home in the last */
   .bar {
-    flex: 0 0 calc(var(--cell) + 2 * var(--gap));
-    display: flex;
-    justify-content: flex-end;
-    padding: var(--gap) 0;
+    flex: 0 0 var(--unit);
+    align-self: flex-end;
+    width: var(--row);
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    column-gap: calc(2 * var(--gap));
+    padding: var(--gap);
     box-sizing: border-box;
   }
-  /* home sits under the grid's last column */
-  .home-btn {
-    width: var(--cell);
-    margin-right: var(--gap);
+  .shuffle-btn, .home-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     background: transparent;
     border: 1.5px solid var(--ink);
     border-radius: 0;
+    color: var(--ink);
     cursor: pointer;
   }
-  .home-btn:active { background: rgba(0, 224, 255, 0.25); }
+  .shuffle-btn { grid-column: 3 / 6; }
+  .home-btn { grid-column: 6; }
+  .shuffle-btn:active, .home-btn:active { background: rgba(0, 224, 255, 0.25); }
 </style>
