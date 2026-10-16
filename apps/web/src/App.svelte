@@ -151,13 +151,13 @@
     border-radius: 28px;
     overflow: hidden;
     /* the deep green the wave rises from */
-    background: #041a0e;
+    background: #000000;
     /* the backdrop below stays under everything inside the frame */
     isolation: isolate;
   }
-  /* The backdrop: a deep gradient of greens — forest, emerald, leaf, teal —
-     three times the frame's height, sliding up and down, so the screens
-     alternate between them behind the cells. Moved by transform, so the phone
+  /* The backdrop: black, with a faint band of green three times the frame's
+     height sliding up and down through it, so the screens alternate between
+     black and a glow of green behind the cells. Moved by transform, so the phone
      only composites it. */
   .frame::before {
     content: "";
@@ -169,10 +169,11 @@
     z-index: -1;
     background: linear-gradient(
       to bottom,
-      #041a0e 0%,
-      #073b22 33%,
-      #16420d 66%,
-      #063b33 100%
+      #000000 0%,
+      #000000 30%,
+      #04200f 50%,
+      #000000 70%,
+      #000000 100%
     );
     animation: drift 12s ease-in-out infinite alternate;
     pointer-events: none;

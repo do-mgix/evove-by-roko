@@ -3,12 +3,10 @@
     DOT_R,
     GLYPHS,
     HOME_OPTIONS,
-    centroid,
-    inset,
-    roundedPath,
+    cellSide,
+    cornerGrid,
     shade,
     type HomeOptionId,
-    type Point,
   } from "./homeLayout";
   import { onMount } from "svelte";
   import { primeAudio } from "./dtmf";
@@ -18,13 +16,9 @@
   /** The option suggested next: its outline is lit. Never named, only shown. */
   export let hint: HomeOptionId | null = null;
 
-  // The upper part of the screen stays empty: the cells live where a thumb
-  // reaches. TOP is where they begin, as a fraction of the height.
-  const TOP = 0.42;
-  // half the gap between two cells, in pixels
-  const GAP = 6;
-  // how round the cells' corners are, in pixels
-  const RADIUS = 14;
+  // Six equal squares, two to a row, gathered in the bottom-right corner where
+  // a thumb reaches; the rest of the screen stays black.
+  const COLS = 2;
   // When the screen comes on, each cell lights up like a tube set warming, at
   // its own moment: an uneven order reads as a machine, an even one as a menu.
   const DELAY: Record<HomeOptionId, number> = {
@@ -36,22 +30,13 @@
   let pressed: HomeOptionId | null = null;
 
   // Plain shapes, drawn once per size: nothing on this screen animates.
-  $: cells = HOME_OPTIONS.filter((o) => o.unlocked).map((o) => {
-    const area = height * (1 - TOP);
-    const shape = inset(o.polygon.map(([x, y]) => [x * width, height * TOP + y * area] as Point), GAP);
-    const [cx, cy] = centroid(shape);
-    const xs = shape.map((p) => p[0]);
-    const ys = shape.map((p) => p[1]);
-    const w = Math.max(...xs) - Math.min(...xs);
-    const h = Math.max(...ys) - Math.min(...ys);
-    return {
-      ...o,
-      d: roundedPath(shape, RADIUS),
-      cx,
-      cy,
-      glyph: Math.max(28, Math.min(w * 0.5, h * 0.5, 96)),
-    };
-  });
+  $: shown = HOME_OPTIONS.filter((o) => o.unlocked);
+  $: grid = cornerGrid(shown.length, COLS, width, height, cellSide(width, COLS));
+  $: cells = shown.map((o, i) => ({
+    ...o,
+    ...grid[i],
+    glyph: Math.max(24, grid[i].s * 0.42),
+  }));
 
   // the screen comes on with a sound, when one has been allowed (after a tap)
   onMount(() => powerOn());
@@ -96,7 +81,7 @@
             on:pointerleave={() => pressed === c.id && (pressed = null)}
             on:pointercancel={() => (pressed = null)}
             on:keydown={(e) => onKey(e, c.id, c.tone)}
-            style="--fill: {c.color}; --fill-down: {shade(c.color, -0.14)}; --ink: {shade(c.color, -0.6)}; --delay: {DELAY[c.id]}ms"
+            style="--fill: {c.color}; --fill-down: {shade(c.color, -0.14)}; --glow: {c.color}66; --ink: {shade(c.color, -0.6)}; --delay: {DELAY[c.id]}ms"
           >
             <path class="shape" d={c.d} />
             <g class="glyph" transform="translate({c.cx - c.glyph / 2} {c.cy - c.glyph / 2}) scale({c.glyph / 24})">
@@ -128,6 +113,8 @@
     height: 100%;
   }
   svg {
+    /* the halos spill past the edges */
+    overflow: visible;
     display: block;
     width: 100%;
     height: 100%;
@@ -152,6 +139,8 @@
     stroke: #ffffff;
     stroke-opacity: 0;
     stroke-width: 2.5;
+    /* a neon's halo on the black */
+    filter: drop-shadow(0 0 10px var(--glow));
   }
   .glyph path {
     fill: none;

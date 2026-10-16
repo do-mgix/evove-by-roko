@@ -12,7 +12,7 @@
     fold,
     type Action,
   } from "./api";
-  import { centroid, inset, jitteredGrid, roundedPath, type Point } from "./homeLayout";
+  import { CELL_GAP, cellSide, cornerGrid } from "./homeLayout";
   import { primeAudio } from "./dtmf";
   import { powerOn, tap } from "./sfx";
   import { bumpLogs, bumpUser, setBackHandler } from "./store";
@@ -23,11 +23,12 @@
 
   // The screen, top to bottom: the display (messages, and what is being typed),
   // the actions as cells — or, once one is chosen, its tiers — and the bar with
-  // two blank buttons: the centre one turns the page, the right one goes home.
+  // two blank buttons: the left one turns the page, the right one goes home.
+  // Cells and buttons are equal squares and pills, two columns gathered in the
+  // bottom-right corner.
   const COLS = 2;
   const ROWS = 4;
   const PER_PAGE = COLS * ROWS;
-  const GAP = 5;
   // a new page comes on cell by cell, like the home, at uneven moments
   const DELAY = [0, 110, 60, 170, 30, 220, 140, 90];
 
@@ -51,6 +52,10 @@
   let input: HTMLInputElement;
   let width = 0;
   let height = 0;
+  // the whole screen's width, for the side of a cell
+  let screenW = 0;
+  $: side = cellSide(screenW - 20, COLS);
+  $: block = side * COLS + CELL_GAP * (COLS - 1);
 
   // ---- what is typed picks the action ----
   $: q = fold(query.trim());
@@ -67,25 +72,12 @@
   $: pages = Math.max(1, Math.ceil(shown.length / PER_PAGE));
   $: if (page >= pages) page = 0;
   $: onPage = shown.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
-  $: cells = layout(onPage, page, width, height);
+  $: cells = layout(onPage, width, height, side);
 
-  function layout(list: Action[], seed: number, w: number, h: number) {
+  function layout(list: Action[], w: number, h: number, side: number) {
     if (!list.length || !w || !h) return [];
-    const rows = Math.ceil(list.length / COLS);
-    let polys = jitteredGrid(COLS, rows, seed + 1);
-    // an odd count: the last cell spans the last row
-    if (list.length % COLS === 1) {
-      const a = polys[polys.length - 2];
-      const b = polys[polys.length - 1];
-      polys = [...polys.slice(0, -2), [a[0], b[1], b[2], a[3]]];
-    }
-    return list.map((action, i) => {
-      const shape = inset(polys[i].map(([x, y]) => [x * w, y * h] as Point), GAP);
-      const [cx, cy] = centroid(shape);
-      const xs = shape.map((p) => p[0]);
-      const cellW = Math.max(...xs) - Math.min(...xs);
-      return { action, d: roundedPath(shape, 12), cx, cy, lines: wrap(action.name, cellW) };
-    });
+    const grid = cornerGrid(list.length, COLS, w, h, side);
+    return list.map((action, i) => ({ action, ...grid[i], lines: wrap(action.name, grid[i].s) }));
   }
 
   /** Breaks a name into lines that fit a cell, at most three. */
@@ -282,7 +274,8 @@
     onDone={() => (gains = null)}
   />
 {:else}
-<div class="act" class:typing={typing && keyboardUp} class:choosing={!!selected}>
+<div class="act" class:typing={typing && keyboardUp} class:choosing={!!selected}
+  bind:clientWidth={screenW} style="--side: {side}px; --block: {block}px">
   <!-- the display: messages, what is typed, what was chosen -->
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -359,11 +352,11 @@
 
 <style>
   .act {
-    --ink: #ffcc00;
-    --down: #ebb800;
+    --ink: #f5ff00;
+    --down: #d2db00;
     /* text on the dark backdrop, and on the yellow */
     --deep: #ffffff;
-    --dark: #5c4300;
+    --dark: #2a2c00;
     position: absolute;
     inset: 0;
     padding: 10px;
@@ -382,6 +375,8 @@
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
+    align-items: flex-end;
+    text-align: right;
     gap: 0.4rem;
     padding: 0.5rem 0.4rem;
     overflow: hidden;
@@ -409,7 +404,7 @@
 
   .cells { flex: 1; min-height: 0; }
   .act.typing .cells { display: none; }
-  svg { display: block; width: 100%; height: 100%; }
+  svg { display: block; width: 100%; height: 100%; overflow: visible; }
   .cell {
     cursor: pointer;
     outline: none;
@@ -425,6 +420,8 @@
   }
   .shape {
     fill: var(--ink);
+    /* a neon's halo on the black */
+    filter: drop-shadow(0 0 10px rgba(245, 255, 0, 0.4));
   }
   text {
     fill: var(--dark);
@@ -446,6 +443,8 @@
   .tiers {
     flex: 1;
     min-height: 0;
+    align-self: flex-end;
+    width: var(--block);
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     grid-auto-rows: 1fr;
@@ -458,7 +457,7 @@
     align-items: center;
     justify-content: center;
     gap: 0.3rem;
-    min-height: 4.2rem;
+    aspect-ratio: 1;
     color: var(--dark);
     font-family: var(--font-mono);
   }
@@ -471,7 +470,8 @@
     flex: 0 0 56px;
     display: flex;
     align-items: stretch;
-    justify-content: center;
+    justify-content: flex-end;
+    gap: 10px;
   }
   .act.typing .bar { display: none; }
   /* flat, vivid yellow */
@@ -481,9 +481,10 @@
     border-radius: 16px;
     cursor: pointer;
     transition: transform 0.06s, background 0.06s;
+    box-shadow: 0 0 12px rgba(245, 255, 0, 0.35);
   }
-  .page-btn { width: 30%; margin: 4px 0; }
-  .home-btn { position: absolute; right: 0; top: 4px; bottom: 4px; width: 16%; }
+  /* the two of them alike, under the two columns of cells */
+  .page-btn, .home-btn { width: var(--side); }
   /* pressed: a shade darker, pushed in a little */
   .tier:active:not(:disabled), .page-btn:active, .home-btn:active {
     background: var(--down);
