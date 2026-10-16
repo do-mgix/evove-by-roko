@@ -100,7 +100,7 @@
     margin: 0;
     font-size: 0.95rem;
     font-weight: 500;
-    color: #00f0ff;
+    color: #7af9ff;
   }
   .body {
     flex: 1;
@@ -119,8 +119,8 @@
   }
   .line span { font-size: 0.95rem; font-weight: 400; color: rgba(255, 255, 255, 0.7); }
   .tokens { color: #00f0ff; }
-  .tokens.spent { color: #00f0ff; }
-  .marks { color: #00f0ff; }
+  .tokens.spent { color: #00a8e8; }
+  .marks { color: #3dfff0; }
   .attr { animation: arrive 0.35s ease-out; }
   .attr-head {
     display: flex;
@@ -130,12 +130,12 @@
     font-size: 0.75rem;
   }
   .attr-name { color: #ffffff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .attr-rank { color: #00f0ff; flex-shrink: 0; }
+  .attr-rank { color: #00c8ff; flex-shrink: 0; }
   .roko {
     margin: 0;
     font-size: 0.85rem;
     line-height: 1.5;
-    color: #00f0ff;
+    color: #00ffd0;
     animation: arrive 0.6s ease-out;
   }
   @keyframes arrive {

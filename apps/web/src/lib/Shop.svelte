@@ -26,10 +26,10 @@
   // screen — where what is bought with points will live — and the centre button
   // turns the page, through the catalog one attribute after the other; with an
   // action chosen it goes back a step instead. The right one goes home. All of
-  // it is jornada's neon cyan, see-through and square-cornered, shrunk into the
+  // it is the shop tile's pale cyan, see-through and square-cornered, shrunk into the
   // bottom-right corner.
 
-  const SHOP_COLOR = "#00f0ff";
+  const SHOP_COLOR = "#7af9ff";
   // text on the dark backdrop
   const SHOP_DEEP = "#ffffff";
   const COLS = 2;
@@ -489,7 +489,7 @@
     justify-content: flex-end;
     gap: 1rem;
     padding: 1.4rem 1.5rem;
-    background: rgba(0, 240, 255, 0.1);
+    background: rgba(122, 249, 255, 0.1);
     border: 1.5px solid var(--ink);
     border-radius: 0;
     color: var(--ink);
@@ -526,7 +526,7 @@
     list-style: none;
     margin: 0;
     padding: 0.6rem 0 0;
-    border-top: 1.5px solid rgba(0, 240, 255, 0.5);
+    border-top: 1.5px solid rgba(122, 249, 255, 0.5);
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
@@ -584,7 +584,7 @@
   .home-btn { position: absolute; right: 0; top: 4px; bottom: 4px; width: 16%; }
   /* pressed, a wash of the cyan */
   .maker:active, .page-btn:active, .home-btn:active {
-    background: rgba(0, 240, 255, 0.25);
+    background: rgba(122, 249, 255, 0.25);
   }
   .ticks {
     position: absolute;
