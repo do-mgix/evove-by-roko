@@ -12,7 +12,7 @@
     fold,
     type Action,
   } from "./api";
-  import { SHRINK, centroid, inset, polyPath, seeded, slantedRow, toCorner } from "./homeLayout";
+  import { GRID_COLS, SHRINK, drawBoxes, pack, polyPath, seeded, type Size } from "./homeLayout";
   import { primeAudio } from "./dtmf";
   import { powerOn, tap } from "./sfx";
   import { bumpLogs, bumpUser, setBackHandler } from "./store";
@@ -24,9 +24,10 @@
   // The screen, top to bottom: the display (messages, and what is being typed),
   // the actions as cells — or, once one is chosen, its tiers — and the bar with
   // two blank buttons: the centre one turns the page, the right one goes home.
-  const COLS = 2;
+  // On the grid of three squares across: rows of a rectangle and a square, or
+  // three squares, at most four rows.
   const ROWS = 4;
-  const PER_PAGE = COLS * ROWS;
+  const PER_PAGE = 8;
   const GAP = 5;
   // a new page comes on cell by cell, like the home, at uneven moments
   const DELAY = [0, 110, 60, 170, 30, 220, 140, 90];
@@ -69,34 +70,34 @@
   $: onPage = shown.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
   $: cells = layout(onPage, page, width, height);
 
-  /** The page's cells: level rows a little taller or shorter than an even
-   *  share, each split in two by a slanted line somewhere about the middle, so
-   *  the cells are trapezoids — the same for the same page every time. */
+  /** The sizes of a page's cells, row by row: a rectangle and a square either
+   *  way round, or three squares — the same for the same page every time. */
+  function sizes(n: number, rand: () => number): Size[] {
+    const out: Size[] = [];
+    while (out.length < n) {
+      const left = n - out.length;
+      const rows: Size[][] =
+        left === 1 ? [["rect"]]
+        : left === 2 ? [["rect", "square"], ["square", "rect"]]
+        : [["rect", "square"], ["square", "rect"], ["square", "square", "square"]];
+      out.push(...rows[Math.floor((rand() + 0.5) * rows.length) % rows.length]);
+    }
+    return out;
+  }
+
   function layout(list: Action[], seed: number, w: number, h: number) {
     if (!list.length || !w || !h) return [];
     const rand = seeded(seed + 1);
-    const rows = Math.ceil(list.length / COLS);
-    const heights = Array.from({ length: rows }, () => 1 + rand() * 0.6);
-    const total = heights.reduce((s, x) => s + x, 0);
-    const out: { action: Action; d: string; cx: number; cy: number; lines: string[] }[] = [];
-    let y = 0;
-    heights.forEach((rh, r) => {
-      const y1 = y + rh / total;
-      const row = list.slice(r * COLS, (r + 1) * COLS);
-      // an odd count: the last cell spans the last row
-      const split = 0.5 + rand() * 0.3;
-      const slant = (rand() < 0 ? -1 : 1) * (0.05 + (rand() + 0.5) * 0.07);
-      const polys = slantedRow(y, y1, row.length, split + slant, split - slant);
-      row.forEach((action, i) => {
-        const shape = inset(polys[i].map((p) => toCorner(p, w, h)), GAP);
-        const [cx, cy] = centroid(shape);
-        const xs = shape.map((p) => p[0]);
-        const cellW = Math.max(...xs) - Math.min(...xs);
-        out.push({ action, d: polyPath(shape), cx, cy, lines: wrap(action.name, cellW) });
-      });
-      y = y1;
-    });
-    return out;
+    const { boxes, rows } = pack(sizes(list.length, rand));
+    // the squares keep their size from page to page
+    const side = Math.min((w * SHRINK) / GRID_COLS, h / ROWS);
+    return drawBoxes(boxes, rows, w, h, side, GAP, rand).map((c, i) => ({
+      action: list[i],
+      d: polyPath(c.shape),
+      cx: c.cx,
+      cy: c.cy,
+      lines: wrap(list[i].name, c.w),
+    }));
   }
 
   /** Breaks a name into lines that fit a cell, at most three. */

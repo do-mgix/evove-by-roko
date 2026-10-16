@@ -1,8 +1,8 @@
 /** The home screen: the options that cover it, and what they look like.
  *
- * Coordinates are normalized to the screen (0–1 on both axes, portrait) and the
- * shapes share their vertices, so together they tile the area; Home.svelte
- * scales them to where it draws and insets every edge to open the gaps.
+ * The options sit on an imaginary grid of squares, three by three, gathered in
+ * the bottom-right corner: each takes a square, or two side by side or one over
+ * the other; Home.svelte draws them a little askew.
  *
  * Nothing is written on them: an option is known by its glyph — a sign from a
  * script that does not exist — and its color.
@@ -14,6 +14,8 @@
 export type HomeOptionId = "act" | "logs" | "shop" | "roko" | "attributes" | "journey";
 
 export type Point = [number, number];
+/** A place on a grid of squares: x, y, width and height, in squares. */
+export type Box = [number, number, number, number];
 
 export type HomeOption = {
   id: HomeOptionId;
@@ -23,28 +25,27 @@ export type HomeOption = {
   color: string;
   /** the DTMF key it sounds like when pressed, as on the dial */
   tone: string;
-  /** its trapezoid: top and bottom level, the sides between cells slanted */
-  polygon: Point[];
+  /** its place on the 3×3 grid, in squares */
+  box: Box;
   unlocked: boolean;
 };
 
-// Agir stands tall on the right, under the thumb; the other five fill the left.
-// Rows lie level; the lines between the cells of a row are slanted, so each
-// cell is a trapezoid, and no two are the same size.
+// Agir stands tall on the right, two squares under the thumb; jornada and roko
+// lie two squares wide; atributos, shop and logs take one each.
 // All of them in jornada's neon cyan, each in a tone of its own.
 export const HOME_OPTIONS: HomeOption[] = [
   { id: "act", label: "agir", color: "#00f0ff", tone: "1", unlocked: true,
-    polygon: [[0.62, 0], [1, 0], [1, 1], [0.56, 1]] },
+    box: [2, 1, 1, 2] },
   { id: "attributes", label: "atributos", color: "#00c8ff", tone: "5", unlocked: true,
-    polygon: [[0, 0], [0.3, 0], [0.26, 0.34], [0, 0.34]] },
+    box: [0, 0, 1, 1] },
   { id: "roko", label: "roko", color: "#3dfff0", tone: "3", unlocked: true,
-    polygon: [[0.3, 0], [0.62, 0], [0.5996, 0.34], [0.26, 0.34]] },
+    box: [1, 0, 2, 1] },
   { id: "shop", label: "shop", color: "#7af9ff", tone: "2", unlocked: true,
-    polygon: [[0, 0.34], [0.36, 0.34], [0.3, 0.66], [0, 0.66]] },
+    box: [0, 1, 1, 1] },
   { id: "logs", label: "logs", color: "#00a8e8", tone: "4", unlocked: true,
-    polygon: [[0.36, 0.34], [0.5996, 0.34], [0.5804, 0.66], [0.3, 0.66]] },
+    box: [1, 1, 1, 1] },
   { id: "journey", label: "jornada", color: "#00ffd0", tone: "6", unlocked: true,
-    polygon: [[0, 0.66], [0.5804, 0.66], [0.56, 1], [0, 1]] },
+    box: [0, 2, 2, 1] },
 ];
 
 export type Glyph = {
@@ -88,52 +89,71 @@ export function shade(hex: string, t: number): string {
  *  bottom-right corner. */
 export const SHRINK = 0.7;
 
-/** A point of the unit square, placed in the bottom-right SHRINK × SHRINK of a
- *  w×h area. */
-export function toCorner([x, y]: Point, w: number, h: number): Point {
-  return [w * (1 - SHRINK) + x * w * SHRINK, h * (1 - SHRINK) + y * h * SHRINK];
-}
+/** The imaginary grid: three squares across. */
+export const GRID_COLS = 3;
 
-/** Moves every edge of a convex polygon `d` inwards; vertices are where the moved
- *  edges meet. Works in screen pixels, so every gap is the same width. */
-export function inset(points: Point[], d: number): Point[] {
-  const n = points.length;
-  // orientation, so "inwards" is the same side for every edge
-  let area = 0;
-  for (let i = 0; i < n; i++) {
-    const [x1, y1] = points[i];
-    const [x2, y2] = points[(i + 1) % n];
-    area += x1 * y2 - x2 * y1;
+/** A cell's size on the grid: two squares side by side, one square, or a
+ *  quarter of one — four quarters share a square. */
+export type Size = "rect" | "square" | "quarter";
+
+/** Lays cells of the given sizes on the grid in order, rows of GRID_COLS
+ *  squares filled left to right; a row that is not full keeps to the right, as
+ *  everything floats to the bottom-right corner. The boxes, and how many rows. */
+export function pack(sizes: Size[]): { boxes: Box[]; rows: number } {
+  // squares first: a rectangle is one two wide, quarters are grouped by four
+  const units: { w: number; items: number[] }[] = [];
+  sizes.forEach((size, i) => {
+    const last = units[units.length - 1];
+    if (size === "quarter" && last?.w === -1 && last.items.length < 4) last.items.push(i);
+    else units.push({ w: size === "rect" ? 2 : size === "square" ? 1 : -1, items: [i] });
+  });
+  const rows: (typeof units)[] = [[]];
+  let used = 0;
+  for (const u of units) {
+    const w = Math.abs(u.w);
+    if (used + w > GRID_COLS) {
+      rows.push([]);
+      used = 0;
+    }
+    rows[rows.length - 1].push(u);
+    used += w;
   }
-  const sign = area > 0 ? 1 : -1;
-  const lines = points.map((p, i) => {
-    const q = points[(i + 1) % n];
-    const dx = q[0] - p[0];
-    const dy = q[1] - p[1];
-    const len = Math.hypot(dx, dy) || 1;
-    // left normal for a counter-clockwise polygon
-    const nx = (-dy / len) * sign;
-    const ny = (dx / len) * sign;
-    return { p: [p[0] + nx * d, p[1] + ny * d] as Point, dir: [dx, dy] as Point };
+  const boxes: Box[] = [];
+  rows.forEach((row, y) => {
+    let x = GRID_COLS - row.reduce((s, u) => s + Math.abs(u.w), 0);
+    for (const u of row) {
+      if (u.w === -1) {
+        u.items.forEach((i, k) => (boxes[i] = [x + (k % 2) / 2, y + Math.floor(k / 2) / 2, 0.5, 0.5]));
+        x += 1;
+      } else {
+        boxes[u.items[0]] = [x, y, u.w, 1];
+        x += u.w;
+      }
+    }
   });
-  return lines.map((a, i) => {
-    const b = lines[(i + n - 1) % n];
-    const cross = b.dir[0] * a.dir[1] - b.dir[1] * a.dir[0];
-    if (Math.abs(cross) < 1e-9) return a.p;
-    const t = ((a.p[0] - b.p[0]) * a.dir[1] - (a.p[1] - b.p[1]) * a.dir[0]) / cross;
-    return [b.p[0] + b.dir[0] * t, b.p[1] + b.dir[1] * t] as Point;
-  });
+  return { boxes, rows: rows.length };
 }
 
-/** The cells of one row of the unit square, from y0 to y1: one across, or two
- *  divided by a slanted line, from `top` along the top edge to `bottom` along
- *  the bottom one — two trapezoids. */
-export function slantedRow(y0: number, y1: number, count: number, top: number, bottom: number): Point[][] {
-  if (count === 1) return [[[0, y0], [1, y0], [1, y1], [0, y1]]];
-  return [
-    [[0, y0], [top, y0], [bottom, y1], [0, y1]],
-    [[top, y0], [1, y0], [1, y1], [bottom, y1]],
-  ];
+/** How askew a cell is drawn: each corner moves by up to this share of its
+ *  shorter side. */
+const WOBBLE = 0.1;
+
+/** Draws boxes of a grid `rows` tall with squares of `side` pixels, gathered in
+ *  the bottom-right corner of a w×h area: each pulled in by `gap` pixels on
+ *  every side and its corners nudged a little, so it is a quadrilateral just
+ *  off square. The polygon, its centre, width and height. */
+export function drawBoxes(boxes: Box[], rows: number, w: number, h: number, side: number, gap: number, rand: () => number) {
+  const left = w - GRID_COLS * side;
+  const top = h - rows * side;
+  return boxes.map(([bx, by, bw, bh]) => {
+    const x0 = left + bx * side + gap;
+    const y0 = top + by * side + gap;
+    const x1 = left + (bx + bw) * side - gap;
+    const y1 = top + (by + bh) * side - gap;
+    const j = Math.min(x1 - x0, y1 - y0) * WOBBLE;
+    const shape: Point[] = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(([x, y]) => [x + rand() * j, y + rand() * j]);
+    return { shape, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, w: x1 - x0, h: y1 - y0 };
+  });
 }
 
 /** A small deterministic generator, in −0.5…0.5: the same seed, the same page. */
@@ -150,12 +170,4 @@ export function seeded(seed: number): () => number {
 /** An SVG path of a polygon, its corners left sharp. */
 export function polyPath(points: Point[]): string {
   return "M" + points.map((p) => p.map((v) => v.toFixed(1)).join(",")).join(" L") + " Z";
-}
-
-/** The centre of a shape's bounding box: where its glyph or name sits, a cut
- *  corner not pulling it aside. */
-export function centroid(points: Point[]): Point {
-  const xs = points.map((p) => p[0]);
-  const ys = points.map((p) => p[1]);
-  return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
 }

@@ -9,7 +9,7 @@
     type CatalogAction,
     type CatalogGroup,
   } from "./api";
-  import { SHRINK, centroid, inset, polyPath, seeded, slantedRow, toCorner } from "./homeLayout";
+  import { GRID_COLS, SHRINK, drawBoxes, pack, polyPath, seeded, type Size } from "./homeLayout";
   import { primeAudio } from "./dtmf";
   import { gains as gainsSound, powerOn, tap } from "./sfx";
   import { bumpUser, setBackHandler, userVersion } from "./store";
@@ -32,10 +32,9 @@
   const SHOP_COLOR = "#7af9ff";
   // text on the dark backdrop
   const SHOP_DEEP = "#ffffff";
-  const COLS = 2;
+  // On the grid of three squares across, at most five rows.
   const ROWS = 5;
-  // a little smaller than the acting screen's cells: five rows, not four
-  const PER_PAGE = COLS * ROWS;
+  const PER_PAGE = 10;
   const GAP = 9;
   const DELAY = [0, 110, 60, 170, 30, 220, 140, 90, 200, 50];
 
@@ -83,61 +82,37 @@
   $: onPage = group && here ? group.actions.slice(here.page * PER_PAGE, (here.page + 1) * PER_PAGE) : [];
   $: cells = layout(onPage, stop, width, height);
 
-  // a free action still takes some room
-  const weight = (a: CatalogAction) => Math.max(1, a.cost);
+  /** A cell's size by what it costs: a rectangle for the dear ones, a square,
+   *  a quarter for the free. */
+  const sizeOf = (a: CatalogAction): Size => (a.cost >= 3 ? "rect" : a.cost > 0 ? "square" : "quarter");
 
-  /** The page's cells, two to a row, each as large as it costs: a row is as tall
-   *  as the sum of its costs, and split between its two by their costs. The rows
-   *  sit at the bottom, under the thumb; a short page does not stretch to fill. */
+  /** The page's cells on the grid, each as large as it costs; when they would
+   *  not fit the rows, the last rectangles give way to squares. */
   function layout(list: CatalogAction[], seed: number, w: number, h: number) {
     if (!list.length || !w || !h) return [];
-    const rows: CatalogAction[][] = [];
-    for (let i = 0; i < list.length; i += COLS) rows.push(list.slice(i, i + COLS));
-    const used = Math.min(1, Math.max(rows.length, 2) / ROWS);
-    const top = 1 - used;
-
-    // row heights, never thinner than half an even share
-    const sums = rows.map((r) => r.reduce((s, a) => s + weight(a), 0));
-    const total = sums.reduce((s, x) => s + x, 0);
-    const floor = 0.5 / rows.length;
-    let shares = sums.map((s) => Math.max(floor, s / total));
-    const k = shares.reduce((s, x) => s + x, 0);
-    shares = shares.map((s) => s / k);
-
-    const rand = seeded(seed);
-
-    // the lines between rows run straight across
-    const lines: number[] = [top];
-    let y = top;
-    shares.forEach((s) => lines.push((y += s * used)));
-
-    const out: { action: CatalogAction; d: string; cx: number; cy: number; lines: string[]; small: boolean }[] = [];
-    rows.forEach((row, r) => {
-      const T = lines[r];
-      const B = lines[r + 1];
-      // two to a row, split by their costs, the line between them slanted
-      const split = Math.min(0.72, Math.max(0.28, weight(row[0]) / sums[r]));
-      const slant = (rand() < 0 ? -1 : 1) * (0.04 + (rand() + 0.5) * 0.06);
-      const polys = slantedRow(T, B, row.length, split + slant, split - slant);
-      row.forEach((action, i) => {
-        const shape = inset(polys[i].map((p) => toCorner(p, w, h)), GAP);
-        const [cx, cy] = centroid(shape);
-        const xs = shape.map((p) => p[0]);
-        const ys = shape.map((p) => p[1]);
-        const cellW = Math.max(...xs) - Math.min(...xs);
-        const cellH = Math.max(...ys) - Math.min(...ys);
-        const small = cellH < 52;
-        out.push({
-          action,
-          d: polyPath(shape),
-          cx,
-          cy,
-          lines: wrap(action.name, cellW, small ? 1 : cellH < 80 ? 2 : 3),
-          small,
-        });
-      });
+    const wanted = list.map(sizeOf);
+    let packed = pack(wanted);
+    for (let i = wanted.length - 1; packed.rows > ROWS && i >= 0; i--) {
+      if (wanted[i] === "rect") {
+        wanted[i] = "square";
+        packed = pack(wanted);
+      }
+    }
+    // the squares keep their size from page to page
+    const side = Math.min((w * SHRINK) / GRID_COLS, h / ROWS);
+    return drawBoxes(packed.boxes, packed.rows, w, h, side, GAP, seeded(seed)).map((c, i) => {
+      const small = c.h < 52;
+      // a quarter holds only the first letters of the name
+      const name = list[i].name;
+      return {
+        action: list[i],
+        d: polyPath(c.shape),
+        cx: c.cx,
+        cy: c.cy,
+        lines: c.w < 50 ? [name.slice(0, Math.max(2, Math.floor((c.w - 6) / 7)))] : wrap(name, c.w, small ? 1 : c.h < 80 ? 2 : 3),
+        small,
+      };
     });
-    return out;
   }
 
   /** Breaks a name into lines that fit a cell. */

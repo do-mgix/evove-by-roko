@@ -3,10 +3,11 @@
     DOT_R,
     GLYPHS,
     HOME_OPTIONS,
-    centroid,
-    inset,
+    GRID_COLS,
+    SHRINK,
+    drawBoxes,
     polyPath,
-    toCorner,
+    seeded,
     type HomeOptionId,
   } from "./homeLayout";
   import { onMount } from "svelte";
@@ -17,11 +18,12 @@
   /** The option suggested next: its outline is lit. Never named, only shown. */
   export let hint: HomeOptionId | null = null;
 
-  // The upper part of the screen stays empty: the cells live where a thumb
-  // reaches. TOP is where they begin, as a fraction of the height.
-  const TOP = 0.42;
+  // The cells live on a grid three squares across and three down, in the
+  // bottom-right corner where a thumb reaches; the rest stays empty. The
+  // squares take SHRINK of the width, or at most HIGH of the height.
+  const HIGH = 0.55;
   // half the gap between two cells, in pixels
-  const GAP = 6;
+  const GAP = 5;
   // When the screen comes on, each cell lights up like a tube set warming, at
   // its own moment: an uneven order reads as a machine, an even one as a menu.
   const DELAY: Record<HomeOptionId, number> = {
@@ -32,23 +34,18 @@
   let height = 0;
   let pressed: HomeOptionId | null = null;
 
-  // Plain shapes, drawn once per size: nothing on this screen animates.
-  $: cells = HOME_OPTIONS.filter((o) => o.unlocked).map((o) => {
-    // the cells keep their places, shrunk into the bottom-right corner
-    const shape = inset(o.polygon.map(([x, y]) => toCorner([x, TOP + y * (1 - TOP)], width, height)), GAP);
-    const [cx, cy] = centroid(shape);
-    const xs = shape.map((p) => p[0]);
-    const ys = shape.map((p) => p[1]);
-    const w = Math.max(...xs) - Math.min(...xs);
-    const h = Math.max(...ys) - Math.min(...ys);
-    return {
-      ...o,
-      d: polyPath(shape),
-      cx,
-      cy,
-      glyph: Math.max(22, Math.min(w * 0.5, h * 0.5, 80)),
-    };
-  });
+  // Plain shapes, drawn once per size: nothing on this screen animates. The
+  // same nudges every time, so the home always looks the same.
+  $: shown = HOME_OPTIONS.filter((o) => o.unlocked);
+  $: side = Math.min((width * SHRINK) / GRID_COLS, (height * HIGH) / 3);
+  $: drawn = drawBoxes(shown.map((o) => o.box), 3, width, height, side, GAP, seeded(3));
+  $: cells = shown.map((o, i) => ({
+    ...o,
+    d: polyPath(drawn[i].shape),
+    cx: drawn[i].cx,
+    cy: drawn[i].cy,
+    glyph: Math.max(20, Math.min(drawn[i].w * 0.5, drawn[i].h * 0.5, 64)),
+  }));
 
   // the screen comes on with a sound, when one has been allowed (after a tap)
   onMount(() => powerOn());
