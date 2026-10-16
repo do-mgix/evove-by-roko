@@ -4,10 +4,7 @@
     GLYPHS,
     HOME_OPTIONS,
     HOME_ASPECT,
-    HOME_COLS,
-    HOME_ROWS,
-    SLANT,
-    formShape,
+    inset,
     polyPath,
     type HomeOptionId,
   } from "./homeLayout";
@@ -19,8 +16,8 @@
   /** The option suggested next: its outline is lit. Never named, only shown. */
   export let hint: HomeOptionId | null = null;
 
-  // The cells gather in the bottom-right corner on a grid of narrow upright
-  // units: at most WIDE of the width and HIGH of the height.
+  // The cells gather in the bottom-right corner, in an area at most WIDE of the
+  // width and HIGH of the height.
   const WIDE = 0.75;
   const HIGH = 0.68;
   // half the gap between two cells, in pixels
@@ -37,26 +34,25 @@
 
   // Plain shapes, drawn once per size: nothing on this screen animates.
   $: shown = HOME_OPTIONS.filter((o) => o.unlocked);
-  $: unit = Math.min((width * WIDE) / HOME_COLS, (height * HIGH) / (HOME_ROWS * HOME_ASPECT));
-  $: cells = draw(shown, width, height, unit);
+  $: areaW = Math.min(width * WIDE, (height * HIGH) / HOME_ASPECT);
+  $: cells = draw(shown, width, height, areaW);
 
-  function draw(options: typeof HOME_OPTIONS, w: number, h: number, u: number) {
-    const tall = u * HOME_ASPECT;
-    const left = w - HOME_COLS * u;
-    const top = h - HOME_ROWS * tall;
+  function draw(options: typeof HOME_OPTIONS, w: number, h: number, aw: number) {
+    const ah = aw * HOME_ASPECT;
+    const left = w - aw;
+    const top = h - ah;
     return options.map((o) => {
-      const [bx, by, bw, bh] = o.box;
-      const x0 = left + bx * u + GAP;
-      const y0 = top + by * tall + GAP;
-      const x1 = left + (bx + bw) * u - GAP;
-      const y1 = top + (by + bh) * tall - GAP;
-      const shape = formShape(x0, y0, x1, y1, o.form, u * SLANT);
+      const shape = inset(o.polygon.map(([x, y]) => [left + x * aw, top + y * ah] as [number, number]), GAP);
+      const xs = shape.map((p) => p[0]);
+      const ys = shape.map((p) => p[1]);
+      const cw = Math.max(...xs) - Math.min(...xs);
+      const ch = Math.max(...ys) - Math.min(...ys);
       return {
         ...o,
         d: polyPath(shape),
-        cx: (x0 + x1) / 2,
-        cy: (y0 + y1) / 2,
-        glyph: Math.max(20, Math.min((x1 - x0) * 0.5, (y1 - y0) * 0.5, 64)),
+        cx: (Math.min(...xs) + Math.max(...xs)) / 2,
+        cy: (Math.min(...ys) + Math.max(...ys)) / 2,
+        glyph: Math.max(20, Math.min(cw * 0.45, ch * 0.45, 64)),
       };
     });
   }
