@@ -11,6 +11,7 @@
   import Journey from "./lib/Journey.svelte";
   import UserSelect from "./lib/UserSelect.svelte";
   import { modalOpen } from "./lib/Modal.svelte";
+  import { directionOf, moveFocus } from "./lib/keynav";
   import { onMount } from "svelte";
   import { App as NativeApp } from "@capacitor/app";
   import { Capacitor } from "@capacitor/core";
@@ -40,6 +41,7 @@
   // "home" is the tile screen; every other page opens over it, full screen,
   // and going back always lands on the tiles
   let page = "home";
+  let frame: HTMLElement | undefined;
   let pageParams: Record<string, any> = {};
 
   // agenda and profile are tabs of me now; the old names still land there
@@ -90,14 +92,38 @@
           else NativeApp.exitApp();
         })
       : null;
-    // Escape is the back button of a keyboard — unless a field or a modal,
-    // which answer it themselves, has it
+    // The keyboard, where no field or modal has it (they answer it themselves):
+    // Escape is the back button; the arrows or h j k l move between buttons and
+    // Enter presses the one reached; space turns the page; and a, s, e open
+    // agir, the shop and atributos — except on agir, where letters type.
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || e.defaultPrevented || modalOpen() || !username) return;
+      if (e.defaultPrevented || modalOpen() || !username || e.ctrlKey || e.metaKey || e.altKey) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName))) return;
-      if (handleBack()) return;
-      if (page !== "home") goHome();
+      if (e.key === "Escape") {
+        if (handleBack()) return;
+        if (page !== "home") goHome();
+        return;
+      }
+      const dir = directionOf(e.key);
+      if (dir) {
+        e.preventDefault();
+        if (frame) moveFocus(frame, dir);
+        return;
+      }
+      if (e.key === " ") {
+        const turn = frame?.querySelector<HTMLButtonElement>(".page-btn");
+        if (turn) {
+          e.preventDefault();
+          turn.click();
+        }
+        return;
+      }
+      const jump: Record<string, string> = { a: "act", s: "shop", e: "me" };
+      if (page !== "act" && jump[e.key] && jump[e.key] !== page) {
+        e.preventDefault();
+        nav(jump[e.key]);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => {
@@ -121,7 +147,7 @@
 
 <!-- The frame: a fixed border around the whole interface, inside the screen's
      margins, that stays put whatever is showing. -->
-<div class="frame">
+<div class="frame" bind:this={frame}>
   {#if !username}
     <UserSelect {onSelected} />
   {:else if page === "home"}

@@ -148,14 +148,24 @@
       e.preventDefault();
       choose(matches[0]);
     } else if (e.key === "Escape") {
-      // Escape clears what is typed; with nothing typed, it goes home
+      // Escape lets go of the field; then the arrows move between the cells
       e.preventDefault();
-      if (query) query = "";
-      else {
-        input.blur();
-        if (!selected) onHome();
-      }
+      input.blur();
     }
+  }
+
+  /** With the field let go, a letter or digit takes it up again, and is typed
+   *  — all but h j k l, which move between the cells (see App). */
+  function onWindowKey(e: KeyboardEvent) {
+    if (gains || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (document.activeElement === input || e.key.length !== 1 || e.key === " ") return;
+    if ("hjkl".includes(e.key)) return;
+    const t = e.target as HTMLElement | null;
+    if (t && ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName)) return;
+    e.preventDefault();
+    selected = null;
+    query += e.key;
+    raiseKeyboard();
   }
 
   // Android's back key closes the soft keyboard without blurring the field; when
@@ -296,6 +306,8 @@
     setBackHandler(null);
   });
 </script>
+
+<svelte:window on:keydown={onWindowKey} />
 
 {#if gains}
   <!-- after an act, what it paid; then back to the home -->
