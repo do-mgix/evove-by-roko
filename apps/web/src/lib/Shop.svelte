@@ -26,10 +26,10 @@
   // screen — where what is bought with points will live — and the centre button
   // turns the page, through the catalog one attribute after the other; with an
   // action chosen it goes back a step instead. The right one goes home. All of
-  // it is neon pink, see-through and square-cornered, shrunk into the
+  // it is jornada's neon cyan, see-through and square-cornered, shrunk into the
   // bottom-right corner.
 
-  const SHOP_COLOR = "#ff1fd1";
+  const SHOP_COLOR = "#00f0ff";
   // text on the dark backdrop
   const SHOP_DEEP = "#ffffff";
   const COLS = 2;
@@ -455,7 +455,7 @@
     .cell { animation: none; }
   }
   .shape {
-    /* see-through: a faint wash of the pink, and its outline */
+    /* see-through: a faint wash of the cyan, and its outline */
     fill: var(--ink);
     fill-opacity: 0.1;
     stroke: var(--ink);
@@ -489,7 +489,7 @@
     justify-content: flex-end;
     gap: 1rem;
     padding: 1.4rem 1.5rem;
-    background: rgba(255, 31, 209, 0.1);
+    background: rgba(0, 240, 255, 0.1);
     border: 1.5px solid var(--ink);
     border-radius: 0;
     color: var(--ink);
@@ -526,7 +526,7 @@
     list-style: none;
     margin: 0;
     padding: 0.6rem 0 0;
-    border-top: 1.5px solid rgba(255, 31, 209, 0.5);
+    border-top: 1.5px solid rgba(0, 240, 255, 0.5);
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
@@ -572,7 +572,7 @@
     align-items: stretch;
     justify-content: center;
   }
-  /* see-through, square-cornered, outlined in pink */
+  /* see-through, square-cornered, outlined in cyan */
   .maker, .page-btn, .home-btn {
     background: transparent;
     border: 1.5px solid var(--ink);
@@ -582,9 +582,9 @@
   }
   .page-btn { width: 30%; margin: 4px 0; }
   .home-btn { position: absolute; right: 0; top: 4px; bottom: 4px; width: 16%; }
-  /* pressed, a wash of the pink */
+  /* pressed, a wash of the cyan */
   .maker:active, .page-btn:active, .home-btn:active {
-    background: rgba(255, 31, 209, 0.25);
+    background: rgba(0, 240, 255, 0.25);
   }
   .ticks {
     position: absolute;

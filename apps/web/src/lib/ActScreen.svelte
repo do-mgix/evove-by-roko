@@ -359,7 +359,7 @@
 
 <style>
   .act {
-    --ink: #f5ff00;
+    --ink: #00f0ff;
     /* text on the dark backdrop */
     --deep: #ffffff;
     position: absolute;
@@ -424,7 +424,7 @@
     .cell { animation: none; }
   }
   .shape {
-    /* see-through: a faint wash of agir's yellow, and its outline */
+    /* see-through: a faint wash of jornada's cyan, and its outline */
     fill: var(--ink);
     fill-opacity: 0.1;
     stroke: var(--ink);
@@ -484,7 +484,7 @@
     justify-content: center;
   }
   .act.typing .bar { display: none; }
-  /* see-through, square-cornered, outlined in yellow */
+  /* see-through, square-cornered, outlined in cyan */
   .tier, .page-btn, .home-btn {
     background: transparent;
     border: 1.5px solid var(--ink);
@@ -494,9 +494,9 @@
   }
   .page-btn { width: 30%; margin: 4px 0; }
   .home-btn { position: absolute; right: 0; top: 4px; bottom: 4px; width: 16%; }
-  /* pressed, a wash of the yellow */
+  /* pressed, a wash of the cyan */
   .tier:active:not(:disabled), .page-btn:active, .home-btn:active {
-    background: rgba(245, 255, 0, 0.25);
+    background: rgba(0, 240, 255, 0.25);
   }
   .pages {
     position: absolute;

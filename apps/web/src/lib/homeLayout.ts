@@ -28,19 +28,20 @@ export type HomeOption = {
 };
 
 // Agir stands tall on the right, under the thumb; the other five fill the left.
-// Neon colors, in the order of discovery: agir, shop, roko, logs, atributos, jornada.
+// All of them in jornada's neon cyan: an option is known by its glyph and its place.
+const JOURNEY = "#00f0ff";
 export const HOME_OPTIONS: HomeOption[] = [
-  { id: "act", label: "agir", color: "#f5ff00", tone: "1", unlocked: true,
+  { id: "act", label: "agir", color: JOURNEY, tone: "1", unlocked: true,
     polygon: [[0.62, 0], [1, 0], [1, 1], [0.56, 1]] },
-  { id: "attributes", label: "atributos", color: "#b026ff", tone: "5", unlocked: true,
+  { id: "attributes", label: "atributos", color: JOURNEY, tone: "5", unlocked: true,
     polygon: [[0, 0], [0.34, 0], [0.3, 0.36], [0, 0.32]] },
-  { id: "roko", label: "roko", color: "#ff6a1a", tone: "3", unlocked: true,
+  { id: "roko", label: "roko", color: JOURNEY, tone: "3", unlocked: true,
     polygon: [[0.34, 0], [0.62, 0], [0.6, 0.34], [0.3, 0.36]] },
-  { id: "shop", label: "shop", color: "#ff1fd1", tone: "2", unlocked: true,
+  { id: "shop", label: "shop", color: JOURNEY, tone: "2", unlocked: true,
     polygon: [[0, 0.32], [0.3, 0.36], [0.26, 0.662], [0, 0.68]] },
-  { id: "logs", label: "logs", color: "#1f8bff", tone: "4", unlocked: true,
+  { id: "logs", label: "logs", color: JOURNEY, tone: "4", unlocked: true,
     polygon: [[0.3, 0.36], [0.6, 0.34], [0.5816, 0.64], [0.26, 0.662]] },
-  { id: "journey", label: "jornada", color: "#00f0ff", tone: "6", unlocked: true,
+  { id: "journey", label: "jornada", color: JOURNEY, tone: "6", unlocked: true,
     polygon: [[0, 0.68], [0.5816, 0.64], [0.56, 1], [0, 1]] },
 ];
 
