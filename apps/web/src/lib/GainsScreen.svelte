@@ -51,7 +51,7 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <div class="gains" role="button" tabindex="0" aria-label="continuar" on:click={done}
-  on:keydown={(e) => (e.key === "Enter" || e.key === "Escape") && done()}>
+  on:keydown={(e) => e.key === "Enter" && done()}>
   <p class="title">{title}</p>
 
   <div class="body">

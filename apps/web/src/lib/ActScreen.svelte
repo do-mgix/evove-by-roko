@@ -148,7 +148,13 @@
       e.preventDefault();
       choose(matches[0]);
     } else if (e.key === "Escape") {
-      input.blur();
+      // Escape clears what is typed; with nothing typed, it goes home
+      e.preventDefault();
+      if (query) query = "";
+      else {
+        input.blur();
+        if (!selected) onHome();
+      }
     }
   }
 

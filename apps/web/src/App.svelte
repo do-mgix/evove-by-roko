@@ -10,6 +10,7 @@
   import MeTabs from "./lib/MeTabs.svelte";
   import Journey from "./lib/Journey.svelte";
   import UserSelect from "./lib/UserSelect.svelte";
+  import { modalOpen } from "./lib/Modal.svelte";
   import { onMount } from "svelte";
   import { App as NativeApp } from "@capacitor/app";
   import { Capacitor } from "@capacitor/core";
@@ -89,8 +90,19 @@
           else NativeApp.exitApp();
         })
       : null;
+    // Escape is the back button of a keyboard — unless a field or a modal,
+    // which answer it themselves, has it
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented || modalOpen() || !username) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName))) return;
+      if (handleBack()) return;
+      if (page !== "home") goHome();
+    };
+    window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("popstate", onPop);
+      window.removeEventListener("keydown", onKey);
       backButton?.then((h) => h.remove());
     };
   });

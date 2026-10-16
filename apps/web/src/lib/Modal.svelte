@@ -2,6 +2,11 @@
   // Modals open on top of one another; only the topmost answers Escape, so closing
   // a confirmation leaves the modal under it open.
   const stack: object[] = [];
+
+  /** Whether a modal is open: Escape is then its to answer. */
+  export function modalOpen(): boolean {
+    return stack.length > 0;
+  }
 </script>
 
 <script lang="ts">
