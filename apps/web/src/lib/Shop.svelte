@@ -36,7 +36,7 @@
   const ROWS = 5;
   const PER_PAGE = 10;
   // the grid's units are upright rectangles, this much taller than wide
-  const ASPECT = 1.3;
+  const ASPECT = 1.5;
   const GAP = 11;
   const DELAY = [0, 110, 60, 170, 30, 220, 140, 90, 200, 50];
 
@@ -114,7 +114,7 @@
         d: polyPath(c.shape),
         cx: c.cx,
         cy: c.cy,
-        lines: c.w < 50 ? [name.slice(0, Math.max(2, Math.floor((c.w - 6) / 7)))] : wrap(name, c.w, small ? 1 : c.h < 80 ? 2 : 3),
+        lines: packed.boxes[i][2] < 1 ? [name.slice(0, Math.max(2, Math.floor((c.w - 6) / 7)))] : wrap(name, c.w, small ? 1 : c.h < 80 ? 2 : 3),
         small,
       };
     });

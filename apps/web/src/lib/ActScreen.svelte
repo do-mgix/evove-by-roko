@@ -29,7 +29,7 @@
   const ROWS = 4;
   const PER_PAGE = 8;
   // the grid's units are upright rectangles, this much taller than wide
-  const ASPECT = 1.3;
+  const ASPECT = 1.5;
   const GAP = 9;
   // a new page comes on cell by cell, like the home, at uneven moments
   const DELAY = [0, 110, 60, 170, 30, 220, 140, 90];

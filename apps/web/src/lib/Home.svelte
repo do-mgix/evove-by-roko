@@ -6,9 +6,6 @@
     HOME_ASPECT,
     HOME_COLS,
     HOME_ROWS,
-    areaCentre,
-    circlePath,
-    rectMinusCircle,
     polyPath,
     type HomeOptionId,
   } from "./homeLayout";
@@ -44,31 +41,22 @@
     const tall = u * HOME_ASPECT;
     const left = w - HOME_COLS * u;
     const top = h - HOME_ROWS * tall;
-    // the round button, and the bite it takes from its neighbours: its own
-    // radius and twice the gap, so it stands as far from them as they do apart
-    const round = options.find((o) => o.circle)?.circle;
-    const ring = round && {
-      cx: left + round[0] * u,
-      cy: top + round[1] * tall,
-      r: round[2] * u,
-    };
     return options.map((o) => {
-      if (o.circle && ring) {
-        return { ...o, d: circlePath(ring.cx, ring.cy, ring.r), cx: ring.cx, cy: ring.cy, glyph: Math.min(ring.r, 72) };
-      }
-      const [bx, by, bw, bh] = o.box!;
+      const [bx, by, bw, bh] = o.box;
       const x0 = left + bx * u + GAP;
       const y0 = top + by * tall + GAP;
       const x1 = left + (bx + bw) * u - GAP;
       const y1 = top + (by + bh) * tall - GAP;
-      const shape = ring ? rectMinusCircle(x0, y0, x1, y1, ring.cx, ring.cy, ring.r + 2 * GAP) : polyRect(x0, y0, x1, y1);
-      const [cx, cy] = areaCentre(shape);
-      return { ...o, d: polyPath(shape), cx, cy, glyph: Math.max(20, Math.min((x1 - x0) * 0.4, (y1 - y0) * 0.4, 64)) };
+      const shape: [number, number][] = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+      return {
+        ...o,
+        d: polyPath(shape),
+        cx: (x0 + x1) / 2,
+        cy: (y0 + y1) / 2,
+        glyph: Math.max(20, Math.min((x1 - x0) * 0.5, (y1 - y0) * 0.5, 64)),
+      };
     });
   }
-
-  const polyRect = (x0: number, y0: number, x1: number, y1: number): [number, number][] =>
-    [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
 
   // the screen comes on with a sound, when one has been allowed (after a tap)
   onMount(() => powerOn());
