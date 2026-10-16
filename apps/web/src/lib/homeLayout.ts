@@ -1,7 +1,7 @@
 /** The home screen: the options that cover it, and what they look like.
  *
- * The options tile an area in the bottom-right corner, about a third again as
- * tall as it is wide; their shapes share their vertices, so Home.svelte only
+ * The options tile an area in the bottom-right corner, a grid of squares five
+ * across and seven down; their shapes share their vertices, so Home.svelte only
  * has to scale them and inset every edge to open the gaps.
  *
  * Nothing is written on them: an option is known by its glyph — a sign from a
@@ -57,23 +57,28 @@ export type HomeOption = {
 // narrows the same way, jornada is a prism, and agir's left side leans along
 // the five beside it.
 // All of them in jornada's neon cyan, each in a tone of its own.
+export const HOME_COLS = 5;
+export const HOME_ROWS = 7;
+/** A shape given in squares of the home's grid, into the unit square. */
+const onGrid = (points: Point[]): Point[] => points.map(([x, y]) => [x / HOME_COLS, y / HOME_ROWS]);
+
 export const HOME_OPTIONS: HomeOption[] = [
   { id: "act", label: "agir", color: "#00f0ff", tone: "1", unlocked: true,
-    polygon: [[0.58, 0], [1, 0], [1, 1], [0.64, 1]] },
+    polygon: onGrid([[2.75, 0], [5, 0], [5, 7], [3.25, 7]]) },
   { id: "attributes", label: "atributos", color: "#00c8ff", tone: "5", unlocked: true,
-    polygon: [[0, 0], [0.34, 0], [0.28, 0.34], [0, 0.34]] },
+    polygon: onGrid([[0, 0], [1.75, 0], [1.25, 2], [0, 2]]) },
   { id: "roko", label: "roko", color: "#3dfff0", tone: "3", unlocked: true,
-    polygon: [[0.34, 0], [0.58, 0], [0.6004, 0.34], [0.28, 0.34]] },
+    polygon: onGrid([[1.75, 0], [2.75, 0], [2.893, 2], [1.25, 2]]) },
   { id: "shop", label: "shop", color: "#7af9ff", tone: "2", unlocked: true,
-    polygon: [[0, 0.34], [0.32, 0.34], [0.26, 0.66], [0, 0.66]] },
+    polygon: onGrid([[0, 2], [1.75, 2], [1.25, 4], [0, 4]]) },
   { id: "logs", label: "logs", color: "#00a8e8", tone: "4", unlocked: true,
-    polygon: [[0.32, 0.34], [0.6004, 0.34], [0.6196, 0.66], [0.26, 0.66]] },
+    polygon: onGrid([[1.75, 2], [2.893, 2], [3.036, 4], [1.25, 4]]) },
   { id: "journey", label: "jornada", color: "#00ffd0", tone: "6", unlocked: true,
-    polygon: [[0, 0.66], [0.6196, 0.66], [0.64, 1], [0.0204, 1]] },
+    polygon: onGrid([[0, 4], [3.036, 4], [3.25, 7], [0.214, 7]]) },
 ];
 
-/** The home's area: this many times as tall as it is wide. */
-export const HOME_ASPECT = 1.35;
+/** The home's area: seven squares tall to five wide. */
+export const HOME_ASPECT = HOME_ROWS / HOME_COLS;
 
 export type Glyph = {
   /** round-capped strokes on a 24×24 grid */
@@ -116,8 +121,8 @@ export function shade(hex: string, t: number): string {
  *  bottom-right corner. */
 export const SHRINK = 0.9;
 
-/** The imaginary grid: three squares across. */
-export const GRID_COLS = 3;
+/** The imaginary grid: five squares across. */
+export const GRID_COLS = 5;
 
 /** A cell's size on the grid: two squares side by side, one square, or a
  *  quarter of one — four quarters share a square. */

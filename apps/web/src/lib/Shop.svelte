@@ -32,12 +32,12 @@
   const SHOP_COLOR = "#7af9ff";
   // text on the dark backdrop
   const SHOP_DEEP = "#ffffff";
-  // On the grid of three squares across, at most six rows.
+  // On the grid of five squares across, at most six rows.
   const ROWS = 6;
   const PER_PAGE = 12;
-  // the grid's units are upright rectangles, this much taller than wide
-  const ASPECT = 1.25;
-  const GAP = 11;
+  // the grid's units are squares
+  const ASPECT = 1;
+  const GAP = 6;
   const DELAY = [0, 110, 60, 170, 30, 220, 140, 90, 200, 50];
 
   const TYPE_LABEL: Record<number, string> = {
@@ -529,12 +529,13 @@
     flex: 0 0 44px;
     align-self: flex-end;
     width: var(--row);
-    /* three columns, like the grid's squares: where it stands, the page, home */
+    /* five columns, like the grid's squares: where it stands across three, then
+       the page and home */
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    column-gap: 22px;
+    grid-template-columns: repeat(5, 1fr);
+    column-gap: 12px;
     /* in line with the cells, which stand GAP in from their squares */
-    padding: 0 11px;
+    padding: 0 6px;
     box-sizing: border-box;
   }
   /* see-through, square-cornered, outlined in cyan */
@@ -550,6 +551,7 @@
     background: rgba(122, 249, 255, 0.25);
   }
   .ticks {
+    grid-column: 1 / 4;
     align-self: center;
     min-width: 0;
     overflow: hidden;

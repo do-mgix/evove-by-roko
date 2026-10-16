@@ -24,13 +24,13 @@
   // The screen, top to bottom: the display (messages, and what is being typed),
   // the actions as cells — or, once one is chosen, its tiers — and the bar with
   // two blank buttons: the centre one turns the page, the right one goes home.
-  // On the grid of three squares across: rows of a rectangle and a square, or
-  // three squares, at most six rows.
+  // On the grid of five squares across: rows of two rectangles and a square in
+  // some order, at most six rows.
   const ROWS = 6;
   const PER_PAGE = 12;
-  // the grid's units are upright rectangles, this much taller than wide
-  const ASPECT = 1.25;
-  const GAP = 9;
+  // the grid's units are squares
+  const ASPECT = 1;
+  const GAP = 6;
   // a new page comes on cell by cell, like the home, at uneven moments
   const DELAY = [0, 110, 60, 170, 30, 220, 140, 90];
 
@@ -77,16 +77,16 @@
   $: row = side ? `${side * GRID_COLS}px` : `${SHRINK * 100}%`;
   $: cells = layout(onPage, page, width, height, side);
 
-  /** The sizes of a page's cells, row by row: a rectangle and a square either
-   *  way round, or three squares — the same for the same page every time. */
+  /** The sizes of a page's cells, row by row: two rectangles and a square, the
+   *  square anywhere — the same for the same page every time. */
   function sizes(n: number, rand: () => number): Size[] {
     const out: Size[] = [];
     while (out.length < n) {
       const left = n - out.length;
       const rows: Size[][] =
         left === 1 ? [["rect"]]
-        : left === 2 ? [["rect", "square"], ["square", "rect"]]
-        : [["rect", "square"], ["square", "rect"], ["square", "square", "square"]];
+        : left === 2 ? [["rect", "rect"], ["rect", "square"], ["square", "rect"]]
+        : [["rect", "rect", "square"], ["rect", "square", "rect"], ["square", "rect", "rect"]];
       out.push(...rows[Math.floor((rand() + 0.5) * rows.length) % rows.length]);
     }
     return out;
@@ -496,12 +496,13 @@
     flex: 0 0 44px;
     align-self: flex-end;
     width: var(--row);
-    /* three columns, like the grid's squares: where it stands, the page, home */
+    /* five columns, like the grid's squares: where it stands across three, then
+       the page and home */
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    column-gap: 18px;
+    grid-template-columns: repeat(5, 1fr);
+    column-gap: 12px;
     /* in line with the cells, which stand GAP in from their squares */
-    padding: 0 9px;
+    padding: 0 6px;
     box-sizing: border-box;
   }
   .act.typing .bar { display: none; }
@@ -518,6 +519,7 @@
     background: rgba(0, 240, 255, 0.25);
   }
   .pages {
+    grid-column: 1 / 4;
     align-self: center;
     display: flex;
     gap: 5px;
