@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
-  import { GRID_COLS, SHRINK, SLANT, formShape, polyPath, type Box, type Form } from "./homeLayout";
+  import { GRID_COLS, GRID_GAP, SLANT, formShape, gridUnit, polyPath, type Box, type Form } from "./homeLayout";
   import { primeAudio } from "./dtmf";
   import { powerOn, tap } from "./sfx";
   import { setBackHandler } from "./store";
@@ -14,8 +14,7 @@
   // form; two quick taps take it away. What is built is kept on this device.
 
   const FORMS: Form[] = ["rect", "trap", "prism", "pairL", "pairR"];
-  // half the gap between two cells, in pixels
-  const GAP = 6;
+  const GAP = GRID_GAP;
   // two taps closer than this are one double tap
   const DOUBLE_MS = 280;
   const KEY = "evove_built";
@@ -30,7 +29,8 @@
   // a button tapped once, waiting to see whether a second tap follows
   let pending: { index: number; timer: ReturnType<typeof setTimeout> } | null = null;
 
-  $: side = width ? (width * SHRINK) / GRID_COLS : 0;
+  // the grid every screen shares
+  $: side = gridUnit(width);
   $: rows = side ? Math.floor(height / side) : 0;
   $: left = width - GRID_COLS * side;
   $: top = height - rows * side;
@@ -195,7 +195,7 @@
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    /* no gap: the squares and the bar are rows of the same grid */
     background: transparent;
     user-select: none;
     -webkit-user-select: none;
@@ -248,10 +248,13 @@
     .cell { animation: none; }
   }
 
+  /* the grid's bottom row */
   .bar {
-    flex: 0 0 44px;
+    flex: 0 0 calc(var(--cell) + 2 * var(--gap));
     display: flex;
     justify-content: flex-end;
+    padding: var(--gap) 0;
+    box-sizing: border-box;
   }
   /* home sits under the grid's last column */
   .home-btn {

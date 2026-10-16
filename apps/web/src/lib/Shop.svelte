@@ -9,7 +9,7 @@
     type CatalogAction,
     type CatalogGroup,
   } from "./api";
-  import { GRID_COLS, SHRINK, drawBoxes, formsFor, pack, polyPath, seeded, type Size } from "./homeLayout";
+  import { GRID_COLS, GRID_GAP, drawBoxes, formsFor, gridUnit, pack, polyPath, seeded, type Size } from "./homeLayout";
   import { primeAudio } from "./dtmf";
   import { gains as gainsSound, powerOn, tap } from "./sfx";
   import { bumpUser, setBackHandler, userVersion } from "./store";
@@ -32,12 +32,10 @@
   const SHOP_COLOR = "#7af9ff";
   // text on the dark backdrop
   const SHOP_DEEP = "#ffffff";
-  // On the grid of five squares across, at most six rows.
-  const ROWS = 6;
+  // On the grid every screen shares; a button here takes one of its squares,
+  // two side by side, or a quarter of one.
   const PER_PAGE = 12;
-  // the grid's units are squares
-  const ASPECT = 1;
-  const GAP = 6;
+  const GAP = GRID_GAP;
   const DELAY = [0, 110, 60, 170, 30, 220, 140, 90, 200, 50];
 
   const TYPE_LABEL: Record<number, string> = {
@@ -82,12 +80,11 @@
   $: here = stops[stop] ?? null;
   $: group = here ? sorted[here.group] : null;
   $: onPage = group && here ? group.actions.slice(here.page * PER_PAGE, (here.page + 1) * PER_PAGE) : [];
-  // the squares keep their size from page to page; the bar, the tiers and the
-  // panels are as wide as a row of them (SHRINK of the width before the cells
-  // have been measured)
-  $: side = width && height ? Math.min((width * SHRINK) / GRID_COLS, height / (ROWS * ASPECT)) : 0;
-  $: row = side ? `${side * GRID_COLS}px` : `${SHRINK * 100}%`;
-  $: cells = layout(onPage, stop, width, height, side);
+  // the grid's squares, and how many rows of them fit; the bar and the panels
+  // are as wide as a row of them
+  $: unit = gridUnit(width);
+  $: fit = unit ? Math.floor(height / unit) : 0;
+  $: cells = layout(onPage, stop, width, height, unit, fit);
 
   /** A cell's size by what it costs: a rectangle for the dear ones, a square,
    *  a quarter for the free. */
@@ -95,18 +92,18 @@
 
   /** The page's cells on the grid, each as large as it costs; when they would
    *  not fit the rows, the last rectangles give way to squares. */
-  function layout(list: CatalogAction[], seed: number, w: number, h: number, side: number) {
-    if (!list.length || !w || !h) return [];
+  function layout(list: CatalogAction[], seed: number, w: number, h: number, unit: number, fit: number) {
+    if (!list.length || !w || !h || !fit) return [];
     const wanted = list.map(sizeOf);
     let packed = pack(wanted);
-    for (let i = wanted.length - 1; packed.rows > ROWS && i >= 0; i--) {
+    for (let i = wanted.length - 1; packed.rows > fit && i >= 0; i--) {
       if (wanted[i] === "rect") {
         wanted[i] = "square";
         packed = pack(wanted);
       }
     }
     const forms = formsFor(packed.boxes, seeded(seed));
-    return drawBoxes(packed.boxes, packed.rows, w, h, side, GAP, { aspect: ASPECT, forms }).map((c, i) => {
+    return drawBoxes(packed.boxes, packed.rows, w, h, unit, GAP, { forms }).map((c, i) => {
       const small = c.h < 52;
       // a quarter holds only the first letters of the name
       const name = list[i].name;
@@ -268,7 +265,7 @@
   onDestroy(() => setBackHandler(null));
 </script>
 
-<div class="shop" style="--ink: {SHOP_COLOR}; --deep: {SHOP_DEEP}; --row: {row}">
+<div class="shop" style="--ink: {SHOP_COLOR}; --deep: {SHOP_DEEP}; --unit: {unit || 52}px; --row: {(unit || 52) * GRID_COLS}px">
   <!-- the display: where the slider stands, what was chosen, what happened -->
   <div class="display">
     {#if loading}
@@ -375,7 +372,7 @@
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    /* no gap: the cells and the bar are rows of the same grid */
     background: transparent;
     user-select: none;
     -webkit-user-select: none;
@@ -523,19 +520,18 @@
     cursor: pointer;
   }
 
-  /* the bar is a row of the grid, under the cells */
+  /* the bar is the grid's bottom row, under the cells: where it stands across
+     two squares, the page button across three, home in the last */
   .bar {
     position: relative;
-    flex: 0 0 44px;
+    flex: 0 0 var(--unit);
     align-self: flex-end;
     width: var(--row);
-    /* five columns, like the grid's squares: where it stands, then the page
-       button across three, then home */
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     column-gap: 12px;
     /* in line with the cells, which stand GAP in from their squares */
-    padding: 0 6px;
+    padding: 6px;
     box-sizing: border-box;
   }
   /* see-through, square-cornered, outlined in cyan */
@@ -547,12 +543,12 @@
     transition: background 0.06s;
   }
   /* pressed, a wash of the cyan */
-  .page-btn { grid-column: 2 / 5; }
+  .page-btn { grid-column: 3 / 6; }
   .maker:active, .page-btn:active, .home-btn:active {
     background: rgba(122, 249, 255, 0.25);
   }
   .ticks {
-    grid-column: 1;
+    grid-column: 1 / 3;
     align-self: center;
     min-width: 0;
     overflow: hidden;

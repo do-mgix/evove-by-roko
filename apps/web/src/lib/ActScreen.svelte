@@ -12,7 +12,7 @@
     fold,
     type Action,
   } from "./api";
-  import { GRID_COLS, SHRINK, SLANT, drawBoxes, formsFor, packFree, polyPath, seeded } from "./homeLayout";
+  import { GRID_COLS, GRID_GAP, SLANT, drawBoxes, formsFor, gridUnit, packFree, polyPath, seeded } from "./homeLayout";
   import { primeAudio } from "./dtmf";
   import { powerOn, tap } from "./sfx";
   import { bumpLogs, bumpUser, setBackHandler } from "./store";
@@ -24,14 +24,11 @@
   // The screen, top to bottom: the display (messages, and what is being typed),
   // the actions as cells — or, once one is chosen, its tiers — and the bar with
   // two blank buttons: the centre one turns the page, the right one goes home.
-  // On the grid of five squares across, at most six rows — each square cut
-  // into SCALE × SCALE finer units, so a cell that took 1×1 squares takes 2×2
-  // units, and sizes between, like 2×3, are open too.
+  // On the grid every screen shares; a button here takes SCALE × SCALE of its
+  // squares, or sizes between, like 2×3.
   const SCALE = 2;
-  const COLS = GRID_COLS * SCALE;
-  const ROWS = 6 * SCALE;
-  const PER_PAGE = 12;
-  const GAP = 6;
+  const PER_PAGE = 8;
+  const GAP = GRID_GAP;
   // a new page comes on cell by cell, like the home, at uneven moments
   const DELAY = [0, 110, 60, 170, 30, 220, 140, 90];
 
@@ -71,36 +68,35 @@
   $: pages = Math.max(1, Math.ceil(shown.length / PER_PAGE));
   $: if (page >= pages) page = 0;
   $: onPage = shown.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
-  // the squares keep their size from page to page; the bar, the tiers and the
-  // panels are as wide as a row of them (SHRINK of the width before the cells
-  // have been measured)
-  $: side = width && height ? Math.min((width * SHRINK) / COLS, height / ROWS) : 0;
-  $: row = side ? `${side * COLS}px` : `${SHRINK * 100}%`;
-  $: cells = layout(onPage, page, width, height, side);
+  // the grid's squares, and how many rows of them fit; the bar, the tiers and
+  // the panels are as wide as a row of them
+  $: unit = gridUnit(width);
+  $: fit = unit ? Math.floor(height / unit) : 0;
+  $: cells = layout(onPage, page, width, height, unit, fit);
 
-  // the sizes a cell may take, in squares: a square, two side by side, or a
-  // square and a half tall — times SCALE, in units
+  // the sizes a button may take, in its own squares: one, two side by side, or
+  // one and a half tall — times SCALE, in the grid's
   const SIZES: [number, number][] = [[1, 1], [2, 1], [1, 1.5]];
 
-  /** The sizes of a page's cells, in units — the same for the same page every
-   *  time. When they would not fit the rows, the last large ones give way to
-   *  squares. */
-  function sizes(n: number, rand: () => number): [number, number][] {
+  /** The sizes of a page's cells, in the grid's squares — the same for the same
+   *  page every time. When they would not fit `fit` rows, the last large ones
+   *  give way to plain squares. */
+  function sizes(n: number, rand: () => number, fit: number): [number, number][] {
     const out = Array.from({ length: n }, () => {
       const v = rand() + 0.5;
       const [w, h] = SIZES[v < 0.4 ? 1 : v < 0.75 ? 0 : 2];
       return [Math.round(w * SCALE), Math.round(h * SCALE)] as [number, number];
     });
-    for (let i = n - 1; i >= 0 && packFree(out, COLS).rows > ROWS; i--) out[i] = [SCALE, SCALE];
+    for (let i = n - 1; i >= 0 && packFree(out, GRID_COLS).rows > fit; i--) out[i] = [SCALE, SCALE];
     return out;
   }
 
-  function layout(list: Action[], seed: number, w: number, h: number, side: number) {
-    if (!list.length || !w || !h) return [];
+  function layout(list: Action[], seed: number, w: number, h: number, unit: number, fit: number) {
+    if (!list.length || !w || !h || !fit) return [];
     const rand = seeded(seed + 1);
-    const { boxes, rows } = packFree(sizes(list.length, rand), COLS);
+    const { boxes, rows } = packFree(sizes(list.length, rand, fit), GRID_COLS);
     const forms = formsFor(boxes, rand);
-    return drawBoxes(boxes, rows, w, h, side, GAP, { cols: COLS, forms, slant: side * SCALE * SLANT }).map((c, i) => ({
+    return drawBoxes(boxes, rows, w, h, unit, GAP, { forms, slant: unit * SCALE * SLANT }).map((c, i) => ({
       action: list[i],
       d: polyPath(c.shape),
       cx: c.cx,
@@ -303,7 +299,7 @@
     onDone={() => (gains = null)}
   />
 {:else}
-<div class="act" class:typing={typing && keyboardUp} class:choosing={!!selected} style="--row: {row}">
+<div class="act" class:typing={typing && keyboardUp} class:choosing={!!selected} style="--unit: {unit || 52}px; --row: {(unit || 52) * GRID_COLS}px">
   <!-- the display: messages, what is typed, what was chosen -->
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -389,7 +385,7 @@
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    /* no gap: the cells and the bar are rows of the same grid */
     background: transparent;
     user-select: none;
     -webkit-user-select: none;
@@ -494,19 +490,18 @@
   .tier-label { font-size: 0.85rem; }
   .tier-marks { font-size: 1.3rem; }
 
-  /* the bar is a row of the grid, under the cells */
+  /* the bar is the grid's bottom row, under the cells: where it stands across
+     two squares, the page button across three, home in the last */
   .bar {
     position: relative;
-    flex: 0 0 44px;
+    flex: 0 0 var(--unit);
     align-self: flex-end;
     width: var(--row);
-    /* five columns, like the grid's squares: where it stands, then the page
-       button across three, then home */
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     column-gap: 12px;
     /* in line with the cells, which stand GAP in from their squares */
-    padding: 0 6px;
+    padding: 6px;
     box-sizing: border-box;
   }
   .act.typing .bar { display: none; }
@@ -519,12 +514,12 @@
     transition: background 0.06s;
   }
   /* pressed, a wash of the cyan */
-  .page-btn { grid-column: 2 / 5; }
+  .page-btn { grid-column: 3 / 6; }
   .tier:active:not(:disabled), .page-btn:active, .home-btn:active {
     background: rgba(0, 240, 255, 0.25);
   }
   .pages {
-    grid-column: 1;
+    grid-column: 1 / 3;
     align-self: center;
     display: flex;
     gap: 5px;

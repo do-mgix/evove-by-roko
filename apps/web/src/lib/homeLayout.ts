@@ -124,8 +124,20 @@ export function shade(hex: string, t: number): string {
  *  bottom-right corner. */
 export const SHRINK = 0.9;
 
-/** The imaginary grid: five squares across. */
-export const GRID_COLS = 5;
+/** The grid every screen stands on: six squares across, taking SHRINK of the
+ *  width, as many down as fit, gathered in the bottom-right corner — the same
+ *  squares on every screen. A page says how many of them make one of its
+ *  buttons. */
+export const GRID_COLS = 6;
+
+/** Half the gap between two cells, in pixels: each stands this far in from the
+ *  squares it covers. */
+export const GRID_GAP = 6;
+
+/** The side of one of the grid's squares, for a screen `w` wide. */
+export function gridUnit(w: number): number {
+  return (w * SHRINK) / GRID_COLS;
+}
 
 /** A cell's size on the grid: two squares side by side, one square, or a
  *  quarter of one — four quarters share a square. */
