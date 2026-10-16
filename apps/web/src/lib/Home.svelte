@@ -3,9 +3,10 @@
     DOT_R,
     GLYPHS,
     HOME_OPTIONS,
-    cellSide,
-    cornerGrid,
-    shade,
+    centroid,
+    inset,
+    polyPath,
+    toCorner,
     type HomeOptionId,
   } from "./homeLayout";
   import { onMount } from "svelte";
@@ -16,9 +17,11 @@
   /** The option suggested next: its outline is lit. Never named, only shown. */
   export let hint: HomeOptionId | null = null;
 
-  // Six equal squares, two to a row, gathered in the bottom-right corner where
-  // a thumb reaches; the rest of the screen stays black.
-  const COLS = 2;
+  // The upper part of the screen stays empty: the cells live where a thumb
+  // reaches. TOP is where they begin, as a fraction of the height.
+  const TOP = 0.42;
+  // half the gap between two cells, in pixels
+  const GAP = 6;
   // When the screen comes on, each cell lights up like a tube set warming, at
   // its own moment: an uneven order reads as a machine, an even one as a menu.
   const DELAY: Record<HomeOptionId, number> = {
@@ -30,13 +33,22 @@
   let pressed: HomeOptionId | null = null;
 
   // Plain shapes, drawn once per size: nothing on this screen animates.
-  $: shown = HOME_OPTIONS.filter((o) => o.unlocked);
-  $: grid = cornerGrid(shown.length, COLS, width, height, cellSide(width, COLS));
-  $: cells = shown.map((o, i) => ({
-    ...o,
-    ...grid[i],
-    glyph: Math.max(24, grid[i].s * 0.42),
-  }));
+  $: cells = HOME_OPTIONS.filter((o) => o.unlocked).map((o) => {
+    // the cells keep their places, shrunk into the bottom-right corner
+    const shape = inset(o.polygon.map(([x, y]) => toCorner([x, TOP + y * (1 - TOP)], width, height)), GAP);
+    const [cx, cy] = centroid(shape);
+    const xs = shape.map((p) => p[0]);
+    const ys = shape.map((p) => p[1]);
+    const w = Math.max(...xs) - Math.min(...xs);
+    const h = Math.max(...ys) - Math.min(...ys);
+    return {
+      ...o,
+      d: polyPath(shape),
+      cx,
+      cy,
+      glyph: Math.max(22, Math.min(w * 0.5, h * 0.5, 80)),
+    };
+  });
 
   // the screen comes on with a sound, when one has been allowed (after a tap)
   onMount(() => powerOn());
@@ -81,7 +93,7 @@
             on:pointerleave={() => pressed === c.id && (pressed = null)}
             on:pointercancel={() => (pressed = null)}
             on:keydown={(e) => onKey(e, c.id, c.tone)}
-            style="--fill: {c.color}; --fill-down: {shade(c.color, -0.14)}; --glow: {c.color}66; --ink: {shade(c.color, -0.6)}; --delay: {DELAY[c.id]}ms"
+            style="--color: {c.color}; --delay: {DELAY[c.id]}ms"
           >
             <path class="shape" d={c.d} />
             <g class="glyph" transform="translate({c.cx - c.glyph / 2} {c.cy - c.glyph / 2}) scale({c.glyph / 24})">
@@ -113,8 +125,6 @@
     height: 100%;
   }
   svg {
-    /* the halos spill past the edges */
-    overflow: visible;
     display: block;
     width: 100%;
     height: 100%;
@@ -134,32 +144,29 @@
   @media (prefers-reduced-motion: reduce) {
     .cell { animation: none; }
   }
+  /* see-through: a faint wash of the option's neon, its outline, its glyph */
   .shape {
-    fill: var(--fill);
-    stroke: #ffffff;
-    stroke-opacity: 0;
-    stroke-width: 2.5;
-    /* a neon's halo on the black */
-    filter: drop-shadow(0 0 10px var(--glow));
+    fill: var(--color);
+    fill-opacity: 0.1;
+    stroke: var(--color);
+    stroke-width: 1.5;
+    stroke-linejoin: miter;
   }
   .glyph path {
     fill: none;
-    stroke: var(--ink);
+    stroke: var(--color);
     stroke-linecap: round;
     stroke-linejoin: round;
   }
-  .glyph circle { fill: var(--ink); }
+  .glyph circle { fill: var(--color); }
 
-  /* a hint, never a caption: the suggested cell's outline is lit */
-  .cell.hint .shape { stroke-opacity: 1; stroke-width: 2.5; }
+  /* a hint, never a caption: the suggested cell's outline is thicker */
+  .cell.hint .shape { stroke-width: 2.5; }
 
-  /* pressed: a shade darker — hover only
-     where there is a real pointer: on a touch screen it sticks to the last cell */
-  .cell:focus-visible .shape { stroke-opacity: 1; }
-  .cell.pressed .shape {
-    fill: var(--fill-down);
-  }
+  /* pressed, the wash fills in — hover only where there is a real pointer: on a
+     touch screen it sticks to the last cell */
+  .cell:focus-visible .shape, .cell.pressed .shape { fill-opacity: 0.3; }
   @media (hover: hover) {
-    .cell:hover .shape { stroke-opacity: 1; }
+    .cell:hover .shape { fill-opacity: 0.3; }
   }
 </style>

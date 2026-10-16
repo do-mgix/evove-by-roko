@@ -19,23 +19,29 @@ export type HomeOption = {
   id: HomeOptionId;
   /** for screen readers only — nothing is written on the tile */
   label: string;
-  /** its one color: the tile, and the glyph in a dark shade of it */
+  /** its one color: outline and glyph */
   color: string;
   /** the DTMF key it sounds like when pressed, as on the dial */
   tone: string;
+  polygon: Point[];
   unlocked: boolean;
 };
 
-// Six equal squares, two to a row, gathered in the bottom-right corner, read
-// left to right and top to bottom: agir is the last, under the thumb.
+// Agir stands tall on the right, under the thumb; the other five fill the left.
 // Neon colors, in the order of discovery: agir, shop, roko, logs, atributos, jornada.
 export const HOME_OPTIONS: HomeOption[] = [
-  { id: "attributes", label: "atributos", color: "#b026ff", tone: "5", unlocked: true },
-  { id: "roko", label: "roko", color: "#ff6a1a", tone: "3", unlocked: true },
-  { id: "shop", label: "shop", color: "#ff1fd1", tone: "2", unlocked: true },
-  { id: "logs", label: "logs", color: "#1f8bff", tone: "4", unlocked: true },
-  { id: "journey", label: "jornada", color: "#00f0ff", tone: "6", unlocked: true },
-  { id: "act", label: "agir", color: "#f5ff00", tone: "1", unlocked: true },
+  { id: "act", label: "agir", color: "#f5ff00", tone: "1", unlocked: true,
+    polygon: [[0.62, 0], [1, 0], [1, 1], [0.56, 1]] },
+  { id: "attributes", label: "atributos", color: "#b026ff", tone: "5", unlocked: true,
+    polygon: [[0, 0], [0.34, 0], [0.3, 0.36], [0, 0.32]] },
+  { id: "roko", label: "roko", color: "#ff6a1a", tone: "3", unlocked: true,
+    polygon: [[0.34, 0], [0.62, 0], [0.6, 0.34], [0.3, 0.36]] },
+  { id: "shop", label: "shop", color: "#ff1fd1", tone: "2", unlocked: true,
+    polygon: [[0, 0.32], [0.3, 0.36], [0.26, 0.662], [0, 0.68]] },
+  { id: "logs", label: "logs", color: "#1f8bff", tone: "4", unlocked: true,
+    polygon: [[0.3, 0.36], [0.6, 0.34], [0.5816, 0.64], [0.26, 0.662]] },
+  { id: "journey", label: "jornada", color: "#00f0ff", tone: "6", unlocked: true,
+    polygon: [[0, 0.68], [0.5816, 0.64], [0.56, 1], [0, 1]] },
 ];
 
 export type Glyph = {
@@ -163,35 +169,19 @@ export function roundedPath(points: Point[], r: number): string {
   return d + "Z";
 }
 
-/** How much of the screen's width the cells take, floating in its bottom-right
- *  corner, and the gap between them. */
-export const SHARE = 0.62;
-export const CELL_GAP = 10;
+/** How much of each side of the screen the interface takes, shrunk into its
+ *  bottom-right corner. */
+export const SHRINK = 0.7;
 
-/** The side of a square cell when `cols` of them, CELL_GAP apart, take SHARE
- *  of a width `w`. */
-export function cellSide(w: number, cols: number): number {
-  return Math.max(0, Math.floor((w * SHARE - CELL_GAP * (cols - 1)) / cols));
+/** A point of the unit square, placed in the bottom-right SHRINK × SHRINK of a
+ *  w×h area. */
+export function toCorner([x, y]: Point, w: number, h: number): Point {
+  return [w * (1 - SHRINK) + x * w * SHRINK, h * (1 - SHRINK) + y * h * SHRINK];
 }
 
-/** `count` equal squares of side `side` (less, if the rows would not fit the
- *  height), in rows of `cols`, gathered in the bottom-right corner of a w×h
- *  area: read left to right, top to bottom, a short last row keeping to the
- *  right. Each as a rounded path, with its centre and side. */
-export function cornerGrid(count: number, cols: number, w: number, h: number, side: number) {
-  const rows = Math.ceil(count / cols);
-  const s = Math.max(0, Math.min(side, (h - CELL_GAP * (rows - 1)) / rows));
-  const left = w - cols * s - (cols - 1) * CELL_GAP;
-  const top = h - rows * s - (rows - 1) * CELL_GAP;
-  return Array.from({ length: count }, (_, i) => {
-    const r = Math.floor(i / cols);
-    const inRow = r === rows - 1 ? count - r * cols : cols;
-    const k = (i % cols) + (cols - inRow);
-    const x = left + k * (s + CELL_GAP);
-    const y = top + r * (s + CELL_GAP);
-    const rect: Point[] = [[x, y], [x + s, y], [x + s, y + s], [x, y + s]];
-    return { d: roundedPath(rect, Math.round(s * 0.16)), cx: x + s / 2, cy: y + s / 2, s };
-  });
+/** An SVG path of a polygon, its corners left sharp. */
+export function polyPath(points: Point[]): string {
+  return "M" + points.map((p) => p.map((v) => v.toFixed(1)).join(",")).join(" L") + " Z";
 }
 
 export function centroid(points: Point[]): Point {

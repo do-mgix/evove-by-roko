@@ -9,7 +9,7 @@
     type CatalogAction,
     type CatalogGroup,
   } from "./api";
-  import { CELL_GAP, cellSide, cornerGrid } from "./homeLayout";
+  import { SHRINK, centroid, inset, polyPath, toCorner, type Point } from "./homeLayout";
   import { primeAudio } from "./dtmf";
   import { gains as gainsSound, powerOn, tap } from "./sfx";
   import { bumpUser, setBackHandler, userVersion } from "./store";
@@ -26,18 +26,17 @@
   // screen — where what is bought with points will live — and the centre button
   // turns the page, through the catalog one attribute after the other; with an
   // action chosen it goes back a step instead. The right one goes home. All of
-  // it is neon pink, in equal squares and pills, two columns gathered in the
+  // it is neon pink, see-through and square-cornered, shrunk into the
   // bottom-right corner.
 
   const SHOP_COLOR = "#ff1fd1";
-  // pressed, a shade darker
-  const SHOP_DOWN = "#d600ad";
   // text on the dark backdrop
   const SHOP_DEEP = "#ffffff";
   const COLS = 2;
   const ROWS = 5;
   // a little smaller than the acting screen's cells: five rows, not four
   const PER_PAGE = COLS * ROWS;
+  const GAP = 9;
   const DELAY = [0, 110, 60, 170, 30, 220, 140, 90, 200, 50];
 
   const TYPE_LABEL: Record<number, string> = {
@@ -61,10 +60,6 @@
   let forge: "patch" | "attr" | null = null;
   let width = 0;
   let height = 0;
-  // the whole screen's width, for the side of a cell
-  let screenW = 0;
-  $: side = cellSide(screenW - 20, COLS);
-  $: block = side * COLS + CELL_GAP * (COLS - 1);
 
   // ---- the stops: the first screen, then every page of every group ----
   type Stop = { group: number; page: number; pages: number } | null;
@@ -86,17 +81,83 @@
   $: here = stops[stop] ?? null;
   $: group = here ? sorted[here.group] : null;
   $: onPage = group && here ? group.actions.slice(here.page * PER_PAGE, (here.page + 1) * PER_PAGE) : [];
-  $: cells = layout(onPage, width, height, side);
+  $: cells = layout(onPage, stop, width, height);
 
-  /** The page's cells: equal squares, two to a row, gathered in the
-   *  bottom-right corner under the thumb. */
-  function layout(list: CatalogAction[], w: number, h: number, side: number) {
+  // a free action still takes some room
+  const weight = (a: CatalogAction) => Math.max(1, a.cost);
+
+  /** The page's cells, two to a row, each as large as it costs: a row is as tall
+   *  as the sum of its costs, and split between its two by their costs. The rows
+   *  sit at the bottom, under the thumb; a short page does not stretch to fill. */
+  function layout(list: CatalogAction[], seed: number, w: number, h: number) {
     if (!list.length || !w || !h) return [];
-    const grid = cornerGrid(list.length, COLS, w, h, side);
-    return list.map((action, i) => {
-      const small = grid[i].s < 64;
-      return { action, ...grid[i], lines: wrap(action.name, grid[i].s, small ? 2 : 3), small };
+    const rows: CatalogAction[][] = [];
+    for (let i = 0; i < list.length; i += COLS) rows.push(list.slice(i, i + COLS));
+    const used = Math.min(1, Math.max(rows.length, 2) / ROWS);
+    const top = 1 - used;
+
+    // row heights, never thinner than half an even share
+    const sums = rows.map((r) => r.reduce((s, a) => s + weight(a), 0));
+    const total = sums.reduce((s, x) => s + x, 0);
+    const floor = 0.5 / rows.length;
+    let shares = sums.map((s) => Math.max(floor, s / total));
+    const k = shares.reduce((s, x) => s + x, 0);
+    shares = shares.map((s) => s / k);
+
+    let state = ((seed + 7) * 2654435761) >>> 0 || 1;
+    const rand = () => {
+      state ^= state << 13;
+      state ^= state >>> 17;
+      state ^= state << 5;
+      return ((state >>> 0) % 10000) / 10000 - 0.5;
+    };
+
+    // the lines between rows run across the whole width, tilted a little
+    const lines: [number, number][] = [[top, top]];
+    let y = top;
+    shares.forEach((s, i) => {
+      y += s * used;
+      const inner = i < shares.length - 1;
+      const j = inner ? s * used * 0.25 : 0;
+      lines.push([y + rand() * j, y + rand() * j]);
     });
+    const at = (line: [number, number], x: number) => line[0] + (line[1] - line[0]) * x;
+
+    const out: { action: CatalogAction; d: string; cx: number; cy: number; lines: string[]; small: boolean }[] = [];
+    rows.forEach((row, r) => {
+      const T = lines[r];
+      const B = lines[r + 1];
+      let polys: Point[][];
+      if (row.length === 1) {
+        polys = [[[0, T[0]], [1, T[1]], [1, B[1]], [0, B[0]]]];
+      } else {
+        const split = Math.min(0.75, Math.max(0.25, weight(row[0]) / sums[r]));
+        const sT = split + rand() * 0.08;
+        const sB = split + rand() * 0.08;
+        polys = [
+          [[0, at(T, 0)], [sT, at(T, sT)], [sB, at(B, sB)], [0, at(B, 0)]],
+          [[sT, at(T, sT)], [1, at(T, 1)], [1, at(B, 1)], [sB, at(B, sB)]],
+        ];
+      }
+      row.forEach((action, i) => {
+        const shape = inset(polys[i].map((p) => toCorner(p, w, h)), GAP);
+        const [cx, cy] = centroid(shape);
+        const xs = shape.map((p) => p[0]);
+        const ys = shape.map((p) => p[1]);
+        const cellW = Math.max(...xs) - Math.min(...xs);
+        const cellH = Math.max(...ys) - Math.min(...ys);
+        const small = cellH < 52;
+        out.push({
+          action,
+          d: polyPath(shape),
+          cx,
+          cy,
+          lines: wrap(action.name, cellW, small ? 1 : cellH < 80 ? 2 : 3),
+          small,
+        });
+      });
+    });
+    return out;
   }
 
   /** Breaks a name into lines that fit a cell. */
@@ -246,8 +307,7 @@
   onDestroy(() => setBackHandler(null));
 </script>
 
-<div class="shop" bind:clientWidth={screenW}
-  style="--ink: {SHOP_COLOR}; --deep: {SHOP_DEEP}; --down: {SHOP_DOWN}; --side: {side}px; --block: {block}px">
+<div class="shop" style="--ink: {SHOP_COLOR}; --deep: {SHOP_DEEP}; --shrink: {SHRINK}">
   <!-- the display: where the slider stands, what was chosen, what happened -->
   <div class="display">
     {#if loading}
@@ -381,7 +441,7 @@
   .small { font-size: 0.85rem; opacity: 0.7; }
 
   .cells { flex: 1; min-height: 0; }
-  svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  svg { display: block; width: 100%; height: 100%; }
   .cell {
     cursor: pointer;
     outline: none;
@@ -395,12 +455,15 @@
     .cell { animation: none; }
   }
   .shape {
+    /* see-through: a faint wash of the pink, and its outline */
     fill: var(--ink);
-    /* a neon's halo on the black */
-    filter: drop-shadow(0 0 10px rgba(255, 31, 209, 0.4));
+    fill-opacity: 0.1;
+    stroke: var(--ink);
+    stroke-width: 1.5;
+    stroke-linejoin: miter;
   }
   text {
-    fill: #ffffff;
+    fill: var(--ink);
     font-family: var(--font-mono);
     font-size: 11.5px;
     text-anchor: middle;
@@ -408,30 +471,28 @@
     text-transform: uppercase;
   }
   .cost { font-size: 10px; opacity: 0.7; }
-  /* pressed: a shade darker */
+  /* pressed, the wash fills in */
   .cell:focus-visible .shape, .cell:active .shape {
-    fill: var(--down);
+    fill-opacity: 0.3;
   }
   @media (hover: hover) {
-    .cell:hover .shape { fill: var(--down); }
+    .cell:hover .shape { fill-opacity: 0.3; }
   }
 
   .panel {
     flex: 1;
     min-height: 0;
     align-self: flex-end;
-    width: max(var(--block), 17rem);
-    max-width: 100%;
-    box-shadow: 0 0 14px rgba(255, 31, 209, 0.35);
+    width: calc(var(--shrink) * 100%);
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
     gap: 1rem;
     padding: 1.4rem 1.5rem;
-    background: var(--ink);
-    border: none;
-    border-radius: 18px;
-    color: #ffffff;
+    background: rgba(255, 31, 209, 0.1);
+    border: 1.5px solid var(--ink);
+    border-radius: 0;
+    color: var(--ink);
     font-family: var(--font-mono);
     text-align: left;
     cursor: pointer;
@@ -465,7 +526,7 @@
     list-style: none;
     margin: 0;
     padding: 0.6rem 0 0;
-    border-top: 1.5px solid rgba(255, 255, 255, 0.5);
+    border-top: 1.5px solid rgba(255, 31, 209, 0.5);
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
@@ -486,50 +547,49 @@
   .vault {
     flex: 1;
     align-self: flex-end;
-    width: var(--block);
-    border-radius: 18px;
-    background: rgba(255, 255, 255, 0.1);
+    width: calc(var(--shrink) * 100%);
+    border: 1.5px dashed var(--ink);
+    opacity: 0.35;
   }
-  .makers { display: flex; gap: 10px; align-self: flex-end; width: var(--block); }
+  .makers { display: flex; gap: 8px; align-self: flex-end; width: calc(var(--shrink) * 100%); }
   .maker {
     flex: 1;
     min-height: 2.6rem;
-    border: none;
-    color: #ffffff;
+    color: var(--ink);
     font-family: var(--font-mono);
     font-size: 0.8rem;
     text-transform: uppercase;
     cursor: pointer;
   }
 
+  /* the bar shrinks into the corner with the cells */
   .bar {
     position: relative;
-    flex: 0 0 56px;
+    flex: 0 0 44px;
+    align-self: flex-end;
+    width: calc(var(--shrink) * 100%);
     display: flex;
     align-items: stretch;
-    justify-content: flex-end;
-    gap: 10px;
+    justify-content: center;
   }
-  /* flat, neon pink */
+  /* see-through, square-cornered, outlined in pink */
   .maker, .page-btn, .home-btn {
-    background: var(--ink);
-    border: none;
-    border-radius: 16px;
+    background: transparent;
+    border: 1.5px solid var(--ink);
+    border-radius: 0;
     cursor: pointer;
-    transition: transform 0.06s, background 0.06s;
-    box-shadow: 0 0 12px rgba(255, 31, 209, 0.35);
+    transition: background 0.06s;
   }
-  /* the two of them alike, under the two columns of cells */
-  .page-btn, .home-btn { width: var(--side); }
-  /* pressed: a shade darker, pushed in a little */
+  .page-btn { width: 30%; margin: 4px 0; }
+  .home-btn { position: absolute; right: 0; top: 4px; bottom: 4px; width: 16%; }
+  /* pressed, a wash of the pink */
   .maker:active, .page-btn:active, .home-btn:active {
-    background: var(--down);
-    transform: scale(0.97);
+    background: rgba(255, 31, 209, 0.25);
   }
   .ticks {
     position: absolute;
     left: 0;
-    right: calc(var(--block) + 12px);
+    right: 69%;
     top: 50%;
     transform: translateY(-50%);
     display: flex;
