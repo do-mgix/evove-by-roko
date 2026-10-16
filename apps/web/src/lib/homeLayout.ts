@@ -11,7 +11,7 @@
  * option is not drawn. Everything is unlocked for now.
  */
 
-export type HomeOptionId = "act" | "logs" | "shop" | "roko" | "attributes" | "journey";
+export type HomeOptionId = "act" | "logs" | "shop" | "roko" | "attributes" | "journey" | "build";
 
 export type Point = [number, number];
 /** A place on a grid of squares: x, y, width and height, in squares. */
@@ -54,8 +54,8 @@ export type HomeOption = {
 // Agir stands tall on the right, under the thumb; the other five fill the left,
 // in three rows. Their shapes lean as the forms do: atributos and roko share a
 // slanted side, roko narrows upwards / \ , shop and logs share one too and logs
-// narrows the same way, jornada is a prism, and agir's left side leans along
-// the five beside it.
+// narrows the same way, construir and jornada share the bottom row and a slanted
+// side, and agir's left side leans along the cells beside it.
 // All of them in jornada's neon cyan, each in a tone of its own.
 export const HOME_COLS = 5;
 export const HOME_ROWS = 7;
@@ -73,8 +73,10 @@ export const HOME_OPTIONS: HomeOption[] = [
     polygon: onGrid([[0, 2], [1.75, 2], [1.25, 4], [0, 4]]) },
   { id: "logs", label: "logs", color: "#00a8e8", tone: "4", unlocked: true,
     polygon: onGrid([[1.75, 2], [2.893, 2], [3.036, 4], [1.25, 4]]) },
+  { id: "build", label: "construir", color: "#00e0ff", tone: "7", unlocked: true,
+    polygon: onGrid([[0, 4], [1.4, 4], [1.7, 7], [0.214, 7]]) },
   { id: "journey", label: "jornada", color: "#00ffd0", tone: "6", unlocked: true,
-    polygon: onGrid([[0, 4], [3.036, 4], [3.25, 7], [0.214, 7]]) },
+    polygon: onGrid([[1.4, 4], [3.036, 4], [3.25, 7], [1.7, 7]]) },
 ];
 
 /** The home's area: seven squares tall to five wide. */
@@ -96,6 +98,7 @@ export const GLYPHS: Record<HomeOptionId, Glyph> = {
   roko: { d: "M3.5 12 C7.5 6.5 16.5 6.5 20.5 12 M7 15.5 C10 18 14 18 17 15.5", dots: [[12, 11.5], [4, 17.5]] },
   logs: { d: "M6.5 4.5 C5.8 9 7.2 15 6.5 19.5 M6.5 7.5 H16 M6.5 12 C9 11.4 11 12.6 13 12 M6.5 16.5 H18.5", dots: [[18.5, 7.5]] },
   attributes: { d: "M12 21 V12 M12 15 C9 13 7 11 7 5 M12 12 C14 10 17 8 19 4", dots: [[7, 18.5]] },
+  build: { d: "M5 19.5 V9 H13.5 M9.5 4.5 H19 V15", dots: [[19, 19.5]] },
   journey: { d: "M7 4.5 C11 4.5 14 6 17 4.5 L7 19.5 C10 18 14 20.5 17 19.5", dots: [[12, 12], [19.5, 7.5]] },
 };
 

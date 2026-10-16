@@ -25,7 +25,7 @@
   // When the screen comes on, each cell lights up like a tube set warming, at
   // its own moment: an uneven order reads as a machine, an even one as a menu.
   const DELAY: Record<HomeOptionId, number> = {
-    act: 0, logs: 70, journey: 130, shop: 190, roko: 260, attributes: 340,
+    act: 0, logs: 70, journey: 130, shop: 190, build: 230, roko: 260, attributes: 340,
   };
 
   let width = 0;

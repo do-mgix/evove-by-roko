@@ -5,6 +5,7 @@
   import LogsPanel from "./lib/LogsPanel.svelte";
   import ActScreen from "./lib/ActScreen.svelte";
   import Shop from "./lib/Shop.svelte";
+  import BuildScreen from "./lib/BuildScreen.svelte";
   import SkillTree from "./lib/SkillTree.svelte";
   import MeTabs from "./lib/MeTabs.svelte";
   import Journey from "./lib/Journey.svelte";
@@ -45,12 +46,12 @@
 
   // a tile and the page it opens
   const TILE_PAGE: Record<HomeOptionId, string> = {
-    act: "act", logs: "logs", shop: "shop", roko: "roko", attributes: "me", journey: "journey",
+    act: "act", logs: "logs", shop: "shop", roko: "roko", attributes: "me", journey: "journey", build: "build",
   };
   // the tile a page belongs to, for the icon in its header
   const PAGE_OPTION = Object.fromEntries(HOME_OPTIONS.map((o) => [TILE_PAGE[o.id], o]));
   const TITLES: Record<string, string> = {
-    act: "agir", logs: "logs", shop: "shop", roko: "roko", me: "atributos", journey: "jornada", skills: "skills",
+    act: "agir", logs: "logs", shop: "shop", roko: "roko", me: "atributos", journey: "jornada", build: "construir", skills: "skills",
   };
 
   function nav(p: string, params: Record<string, any> = {}) {
@@ -119,6 +120,9 @@
   {:else if page === "shop"}
     <!-- so is the shop, walked the same way -->
     <Shop onHome={goHome} initialSection={pageParams.section ?? null} />
+  {:else if page === "build"}
+    <!-- and the page for building buttons on the grid -->
+    <BuildScreen onHome={goHome} />
   {:else}
     <div class="app">
       <ScreenHeader option={PAGE_OPTION[page] ?? null} title={TITLES[page] ?? page} onBack={goHome} />
@@ -149,7 +153,9 @@
     left: calc(env(safe-area-inset-left) + 8px);
     border: 1.5px solid rgba(255, 255, 255, 0.14);
     border-radius: 28px;
-    overflow: hidden;
+    /* clip, not hidden: nothing inside can scroll the frame, not even focus
+       bringing a cell into view */
+    overflow: clip;
     /* the deep green the wave rises from */
     background: #000000;
     /* the backdrop below stays under everything inside the frame */
