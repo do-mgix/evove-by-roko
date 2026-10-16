@@ -155,9 +155,19 @@
   }
 
   /** With the field let go, a letter or digit takes it up again, and is typed
-   *  — all but h j k l, which move between the cells (see App). */
+   *  — all but h j k l, which move between the cells (see App). With an action
+   *  chosen, a digit acts instead, on the tier of that number, and other keys
+   *  wait for Escape to let the action go. */
   function onWindowKey(e: KeyboardEvent) {
     if (gains || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+    // with an action chosen, a digit picks its tier, by number; letters are
+    // ignored — often the rest of a name that already found its action
+    if (selected && e.key.length === 1 && !"hjkl ".includes(e.key)) {
+      e.preventDefault();
+      const tier = /^[1-9]$/.test(e.key) ? (selected.tiers ?? [])[Number(e.key) - 1] : null;
+      if (tier && !acting) act(tier.index);
+      return;
+    }
     if (document.activeElement === input || e.key.length !== 1 || e.key === " ") return;
     if ("hjkl".includes(e.key)) return;
     const t = e.target as HTMLElement | null;
@@ -359,8 +369,10 @@
   {#if selected}
     <!-- the margin rises: the tiers of the chosen action -->
     <div class="tiers">
-      {#each selected.tiers ?? [] as t (t.index)}
+      {#each selected.tiers ?? [] as t, n (t.index)}
         <button class="tier" disabled={acting} on:click={() => act(t.index)}>
+          <!-- its number on the keyboard -->
+          <span class="tier-key">{n + 1}</span>
           <span class="tier-label">{t.label}</span>
           <span class="tier-marks">{t.marks}</span>
         </button>
@@ -508,6 +520,8 @@
     font-family: var(--font-mono);
   }
   .tier:disabled { opacity: 0.4; }
+  .tier { position: relative; }
+  .tier-key { position: absolute; top: 0.3rem; left: 0.45rem; font-size: 0.7rem; opacity: 0.55; }
   .tier-label { font-size: 0.85rem; }
   .tier-marks { font-size: 1.3rem; }
 
