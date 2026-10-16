@@ -169,13 +169,42 @@ export function pack(sizes: Size[]): { boxes: Box[]; rows: number } {
   return { boxes, rows: rows.length };
 }
 
-/** Draws boxes of a grid `rows` tall with units `side` pixels wide and `aspect`
- *  times as tall, gathered in the bottom-right corner of a w×h area, each pulled
- *  in by `gap` pixels on every side: plain, level rectangles. The polygon, its
- *  centre, width and height. */
-export function drawBoxes(boxes: Box[], rows: number, w: number, h: number, side: number, gap: number, aspect = 1, forms: Form[] = []) {
+/** Lays cells of any whole sizes, w × h in units, on a grid `cols` wide: each
+ *  in turn at the first place it fits, reading the rows top to bottom and each
+ *  from the right, as everything floats to the bottom-right corner, so smaller
+ *  cells fill the holes larger ones leave. The boxes, and how many rows. */
+export function packFree(sizes: [number, number][], cols: number): { boxes: Box[]; rows: number } {
+  const used: boolean[][] = [];
+  const free = (x: number, y: number, w: number, h: number) => {
+    // x counts from the right edge
+    for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) if (used[j]?.[i]) return false;
+    return true;
+  };
+  let rows = 0;
+  const boxes = sizes.map(([w, h]): Box => {
+    w = Math.min(w, cols);
+    for (let y = 0; ; y++) {
+      for (let x = 0; x + w <= cols; x++) {
+        if (!free(x, y, w, h)) continue;
+        for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) (used[j] ??= [])[i] = true;
+        rows = Math.max(rows, y + h);
+        return [cols - x - w, y, w, h];
+      }
+    }
+  });
+  return { boxes, rows };
+}
+
+/** Draws boxes of a grid `rows` tall and `cols` wide, its units `side` pixels
+ *  wide and `aspect` times as tall, gathered in the bottom-right corner of a w×h
+ *  area, each pulled in by `gap` pixels on every side and leaned into its form
+ *  by `slant` pixels. The polygon, its centre, width and height. */
+export function drawBoxes(
+  boxes: Box[], rows: number, w: number, h: number, side: number, gap: number,
+  { aspect = 1, forms = [] as Form[], cols = GRID_COLS, slant = side * SLANT } = {},
+) {
   const tall = side * aspect;
-  const left = w - GRID_COLS * side;
+  const left = w - cols * side;
   const top = h - rows * tall;
   return boxes.map(([bx, by, bw, bh], i) => {
     // quarters sit closer together, or they would be all gap
@@ -184,7 +213,7 @@ export function drawBoxes(boxes: Box[], rows: number, w: number, h: number, side
     const y0 = top + by * tall + g;
     const x1 = left + (bx + bw) * side - g;
     const y1 = top + (by + bh) * tall - g;
-    const shape = formShape(x0, y0, x1, y1, forms[i] ?? "rect", side * SLANT);
+    const shape = formShape(x0, y0, x1, y1, forms[i] ?? "rect", slant);
     return { shape, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, w: x1 - x0, h: y1 - y0 };
   });
 }
@@ -205,7 +234,8 @@ export function formsFor(boxes: Box[], rand: () => number): Form[] {
       const i = row[k];
       const j = row[k + 1];
       const v = rand() + 0.5;
-      if (j !== undefined && boxes[i][0] + boxes[i][2] === boxes[j][0] && v < 0.35) {
+      // a pair: side by side, and as tall as each other
+      if (j !== undefined && boxes[i][0] + boxes[i][2] === boxes[j][0] && boxes[i][3] === boxes[j][3] && v < 0.35) {
         forms[i] = "pairL";
         forms[j] = "pairR";
         k++;

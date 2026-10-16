@@ -106,7 +106,7 @@
       }
     }
     const forms = formsFor(packed.boxes, seeded(seed));
-    return drawBoxes(packed.boxes, packed.rows, w, h, side, GAP, ASPECT, forms).map((c, i) => {
+    return drawBoxes(packed.boxes, packed.rows, w, h, side, GAP, { aspect: ASPECT, forms }).map((c, i) => {
       const small = c.h < 52;
       // a quarter holds only the first letters of the name
       const name = list[i].name;

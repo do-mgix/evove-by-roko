@@ -12,7 +12,7 @@
     fold,
     type Action,
   } from "./api";
-  import { GRID_COLS, SHRINK, drawBoxes, formsFor, pack, polyPath, seeded, type Size } from "./homeLayout";
+  import { GRID_COLS, SHRINK, SLANT, drawBoxes, formsFor, packFree, polyPath, seeded } from "./homeLayout";
   import { primeAudio } from "./dtmf";
   import { powerOn, tap } from "./sfx";
   import { bumpLogs, bumpUser, setBackHandler } from "./store";
@@ -24,12 +24,13 @@
   // The screen, top to bottom: the display (messages, and what is being typed),
   // the actions as cells — or, once one is chosen, its tiers — and the bar with
   // two blank buttons: the centre one turns the page, the right one goes home.
-  // On the grid of five squares across: rows of two rectangles and a square in
-  // some order, at most six rows.
-  const ROWS = 6;
+  // On the grid of five squares across, at most six rows — each square cut
+  // into SCALE × SCALE finer units, so a cell that took 1×1 squares takes 2×2
+  // units, and sizes between, like 2×3, are open too.
+  const SCALE = 2;
+  const COLS = GRID_COLS * SCALE;
+  const ROWS = 6 * SCALE;
   const PER_PAGE = 12;
-  // the grid's units are squares
-  const ASPECT = 1;
   const GAP = 6;
   // a new page comes on cell by cell, like the home, at uneven moments
   const DELAY = [0, 110, 60, 170, 30, 220, 140, 90];
@@ -73,30 +74,33 @@
   // the squares keep their size from page to page; the bar, the tiers and the
   // panels are as wide as a row of them (SHRINK of the width before the cells
   // have been measured)
-  $: side = width && height ? Math.min((width * SHRINK) / GRID_COLS, height / (ROWS * ASPECT)) : 0;
-  $: row = side ? `${side * GRID_COLS}px` : `${SHRINK * 100}%`;
+  $: side = width && height ? Math.min((width * SHRINK) / COLS, height / ROWS) : 0;
+  $: row = side ? `${side * COLS}px` : `${SHRINK * 100}%`;
   $: cells = layout(onPage, page, width, height, side);
 
-  /** The sizes of a page's cells, row by row: two rectangles and a square, the
-   *  square anywhere — the same for the same page every time. */
-  function sizes(n: number, rand: () => number): Size[] {
-    const out: Size[] = [];
-    while (out.length < n) {
-      const left = n - out.length;
-      const rows: Size[][] =
-        left === 1 ? [["rect"]]
-        : left === 2 ? [["rect", "rect"], ["rect", "square"], ["square", "rect"]]
-        : [["rect", "rect", "square"], ["rect", "square", "rect"], ["square", "rect", "rect"]];
-      out.push(...rows[Math.floor((rand() + 0.5) * rows.length) % rows.length]);
-    }
+  // the sizes a cell may take, in squares: a square, two side by side, or a
+  // square and a half tall — times SCALE, in units
+  const SIZES: [number, number][] = [[1, 1], [2, 1], [1, 1.5]];
+
+  /** The sizes of a page's cells, in units — the same for the same page every
+   *  time. When they would not fit the rows, the last large ones give way to
+   *  squares. */
+  function sizes(n: number, rand: () => number): [number, number][] {
+    const out = Array.from({ length: n }, () => {
+      const v = rand() + 0.5;
+      const [w, h] = SIZES[v < 0.4 ? 1 : v < 0.75 ? 0 : 2];
+      return [Math.round(w * SCALE), Math.round(h * SCALE)] as [number, number];
+    });
+    for (let i = n - 1; i >= 0 && packFree(out, COLS).rows > ROWS; i--) out[i] = [SCALE, SCALE];
     return out;
   }
 
   function layout(list: Action[], seed: number, w: number, h: number, side: number) {
     if (!list.length || !w || !h) return [];
     const rand = seeded(seed + 1);
-    const { boxes, rows } = pack(sizes(list.length, rand));
-    return drawBoxes(boxes, rows, w, h, side, GAP, ASPECT, formsFor(boxes, rand)).map((c, i) => ({
+    const { boxes, rows } = packFree(sizes(list.length, rand), COLS);
+    const forms = formsFor(boxes, rand);
+    return drawBoxes(boxes, rows, w, h, side, GAP, { cols: COLS, forms, slant: side * SCALE * SLANT }).map((c, i) => ({
       action: list[i],
       d: polyPath(c.shape),
       cx: c.cx,
