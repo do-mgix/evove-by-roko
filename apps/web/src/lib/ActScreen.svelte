@@ -260,8 +260,9 @@
     window.addEventListener("resize", onResize);
     // a chosen action is undone by back before the page is left
     setBackHandler(() => {
+      // what an act paid gives way to the home
       if (gains) {
-        gains = null;
+        onHome();
         return true;
       }
       if (selected) {
@@ -291,13 +292,14 @@
 </script>
 
 {#if gains}
+  <!-- after an act, what it paid; then back to the home -->
   <GainsScreen
     title={gains.title}
     tokens={gains.tokens}
     marks={gains.marks}
     gains={gains.list}
     roko={gains.roko}
-    onDone={() => (gains = null)}
+    onDone={onHome}
   />
 {:else}
 <div class="act" class:typing={typing && keyboardUp} class:choosing={!!selected} style="--unit: {unit || 52}px; --row: {(unit || 52) * GRID_COLS}px">
