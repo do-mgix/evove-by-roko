@@ -12,7 +12,7 @@
     fold,
     type Action,
   } from "./api";
-  import { SHRINK, centroid, cutRect, pickCut, polyPath, seeded } from "./homeLayout";
+  import { SHRINK, centroid, inset, polyPath, seeded, slantedRow, toCorner } from "./homeLayout";
   import { primeAudio } from "./dtmf";
   import { powerOn, tap } from "./sfx";
   import { bumpLogs, bumpUser, setBackHandler } from "./store";
@@ -69,9 +69,9 @@
   $: onPage = shown.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
   $: cells = layout(onPage, page, width, height);
 
-  /** The page's cells: rows a little taller or shorter than an even share,
-   *  each split in two somewhere about the middle, and some with a corner cut
-   *  off — the same for the same page every time. */
+  /** The page's cells: level rows a little taller or shorter than an even
+   *  share, each split in two by a slanted line somewhere about the middle, so
+   *  the cells are trapezoids — the same for the same page every time. */
   function layout(list: Action[], seed: number, w: number, h: number) {
     if (!list.length || !w || !h) return [];
     const rand = seeded(seed + 1);
@@ -84,10 +84,11 @@
       const y1 = y + rh / total;
       const row = list.slice(r * COLS, (r + 1) * COLS);
       // an odd count: the last cell spans the last row
-      const split = 0.5 + rand() * 0.36;
-      const spans: [number, number][] = row.length === 1 ? [[0, 1]] : [[0, split], [split, 1]];
+      const split = 0.5 + rand() * 0.3;
+      const slant = (rand() < 0 ? -1 : 1) * (0.05 + (rand() + 0.5) * 0.07);
+      const polys = slantedRow(y, y1, row.length, split + slant, split - slant);
       row.forEach((action, i) => {
-        const shape = cutRect([spans[i][0], y, spans[i][1], y1], w, h, GAP, pickCut(rand));
+        const shape = inset(polys[i].map((p) => toCorner(p, w, h)), GAP);
         const [cx, cy] = centroid(shape);
         const xs = shape.map((p) => p[0]);
         const cellW = Math.max(...xs) - Math.min(...xs);

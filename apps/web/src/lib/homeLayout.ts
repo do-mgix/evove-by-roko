@@ -1,8 +1,8 @@
 /** The home screen: the options that cover it, and what they look like.
  *
  * Coordinates are normalized to the screen (0–1 on both axes, portrait) and the
- * rectangles share their edges, so together they tile the area; Home.svelte
- * scales them to where it draws and pulls every edge in to open the gaps.
+ * shapes share their vertices, so together they tile the area; Home.svelte
+ * scales them to where it draws and insets every edge to open the gaps.
  *
  * Nothing is written on them: an option is known by its glyph — a sign from a
  * script that does not exist — and its color.
@@ -14,9 +14,6 @@
 export type HomeOptionId = "act" | "logs" | "shop" | "roko" | "attributes" | "journey";
 
 export type Point = [number, number];
-/** x0, y0, x1, y1 */
-export type Rect = [number, number, number, number];
-export type Corner = "tl" | "tr" | "br" | "bl";
 
 export type HomeOption = {
   id: HomeOptionId;
@@ -26,29 +23,28 @@ export type HomeOption = {
   color: string;
   /** the DTMF key it sounds like when pressed, as on the dial */
   tone: string;
-  /** its rectangle in the unit square, x0 y0 x1 y1 */
-  rect: Rect;
-  /** the corner cut off diagonally, if any */
-  cut: Corner | null;
+  /** its trapezoid: top and bottom level, the sides between cells slanted */
+  polygon: Point[];
   unlocked: boolean;
 };
 
 // Agir stands tall on the right, under the thumb; the other five fill the left.
-// Plain rectangles of different sizes, some with a corner cut off diagonally.
+// Rows lie level; the lines between the cells of a row are slanted, so each
+// cell is a trapezoid, and no two are the same size.
 // All of them in jornada's neon cyan, each in a tone of its own.
 export const HOME_OPTIONS: HomeOption[] = [
   { id: "act", label: "agir", color: "#00f0ff", tone: "1", unlocked: true,
-    rect: [0.6, 0, 1, 1], cut: "tl" },
+    polygon: [[0.62, 0], [1, 0], [1, 1], [0.56, 1]] },
   { id: "attributes", label: "atributos", color: "#00c8ff", tone: "5", unlocked: true,
-    rect: [0, 0, 0.27, 0.34], cut: null },
+    polygon: [[0, 0], [0.3, 0], [0.26, 0.34], [0, 0.34]] },
   { id: "roko", label: "roko", color: "#3dfff0", tone: "3", unlocked: true,
-    rect: [0.27, 0, 0.6, 0.34], cut: "br" },
+    polygon: [[0.3, 0], [0.62, 0], [0.5996, 0.34], [0.26, 0.34]] },
   { id: "shop", label: "shop", color: "#7af9ff", tone: "2", unlocked: true,
-    rect: [0, 0.34, 0.34, 0.66], cut: "bl" },
+    polygon: [[0, 0.34], [0.36, 0.34], [0.3, 0.66], [0, 0.66]] },
   { id: "logs", label: "logs", color: "#00a8e8", tone: "4", unlocked: true,
-    rect: [0.34, 0.34, 0.6, 0.66], cut: null },
+    polygon: [[0.36, 0.34], [0.5996, 0.34], [0.5804, 0.66], [0.3, 0.66]] },
   { id: "journey", label: "jornada", color: "#00ffd0", tone: "6", unlocked: true,
-    rect: [0, 0.66, 0.6, 1], cut: "tr" },
+    polygon: [[0, 0.66], [0.5804, 0.66], [0.56, 1], [0, 1]] },
 ];
 
 export type Glyph = {
@@ -98,20 +94,46 @@ export function toCorner([x, y]: Point, w: number, h: number): Point {
   return [w * (1 - SHRINK) + x * w * SHRINK, h * (1 - SHRINK) + y * h * SHRINK];
 }
 
-/** A rectangle of the unit square, placed in the corner of a w×h area by
- *  toCorner and pulled in by `gap` pixels on every side, with one corner cut
- *  off diagonally by `cut` of its shorter side. Clockwise from the top left. */
-export function cutRect([x0, y0, x1, y1]: Rect, w: number, h: number, gap: number, corner: Corner | null, cut = 0.3): Point[] {
-  [x0, y0] = toCorner([x0, y0], w, h);
-  [x1, y1] = toCorner([x1, y1], w, h);
-  x0 += gap; y0 += gap; x1 -= gap; y1 -= gap;
-  const c = corner ? Math.min(x1 - x0, y1 - y0) * cut : 0;
+/** Moves every edge of a convex polygon `d` inwards; vertices are where the moved
+ *  edges meet. Works in screen pixels, so every gap is the same width. */
+export function inset(points: Point[], d: number): Point[] {
+  const n = points.length;
+  // orientation, so "inwards" is the same side for every edge
+  let area = 0;
+  for (let i = 0; i < n; i++) {
+    const [x1, y1] = points[i];
+    const [x2, y2] = points[(i + 1) % n];
+    area += x1 * y2 - x2 * y1;
+  }
+  const sign = area > 0 ? 1 : -1;
+  const lines = points.map((p, i) => {
+    const q = points[(i + 1) % n];
+    const dx = q[0] - p[0];
+    const dy = q[1] - p[1];
+    const len = Math.hypot(dx, dy) || 1;
+    // left normal for a counter-clockwise polygon
+    const nx = (-dy / len) * sign;
+    const ny = (dx / len) * sign;
+    return { p: [p[0] + nx * d, p[1] + ny * d] as Point, dir: [dx, dy] as Point };
+  });
+  return lines.map((a, i) => {
+    const b = lines[(i + n - 1) % n];
+    const cross = b.dir[0] * a.dir[1] - b.dir[1] * a.dir[0];
+    if (Math.abs(cross) < 1e-9) return a.p;
+    const t = ((a.p[0] - b.p[0]) * a.dir[1] - (a.p[1] - b.p[1]) * a.dir[0]) / cross;
+    return [b.p[0] + b.dir[0] * t, b.p[1] + b.dir[1] * t] as Point;
+  });
+}
+
+/** The cells of one row of the unit square, from y0 to y1: one across, or two
+ *  divided by a slanted line, from `top` along the top edge to `bottom` along
+ *  the bottom one — two trapezoids. */
+export function slantedRow(y0: number, y1: number, count: number, top: number, bottom: number): Point[][] {
+  if (count === 1) return [[[0, y0], [1, y0], [1, y1], [0, y1]]];
   return [
-    ...(corner === "tl" ? [[x0, y0 + c], [x0 + c, y0]] : [[x0, y0]]),
-    ...(corner === "tr" ? [[x1 - c, y0], [x1, y0 + c]] : [[x1, y0]]),
-    ...(corner === "br" ? [[x1, y1 - c], [x1 - c, y1]] : [[x1, y1]]),
-    ...(corner === "bl" ? [[x0 + c, y1], [x0, y1 - c]] : [[x0, y1]]),
-  ] as Point[];
+    [[0, y0], [top, y0], [bottom, y1], [0, y1]],
+    [[top, y0], [1, y0], [1, y1], [bottom, y1]],
+  ];
 }
 
 /** A small deterministic generator, in −0.5…0.5: the same seed, the same page. */
@@ -123,14 +145,6 @@ export function seeded(seed: number): () => number {
     state ^= state << 5;
     return ((state >>> 0) % 10000) / 10000 - 0.5;
   };
-}
-
-const CORNERS: Corner[] = ["tl", "tr", "br", "bl"];
-
-/** A corner to cut off, or none — about half the time. */
-export function pickCut(rand: () => number): Corner | null {
-  const v = rand() + 0.5;
-  return v < 0.5 ? null : CORNERS[Math.floor((v - 0.5) * 8) % 4];
 }
 
 /** An SVG path of a polygon, its corners left sharp. */

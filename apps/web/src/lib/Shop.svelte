@@ -9,7 +9,7 @@
     type CatalogAction,
     type CatalogGroup,
   } from "./api";
-  import { SHRINK, centroid, cutRect, pickCut, polyPath, seeded } from "./homeLayout";
+  import { SHRINK, centroid, inset, polyPath, seeded, slantedRow, toCorner } from "./homeLayout";
   import { primeAudio } from "./dtmf";
   import { gains as gainsSound, powerOn, tap } from "./sfx";
   import { bumpUser, setBackHandler, userVersion } from "./store";
@@ -115,11 +115,12 @@
     rows.forEach((row, r) => {
       const T = lines[r];
       const B = lines[r + 1];
-      // two to a row, split by their costs; some with a corner cut off
-      const split = Math.min(0.75, Math.max(0.25, weight(row[0]) / sums[r]));
-      const spans: [number, number][] = row.length === 1 ? [[0, 1]] : [[0, split], [split, 1]];
+      // two to a row, split by their costs, the line between them slanted
+      const split = Math.min(0.72, Math.max(0.28, weight(row[0]) / sums[r]));
+      const slant = (rand() < 0 ? -1 : 1) * (0.04 + (rand() + 0.5) * 0.06);
+      const polys = slantedRow(T, B, row.length, split + slant, split - slant);
       row.forEach((action, i) => {
-        const shape = cutRect([spans[i][0], T, spans[i][1], B], w, h, GAP, pickCut(rand));
+        const shape = inset(polys[i].map((p) => toCorner(p, w, h)), GAP);
         const [cx, cy] = centroid(shape);
         const xs = shape.map((p) => p[0]);
         const ys = shape.map((p) => p[1]);
