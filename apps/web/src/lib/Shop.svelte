@@ -529,8 +529,8 @@
     flex: 0 0 44px;
     align-self: flex-end;
     width: var(--row);
-    /* five columns, like the grid's squares: where it stands across three, then
-       the page and home */
+    /* five columns, like the grid's squares: where it stands, then the page
+       button across three, then home */
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     column-gap: 12px;
@@ -547,11 +547,12 @@
     transition: background 0.06s;
   }
   /* pressed, a wash of the cyan */
+  .page-btn { grid-column: 2 / 5; }
   .maker:active, .page-btn:active, .home-btn:active {
     background: rgba(122, 249, 255, 0.25);
   }
   .ticks {
-    grid-column: 1 / 4;
+    grid-column: 1;
     align-self: center;
     min-width: 0;
     overflow: hidden;

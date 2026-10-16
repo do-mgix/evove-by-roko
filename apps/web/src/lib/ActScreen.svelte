@@ -496,8 +496,8 @@
     flex: 0 0 44px;
     align-self: flex-end;
     width: var(--row);
-    /* five columns, like the grid's squares: where it stands across three, then
-       the page and home */
+    /* five columns, like the grid's squares: where it stands, then the page
+       button across three, then home */
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     column-gap: 12px;
@@ -515,11 +515,12 @@
     transition: background 0.06s;
   }
   /* pressed, a wash of the cyan */
+  .page-btn { grid-column: 2 / 5; }
   .tier:active:not(:disabled), .page-btn:active, .home-btn:active {
     background: rgba(0, 240, 255, 0.25);
   }
   .pages {
-    grid-column: 1 / 4;
+    grid-column: 1;
     align-self: center;
     display: flex;
     gap: 5px;
