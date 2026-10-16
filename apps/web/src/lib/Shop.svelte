@@ -9,7 +9,7 @@
     type CatalogAction,
     type CatalogGroup,
   } from "./api";
-  import { GRID_COLS, SHRINK, drawBoxes, pack, polyPath, seeded, type Size } from "./homeLayout";
+  import { GRID_COLS, SHRINK, drawBoxes, pack, polyPath, type Size } from "./homeLayout";
   import { primeAudio } from "./dtmf";
   import { gains as gainsSound, powerOn, tap } from "./sfx";
   import { bumpUser, setBackHandler, userVersion } from "./store";
@@ -80,7 +80,12 @@
   $: here = stops[stop] ?? null;
   $: group = here ? sorted[here.group] : null;
   $: onPage = group && here ? group.actions.slice(here.page * PER_PAGE, (here.page + 1) * PER_PAGE) : [];
-  $: cells = layout(onPage, stop, width, height);
+  // the squares keep their size from page to page; the bar, the tiers and the
+  // panels are as wide as a row of them (SHRINK of the width before the cells
+  // have been measured)
+  $: side = width && height ? Math.min((width * SHRINK) / GRID_COLS, height / ROWS) : 0;
+  $: row = side ? `${side * GRID_COLS}px` : `${SHRINK * 100}%`;
+  $: cells = layout(onPage, stop, width, height, side);
 
   /** A cell's size by what it costs: a rectangle for the dear ones, a square,
    *  a quarter for the free. */
@@ -88,7 +93,7 @@
 
   /** The page's cells on the grid, each as large as it costs; when they would
    *  not fit the rows, the last rectangles give way to squares. */
-  function layout(list: CatalogAction[], seed: number, w: number, h: number) {
+  function layout(list: CatalogAction[], seed: number, w: number, h: number, side: number) {
     if (!list.length || !w || !h) return [];
     const wanted = list.map(sizeOf);
     let packed = pack(wanted);
@@ -98,9 +103,7 @@
         packed = pack(wanted);
       }
     }
-    // the squares keep their size from page to page
-    const side = Math.min((w * SHRINK) / GRID_COLS, h / ROWS);
-    return drawBoxes(packed.boxes, packed.rows, w, h, side, GAP, seeded(seed)).map((c, i) => {
+    return drawBoxes(packed.boxes, packed.rows, w, h, side, GAP).map((c, i) => {
       const small = c.h < 52;
       // a quarter holds only the first letters of the name
       const name = list[i].name;
@@ -262,7 +265,7 @@
   onDestroy(() => setBackHandler(null));
 </script>
 
-<div class="shop" style="--ink: {SHOP_COLOR}; --deep: {SHOP_DEEP}; --shrink: {SHRINK}">
+<div class="shop" style="--ink: {SHOP_COLOR}; --deep: {SHOP_DEEP}; --row: {row}">
   <!-- the display: where the slider stands, what was chosen, what happened -->
   <div class="display">
     {#if loading}
@@ -337,7 +340,7 @@
     </div>
   {:else}
     <!-- the first screen: what is bought with points will stand here -->
-    <div class="first">
+    <div class="first" bind:clientWidth={width} bind:clientHeight={height}>
       <div class="vault"></div>
       <div class="makers">
         <button class="maker" on:click={() => openForge("patch")}>+ patch</button>
@@ -438,7 +441,7 @@
     flex: 1;
     min-height: 0;
     align-self: flex-end;
-    width: calc(var(--shrink) * 100%);
+    width: var(--row);
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
@@ -502,11 +505,11 @@
   .vault {
     flex: 1;
     align-self: flex-end;
-    width: calc(var(--shrink) * 100%);
+    width: var(--row);
     border: 1.5px dashed var(--ink);
     opacity: 0.35;
   }
-  .makers { display: flex; gap: 8px; align-self: flex-end; width: calc(var(--shrink) * 100%); }
+  .makers { display: flex; gap: 8px; align-self: flex-end; width: var(--row); }
   .maker {
     flex: 1;
     min-height: 2.6rem;
@@ -517,15 +520,19 @@
     cursor: pointer;
   }
 
-  /* the bar shrinks into the corner with the cells */
+  /* the bar is a row of the grid, under the cells */
   .bar {
     position: relative;
     flex: 0 0 44px;
     align-self: flex-end;
-    width: calc(var(--shrink) * 100%);
-    display: flex;
-    align-items: stretch;
-    justify-content: center;
+    width: var(--row);
+    /* three columns, like the grid's squares: where it stands, the page, home */
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    column-gap: 22px;
+    /* in line with the cells, which stand GAP in from their squares */
+    padding: 0 11px;
+    box-sizing: border-box;
   }
   /* see-through, square-cornered, outlined in cyan */
   .maker, .page-btn, .home-btn {
@@ -535,18 +542,14 @@
     cursor: pointer;
     transition: background 0.06s;
   }
-  .page-btn { width: 30%; margin: 4px 0; }
-  .home-btn { position: absolute; right: 0; top: 4px; bottom: 4px; width: 16%; }
   /* pressed, a wash of the cyan */
   .maker:active, .page-btn:active, .home-btn:active {
     background: rgba(122, 249, 255, 0.25);
   }
   .ticks {
-    position: absolute;
-    left: 0;
-    right: 69%;
-    top: 50%;
-    transform: translateY(-50%);
+    align-self: center;
+    min-width: 0;
+    overflow: hidden;
     display: flex;
     align-items: center;
     gap: 3px;

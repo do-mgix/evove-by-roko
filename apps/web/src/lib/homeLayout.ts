@@ -2,7 +2,7 @@
  *
  * The options sit on an imaginary grid of squares, three by three, gathered in
  * the bottom-right corner: each takes a square, or two side by side or one over
- * the other; Home.svelte draws them a little askew.
+ * the other.
  *
  * Nothing is written on them: an option is known by its glyph — a sign from a
  * script that does not exist — and its color.
@@ -87,7 +87,7 @@ export function shade(hex: string, t: number): string {
 
 /** How much of each side of the screen the interface takes, shrunk into its
  *  bottom-right corner. */
-export const SHRINK = 0.7;
+export const SHRINK = 0.9;
 
 /** The imaginary grid: three squares across. */
 export const GRID_COLS = 3;
@@ -134,15 +134,11 @@ export function pack(sizes: Size[]): { boxes: Box[]; rows: number } {
   return { boxes, rows: rows.length };
 }
 
-/** How askew a cell is drawn: each corner moves by up to this share of its
- *  shorter side. */
-const WOBBLE = 0.1;
-
 /** Draws boxes of a grid `rows` tall with squares of `side` pixels, gathered in
- *  the bottom-right corner of a w×h area: each pulled in by `gap` pixels on
- *  every side and its corners nudged a little, so it is a quadrilateral just
- *  off square. The polygon, its centre, width and height. */
-export function drawBoxes(boxes: Box[], rows: number, w: number, h: number, side: number, gap: number, rand: () => number) {
+ *  the bottom-right corner of a w×h area, each pulled in by `gap` pixels on
+ *  every side: plain, level rectangles. The polygon, its centre, width and
+ *  height. */
+export function drawBoxes(boxes: Box[], rows: number, w: number, h: number, side: number, gap: number) {
   const left = w - GRID_COLS * side;
   const top = h - rows * side;
   return boxes.map(([bx, by, bw, bh]) => {
@@ -152,8 +148,7 @@ export function drawBoxes(boxes: Box[], rows: number, w: number, h: number, side
     const y0 = top + by * side + g;
     const x1 = left + (bx + bw) * side - g;
     const y1 = top + (by + bh) * side - g;
-    const j = Math.min(x1 - x0, y1 - y0) * WOBBLE;
-    const shape: Point[] = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(([x, y]) => [x + rand() * j, y + rand() * j]);
+    const shape: Point[] = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
     return { shape, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, w: x1 - x0, h: y1 - y0 };
   });
 }

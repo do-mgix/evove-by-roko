@@ -7,7 +7,6 @@
     SHRINK,
     drawBoxes,
     polyPath,
-    seeded,
     type HomeOptionId,
   } from "./homeLayout";
   import { onMount } from "svelte";
@@ -21,7 +20,7 @@
   // The cells live on a grid three squares across and three down, in the
   // bottom-right corner where a thumb reaches; the rest stays empty. The
   // squares take SHRINK of the width, or at most HIGH of the height.
-  const HIGH = 0.55;
+  const HIGH = 0.7;
   // half the gap between two cells, in pixels
   const GAP = 9;
   // When the screen comes on, each cell lights up like a tube set warming, at
@@ -34,11 +33,10 @@
   let height = 0;
   let pressed: HomeOptionId | null = null;
 
-  // Plain shapes, drawn once per size: nothing on this screen animates. The
-  // same nudges every time, so the home always looks the same.
+  // Plain shapes, drawn once per size: nothing on this screen animates.
   $: shown = HOME_OPTIONS.filter((o) => o.unlocked);
   $: side = Math.min((width * SHRINK) / GRID_COLS, (height * HIGH) / 3);
-  $: drawn = drawBoxes(shown.map((o) => o.box), 3, width, height, side, GAP, seeded(3));
+  $: drawn = drawBoxes(shown.map((o) => o.box), 3, width, height, side, GAP);
   $: cells = shown.map((o, i) => ({
     ...o,
     d: polyPath(drawn[i].shape),

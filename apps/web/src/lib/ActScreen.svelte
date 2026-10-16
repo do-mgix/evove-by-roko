@@ -68,7 +68,12 @@
   $: pages = Math.max(1, Math.ceil(shown.length / PER_PAGE));
   $: if (page >= pages) page = 0;
   $: onPage = shown.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
-  $: cells = layout(onPage, page, width, height);
+  // the squares keep their size from page to page; the bar, the tiers and the
+  // panels are as wide as a row of them (SHRINK of the width before the cells
+  // have been measured)
+  $: side = width && height ? Math.min((width * SHRINK) / GRID_COLS, height / ROWS) : 0;
+  $: row = side ? `${side * GRID_COLS}px` : `${SHRINK * 100}%`;
+  $: cells = layout(onPage, page, width, height, side);
 
   /** The sizes of a page's cells, row by row: a rectangle and a square either
    *  way round, or three squares — the same for the same page every time. */
@@ -85,13 +90,11 @@
     return out;
   }
 
-  function layout(list: Action[], seed: number, w: number, h: number) {
+  function layout(list: Action[], seed: number, w: number, h: number, side: number) {
     if (!list.length || !w || !h) return [];
     const rand = seeded(seed + 1);
     const { boxes, rows } = pack(sizes(list.length, rand));
-    // the squares keep their size from page to page
-    const side = Math.min((w * SHRINK) / GRID_COLS, h / ROWS);
-    return drawBoxes(boxes, rows, w, h, side, GAP, rand).map((c, i) => ({
+    return drawBoxes(boxes, rows, w, h, side, GAP).map((c, i) => ({
       action: list[i],
       d: polyPath(c.shape),
       cx: c.cx,
@@ -294,7 +297,7 @@
     onDone={() => (gains = null)}
   />
 {:else}
-<div class="act" class:typing={typing && keyboardUp} class:choosing={!!selected} style="--shrink: {SHRINK}">
+<div class="act" class:typing={typing && keyboardUp} class:choosing={!!selected} style="--row: {row}">
   <!-- the display: messages, what is typed, what was chosen -->
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -464,7 +467,7 @@
     flex: 1;
     min-height: 0;
     align-self: flex-end;
-    width: calc(var(--shrink) * 100%);
+    width: var(--row);
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     grid-auto-rows: 1fr;
@@ -485,15 +488,19 @@
   .tier-label { font-size: 0.85rem; }
   .tier-marks { font-size: 1.3rem; }
 
-  /* the bar shrinks into the corner with the cells */
+  /* the bar is a row of the grid, under the cells */
   .bar {
     position: relative;
     flex: 0 0 44px;
     align-self: flex-end;
-    width: calc(var(--shrink) * 100%);
-    display: flex;
-    align-items: stretch;
-    justify-content: center;
+    width: var(--row);
+    /* three columns, like the grid's squares: where it stands, the page, home */
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    column-gap: 18px;
+    /* in line with the cells, which stand GAP in from their squares */
+    padding: 0 9px;
+    box-sizing: border-box;
   }
   .act.typing .bar { display: none; }
   /* see-through, square-cornered, outlined in cyan */
@@ -504,17 +511,12 @@
     cursor: pointer;
     transition: background 0.06s;
   }
-  .page-btn { width: 30%; margin: 4px 0; }
-  .home-btn { position: absolute; right: 0; top: 4px; bottom: 4px; width: 16%; }
   /* pressed, a wash of the cyan */
   .tier:active:not(:disabled), .page-btn:active, .home-btn:active {
     background: rgba(0, 240, 255, 0.25);
   }
   .pages {
-    position: absolute;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
+    align-self: center;
     display: flex;
     gap: 5px;
   }
