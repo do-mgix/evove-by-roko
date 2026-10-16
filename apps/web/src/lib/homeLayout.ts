@@ -139,48 +139,6 @@ export function gridUnit(w: number): number {
   return (w * SHRINK) / GRID_COLS;
 }
 
-/** A cell's size on the grid: two squares side by side, one square, or a
- *  quarter of one — four quarters share a square. */
-export type Size = "rect" | "square" | "quarter";
-
-/** Lays cells of the given sizes on the grid in order, rows of GRID_COLS
- *  squares filled left to right; a row that is not full keeps to the right, as
- *  everything floats to the bottom-right corner. The boxes, and how many rows. */
-export function pack(sizes: Size[]): { boxes: Box[]; rows: number } {
-  // squares first: a rectangle is one two wide, quarters are grouped by four
-  const units: { w: number; items: number[] }[] = [];
-  sizes.forEach((size, i) => {
-    const last = units[units.length - 1];
-    if (size === "quarter" && last?.w === -1 && last.items.length < 4) last.items.push(i);
-    else units.push({ w: size === "rect" ? 2 : size === "square" ? 1 : -1, items: [i] });
-  });
-  const rows: (typeof units)[] = [[]];
-  let used = 0;
-  for (const u of units) {
-    const w = Math.abs(u.w);
-    if (used + w > GRID_COLS) {
-      rows.push([]);
-      used = 0;
-    }
-    rows[rows.length - 1].push(u);
-    used += w;
-  }
-  const boxes: Box[] = [];
-  rows.forEach((row, y) => {
-    let x = GRID_COLS - row.reduce((s, u) => s + Math.abs(u.w), 0);
-    for (const u of row) {
-      if (u.w === -1) {
-        u.items.forEach((i, k) => (boxes[i] = [x + (k % 2) / 2, y + Math.floor(k / 2) / 2, 0.5, 0.5]));
-        x += 1;
-      } else {
-        boxes[u.items[0]] = [x, y, u.w, 1];
-        x += u.w;
-      }
-    }
-  });
-  return { boxes, rows: rows.length };
-}
-
 /** Lays cells of any whole sizes, w × h in units, on a grid `cols` wide: each
  *  in turn at the first place it fits, reading the rows top to bottom and each
  *  from the right, as everything floats to the bottom-right corner, so smaller

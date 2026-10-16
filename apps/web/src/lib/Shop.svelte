@@ -9,7 +9,7 @@
     type CatalogAction,
     type CatalogGroup,
   } from "./api";
-  import { GRID_COLS, GRID_GAP, drawBoxes, formsFor, gridUnit, pack, polyPath, seeded, type Size } from "./homeLayout";
+  import { GRID_COLS, GRID_GAP, SLANT, drawBoxes, formsFor, gridUnit, packFree, polyPath, seeded } from "./homeLayout";
   import { primeAudio } from "./dtmf";
   import { gains as gainsSound, powerOn, tap } from "./sfx";
   import { bumpUser, setBackHandler, userVersion } from "./store";
@@ -32,9 +32,11 @@
   const SHOP_COLOR = "#7af9ff";
   // text on the dark backdrop
   const SHOP_DEEP = "#ffffff";
-  // On the grid every screen shares; a button here takes one of its squares,
-  // two side by side, or a quarter of one.
-  const PER_PAGE = 12;
+  // On the grid every screen shares; a button here takes SCALE × SCALE of its
+  // squares, twice as wide for the dear ones, SMALL × SMALL for the free.
+  const SCALE = 3;
+  const SMALL = 2;
+  const PER_PAGE = 6;
   const GAP = GRID_GAP;
   const DELAY = [0, 110, 60, 170, 30, 220, 140, 90, 200, 50];
 
@@ -86,33 +88,31 @@
   $: fit = unit ? Math.floor(height / unit) : 0;
   $: cells = layout(onPage, stop, width, height, unit, fit);
 
-  /** A cell's size by what it costs: a rectangle for the dear ones, a square,
-   *  a quarter for the free. */
-  const sizeOf = (a: CatalogAction): Size => (a.cost >= 3 ? "rect" : a.cost > 0 ? "square" : "quarter");
+  /** A cell's size by what it costs, in its own squares: two side by side for
+   *  the dear ones, one, or two thirds of one for the free — times SCALE, in
+   *  the grid's. */
+  const sizeOf = (a: CatalogAction): [number, number] =>
+    a.cost >= 3 ? [2 * SCALE, SCALE] : a.cost > 0 ? [SCALE, SCALE] : [SMALL, SMALL];
 
   /** The page's cells on the grid, each as large as it costs; when they would
-   *  not fit the rows, the last rectangles give way to squares. */
+   *  not fit the rows, the last ones give way to smaller sizes. */
   function layout(list: CatalogAction[], seed: number, w: number, h: number, unit: number, fit: number) {
     if (!list.length || !w || !h || !fit) return [];
     const wanted = list.map(sizeOf);
-    let packed = pack(wanted);
+    let packed = packFree(wanted, GRID_COLS);
     for (let i = wanted.length - 1; packed.rows > fit && i >= 0; i--) {
-      if (wanted[i] === "rect") {
-        wanted[i] = "square";
-        packed = pack(wanted);
-      }
+      wanted[i] = wanted[i][0] > SCALE ? [SCALE, SCALE] : [SMALL, SMALL];
+      packed = packFree(wanted, GRID_COLS);
     }
     const forms = formsFor(packed.boxes, seeded(seed));
-    return drawBoxes(packed.boxes, packed.rows, w, h, unit, GAP, { forms }).map((c, i) => {
+    return drawBoxes(packed.boxes, packed.rows, w, h, unit, GAP, { forms, slant: unit * SCALE * SLANT }).map((c, i) => {
       const small = c.h < 52;
-      // a quarter holds only the first letters of the name
-      const name = list[i].name;
       return {
         action: list[i],
         d: polyPath(c.shape),
         cx: c.cx,
         cy: c.cy,
-        lines: packed.boxes[i][2] < 1 ? [name.slice(0, Math.max(2, Math.floor((c.w - 6) / 7)))] : wrap(name, c.w, small ? 1 : c.h < 80 ? 2 : 3),
+        lines: wrap(list[i].name, c.w, small ? 1 : c.h < 80 ? 2 : 3),
         small,
       };
     });
