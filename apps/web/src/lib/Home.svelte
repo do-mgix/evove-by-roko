@@ -17,9 +17,10 @@
   /** The option suggested next: its outline is lit. Never named, only shown. */
   export let hint: HomeOptionId | null = null;
 
-  // The cells fill the lower part of the screen, the whole width, on a grid of
-  // narrow upright units; at most HIGH of the height.
-  const HIGH = 0.9;
+  // The cells gather in the bottom-right corner on a grid of narrow upright
+  // units: at most WIDE of the width and HIGH of the height.
+  const WIDE = 0.75;
+  const HIGH = 0.68;
   // half the gap between two cells, in pixels
   const GAP = 9;
   // When the screen comes on, each cell lights up like a tube set warming, at
@@ -34,7 +35,7 @@
 
   // Plain shapes, drawn once per size: nothing on this screen animates.
   $: shown = HOME_OPTIONS.filter((o) => o.unlocked);
-  $: unit = Math.min(width / HOME_COLS, (height * HIGH) / (HOME_ROWS * HOME_ASPECT));
+  $: unit = Math.min((width * WIDE) / HOME_COLS, (height * HIGH) / (HOME_ROWS * HOME_ASPECT));
   $: cells = draw(shown, width, height, unit);
 
   function draw(options: typeof HOME_OPTIONS, w: number, h: number, u: number) {
