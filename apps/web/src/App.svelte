@@ -151,7 +151,7 @@
     border-radius: 28px;
     overflow: hidden;
     /* the deep green the wave rises from */
-    background: #0a4d2c;
+    background: #041a0e;
     /* the backdrop below stays under everything inside the frame */
     isolation: isolate;
   }
@@ -169,10 +169,10 @@
     z-index: -1;
     background: linear-gradient(
       to bottom,
-      #0b3d22 0%,
-      #0f6b3f 33%,
-      #2f7d1c 66%,
-      #0c6b5c 100%
+      #041a0e 0%,
+      #073b22 33%,
+      #16420d 66%,
+      #063b33 100%
     );
     animation: drift 12s ease-in-out infinite alternate;
     pointer-events: none;
