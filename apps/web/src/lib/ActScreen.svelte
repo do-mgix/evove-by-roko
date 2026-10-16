@@ -28,7 +28,7 @@
   // three squares, at most four rows.
   const ROWS = 4;
   const PER_PAGE = 8;
-  const GAP = 5;
+  const GAP = 9;
   // a new page comes on cell by cell, like the home, at uneven moments
   const DELAY = [0, 110, 60, 170, 30, 220, 140, 90];
 

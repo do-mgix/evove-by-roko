@@ -35,7 +35,7 @@
   // On the grid of three squares across, at most five rows.
   const ROWS = 5;
   const PER_PAGE = 10;
-  const GAP = 9;
+  const GAP = 11;
   const DELAY = [0, 110, 60, 170, 30, 220, 140, 90, 200, 50];
 
   const TYPE_LABEL: Record<number, string> = {

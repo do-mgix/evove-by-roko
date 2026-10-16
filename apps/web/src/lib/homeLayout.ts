@@ -146,10 +146,12 @@ export function drawBoxes(boxes: Box[], rows: number, w: number, h: number, side
   const left = w - GRID_COLS * side;
   const top = h - rows * side;
   return boxes.map(([bx, by, bw, bh]) => {
-    const x0 = left + bx * side + gap;
-    const y0 = top + by * side + gap;
-    const x1 = left + (bx + bw) * side - gap;
-    const y1 = top + (by + bh) * side - gap;
+    // quarters sit closer together, or they would be all gap
+    const g = bw < 1 ? gap / 2 : gap;
+    const x0 = left + bx * side + g;
+    const y0 = top + by * side + g;
+    const x1 = left + (bx + bw) * side - g;
+    const y1 = top + (by + bh) * side - g;
     const j = Math.min(x1 - x0, y1 - y0) * WOBBLE;
     const shape: Point[] = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(([x, y]) => [x + rand() * j, y + rand() * j]);
     return { shape, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, w: x1 - x0, h: y1 - y0 };

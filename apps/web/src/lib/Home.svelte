@@ -23,7 +23,7 @@
   // squares take SHRINK of the width, or at most HIGH of the height.
   const HIGH = 0.55;
   // half the gap between two cells, in pixels
-  const GAP = 5;
+  const GAP = 9;
   // When the screen comes on, each cell lights up like a tube set warming, at
   // its own moment: an uneven order reads as a machine, an even one as a menu.
   const DELAY: Record<HomeOptionId, number> = {
