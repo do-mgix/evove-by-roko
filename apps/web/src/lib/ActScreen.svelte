@@ -25,11 +25,11 @@
   // the actions as cells — or, once one is chosen, its tiers — and the bar with
   // two blank buttons: the centre one turns the page, the right one goes home.
   // On the grid of three squares across: rows of a rectangle and a square, or
-  // three squares, at most four rows.
-  const ROWS = 4;
-  const PER_PAGE = 8;
+  // three squares, at most six rows.
+  const ROWS = 6;
+  const PER_PAGE = 12;
   // the grid's units are upright rectangles, this much taller than wide
-  const ASPECT = 1.5;
+  const ASPECT = 1.25;
   const GAP = 9;
   // a new page comes on cell by cell, like the home, at uneven moments
   const DELAY = [0, 110, 60, 170, 30, 220, 140, 90];
@@ -393,7 +393,7 @@
 
   .display {
     position: relative;
-    flex: 0 0 32%;
+    flex: 0 0 18%;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;

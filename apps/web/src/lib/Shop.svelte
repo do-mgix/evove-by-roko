@@ -32,11 +32,11 @@
   const SHOP_COLOR = "#7af9ff";
   // text on the dark backdrop
   const SHOP_DEEP = "#ffffff";
-  // On the grid of three squares across, at most five rows.
-  const ROWS = 5;
-  const PER_PAGE = 10;
+  // On the grid of three squares across, at most six rows.
+  const ROWS = 6;
+  const PER_PAGE = 12;
   // the grid's units are upright rectangles, this much taller than wide
-  const ASPECT = 1.5;
+  const ASPECT = 1.25;
   const GAP = 11;
   const DELAY = [0, 110, 60, 170, 30, 220, 140, 90, 200, 50];
 
@@ -381,7 +381,7 @@
   }
 
   .display {
-    flex: 0 0 24%;
+    flex: 0 0 16%;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;

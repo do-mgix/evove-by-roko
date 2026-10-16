@@ -19,7 +19,7 @@
 
   // The cells fill the lower part of the screen, the whole width, on a grid of
   // narrow upright units; at most HIGH of the height.
-  const HIGH = 0.8;
+  const HIGH = 0.9;
   // half the gap between two cells, in pixels
   const GAP = 9;
   // When the screen comes on, each cell lights up like a tube set warming, at

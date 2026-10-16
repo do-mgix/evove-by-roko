@@ -1,6 +1,6 @@
 /** The home screen: the options that cover it, and what they look like.
  *
- * The options sit on an imaginary grid four columns across and four rows down,
+ * The options sit on an imaginary grid four columns across and six rows down,
  * of narrow upright rectangles, filling the lower part of the screen; each
  * option a rectangle of whole units.
  *
@@ -30,29 +30,30 @@ export type HomeOption = {
   unlocked: boolean;
 };
 
-// Roko narrow and atributos wide on top; logs and shop under them; jornada
-// wide across the bottom; agir a tall column on the right, under the thumb.
+// Roko and jornada stand narrow down the left; atributos wide on top; logs and
+// shop under it; agir a big block of three by three in the bottom-right
+// corner, under the thumb.
 // All of them in jornada's neon cyan, each in a tone of its own.
 export const HOME_OPTIONS: HomeOption[] = [
   { id: "act", label: "agir", color: "#00f0ff", tone: "1", unlocked: true,
-    box: [3, 1, 1, 3] },
+    box: [1, 3, 3, 3] },
   { id: "attributes", label: "atributos", color: "#00c8ff", tone: "5", unlocked: true,
     box: [1, 0, 3, 1] },
   { id: "roko", label: "roko", color: "#3dfff0", tone: "3", unlocked: true,
-    box: [0, 0, 1, 1] },
+    box: [0, 0, 1, 2] },
   { id: "shop", label: "shop", color: "#7af9ff", tone: "2", unlocked: true,
-    box: [2, 1, 1, 1] },
+    box: [3, 1, 1, 2] },
   { id: "logs", label: "logs", color: "#00a8e8", tone: "4", unlocked: true,
-    box: [0, 1, 2, 1] },
+    box: [1, 1, 2, 2] },
   { id: "journey", label: "jornada", color: "#00ffd0", tone: "6", unlocked: true,
-    box: [0, 2, 3, 2] },
+    box: [0, 2, 1, 4] },
 ];
 
-/** The home's grid: four units across, four down, each unit upright, 1.6 times
+/** The home's grid: four units across, six down, each unit upright, 1.3 times
  *  as tall as it is wide. */
 export const HOME_COLS = 4;
-export const HOME_ROWS = 4;
-export const HOME_ASPECT = 1.6;
+export const HOME_ROWS = 6;
+export const HOME_ASPECT = 1.3;
 
 export type Glyph = {
   /** round-capped strokes on a 24×24 grid */
