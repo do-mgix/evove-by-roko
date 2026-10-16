@@ -3,9 +3,12 @@
     DOT_R,
     GLYPHS,
     HOME_OPTIONS,
-    GRID_COLS,
-    SHRINK,
-    drawBoxes,
+    HOME_ASPECT,
+    HOME_COLS,
+    HOME_ROWS,
+    areaCentre,
+    circlePath,
+    rectMinusCircle,
     polyPath,
     type HomeOptionId,
   } from "./homeLayout";
@@ -17,10 +20,9 @@
   /** The option suggested next: its outline is lit. Never named, only shown. */
   export let hint: HomeOptionId | null = null;
 
-  // The cells live on a grid three squares across and three down, in the
-  // bottom-right corner where a thumb reaches; the rest stays empty. The
-  // squares take SHRINK of the width, or at most HIGH of the height.
-  const HIGH = 0.7;
+  // The cells fill the lower part of the screen, the whole width, on a grid of
+  // narrow upright units; at most HIGH of the height.
+  const HIGH = 0.8;
   // half the gap between two cells, in pixels
   const GAP = 9;
   // When the screen comes on, each cell lights up like a tube set warming, at
@@ -35,15 +37,38 @@
 
   // Plain shapes, drawn once per size: nothing on this screen animates.
   $: shown = HOME_OPTIONS.filter((o) => o.unlocked);
-  $: side = Math.min((width * SHRINK) / GRID_COLS, (height * HIGH) / 3);
-  $: drawn = drawBoxes(shown.map((o) => o.box), 3, width, height, side, GAP);
-  $: cells = shown.map((o, i) => ({
-    ...o,
-    d: polyPath(drawn[i].shape),
-    cx: drawn[i].cx,
-    cy: drawn[i].cy,
-    glyph: Math.max(20, Math.min(drawn[i].w * 0.5, drawn[i].h * 0.5, 64)),
-  }));
+  $: unit = Math.min(width / HOME_COLS, (height * HIGH) / (HOME_ROWS * HOME_ASPECT));
+  $: cells = draw(shown, width, height, unit);
+
+  function draw(options: typeof HOME_OPTIONS, w: number, h: number, u: number) {
+    const tall = u * HOME_ASPECT;
+    const left = w - HOME_COLS * u;
+    const top = h - HOME_ROWS * tall;
+    // the round button, and the bite it takes from its neighbours: its own
+    // radius and twice the gap, so it stands as far from them as they do apart
+    const round = options.find((o) => o.circle)?.circle;
+    const ring = round && {
+      cx: left + round[0] * u,
+      cy: top + round[1] * tall,
+      r: round[2] * u,
+    };
+    return options.map((o) => {
+      if (o.circle && ring) {
+        return { ...o, d: circlePath(ring.cx, ring.cy, ring.r), cx: ring.cx, cy: ring.cy, glyph: Math.min(ring.r, 72) };
+      }
+      const [bx, by, bw, bh] = o.box!;
+      const x0 = left + bx * u + GAP;
+      const y0 = top + by * tall + GAP;
+      const x1 = left + (bx + bw) * u - GAP;
+      const y1 = top + (by + bh) * tall - GAP;
+      const shape = ring ? rectMinusCircle(x0, y0, x1, y1, ring.cx, ring.cy, ring.r + 2 * GAP) : polyRect(x0, y0, x1, y1);
+      const [cx, cy] = areaCentre(shape);
+      return { ...o, d: polyPath(shape), cx, cy, glyph: Math.max(20, Math.min((x1 - x0) * 0.4, (y1 - y0) * 0.4, 64)) };
+    });
+  }
+
+  const polyRect = (x0: number, y0: number, x1: number, y1: number): [number, number][] =>
+    [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
 
   // the screen comes on with a sound, when one has been allowed (after a tap)
   onMount(() => powerOn());

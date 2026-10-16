@@ -35,6 +35,8 @@
   // On the grid of three squares across, at most five rows.
   const ROWS = 5;
   const PER_PAGE = 10;
+  // the grid's units are upright rectangles, this much taller than wide
+  const ASPECT = 1.3;
   const GAP = 11;
   const DELAY = [0, 110, 60, 170, 30, 220, 140, 90, 200, 50];
 
@@ -83,7 +85,7 @@
   // the squares keep their size from page to page; the bar, the tiers and the
   // panels are as wide as a row of them (SHRINK of the width before the cells
   // have been measured)
-  $: side = width && height ? Math.min((width * SHRINK) / GRID_COLS, height / ROWS) : 0;
+  $: side = width && height ? Math.min((width * SHRINK) / GRID_COLS, height / (ROWS * ASPECT)) : 0;
   $: row = side ? `${side * GRID_COLS}px` : `${SHRINK * 100}%`;
   $: cells = layout(onPage, stop, width, height, side);
 
@@ -103,7 +105,7 @@
         packed = pack(wanted);
       }
     }
-    return drawBoxes(packed.boxes, packed.rows, w, h, side, GAP).map((c, i) => {
+    return drawBoxes(packed.boxes, packed.rows, w, h, side, GAP, ASPECT).map((c, i) => {
       const small = c.h < 52;
       // a quarter holds only the first letters of the name
       const name = list[i].name;

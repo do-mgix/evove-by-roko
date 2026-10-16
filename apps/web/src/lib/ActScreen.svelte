@@ -28,6 +28,8 @@
   // three squares, at most four rows.
   const ROWS = 4;
   const PER_PAGE = 8;
+  // the grid's units are upright rectangles, this much taller than wide
+  const ASPECT = 1.3;
   const GAP = 9;
   // a new page comes on cell by cell, like the home, at uneven moments
   const DELAY = [0, 110, 60, 170, 30, 220, 140, 90];
@@ -71,7 +73,7 @@
   // the squares keep their size from page to page; the bar, the tiers and the
   // panels are as wide as a row of them (SHRINK of the width before the cells
   // have been measured)
-  $: side = width && height ? Math.min((width * SHRINK) / GRID_COLS, height / ROWS) : 0;
+  $: side = width && height ? Math.min((width * SHRINK) / GRID_COLS, height / (ROWS * ASPECT)) : 0;
   $: row = side ? `${side * GRID_COLS}px` : `${SHRINK * 100}%`;
   $: cells = layout(onPage, page, width, height, side);
 
@@ -94,7 +96,7 @@
     if (!list.length || !w || !h) return [];
     const rand = seeded(seed + 1);
     const { boxes, rows } = pack(sizes(list.length, rand));
-    return drawBoxes(boxes, rows, w, h, side, GAP).map((c, i) => ({
+    return drawBoxes(boxes, rows, w, h, side, GAP, ASPECT).map((c, i) => ({
       action: list[i],
       d: polyPath(c.shape),
       cx: c.cx,
