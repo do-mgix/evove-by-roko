@@ -11,6 +11,8 @@ from datetime import datetime, date
 from sqlalchemy import select, update, func
 from sqlalchemy.orm import Session
 
+from src.domain.economy import BASE_MAX_TOKENS
+from src.domain.journey import BASE_MAX_ENERGY
 from src.infrastructure.db import SessionLocal
 from src.infrastructure import auth, orm
 
@@ -173,13 +175,13 @@ def _user_to_dict(s: Session, u: orm.User) -> dict:
     metadata: dict = {
         "username": u.username,
         "mode": state.mode if state else "progressive",
-        "energy": state.energy if state else 1000,
+        "energy": state.energy if state else BASE_MAX_ENERGY,
         "marks": int(state.marks) if state else 0,
         "stage": state.stage if state else 1,
         "skill_points": state.skill_points if state else 0,
         "build_points": state.build_points if state else 0,
         "tokens": state.tokens if state else 0,
-        "max_tokens": state.max_tokens if state else 100,
+        "max_tokens": state.max_tokens if state else BASE_MAX_TOKENS,
         "journey_started_at": (
             state.journey_started_at.isoformat(timespec="seconds")
             if state and state.journey_started_at else None
@@ -237,9 +239,9 @@ def _write_state(s: Session, u: orm.User, data: dict):
         state = orm.UserState(user_id=u.id)
         s.add(state)
     state.marks = int(data.get("marks", 0) or 0)
-    state.energy = int(md.get("energy", 1000) or 0)
+    state.energy = int(md.get("energy", BASE_MAX_ENERGY) or 0)
     state.tokens = int(md.get("tokens", 50) or 0)
-    state.max_tokens = int(md.get("max_tokens", 100) or 100)
+    state.max_tokens = int(md.get("max_tokens", BASE_MAX_TOKENS) or BASE_MAX_TOKENS)
     state.build_points = int(md.get("build_points", 0) or 0)
     state.skill_points = int(md.get("skill_points", 0) or 0)
     state.stage = int(md.get("stage", 1) or 1)

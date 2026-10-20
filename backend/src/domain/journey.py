@@ -9,9 +9,10 @@ is cut into smaller points — daily up to 14 days, weekly for 30 and 60, every
 points of the stretch just survived; reaching the checkpoint does the same, adds
 skill points and opens the next stage.
 
-Energy only drains: every act that is not on today's agenda costs some (see
-src.domain.act). If it reaches zero, the journey starts over from stage 1, right
-then. Points already earned stay earned.
+Energy is the profile's hp, 25 of it: every act costs one (see src.domain.act),
+and a lost battle costs what the boss dealt (src.domain.battle). Tokens buy it
+back (src.domain.recover). If it reaches zero, the journey starts over from
+stage 1, right then. Points already earned stay earned.
 
 Time runs from `journey_started_at`, the moment the current stage began. A new
 stage starts when the previous one ended, not when someone next opens the app,
@@ -22,13 +23,15 @@ from __future__ import annotations
 import math
 from datetime import datetime, timedelta
 
+from src.domain.economy import POINTS_PER_DAY
 
-BASE_MAX_ENERGY = 1000
+
+BASE_MAX_ENERGY = 25
 
 _FIRST_STAGES = (1, 3, 7, 14, 30, 60)
 
-# One build point per day survived, paid at every point and at the checkpoint.
-BUILD_POINTS_PER_DAY = 1
+# Points per day survived, paid at every point and at the checkpoint.
+BUILD_POINTS_PER_DAY = POINTS_PER_DAY
 
 
 def stage_days(stage: int) -> int:

@@ -178,7 +178,7 @@ def cmd_act(data: dict) -> None:
     if outcome.token_cost > 0:
         parts.append(f"[yellow]-{outcome.token_cost} tokens[/yellow]")
     if outcome.energy_penalty > 0:
-        parts.append(f"[red]-{outcome.energy_penalty} energy[/red] (fora da agenda)")
+        parts.append(f"[red]-{outcome.energy_penalty} hp[/red]")
     console.print(" · ".join(parts))
 
 
@@ -208,9 +208,9 @@ def cmd_status(data: dict) -> None:
     info = [
         f"[cyan]user[/cyan]   {get_current_username()}",
         f"[cyan]marcas[/cyan] {data.get('marks', 0)}",
-        f"[cyan]energy[/cyan] {md.get('energy', 0)}",
-        f"[cyan]tokens[/cyan] {md.get('tokens', 0)}/{md.get('max_tokens', 100)}",
-        f"[cyan]bp[/cyan]     {md.get('build_points', 0)}",
+        f"[cyan]hp[/cyan]     {md.get('energy', 0)}",
+        f"[cyan]tokens[/cyan] {md.get('tokens', 0)}/{md.get('max_tokens', 25)}",
+        f"[cyan]pts[/cyan]    {md.get('build_points', 0)}",
         f"[cyan]sp[/cyan]     {md.get('skill_points', 0)}",
         f"[cyan]stage[/cyan]  {md.get('stage', 1)}",
     ]

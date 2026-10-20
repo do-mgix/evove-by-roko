@@ -5,8 +5,9 @@ children; one without children is a leaf, and leaves are the only place marks
 are stored. A parent's total is the weighted mean of its children's totals,
 rounded down, so `braço = ⌊antebraço·½ + braço·½⌋`.
 
-Marks move an attribute through ranks A→Z: rank index i asks for `3 + i` marks
-(A 0/3, B 0/4 … Z 0/28, 403 in all). A rank is a permanent checkpoint. The marks
+Marks move an attribute through the Greek ranks α→ω: rank index i asks for
+`3 + i` marks (α 0/3, β 0/4 … ω 0/26, 348 in all). The same letters rank
+everything in the system. A rank is a permanent checkpoint. The marks
 above it are progress that later triggers may take away (`lose_progress`), never
 the rank itself.
 
@@ -25,14 +26,19 @@ from functools import cached_property
 WEIGHT_TOLERANCE = 1e-3
 _EPS = 1e-9
 
-RANK_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+RANK_LETTERS = "αβγδεζηθικλμνξοπρστυφχψω"
+RANK_NAMES = (
+    "alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta",
+    "iota", "kappa", "lambda", "mu", "nu", "xi", "omicron", "pi",
+    "rho", "sigma", "tau", "upsilon", "phi", "chi", "psi", "omega",
+)
 MAX_RANK = len(RANK_LETTERS) - 1
 
 
 # ---------------------------------------------------------------- ranks
 
 def rank_need(rank_index: int) -> int:
-    """Marks rank `rank_index` asks for before the next one: A 3, B 4 … Z 28."""
+    """Marks rank `rank_index` asks for before the next one: α 3, β 4 … ω 26."""
     return 3 + rank_index
 
 
@@ -46,7 +52,7 @@ RANK_TOTAL = rank_base(MAX_RANK) + rank_need(MAX_RANK)
 
 def apply_rank_ups(marks: float, rank_index: int) -> tuple[float, int]:
     """Spend marks on ranks while they cover the current one. Returns (marks left,
-    rank index). At Z the progress stops at 28/28."""
+    rank index). At ω the progress stops at 26/26."""
     while rank_index < MAX_RANK and marks + _EPS >= rank_need(rank_index):
         marks -= rank_need(rank_index)
         rank_index += 1
@@ -63,8 +69,9 @@ def apply_rank_ups(marks: float, rank_index: int) -> tuple[float, int]:
 # because a parent is the weighted mean of its children.
 
 CLAIM_MAX_DEGREE = 3
-CLAIM_TOKENS_PER_RANK = 10
+CLAIM_TOKENS_PER_RANK = 2
 CLAIM_SKILL_POINTS_PER_RANK = 1
+CLAIM_POINTS_PER_RANK = 100
 
 
 def claimable_ranks(rank_index: int, claimed: int, degree: int) -> int:
@@ -88,6 +95,7 @@ def rank_view(total: float) -> dict:
     need = rank_need(rank_index)
     return {
         "rank": RANK_LETTERS[rank_index],
+        "rank_name": RANK_NAMES[rank_index],
         "rank_index": rank_index,
         "marks": int(math.floor(marks + _EPS)),
         "need": need,

@@ -20,9 +20,11 @@ from src.domain.marks import MARKS_PER_WINDOW, MarkError, options as tier_option
 from src.domain.agenda import collect_labels, DAY_NAMES as _DOMAIN_DAY_NAMES  # noqa: E402
 from src.domain.daily import PERIODS, apply_daily_tick, period_of  # noqa: E402
 from src.domain import journey as journey_mode  # noqa: E402
+from src.domain.economy import BASE_MAX_TOKENS, INITIAL_POINTS  # noqa: E402
 from src.domain.user_attributes import PATCH_SEPARATOR, PatchError, engine_name  # noqa: E402
 from src.domain.attributes import (  # noqa: E402
-    CLAIM_SKILL_POINTS_PER_RANK, CLAIM_TOKENS_PER_RANK, claimable_ranks, node_total, rank_view, total_marks,
+    CLAIM_POINTS_PER_RANK, CLAIM_SKILL_POINTS_PER_RANK, CLAIM_TOKENS_PER_RANK, RANK_LETTERS, RANK_NAMES,
+    claimable_ranks, node_total, rank_view, total_marks,
 )
 from src.domain.skills import (  # noqa: E402
     aggregate_bonuses,
@@ -38,8 +40,7 @@ from src.infrastructure import repos  # noqa: E402
 from src.infrastructure import auth  # noqa: E402
 from src.infrastructure import mailer  # noqa: E402
 
-_GREEK = ['α','β','γ','δ','ε','ζ','η','θ','ι','κ','λ','μ','ν','ξ','ο','π','ρ','σ','τ','υ','φ','χ','ψ','ω']
-_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+_LETTERS = RANK_LETTERS
 
 
 LOG_GROUP = "_log"          # the shop section log actions fall in; not an attribute
@@ -155,7 +156,7 @@ def current_username(authorization: str | None = Header(None)) -> str:
     return username
 
 
-_INITIAL_BUILD_POINTS = 100
+_INITIAL_BUILD_POINTS = INITIAL_POINTS
 
 
 def _apply_initial_grants(data: dict) -> bool:
@@ -201,15 +202,15 @@ def _save_user(username: str, data: dict) -> None:
 
 
 def _build_tiers():
-    """The user's progression: rank letters with roman levels inside each. A level
-    costs marks — the old xp curve divided by 70, which makes A·I cost 3."""
+    """The user's progression: the Greek ranks with roman levels inside each. A
+    level costs marks — the old xp curve divided by 70, which makes α·I cost 3."""
     tiers = []
     cumulative = 0
     global_level = 1
     total_ranks = len(_LETTERS)
     for rank_index, letter in enumerate(_LETTERS):
         levels_in_rank = max(1, total_ranks - rank_index)
-        rank_symbol = _GREEK[rank_index % len(_GREEK)]
+        rank_symbol = letter
         for local_level in range(1, levels_in_rank + 1):
             cost = max(1, int(round(200 * (1.06 ** (global_level - 1)) * (1.28 ** rank_index) / 70)))
             cumulative += cost
@@ -217,6 +218,7 @@ def _build_tiers():
                 "level": global_level,
                 "rank_index": rank_index,
                 "rank_letter": letter,
+                "rank_name": RANK_NAMES[rank_index],
                 "rank_symbol": rank_symbol,
                 "local_level": local_level,
                 "local_level_roman": roman.toRoman(local_level),
@@ -240,6 +242,7 @@ def _progression_state(marks: int):
         "marks": marks,
         "level": current["level"],
         "rank_letter": current["rank_letter"],
+        "rank_name": current["rank_name"],
         "rank_symbol": current["rank_symbol"],
         "local_level": current["local_level"],
         "local_level_roman": current["local_level_roman"],
@@ -347,7 +350,7 @@ def _initial_profile(name: str) -> tuple[dict, dict]:
         "metadata": {
             "mode": "progressive",
             "username": name,
-            "energy": 1000,
+            "energy": journey_mode.BASE_MAX_ENERGY,
             "score": 0,
             "stage": 1,
             "skill_points": 0,
@@ -356,7 +359,7 @@ def _initial_profile(name: str) -> tuple[dict, dict]:
                 "received_start_build_points": {"status": False, "priority": 12},
             },
             "tokens": 0,
-            "max_tokens": 100,
+            "max_tokens": BASE_MAX_TOKENS,
             "journey_started_at": datetime.now().isoformat(timespec="seconds"),
         },
     }
@@ -555,7 +558,7 @@ def user_state(username: str = Depends(current_username)):
     user_leaf_scores = repos.get_user_leaf_scores(username)
     active_attrs = [s for s in user_leaf_scores.values() if s["marks"] > 0 or s["rank_index"] > 0]
     bonuses = aggregate_bonuses(set(data.get("skills") or []), skill_nodes_by_id())
-    base_max_tokens = int(metadata.get("max_tokens", 100) or 100)
+    base_max_tokens = int(metadata.get("max_tokens", BASE_MAX_TOKENS) or BASE_MAX_TOKENS)
     base_max_energy = journey_mode.BASE_MAX_ENERGY
     seq = _ensure_sequences(username)
     return {
@@ -1129,6 +1132,7 @@ def _node_view(tree, key: str, totals: dict[str, float], memo: dict,
             out["claim"] = {
                 "ranks": n,
                 "tokens": n * CLAIM_TOKENS_PER_RANK,
+                "points": n * CLAIM_POINTS_PER_RANK,
                 "skill_points": n * CLAIM_SKILL_POINTS_PER_RANK,
             }
     return out
@@ -1137,7 +1141,7 @@ def _node_view(tree, key: str, totals: dict[str, float], memo: dict,
 @app.post("/attributes/{key}/claim")
 def claim_rank(key: str, username: str = Depends(current_username)):
     """Take the reward of every rank `key` reached and was not claimed yet:
-    tokens, capped like an act's, and skill points."""
+    tokens, capped like an act's, points and skill points."""
     data = _load_user(username)
     tree = repos.load_attr_tree()
     if key not in tree.nodes_by_key:
@@ -1150,11 +1154,12 @@ def claim_rank(key: str, username: str = Depends(current_username)):
 
     metadata = data.setdefault("metadata", {})
     bonuses = aggregate_bonuses(set(data.get("skills") or []), skill_nodes_by_id())
-    cap = int(metadata.get("max_tokens", 100) or 100) + int(bonuses.get("max_tokens", 0) or 0)
+    cap = int(metadata.get("max_tokens", BASE_MAX_TOKENS) or BASE_MAX_TOKENS) + int(bonuses.get("max_tokens", 0) or 0)
     tokens = int(metadata.get("tokens", 0) or 0)
     gained = max(0, min(claim["tokens"], cap - tokens))
     metadata["tokens"] = tokens + gained
     metadata["skill_points"] = int(metadata.get("skill_points", 0) or 0) + claim["skill_points"]
+    metadata["build_points"] = int(metadata.get("build_points", 0) or 0) + claim["points"]
     _save_user(username, data)
     repos.set_rank_claim(username, key, view["rank_index"])
     return {
@@ -1163,6 +1168,8 @@ def claim_rank(key: str, username: str = Depends(current_username)):
         "tokens_gained": gained,
         "tokens_wasted": claim["tokens"] - gained,
         "skill_points_gained": claim["skill_points"],
+        "points_gained": claim["points"],
+        "points": metadata["build_points"],
         "tokens": metadata["tokens"],
         "skill_points": metadata["skill_points"],
     }

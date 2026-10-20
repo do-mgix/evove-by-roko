@@ -9,11 +9,13 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from src.domain import journey
+from src.domain.economy import BASE_MAX_TOKENS
 from src.domain.agenda import is_action_in_agenda
 from src.domain.skills import aggregate_bonuses
 
 
-ENERGY_PENALTY_OUT_OF_AGENDA = 10
+# every act costs the journey this much hp, on the agenda or not
+ENERGY_PENALTY_OUT_OF_AGENDA = 1
 
 
 class ActError(Exception):
@@ -98,7 +100,7 @@ def apply_act(
     if token_cost > 0:
         tokens -= token_cost          # may go negative: spending is not gated here
     if token_gain > 0:
-        cap = int(metadata.get("max_tokens", 100) or 100) + int(bonuses.get("max_tokens", 0) or 0)
+        cap = int(metadata.get("max_tokens", BASE_MAX_TOKENS) or BASE_MAX_TOKENS) + int(bonuses.get("max_tokens", 0) or 0)
         room = max(0, cap - tokens)
         tokens_wasted = max(0, token_gain - room)
         tokens += token_gain - tokens_wasted
@@ -113,7 +115,7 @@ def apply_act(
     ) or bool(in_agenda_extra)
     applied_energy_penalty = 0
     journey_reset = False
-    if not in_agenda:
+    if energy_penalty > 0:
         cur = int(metadata.get("energy", 0) or 0)
         metadata["energy"] = max(0, cur - energy_penalty)
         applied_energy_penalty = energy_penalty

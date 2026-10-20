@@ -90,9 +90,9 @@ class UserState(Base):
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)   # legacy xp, no longer written
     marks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    energy: Mapped[int] = mapped_column(Integer, default=1000, nullable=False)
+    energy: Mapped[int] = mapped_column(Integer, default=25, nullable=False)
     tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    max_tokens: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
+    max_tokens: Mapped[int] = mapped_column(Integer, default=25, nullable=False)
     build_points: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     skill_points: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     stage: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
