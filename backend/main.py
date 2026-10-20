@@ -1816,7 +1816,7 @@ def patch_user_attribute(attr_id: int, payload: dict, username: str = Depends(cu
 @app.post("/patches")
 def post_patch(payload: dict, username: str = Depends(current_username)):
     """Body: {base_action_id, name, attribute_ids, new_attributes}. Costs the base's
-    price in build points; the id is the base's id plus the lowest free two digits.
+    price in points; the id is the base's id plus the lowest free two digits.
 
     An entry of `new_attributes` is a name, `{name, parent_id}`, or `{path: [...]}`
     for a suggestion's whole chain — all created in the same transaction as the

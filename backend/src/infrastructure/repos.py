@@ -1693,7 +1693,7 @@ def create_patch(username: str, base_action_id: str, name: str,
         state = s.get(orm.UserState, u.id)
         have = int(state.build_points) if state else 0
         if have < cost:
-            raise PatchError(f"insufficient build points (have {have}, need {cost})")
+            raise PatchError(f"insufficient points (have {have}, need {cost})")
         if state:
             state.build_points = have - cost
 
