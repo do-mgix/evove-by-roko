@@ -339,7 +339,7 @@ class Log(Base):
 
     user: Mapped[User] = relationship(back_populates="logs")
 
-# user projects (unimplemented)
+# user projects: groups of to-dos
 class Project(Base):
     __tablename__ = "projects"
     __table_args__ = (UniqueConstraint("user_id", "project_id", name="uq_projects_user_project"),)
@@ -351,6 +351,12 @@ class Project(Base):
     deadline: Mapped[date | None] = mapped_column(Date, nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    # time spent active: what earlier stretches added, and when the current began
+    active_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    active_since: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # "completed" (every to-do done) or "finished" (closed as it stood): an emblem
+    outcome: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     user: Mapped[User] = relationship(back_populates="projects")
     related_actions: Mapped[list["ProjectAction"]] = relationship(cascade="all, delete-orphan")
@@ -447,3 +453,39 @@ class UserEquipment(Base):
     item_id: Mapped[str] = mapped_column(String(32), primary_key=True)
     equipped: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     bought_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+# a list of actions to do, closed by hand (src.domain.economy.todo_reward)
+class Todo(Base):
+    __tablename__ = "todos"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(128), nullable=False)
+    project_pk: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
+    deadline: Mapped[date | None] = mapped_column(Date, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    done_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # the points its completion paid
+    reward: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
+class TodoAction(Base):
+    __tablename__ = "todo_actions"
+
+    todo_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("todos.id", ondelete="CASCADE"), primary_key=True)
+    action_id: Mapped[str] = mapped_column(String(16), primary_key=True)
+
+
+# a few words on a log, or on the whole day when log_id is empty
+class Thought(Base):
+    __tablename__ = "thoughts"
+    __table_args__ = (Index("ix_thoughts_user_day", "user_id", "day"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    day: Mapped[date] = mapped_column(Date, nullable=False)
+    log_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)

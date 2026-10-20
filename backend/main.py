@@ -21,7 +21,7 @@ from src.domain.agenda import collect_labels, DAY_NAMES as _DOMAIN_DAY_NAMES  # 
 from src.domain.daily import PERIODS, apply_daily_tick, period_of  # noqa: E402
 from src.domain import journey as journey_mode  # noqa: E402
 from src.domain import battle, equipment, recover as recovery  # noqa: E402
-from src.domain.economy import BASE_MAX_TOKENS, INITIAL_POINTS  # noqa: E402
+from src.domain.economy import BASE_MAX_TOKENS, INITIAL_POINTS, todo_reward  # noqa: E402
 from src.domain.user_attributes import PATCH_SEPARATOR, PatchError, engine_name  # noqa: E402
 from src.domain.attributes import (  # noqa: E402
     CLAIM_POINTS_PER_RANK, CLAIM_SKILL_POINTS_PER_RANK, CLAIM_TOKENS_PER_RANK, RANK_LETTERS, RANK_NAMES,
@@ -38,7 +38,7 @@ from src.infrastructure.static_data import (  # noqa: E402
     skill_nodes_by_id,
 )
 from src.infrastructure import repos  # noqa: E402
-from src.infrastructure import journey_repo  # noqa: E402
+from src.infrastructure import agenda_repo, journey_repo  # noqa: E402
 from src.infrastructure import auth  # noqa: E402
 from src.infrastructure import mailer  # noqa: E402
 
@@ -861,101 +861,206 @@ class Agenda:
         return [it for it in self.items if it.get("day") == day_name or it.get("day") == "*"]
 
 
-class Projects:
-    """Per-user projects/goals backed by the DB."""
-
-    def __init__(self, username: str):
-        self.username = username
-        self.items: list[dict] = []
-        self._load()
-
-    def _load(self):
-        self.items = repos.load_projects(self.username)
-
-    def _save(self):
-        repos.save_projects(self.username, self.items)
-
-    def _next_id(self) -> str:
-        max_n = 0
-        for it in self.items:
-            try:
-                n = int(str(it.get("id", "")).removeprefix("p_"))
-                if n > max_n:
-                    max_n = n
-            except (TypeError, ValueError):
-                continue
-        return f"p_{max_n + 1:04d}"
-
-    def add(self, name: str, deadline: str | None, related_actions: list[str], related_attributes: list[str], active: bool = True) -> dict:
-        if not name:
-            raise HTTPException(status_code=400, detail="name is required")
-        item = {
-            "id": self._next_id(),
-            "name": name,
-            "deadline": deadline or None,
-            "active": bool(active),
-            "related_actions": list(related_actions or []),
-            "related_attributes": list(related_attributes or []),
-            "created_at": datetime.now().isoformat(),
-        }
-        self.items.append(item)
-        self._save()
-        return item
-
-    def update(self, item_id: str, payload: dict) -> dict:
-        for it in self.items:
-            if it.get("id") == item_id:
-                if "name" in payload and str(payload["name"]).strip():
-                    it["name"] = str(payload["name"]).strip()
-                if "deadline" in payload:
-                    it["deadline"] = (str(payload["deadline"]).strip() or None) if payload["deadline"] else None
-                if "active" in payload:
-                    it["active"] = bool(payload["active"])
-                if "related_actions" in payload:
-                    it["related_actions"] = list(payload["related_actions"] or [])
-                if "related_attributes" in payload:
-                    it["related_attributes"] = list(payload["related_attributes"] or [])
-                self._save()
-                return it
-        raise HTTPException(status_code=404, detail="project not found")
-
-    def remove(self, item_id: str) -> bool:
-        before = len(self.items)
-        self.items = [it for it in self.items if it.get("id") != item_id]
-        if len(self.items) == before:
-            return False
-        self._save()
-        return True
+def _agenda_call(fn, *args):
+    """Runs an agenda_repo call, its refusals turned into HTTP errors."""
+    try:
+        return fn(*args)
+    except agenda_repo.AgendaError as e:
+        raise HTTPException(status_code=e.status, detail=str(e))
 
 
 @app.get("/projects")
 def projects_all(username: str = Depends(current_username)):
-    return {"items": Projects(username).items}
+    """Running projects with their stats, then the emblems."""
+    return {"items": _agenda_call(agenda_repo.list_projects, username)}
 
 
 @app.post("/projects")
 def projects_add(payload: dict, username: str = Depends(current_username)):
-    pj = Projects(username)
-    return pj.add(
-        name=str(payload.get("name", "")).strip(),
-        deadline=(str(payload.get("deadline")).strip() if payload.get("deadline") else None),
-        related_actions=payload.get("related_actions") or [],
-        related_attributes=payload.get("related_attributes") or [],
-        active=bool(payload.get("active", True)),
-    )
+    """Body: {name, deadline?}. A project starts active."""
+    p = payload or {}
+    return _agenda_call(agenda_repo.create_project, username, p.get("name"), p.get("deadline"))
 
 
 @app.patch("/projects/{item_id}")
 def projects_update(item_id: str, payload: dict, username: str = Depends(current_username)):
-    return Projects(username).update(item_id, payload or {})
+    """Body: {name?, deadline?, active?}."""
+    return _agenda_call(agenda_repo.update_project, username, item_id, payload or {})
+
+
+@app.post("/projects/{item_id}/end")
+def projects_end(item_id: str, username: str = Depends(current_username)):
+    """Ends it as an emblem: completed when all its to-dos are done, finished
+    otherwise."""
+    return _agenda_call(agenda_repo.end_project, username, item_id)
 
 
 @app.delete("/projects/{item_id}")
 def projects_remove(item_id: str, username: str = Depends(current_username)):
-    ok = Projects(username).remove(item_id)
-    if not ok:
-        raise HTTPException(status_code=404, detail="not found")
+    _agenda_call(agenda_repo.delete_project, username, item_id)
     return {"ok": True}
+
+
+@app.get("/emblems")
+def emblems(username: str = Depends(current_username)):
+    """The projects that ended, each an emblem with the stats it ended on."""
+    return [p for p in _agenda_call(agenda_repo.list_projects, username) if p["emblem"]]
+
+
+@app.get("/todos")
+def todos_all(username: str = Depends(current_username)):
+    """Open to-dos by deadline, then the done ones. Each action says whether it
+    was acted on since the to-do was made."""
+    return {"items": _agenda_call(agenda_repo.list_todos, username)}
+
+
+@app.post("/todos")
+def todos_add(payload: dict, username: str = Depends(current_username)):
+    """Body: {title, action_ids, deadline?, project_id?}."""
+    p = payload or {}
+    return _agenda_call(agenda_repo.create_todo, username, p.get("title"), p.get("action_ids") or [],
+                        p.get("deadline"), p.get("project_id"))
+
+
+@app.patch("/todos/{todo_id}")
+def todos_update(todo_id: int, payload: dict, username: str = Depends(current_username)):
+    """Body: {title?, deadline?, project_id?, action_ids?}."""
+    return _agenda_call(agenda_repo.update_todo, username, todo_id, payload or {})
+
+
+@app.post("/todos/{todo_id}/done")
+def todos_done(todo_id: int, username: str = Depends(current_username)):
+    """Closes it by hand and pays points for the actions it holds. Done late
+    shows as late and pays the same."""
+    data = _load_user(username)
+    todo = _agenda_call(agenda_repo.complete_todo, username, todo_id, todo_reward)
+    metadata = data.setdefault("metadata", {})
+    metadata["build_points"] = int(metadata.get("build_points", 0) or 0) + todo["reward"]
+    _save_user(username, data)
+    return {**todo, "points": metadata["build_points"]}
+
+
+@app.delete("/todos/{todo_id}")
+def todos_remove(todo_id: int, username: str = Depends(current_username)):
+    _agenda_call(agenda_repo.delete_todo, username, todo_id)
+    return {"ok": True}
+
+
+def _logs_on(username: str, target_date) -> tuple[int, list[dict]]:
+    """The day number of `target_date` and its logs, in their order."""
+    target_day = _day_for(username, target_date)
+    result = []
+    for log in repos.load_logs(username):
+        status = str(log.get("status", "")).upper()
+        if "DELETED" in status or "PROCESSED" in status:
+            continue
+        coord = log.get("coord") or []
+        if not (isinstance(coord, list) and len(coord) >= 2 and int(coord[0]) == target_day):
+            continue
+        result.append({
+            "id": log.get("id"),
+            "timestamp": log.get("timestamp"),
+            "content": log.get("content"),
+            "marks": int(log.get("marks", 0) or 0),
+            "tokens": int(log.get("tokens", 0) or 0),
+            "order": int(coord[1]),
+            "period": log.get("period"),
+        })
+    result.sort(key=lambda l: l.get("order", 0))
+    return target_day, result
+
+
+def _iso_day(raw) -> "datetime.date":
+    try:
+        return datetime.strptime(str(raw), "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="date must be YYYY-MM-DD")
+
+
+@app.get("/agenda/day")
+def agenda_day(offset: int = 0, username: str = Depends(current_username)):
+    """A day's records: its logs, each with its thought, the thought of the day,
+    and how far the day's cycle went — act, to-do, a thought on every act, the
+    thought of the day. The to-do is the one step the cycle can skip."""
+    _load_user(username)
+    target = (datetime.now() + timedelta(days=offset)).date()
+    day, logs = _logs_on(username, target)
+    thoughts = _agenda_call(agenda_repo.thoughts_on, username, target)
+    by_log = {t["log_id"]: t for t in thoughts if t["log_id"] is not None}
+    day_thought = next((t for t in thoughts if t["log_id"] is None), None)
+    for log in logs:
+        log["thought"] = by_log.get(log["id"])
+    thought_count = sum(1 for log in logs if log["thought"])
+    todos = _agenda_call(agenda_repo.todos_done_on, username, target)
+    return {
+        "date": target.isoformat(),
+        "offset": offset,
+        "day": day,
+        "logs": logs,
+        "day_thought": day_thought,
+        "cycle": {
+            "acted": bool(logs),
+            "todo": todos > 0,
+            "todos_done": todos,
+            "thoughts": thought_count,
+            "logs": len(logs),
+            "day_thought": day_thought is not None,
+            "complete": bool(logs) and thought_count == len(logs) and day_thought is not None,
+        },
+    }
+
+
+@app.put("/thoughts")
+def put_thought(payload: dict, username: str = Depends(current_username)):
+    """Body: {date, log_id?, content}. The thought of a log, or of the day
+    without `log_id`; empty content takes it away."""
+    p = payload or {}
+    day = _iso_day(p.get("date"))
+    log_id = p.get("log_id")
+    if log_id is not None:
+        day_num, logs = _logs_on(username, day)
+        if not any(int(l["id"]) == int(log_id) for l in logs):
+            raise HTTPException(status_code=404, detail=f"log {log_id} not on {day.isoformat()}")
+    thought = _agenda_call(agenda_repo.set_thought, username, day, int(log_id) if log_id is not None else None,
+                           str(p.get("content") or ""))
+    return {"thought": thought}
+
+
+_WEEKDAYS = ("Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo")
+_MONTHS = ("Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho",
+           "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro")
+
+
+@app.get("/journal")
+def journal(date: str, username: str = Depends(current_username)):
+    """A day as the plain-text journal writes it: the summary (`ddmm` and the
+    first and last log times, then one line per log under its period, its
+    thought after a dash) and the dated entry with the thought of the day."""
+    target = _iso_day(date)
+    _day, logs = _logs_on(username, target)
+    thoughts = _agenda_call(agenda_repo.thoughts_on, username, target)
+    by_log = {t["log_id"]: t["content"] for t in thoughts if t["log_id"] is not None}
+    day_thought = next((t["content"] for t in thoughts if t["log_id"] is None), "")
+
+    def clock(log) -> str:
+        try:
+            return datetime.strptime(log["timestamp"], "%d %m %Y : %H:%M:%S").strftime("%H%M")
+        except (TypeError, ValueError):
+            return "0000"
+
+    lines = []
+    if logs:
+        lines.append(f"{target.strftime('%d%m')} {clock(logs[0])} {clock(logs[-1])}")
+        for log in logs:
+            text = str(log["content"] or "").lower()
+            if log["id"] in by_log:
+                text += f" - {by_log[log['id']]}"
+            lines.append(f" {log.get('period') or 'mo'} {text}")
+    summary = "\n".join(lines)
+    heading = f"{_WEEKDAYS[target.weekday()]}, {target.day} de {_MONTHS[target.month - 1]}"
+    entry = f"{heading}\n{day_thought}" if day_thought else ""
+    return {"date": target.isoformat(), "summary": summary, "entry": entry,
+            "text": "\n\n".join(x for x in (summary, entry) if x)}
 
 
 @app.get("/agenda")
@@ -1276,28 +1381,8 @@ def update_log(log_id: int, payload: dict, username: str = Depends(current_usern
 @app.get("/logs")
 def list_logs(offset: int = 0, username: str = Depends(current_username)):
     """offset: 0 = today, -1 = yesterday, +1 = tomorrow."""
-    from datetime import timedelta
     target_date = (datetime.now() + timedelta(days=offset)).date()
-    target_day = _day_for(username, target_date)
-    logs = repos.load_logs(username)
-    result = []
-    for log in logs:
-        status = str(log.get("status", "")).upper()
-        if "DELETED" in status or "PROCESSED" in status:
-            continue
-        coord = log.get("coord") or []
-        if not (isinstance(coord, list) and len(coord) >= 2 and int(coord[0]) == target_day):
-            continue
-        result.append({
-            "id": log.get("id"),
-            "timestamp": log.get("timestamp"),
-            "content": log.get("content"),
-            "marks": int(log.get("marks", 0) or 0),
-            "tokens": int(log.get("tokens", 0) or 0),
-            "order": int(coord[1]),
-            "period": log.get("period"),
-        })
-    result.sort(key=lambda l: l.get("order", 0))
+    target_day, result = _logs_on(username, target_date)
     return {"day": target_day, "offset": offset, "date": target_date.isoformat(), "logs": result}
 
 
