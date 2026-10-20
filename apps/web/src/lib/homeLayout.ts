@@ -134,9 +134,14 @@ export const GRID_COLS = 6;
  *  squares it covers. */
 export const GRID_GAP = 6;
 
+/** The widest a screen counts as, in pixels: a phone's. On anything wider the
+ *  grid keeps a phone's squares, still in the bottom-right corner, and the
+ *  extra width opens to the left of it. */
+export const PHONE_WIDTH = 420;
+
 /** The side of one of the grid's squares, for a screen `w` wide. */
 export function gridUnit(w: number): number {
-  return (w * SHRINK) / GRID_COLS;
+  return (Math.min(w, PHONE_WIDTH) * SHRINK) / GRID_COLS;
 }
 
 /** Lays cells of any whole sizes, w × h in units, on a grid `cols` wide: each
