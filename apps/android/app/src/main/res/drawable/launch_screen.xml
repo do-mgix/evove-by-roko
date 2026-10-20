@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The window behind the app: black, with the wordmark in the bottom-right
+     corner at the margins of the visual identity's load screen. It shows for
+     the instant before Compose draws its first frame.
+
+     The bitmap draws at its intrinsic size rather than filling the item, so the
+     wordmark keeps its proportions on any screen. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/evoveBlack" />
+    <item android:right="35dp" android:bottom="24dp">
+        <bitmap
+            android:src="@drawable/splash_wordmark"
+            android:gravity="bottom|right" />
+    </item>
+</layer-list>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="evoveBlack">#000000</color>
+    <!-- Black from the first frame: the window, the system bars and, until
+         Compose draws, the wordmark in the corner the Capacitor shell showed. -->
+    <style name="Evove" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@drawable/launch_screen</item>
+        <item name="android:statusBarColor">@color/evoveBlack</item>
+        <item name="android:navigationBarColor">@color/evoveBlack</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>
