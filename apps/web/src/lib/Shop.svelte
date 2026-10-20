@@ -2,12 +2,12 @@
   import { onDestroy, onMount, tick } from "svelte";
   import {
     buyPackageAction,
-    fetchActions,
-    fetchShopCatalog,
-    fetchUser,
+    discover,
+    fetchShop,
     formatCode,
     type CatalogAction,
-    type CatalogGroup,
+    type ShopAction,
+    type ShopState,
   } from "./api";
   import { GRID_COLS, GRID_GAP, SLANT, drawBoxes, formsFor, gridUnit, packFree, polyPath, seeded } from "./homeLayout";
   import Icon from "./Icon.svelte";
@@ -24,11 +24,17 @@
 
   // The shop is walked like the acting screen: a display on top, cells in the
   // middle, a bar with two buttons — an arrow, a circle — at the bottom. It opens on its first
-  // screen — where what is bought with points will live — and the centre button
-  // turns the page, through the catalog one attribute after the other; with an
+  // screen, where the catalog is discovered, and the centre button turns the
+  // page, through what was discovered one attribute after the other; with an
   // action chosen it goes back a step instead. The right one goes home. All of
   // it is the shop tile's pale cyan, see-through and square-cornered, shrunk into the
   // bottom-right corner.
+  //
+  // Only what was discovered is sold. Discovering changes with use: frames of
+  // static to tap open, one by one; then a single button for the day's; then
+  // nothing to do, they open on arrival. And the interface evolves too: after
+  // TURNS_TO_SLIDER turns of the page, the arrow becomes the grooved slider,
+  // slid to walk the catalog and tapped to go back a step.
 
   const SHOP_COLOR = "#7af9ff";
   // text on the dark backdrop
@@ -46,9 +52,19 @@
     5: "letras", 6: "linhas", 7: "palavras", 8: "grupo",
   };
 
-  let groups: CatalogGroup[] = [];
+  // the turns of the page that make the arrow a slider, and the slider's steps
+  const TURNS_TO_SLIDER = 1000;
+  const TURNS_KEY = "evove_shop_turns";
+  const STEP = 34;
+  const TAP_SLOP = 6;
+
+  let groups: ShopState["groups"] = [];
   let buildPoints = 0;
   let owned: Set<string> = new Set();
+  let found: Pick<ShopState, "phase" | "left" | "rate" | "found" | "catalog"> | null = null;
+  // frames opened today, and what each showed
+  let opened: string[] = [];
+  let discovering = false;
   let loading = true;
   let message: string[] = [];
   let lastUserVersion = 0;
@@ -93,7 +109,7 @@
    *  the dear ones, one, or two thirds of one for the free — times SCALE, in
    *  the grid's. */
   const sizeOf = (a: CatalogAction): [number, number] =>
-    a.cost >= 3 ? [2 * SCALE, SCALE] : a.cost > 0 ? [SCALE, SCALE] : [SMALL, SMALL];
+    a.cost >= 300 ? [2 * SCALE, SCALE] : a.cost > 0 ? [SCALE, SCALE] : [SMALL, SMALL];
 
   /** The page's cells on the grid, each as large as it costs; when they would
    *  not fit the rows, the last ones give way to smaller sizes, a step at a
@@ -137,16 +153,17 @@
   }
 
   // ---- loading ----
+  function apply(state: ShopState) {
+    groups = state.groups;
+    buildPoints = state.points;
+    owned = new Set(state.groups.flatMap((g) => g.actions.filter((a) => a.owned).map((a) => a.name.toUpperCase())));
+    found = { phase: state.phase, left: state.left, rate: state.rate, found: state.found, catalog: state.catalog };
+    if (state.new.length) message = [state.new.length === 1 ? "descoberta" : `${state.new.length} descobertas`, state.new.join(" · ").toLowerCase()];
+  }
+
   async function load() {
     try {
-      const [cat, user, acts] = await Promise.all([
-        fetchShopCatalog(),
-        fetchUser().catch(() => null),
-        fetchActions().catch(() => []),
-      ]);
-      groups = cat;
-      buildPoints = user?.build_points ?? 0;
-      owned = new Set(acts.map((a) => a.name.toUpperCase()));
+      apply(await fetchShop());
     } catch (e: any) {
       message = [e?.message ?? "erro ao carregar"];
     } finally {
@@ -181,8 +198,126 @@
     }
     stop = (stop + 1) % stops.length;
     message = [];
+    turns = countTurn();
     // the new page comes on, with the sound of it
     powerOn();
+  }
+
+  // ---- the interface that evolves: turns of the page, kept on the device ----
+  function readTurns(): number {
+    try {
+      return Number(localStorage.getItem(TURNS_KEY) ?? 0) || 0;
+    } catch {
+      return 0;
+    }
+  }
+  function countTurn(): number {
+    const n = readTurns() + 1;
+    try {
+      localStorage.setItem(TURNS_KEY, String(n));
+    } catch {
+      // nowhere to keep it: the arrow stays an arrow
+    }
+    return n;
+  }
+  let turns = readTurns();
+  $: slider = turns >= TURNS_TO_SLIDER;
+
+  function goTo(next: number) {
+    next = Math.max(0, Math.min(stops.length - 1, next));
+    if (next === stop) return;
+    stop = next;
+    selected = null;
+    confirming = false;
+    message = [];
+    tap(stop);
+  }
+  // the grooves follow the finger, and stop following past the last stop
+  let groove = 0;
+  let dragging = false;
+  let startX = 0;
+  let startStop = 0;
+  let startGroove = 0;
+  let moved = false;
+  function onDown(e: PointerEvent) {
+    primeAudio();
+    dragging = true;
+    moved = false;
+    startX = e.clientX;
+    startStop = stop;
+    startGroove = groove;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }
+  function onMove(e: PointerEvent) {
+    if (!dragging) return;
+    let dx = e.clientX - startX;
+    if (Math.abs(dx) > TAP_SLOP) moved = true;
+    if (!moved) return;
+    const min = -startStop * STEP - STEP * 0.4;
+    const max = (stops.length - 1 - startStop) * STEP + STEP * 0.4;
+    dx = Math.max(min, Math.min(max, dx));
+    groove = startGroove + dx;
+    goTo(startStop + Math.trunc(dx / STEP));
+  }
+  function onUp() {
+    if (!dragging) return;
+    dragging = false;
+    if (moved) {
+      groove = startGroove + (stop - startStop) * STEP;
+      if (stop !== startStop) powerOn();
+      return;
+    }
+    tap(0);
+    if (!back()) onHome();
+  }
+  function onSliderKey(e: KeyboardEvent) {
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") goTo(stop + 1);
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") goTo(stop - 1);
+    else if (e.key === "Enter" || e.key === " " || e.key === "Backspace") {
+      if (!back()) onHome();
+    } else return;
+    e.preventDefault();
+  }
+
+  // ---- discovering ----
+  async function open() {
+    if (discovering || !found || found.left <= 0) return;
+    primeAudio();
+    tap(9);
+    discovering = true;
+    try {
+      const state = await discover();
+      opened = [...opened, ...state.new];
+      apply(state);
+      gainsSound();
+    } catch (e: any) {
+      message = [e?.message ?? "erro ao descobrir"];
+    } finally {
+      discovering = false;
+    }
+  }
+
+  /** Static on a canvas: random grey pixels, a dozen frames a second. */
+  function noise(canvas: HTMLCanvasElement) {
+    const ctx = canvas.getContext("2d");
+    const w = (canvas.width = 48);
+    const h = (canvas.height = 48);
+    const img = ctx?.createImageData(w, h);
+    let raf = 0;
+    let last = 0;
+    const draw = (t: number) => {
+      raf = requestAnimationFrame(draw);
+      if (!ctx || !img || t - last < 80) return;
+      last = t;
+      for (let i = 0; i < img.data.length; i += 4) {
+        const v = Math.random() * 255;
+        img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+        img.data[i + 3] = 255;
+      }
+      ctx.putImageData(img, 0, 0);
+    };
+    raf = requestAnimationFrame(draw);
+    return { destroy: () => cancelAnimationFrame(raf) };
   }
 
   function home() {
@@ -282,12 +417,12 @@
         {[
           `${group.actions.length} ${group.actions.length === 1 ? "item" : "itens"}`,
           here.pages > 1 ? `${here.page + 1}/${here.pages}` : null,
-          `${buildPoints} bp`,
+          `${buildPoints} pts`,
         ].filter(Boolean).join(" · ")}
       </p>
     {:else}
       <p class="big">shop</p>
-      <p class="small">{buildPoints} build points</p>
+      <p class="small">{buildPoints} pontos{#if found} · {found.found}/{found.catalog} descobertas{/if}</p>
     {/if}
   </div>
 
@@ -297,11 +432,11 @@
     <button class="panel" class:asking={confirming} disabled={buying} on:click={press}>
       {#if confirming}
         {#if buildPoints < a.cost}
-          <span class="ask">faltam {a.cost - buildPoints} bp</span>
-          <span class="ask-sub">saldo {buildPoints} bp</span>
+          <span class="ask">faltam {a.cost - buildPoints} pts</span>
+          <span class="ask-sub">saldo {buildPoints} pts</span>
         {:else}
           <span class="ask">{buying ? "…" : "adquirir?"}</span>
-          <span class="ask-sub">{a.cost} bp · saldo {buildPoints} bp</span>
+          <span class="ask-sub">{a.cost} pts · saldo {buildPoints} pts</span>
         {/if}
       {:else}
         <div class="sheet">
@@ -310,7 +445,8 @@
           <dt>tipo</dt><dd>{TYPE_LABEL[a.type] ?? a.type}</dd>
           <dt>dificuldade</dt><dd>d{a.diff}</dd>
           {#if tokensLine(a)}<dt>tokens</dt><dd>{tokensLine(a)}</dd>{/if}
-          <dt>custo</dt><dd>{a.cost} bp</dd>
+          <dt>custo</dt><dd>{a.cost} pts</dd>
+          <dt>autor</dt><dd>by {(a as ShopAction).author ?? "roko"}</dd>
         </dl>
         {#if a.leaves.length}
           <ul class="leaves">
@@ -334,7 +470,7 @@
               <path class="shape" d={c.d} />
               <text x={c.cx} y={c.cy - (c.lines.length * 14) / 2 + (c.small ? 7 : 0)}>
                 {#each c.lines as line, j}<tspan x={c.cx} dy={j === 0 ? 0 : 14}>{line}</tspan>{/each}
-                {#if !c.small}<tspan class="cost" x={c.cx} dy="16">{c.action.cost ? `${c.action.cost} bp` : "grátis"}</tspan>{/if}
+                {#if !c.small}<tspan class="cost" x={c.cx} dy="16">{c.action.cost ? `${c.action.cost} pts` : "grátis"}</tspan>{/if}
               </text>
             </g>
           {/each}
@@ -342,9 +478,34 @@
       {/if}
     </div>
   {:else}
-    <!-- the first screen: what is bought with points will stand here -->
+    <!-- the first screen: where the catalog is discovered -->
     <div class="first" bind:clientWidth={width} bind:clientHeight={height}>
-      <div class="vault"></div>
+      <div class="vault">
+        {#if !found}
+          <p class="vault-note">…</p>
+        {:else if found.left <= 0}
+          <p class="vault-note">{found.found >= found.catalog ? "tudo descoberto" : "nada mais hoje · volte amanhã"}</p>
+        {:else if found.phase === "frames"}
+          <!-- frames of static: each tap opens one -->
+          <div class="frames">
+            {#each Array(found.left) as _, i (i)}
+              <button class="static" disabled={discovering} aria-label="descobrir" on:click={open}>
+                <canvas use:noise></canvas>
+              </button>
+            {/each}
+          </div>
+        {:else if found.phase === "button"}
+          <button class="discover" disabled={discovering} on:click={open}>
+            <Icon name="scan" size={28} />
+            <span>descobrir {found.left}</span>
+          </button>
+        {:else}
+          <p class="vault-note">as descobertas chegam sozinhas</p>
+        {/if}
+        {#if opened.length}
+          <p class="vault-found">{opened.join(" · ").toLowerCase()}</p>
+        {/if}
+      </div>
       <div class="makers">
         <button class="maker" on:click={() => openForge("patch")}>+ patch</button>
         <button class="maker" on:click={() => openForge("attr")}>+ atributo</button>
@@ -358,7 +519,27 @@
       {#each stops as _, i}<i class:on={i === stop}></i>{/each}
     </span>
     <!-- two buttons: the page (back a step with something chosen), and home -->
-    <button class="page-btn" aria-label={selected ? "voltar" : "próxima página"} on:click={nextPage}><Icon name={selected ? "left" : "right"} /></button>
+    {#if slider}
+      <!-- the grooved button: slid, it walks the catalog; tapped, it goes back -->
+      <div
+        class="slider"
+        class:dragging
+        role="slider"
+        tabindex="0"
+        aria-label="explorar o shop"
+        aria-valuemin={0}
+        aria-valuemax={stops.length - 1}
+        aria-valuenow={stop}
+        style="--groove: {groove}px"
+        on:pointerdown={onDown}
+        on:pointermove={onMove}
+        on:pointerup={onUp}
+        on:pointercancel={onUp}
+        on:keydown={onSliderKey}
+      ></div>
+    {:else}
+      <button class="page-btn" aria-label={selected ? "voltar" : "próxima página"} on:click={nextPage}><Icon name={selected ? "left" : "right"} /></button>
+    {/if}
     <button class="home-btn" aria-label="início" on:click={home}><Icon name="circle" size={16} /></button>
   </div>
 </div>
@@ -504,14 +685,70 @@
     flex-direction: column;
     gap: 10px;
   }
-  /* empty for now: what points buy will fill it */
+  /* where the catalog is discovered */
   .vault {
     flex: 1;
+    min-height: 0;
     align-self: flex-end;
     width: var(--row);
-    border: 1.5px dashed var(--ink);
-    opacity: 0.35;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 6px;
+    box-sizing: border-box;
+    border: 1.5px dashed color-mix(in srgb, var(--ink) 40%, transparent);
   }
+  .vault-note, .vault-found {
+    margin: 0;
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    text-align: right;
+    text-transform: uppercase;
+    opacity: 0.7;
+  }
+  .vault-found { opacity: 1; color: #ffffff; }
+  .frames { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .static {
+    aspect-ratio: 1;
+    padding: 0;
+    border: 1.5px solid var(--ink);
+    background: #000000;
+    cursor: pointer;
+    overflow: hidden;
+  }
+  .static canvas { width: 100%; height: 100%; display: block; opacity: 0.55; image-rendering: pixelated; }
+  .static:active canvas { opacity: 0.9; }
+  .discover {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.8rem;
+    min-height: 4.5rem;
+    background: transparent;
+    border: 1.5px solid var(--ink);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .discover:active { background: rgba(122, 249, 255, 0.25); }
+  .slider {
+    grid-column: 3 / 6;
+    border: 1.5px solid var(--ink);
+    /* the grooves: thin ridges that roll with the finger, like a thumb wheel */
+    background:
+      linear-gradient(90deg, #000000 0%, transparent 22%, transparent 78%, #000000 100%),
+      repeating-linear-gradient(90deg, var(--ink) 0 1.5px, transparent 1.5px 9px);
+    background-position: 0 0, var(--groove) 0;
+    opacity: 0.85;
+    cursor: ew-resize;
+    touch-action: none;
+    outline: none;
+  }
+  .slider.dragging, .slider:focus-visible { border-color: #ffffff; opacity: 1; }
   .makers { display: flex; gap: 8px; align-self: flex-end; width: var(--row); }
   .maker {
     flex: 1;
