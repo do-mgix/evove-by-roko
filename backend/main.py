@@ -20,6 +20,7 @@ from src.domain.marks import MARKS_PER_WINDOW, MarkError, options as tier_option
 from src.domain.agenda import collect_labels, DAY_NAMES as _DOMAIN_DAY_NAMES  # noqa: E402
 from src.domain.daily import PERIODS, apply_daily_tick, period_of  # noqa: E402
 from src.domain import journey as journey_mode  # noqa: E402
+from src.domain import battle, equipment, recover as recovery  # noqa: E402
 from src.domain.economy import BASE_MAX_TOKENS, INITIAL_POINTS  # noqa: E402
 from src.domain.user_attributes import PATCH_SEPARATOR, PatchError, engine_name  # noqa: E402
 from src.domain.attributes import (  # noqa: E402
@@ -37,6 +38,7 @@ from src.infrastructure.static_data import (  # noqa: E402
     skill_nodes_by_id,
 )
 from src.infrastructure import repos  # noqa: E402
+from src.infrastructure import journey_repo  # noqa: E402
 from src.infrastructure import auth  # noqa: E402
 from src.infrastructure import mailer  # noqa: E402
 
@@ -181,9 +183,17 @@ def _apply_initial_grants(data: dict) -> bool:
     return True
 
 
-def _max_energy(data: dict) -> int:
+def _worn(username: str) -> dict:
+    """What the equipment the profile wears adds up to (src.domain.equipment)."""
+    return equipment.bonuses([i for i, on in journey_repo.load_equipment(username).items() if on])
+
+
+def _max_energy(data: dict, username: str | None = None) -> int:
+    """The profile's max hp: the base, its skills and, given `username`, the
+    amulet it wears."""
     bonuses = aggregate_bonuses(set(data.get("skills") or []), skill_nodes_by_id())
-    return journey_mode.BASE_MAX_ENERGY + int(bonuses.get("max_energy", 0) or 0)
+    worn = int(_worn(username)["hp"]) if username else 0
+    return journey_mode.BASE_MAX_ENERGY + int(bonuses.get("max_energy", 0) or 0) + worn
 
 
 def _load_user(username: str) -> dict:
@@ -191,7 +201,7 @@ def _load_user(username: str) -> dict:
     if data is None:
         raise HTTPException(status_code=404, detail=f"user '{username}' not found")
     dirty = _apply_initial_grants(data)
-    dirty = apply_daily_tick(data, max_energy=_max_energy(data)) or dirty
+    dirty = apply_daily_tick(data, max_energy=_max_energy(data, username)) or dirty
     if dirty:
         repos.save_user_dict(username, data)
     return data
@@ -322,11 +332,198 @@ def health():
 
 @app.get("/journey")
 def journey(username: str = Depends(current_username)):
-    """The current stage: its countdown, its smaller points and the energy left.
-    See src.domain.journey."""
+    """The current stage: its countdown, its smaller points, the hp left and the
+    two recoveries. See src.domain.journey and src.domain.recover."""
     data = _load_user(username)
-    view = journey_mode.view(data.get("metadata", {}) or {}, datetime.now(), _max_energy(data))
-    return {**view, "energy_penalty": ENERGY_PENALTY_OUT_OF_AGENDA}
+    metadata = data.get("metadata", {}) or {}
+    now = datetime.now()
+    max_energy = _max_energy(data, username)
+    view = journey_mode.view(metadata, now, max_energy)
+    return {
+        **view,
+        "energy_penalty": ENERGY_PENALTY_OUT_OF_AGENDA,
+        "tokens": int(metadata.get("tokens", 0) or 0),
+        "balance": int(metadata.get("build_points", 0) or 0),
+        "recover": recovery.view(metadata, now, max_energy),
+    }
+
+
+@app.post("/journey/recover")
+def journey_recover(payload: dict, username: str = Depends(current_username)):
+    """Body: {kind: "small" | "large"}. Tokens bought back into hp."""
+    data = _load_user(username)
+    metadata = data.setdefault("metadata", {})
+    now = datetime.now()
+    max_energy = _max_energy(data, username)
+    try:
+        healed = recovery.recover(metadata, str((payload or {}).get("kind", "")), now, max_energy)
+    except recovery.RecoverError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    _save_user(username, data)
+    return {
+        "healed": healed,
+        "energy": metadata["energy"],
+        "max_energy": max_energy,
+        "tokens": metadata["tokens"],
+        "recover": recovery.view(metadata, now, max_energy),
+    }
+
+
+def _current_boss(username: str, data: dict):
+    """The boss of the stretch the journey is in, the stretch's coordinates and
+    whether this run already beat it."""
+    metadata = data.get("metadata", {}) or {}
+    run = int(metadata.get("journey_resets", 0) or 0)
+    stage = int(metadata.get("stage", 1) or 1)
+    slot = int(metadata.get("journey_points", 0) or 0)
+    tree = repos.load_attr_tree()
+    templates = repos.load_action_templates()
+    seed = battle.boss_seed(journey_repo.user_id(username) or 0, run, stage, slot)
+    boss = battle.make_boss(tree, templates, seed, stage, slot)
+    beaten = any(b["won"] and (b["run"], b["stage"], b["slot"]) == (run, stage, slot)
+                 for b in journey_repo.load_battles(username))
+    return boss, (run, stage, slot), beaten, tree, templates
+
+
+def _lineup(username: str, data: dict, boss, tree, templates, worn: dict) -> list[dict]:
+    totals = _user_leaf_totals(username, tree)
+    memo: dict[str, float] = {}
+    moves = battle.moves_for(
+        tree, templates, data.get("actions") or {},
+        lambda key: rank_view(node_total(key, totals, tree, memo))["rank_index"],
+    )
+    return battle.lineup(tree, moves, boss, worn["damage"])
+
+
+@app.get("/journey/boss")
+def journey_boss(username: str = Depends(current_username)):
+    """The boss of the current stretch, and the lineup the autobattler would take
+    against it. See src.domain.battle."""
+    data = _load_user(username)
+    boss, (run, stage, slot), beaten, tree, templates = _current_boss(username, data)
+    worn = _worn(username)
+    return {
+        "boss": boss.view(),
+        "beaten": beaten,
+        "lineup": _lineup(username, data, boss, tree, templates, worn),
+        "hp": int((data.get("metadata") or {}).get("energy", 0) or 0),
+        "max_hp": _max_energy(data, username),
+        "armor": worn["armor"],
+        "reward": battle.win_points(stage, slot, worn["points"]),
+        "kinship": battle.KINSHIP,
+    }
+
+
+@app.post("/journey/boss/fight")
+def journey_fight(username: str = Depends(current_username)):
+    """Fights the current boss with the autobattler's lineup. A victory pays
+    points; a defeat costs the hp the boss took, and at 0 the journey restarts."""
+    data = _load_user(username)
+    metadata = data.setdefault("metadata", {})
+    boss, (run, stage, slot), beaten, tree, templates = _current_boss(username, data)
+    if beaten:
+        raise HTTPException(status_code=409, detail="boss already beaten")
+    hp = int(metadata.get("energy", 0) or 0)
+    if hp <= 0:
+        raise HTTPException(status_code=409, detail="no hp left")
+    worn = _worn(username)
+    chosen = _lineup(username, data, boss, tree, templates, worn)
+    if not chosen:
+        raise HTTPException(status_code=409, detail="no action to fight with")
+    result = battle.fight(boss, chosen, hp, worn["armor"])
+    now = datetime.now()
+    points = battle.win_points(stage, slot, worn["points"]) if result["won"] else 0
+    reset = False
+    if result["won"]:
+        metadata["build_points"] = int(metadata.get("build_points", 0) or 0) + points
+    else:
+        metadata["energy"] = max(0, hp - result["taken"])
+        if metadata["energy"] <= 0:
+            journey_mode.fail(metadata, now, _max_energy(data, username))
+            reset = True
+    _save_user(username, data)
+    journey_repo.record_battle(username, {
+        "run": run, "stage": stage, "slot": slot, "boss_name": boss.name, "won": result["won"],
+        "dealt": result["dealt"], "taken": result["taken"],
+        "best_hit": max((m["damage"] for m in chosen), default=0), "points": points, "fought_at": now,
+    })
+    return {
+        **result,
+        "boss": boss.view(),
+        "lineup": chosen,
+        "points": points,
+        "energy": int(metadata.get("energy", 0) or 0),
+        "journey_reset": reset,
+    }
+
+
+@app.get("/journey/stats")
+def journey_stats(username: str = Depends(current_username)):
+    """Everything the journey has seen: fights, bosses, damage, restarts."""
+    data = _load_user(username)
+    metadata = data.get("metadata", {}) or {}
+    fights = journey_repo.load_battles(username)
+    wins = [b for b in fights if b["won"]]
+    stage = int(metadata.get("stage", 1) or 1)
+    return {
+        "fights": len(fights),
+        "wins": len(wins),
+        "losses": len(fights) - len(wins),
+        "bosses": len({(b["run"], b["stage"], b["slot"]) for b in wins}),
+        "dealt": sum(b["dealt"] for b in fights),
+        "taken": sum(b["taken"] for b in fights),
+        "best_hit": max((b["best_hit"] for b in fights), default=0),
+        "points_won": sum(b["points"] for b in wins),
+        "stage": stage,
+        "highest_stage": max([stage] + [b["stage"] for b in fights]),
+        "resets": int(metadata.get("journey_resets", 0) or 0),
+        "recover_uses": int(metadata.get("recover_uses", 0) or 0),
+        "energy": int(metadata.get("energy", 0) or 0),
+        "max_energy": _max_energy(data, username),
+    }
+
+
+@app.get("/journey/equipment")
+def journey_equipment(username: str = Depends(current_username)):
+    """The catalog of equipment, each item with whether it is owned and worn."""
+    data = _load_user(username)
+    owned = journey_repo.load_equipment(username)
+    return {
+        "points": int((data.get("metadata") or {}).get("build_points", 0) or 0),
+        "slots": list(equipment.SLOTS),
+        "items": [{**i, "owned": i["id"] in owned, "worn": bool(owned.get(i["id"]))} for i in equipment.ITEMS],
+        "bonuses": _worn(username),
+    }
+
+
+@app.post("/journey/equipment/{item_id}/buy")
+def buy_equipment(item_id: str, username: str = Depends(current_username)):
+    item = equipment.ITEMS_BY_ID.get(item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail=f"item '{item_id}' not found")
+    if item_id in journey_repo.load_equipment(username):
+        raise HTTPException(status_code=409, detail="already owned")
+    data = _load_user(username)
+    metadata = data.setdefault("metadata", {})
+    points = int(metadata.get("build_points", 0) or 0)
+    if points < item["price"]:
+        raise HTTPException(status_code=400, detail=f"insufficient points (have {points}, need {item['price']})")
+    metadata["build_points"] = points - item["price"]
+    _save_user(username, data)
+    journey_repo.add_equipment(username, item_id)
+    return journey_equipment(username)
+
+
+@app.post("/journey/equipment/{item_id}/wear")
+def wear_equipment(item_id: str, payload: dict | None = None, username: str = Depends(current_username)):
+    """Body: {on: bool}, true by default. One item per slot: wearing one takes
+    the other off."""
+    item = equipment.ITEMS_BY_ID.get(item_id)
+    if not item or item_id not in journey_repo.load_equipment(username):
+        raise HTTPException(status_code=404, detail=f"item '{item_id}' not owned")
+    same_slot = [i["id"] for i in equipment.ITEMS if i["slot"] == item["slot"]]
+    journey_repo.wear(username, item_id, same_slot, bool((payload or {}).get("on", True)))
+    return journey_equipment(username)
 
 
 def _initial_profile(name: str) -> tuple[dict, dict]:
@@ -569,6 +766,7 @@ def user_state(username: str = Depends(current_username)):
         "marks": marks,
         "level": progression["level"],
         "rank_letter": progression["rank_letter"],
+        "rank_name": progression["rank_name"],
         "rank_symbol": progression["rank_symbol"],
         "local_level_roman": progression["local_level_roman"],
         "local_levels_total": progression["local_levels_total"],
@@ -577,9 +775,10 @@ def user_state(username: str = Depends(current_username)):
         "level_marks": progression["level_marks"],
         "stage": int(metadata.get("stage", 1) or 1),
         "energy": int(metadata.get("energy", 0) or 0),
-        "max_energy": base_max_energy + bonuses["max_energy"],
+        "max_energy": _max_energy(data, username),
         "skill_points": int(metadata.get("skill_points", 0) or 0),
         "build_points": int(metadata.get("build_points", 0) or 0),
+        "points": int(metadata.get("build_points", 0) or 0),
         "tokens": int(metadata.get("tokens", 0) or 0),
         "max_tokens": base_max_tokens + bonuses["max_tokens"],
         "checkpoint_seconds_left": journey_mode.view(metadata, datetime.now(), base_max_energy)["seconds_left"],
@@ -1123,6 +1322,7 @@ def _node_view(tree, key: str, totals: dict[str, float], memo: dict,
         "key": key,
         "name": node.name,
         "degree": tree.degree(key),
+        "star": tree.star(key),
         "is_leaf": tree.is_leaf(key),
         **rank_view(node_total(key, totals, tree, memo)),
     }

@@ -64,6 +64,10 @@ def _fmt_log_dt(dt: datetime | None) -> str:
     return dt.strftime(_LOG_TS_FMT)
 
 
+def _iso_dt(dt: datetime | None) -> str | None:
+    return dt.isoformat(timespec="seconds") if dt else None
+
+
 def _date_iso(d: date | None) -> str | None:
     return d.isoformat() if d else None
 
@@ -188,6 +192,9 @@ def _user_to_dict(s: Session, u: orm.User) -> dict:
         ),
         "journey_points": state.journey_points if state else 0,
         "journey_resets": state.journey_resets if state else 0,
+        "recover_small_at": _iso_dt(state.recover_small_at) if state else None,
+        "recover_large_at": _iso_dt(state.recover_large_at) if state else None,
+        "recover_uses": state.recover_uses if state else 0,
         "date": _date_iso(state.date) if state else None,
         "tutorial": {
             t.key: {"status": t.status, "priority": t.priority} for t in tutorial_rows
@@ -251,6 +258,10 @@ def _write_state(s: Session, u: orm.User, data: dict):
     state.journey_started_at = datetime.fromisoformat(started) if started else None
     state.journey_points = int(md.get("journey_points", 0) or 0)
     state.journey_resets = int(md.get("journey_resets", 0) or 0)
+    for kind in ("small", "large"):
+        raw = md.get(f"recover_{kind}_at")
+        setattr(state, f"recover_{kind}_at", datetime.fromisoformat(raw) if raw else None)
+    state.recover_uses = int(md.get("recover_uses", 0) or 0)
 
 
 def _write_tutorial(s: Session, u: orm.User, data: dict):

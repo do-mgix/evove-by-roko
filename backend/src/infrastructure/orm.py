@@ -102,6 +102,10 @@ class UserState(Base):
     journey_started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     journey_points: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     journey_resets: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # when each recovery was last taken (src.domain.recover), and how many in all
+    recover_small_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    recover_large_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    recover_uses: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     date: Mapped[date] = mapped_column(Date, server_default=text("(CURRENT_DATE)"), nullable=False)
     user: Mapped[User] = relationship(back_populates="state")
 
@@ -412,3 +416,34 @@ class MarkEvent(Base):
     option_index: Mapped[int] = mapped_column(Integer, nullable=False)
     amount: Mapped[float] = mapped_column(Float, nullable=False)
     marks: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+# one fight against a journey boss (src.domain.battle)
+class Battle(Base):
+    """`run` is how many times the journey restarted when it was fought: the
+    bosses of a new run are new, so a boss is beaten once per run."""
+    __tablename__ = "battles"
+    __table_args__ = (Index("ix_battles_user_run", "user_id", "run", "stage", "slot"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    run: Mapped[int] = mapped_column(Integer, nullable=False)
+    stage: Mapped[int] = mapped_column(Integer, nullable=False)
+    slot: Mapped[int] = mapped_column(Integer, nullable=False)
+    boss_name: Mapped[str] = mapped_column(String(32), nullable=False)
+    won: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    dealt: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    taken: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    best_hit: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    points: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    fought_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+# an item of journey equipment the user bought (src.domain.equipment)
+class UserEquipment(Base):
+    __tablename__ = "user_equipment"
+
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    item_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    equipped: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    bought_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)

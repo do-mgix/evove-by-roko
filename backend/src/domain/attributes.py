@@ -196,6 +196,16 @@ class Tree:
     def root_of(self, key: str) -> str:
         return self.primary_chain(key)[0]
 
+    def star(self, key: str) -> int:
+        """The attribute's star level: how many levels it gathers, itself
+        included. A leaf is ★1, its parent ★2, and a root over three levels ★4 —
+        the more an attribute groups, the rarer and stronger what bears it."""
+        memo = self.__dict__.setdefault("_stars", {})
+        if key not in memo:
+            memo[key] = 1   # a guard while descending; the graph refuses cycles
+            memo[key] = 1 + max((self.star(c) for c, _ in self.children.get(key, [])), default=0)
+        return memo[key]
+
     def descendants(self, key: str) -> set[str]:
         seen: set[str] = set()
         stack = [c for c, _ in self.children.get(key, [])]
