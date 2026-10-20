@@ -96,12 +96,14 @@
     a.cost >= 3 ? [2 * SCALE, SCALE] : a.cost > 0 ? [SCALE, SCALE] : [SMALL, SMALL];
 
   /** The page's cells on the grid, each as large as it costs; when they would
-   *  not fit the rows, the last ones give way to smaller sizes. */
+   *  not fit the rows, the last ones give way to smaller sizes, a step at a
+   *  time, until they fit or all are as small as they go. */
   function layout(list: CatalogAction[], seed: number, w: number, h: number, unit: number, fit: number) {
     if (!list.length || !w || !h || !fit) return [];
     const wanted = list.map(sizeOf);
     let packed = packFree(wanted, GRID_COLS);
-    for (let i = wanted.length - 1; packed.rows > fit && i >= 0; i--) {
+    for (let i = wanted.length - 1; packed.rows > fit && wanted.some((s) => s[0] > SMALL); i = (i || wanted.length) - 1) {
+      if (wanted[i][0] <= SMALL) continue;
       wanted[i] = wanted[i][0] > SCALE ? [SCALE, SCALE] : [SMALL, SMALL];
       packed = packFree(wanted, GRID_COLS);
     }
