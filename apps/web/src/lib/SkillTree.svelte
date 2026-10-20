@@ -59,7 +59,7 @@
       case "max_energy": return `+${v} max energy`;
       case "max_tokens": return `+${v} max tokens`;
       case "xp_multiplier": return "sem efeito (xp virou marcas)";
-      case "points_multiplier": return `×${v} sp/bp`;
+      case "points_multiplier": return `×${v} sp/pts`;
       default: return n.effect.type;
     }
   }

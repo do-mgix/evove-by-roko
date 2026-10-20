@@ -281,15 +281,15 @@
     {#if patchBase}
       <dl class="details">
         <dt>id</dt><dd class="code">{nextPatchId ? formatCode(nextPatchId) : "sem ids livres"}</dd>
-        <dt>custo</dt><dd>{patchCost} bp</dd>
-        <dt>saldo</dt><dd>{buildPoints} bp</dd>
+        <dt>custo</dt><dd>{patchCost} pts</dd>
+        <dt>saldo</dt><dd>{buildPoints} pts</dd>
       </dl>
     {/if}
     {#if patchError}<p class="error">{patchError}</p>{/if}
     <div class="confirm-row">
       <button class="ghost" on:click={onClose}>cancelar</button>
       <button class="primary" on:click={submitPatch} disabled={!patchReady || patchBusy}>
-        {patchBusy ? "..." : patchCost > 0 ? `criar · ${patchCost} bp` : "criar"}
+        {patchBusy ? "..." : patchCost > 0 ? `criar · ${patchCost} pts` : "criar"}
       </button>
     </div>
   </Modal>
