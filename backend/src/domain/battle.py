@@ -147,7 +147,7 @@ def make_boss(tree: Tree, templates: dict, seed: str, stage: int, slot: int) -> 
             "name": f"{base} ({letter(ability_rank)})",
             "type": t["key"],
             "rank": letter(ability_rank),
-            "power": attack + t["star"],
+            "power": attack + t["star"] - 1,
         })
 
     name = "".join(rng.choice(_SYLLABLES) for _ in range(rng.randint(2, 3))).upper()
@@ -213,7 +213,7 @@ def lineup(tree: Tree, moves: list[dict], boss: Boss, damage_bonus: float = 0.0)
 
 def fight(boss: Boss, chosen: list[dict], hp: int, armor: int = 0) -> dict:
     """Plays the fight out. The profile strikes first, its lineup in turn; the
-    boss answers with its attack, or every other round with an ability while its
+    boss answers with its attack, or every third round with an ability while its
     mp lasts. The profile wins by bringing the boss to 0 within MAX_ROUNDS."""
     boss_hp, mp, my_hp = boss.hp, boss.mp, hp
     log: list[dict] = []
@@ -229,7 +229,7 @@ def fight(boss: Boss, chosen: list[dict], hp: int, armor: int = 0) -> dict:
             won = True
             break
         ability = boss.abilities[r % len(boss.abilities)] if boss.abilities else None
-        if ability and r % 2 == 1 and mp >= SPECIAL_MP:
+        if ability and r % 3 == 2 and mp >= SPECIAL_MP:
             mp -= SPECIAL_MP
             blow, text = ability["power"], f"{boss.name} USA {ability['name']}"
         else:
