@@ -1,6 +1,21 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { API_BASE, deleteAccount, fetchSessionInfo, fetchUser, setRecoveryEmail, type SessionInfo, type UserState } from "./api";
+  import {
+    API_BASE,
+    addAlly,
+    deleteAccount,
+    fetchAllies,
+    fetchEmblems,
+    fetchSessionInfo,
+    fetchUser,
+    removeAlly,
+    rerollNickname,
+    setRecoveryEmail,
+    type Ally,
+    type Project,
+    type SessionInfo,
+    type UserState,
+  } from "./api";
 
   export let onLogout: (everywhere: boolean) => void;
 
@@ -64,11 +79,54 @@
     }
   }
 
+  // Others know the profile by its nickname, and add it with its passcode.
+  let allies: Ally[] = [];
+  let emblems: Project[] = [];
+  let passcodeDraft = "";
+  let allyError: string | null = null;
+  let allyBusy = false;
+
+  async function reroll() {
+    if (!user) return;
+    try {
+      user = { ...user, nickname: (await rerollNickname()).nickname };
+    } catch (e: any) {
+      error = e?.message ?? "erro";
+    }
+  }
+
+  async function ally() {
+    if (!passcodeDraft.trim() || allyBusy) return;
+    allyBusy = true;
+    allyError = null;
+    try {
+      await addAlly(passcodeDraft);
+      passcodeDraft = "";
+      allies = (await fetchAllies()).items;
+    } catch (e: any) {
+      allyError = e?.message ?? "erro";
+    } finally {
+      allyBusy = false;
+    }
+  }
+
+  async function unally(a: Ally) {
+    await removeAlly(a.nickname).catch(() => {});
+    allies = (await fetchAllies()).items;
+  }
+
   onMount(async () => {
     try {
-      const [i, u] = await Promise.all([fetchSessionInfo(), fetchUser()]);
+      const [i, u, al, em] = await Promise.all([
+        fetchSessionInfo(),
+        fetchUser(),
+        fetchAllies().catch(() => ({ items: [] as Ally[] })),
+        fetchEmblems().catch(() => [] as Project[]),
+      ]);
       info = i;
       user = u;
+      allies = al.items;
+      emblems = em;
     } catch (e: any) {
       error = e?.message ?? "erro";
     } finally {
@@ -100,6 +158,49 @@
     </header>
 
     {#if user}
+      <section class="card">
+        <h2>identidade</h2>
+        <dl class="rows">
+          <dt>nickname</dt>
+          <dd>{user.nickname ?? "—"} <button class="inline" on:click={reroll}>sortear outro</button></dd>
+          <dt>passcode</dt><dd><span class="code">{user.passcode ?? "—"}</span> <span class="muted-sub">quem tiver vira seu aliado</span></dd>
+        </dl>
+      </section>
+
+      <section class="card">
+        <h2>aliados</h2>
+        {#if allies.length}
+          <dl class="rows">
+            {#each allies as a (a.nickname)}
+              <dt>{a.nickname}</dt>
+              <dd>estágio {a.stage} · {a.marks} marcas <button class="inline" on:click={() => unally(a)}>remover</button></dd>
+            {/each}
+          </dl>
+        {:else}
+          <p class="muted-sub">nenhum ainda</p>
+        {/if}
+        <div class="email-edit">
+          <input class="password" placeholder="passcode de outro perfil" maxlength="8" bind:value={passcodeDraft}
+            on:keydown={(e) => e.key === "Enter" && ally()} />
+          <div class="confirm">
+            <button class="save" disabled={!passcodeDraft.trim() || allyBusy} on:click={ally}>{allyBusy ? "..." : "adicionar"}</button>
+          </div>
+          {#if allyError}<p class="error">{allyError}</p>{/if}
+        </div>
+      </section>
+
+      {#if emblems.length}
+        <section class="card">
+          <h2>emblemas</h2>
+          <dl class="rows">
+            {#each emblems as p (p.id)}
+              <dt>★ {p.name}</dt>
+              <dd>{p.outcome === "completed" ? "completado" : "finalizado"} · {p.stats.todos_done}/{p.stats.todos} to-dos · {p.stats.marks} marcas</dd>
+            {/each}
+          </dl>
+        </section>
+      {/if}
+
       <section class="card">
         <h2>jornada</h2>
         <dl class="rows">
@@ -246,6 +347,7 @@
     font-size: 0.85rem;
   }
   .muted { color: #737373; font-size: 0.78rem; }
+  .code { font-family: var(--font-mono); letter-spacing: 0.15em; }
   .muted-sub { color: #737373; font-size: 0.7rem; }
   .error { color: #d93636; }
 
