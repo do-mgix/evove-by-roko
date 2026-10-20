@@ -18,6 +18,10 @@
   export let onOpen: (id: HomeOptionId) => void;
   /** The option suggested next: its outline is lit. Never named, only shown. */
   export let hint: HomeOptionId | null = null;
+  /** The options revealed so far; all of them when null. */
+  export let visible: Set<HomeOptionId> | null = null;
+  /** The ones revealed just now, which come on slower, the last of all. */
+  export let fresh: Set<HomeOptionId> = new Set();
 
   // The cells stand on the grid every screen shares, five of its squares wide
   // and seven tall, in the bottom-right corner.
@@ -33,7 +37,7 @@
   let pressed: HomeOptionId | null = null;
 
   // Plain shapes, drawn once per size: nothing on this screen animates.
-  $: shown = HOME_OPTIONS.filter((o) => o.unlocked);
+  $: shown = HOME_OPTIONS.filter((o) => o.unlocked && (!visible || visible.has(o.id)));
   $: areaW = HOME_COLS * gridUnit(width);
   $: cells = draw(shown, width, height, areaW);
 
@@ -92,6 +96,7 @@
             class="cell"
             class:pressed={pressed === c.id}
             class:hint={hint === c.id}
+            class:fresh={fresh.has(c.id)}
             role="button"
             tabindex="0"
             aria-label={c.label}
@@ -100,7 +105,7 @@
             on:pointerleave={() => pressed === c.id && (pressed = null)}
             on:pointercancel={() => (pressed = null)}
             on:keydown={(e) => onKey(e, c.id, c.tone)}
-            style="--color: {c.color}; --delay: {DELAY[c.id]}ms"
+            style="--color: {c.color}; --delay: {fresh.has(c.id) ? 900 : DELAY[c.id]}ms"
           >
             <path class="shape" d={c.d} />
             <g class="glyph" transform="translate({c.cx - c.glyph / 2} {c.cy - c.glyph / 2}) scale({c.glyph / 24})">
@@ -169,6 +174,12 @@
 
   /* a hint, never a caption: the suggested cell's outline is thicker */
   .cell.hint .shape { stroke-width: 2.5; }
+  /* revealed just now: it glows as it comes on, once */
+  .cell.fresh .shape { animation: reveal 2.4s ease-out calc(var(--delay) + 0.5s) 1; }
+  @keyframes reveal {
+    0% { fill-opacity: 0.6; filter: drop-shadow(0 0 14px var(--color)); }
+    100% { fill-opacity: 0.1; filter: none; }
+  }
 
   /* pressed, the wash fills in — hover only where there is a real pointer: on a
      touch screen it sticks to the last cell */

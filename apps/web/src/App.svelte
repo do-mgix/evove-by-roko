@@ -1,24 +1,30 @@
 <script lang="ts">
   import Home from "./lib/Home.svelte";
   import ScreenHeader from "./lib/ScreenHeader.svelte";
-  import RokoPage from "./lib/RokoPage.svelte";
+  import RokoScreen from "./lib/RokoScreen.svelte";
   import LogsPanel from "./lib/LogsPanel.svelte";
   import ActScreen from "./lib/ActScreen.svelte";
   import Shop from "./lib/Shop.svelte";
   import BuildScreen from "./lib/BuildScreen.svelte";
   import SkillTree from "./lib/SkillTree.svelte";
-  import MeTabs from "./lib/MeTabs.svelte";
-  import Journey from "./lib/Journey.svelte";
+  import AgendaScreen from "./lib/AgendaScreen.svelte";
+  import JourneyScreen from "./lib/JourneyScreen.svelte";
+  import MeScreen from "./lib/MeScreen.svelte";
+  import MePage from "./lib/MePage.svelte";
+  import ProfilePage from "./lib/ProfilePage.svelte";
+  import Calendar from "./lib/Calendar.svelte";
   import UserSelect from "./lib/UserSelect.svelte";
   import { modalOpen } from "./lib/Modal.svelte";
   import { directionOf, moveFocus } from "./lib/keynav";
   import { onMount } from "svelte";
   import { App as NativeApp } from "@capacitor/app";
   import { Capacitor } from "@capacitor/core";
-  import { HOME_OPTIONS, suggestedOption, type HomeOptionId } from "./lib/homeLayout";
-  import { handleBack } from "./lib/store";
+  import { HOME_OPTIONS, unlockedFor, type HomeOptionId } from "./lib/homeLayout";
+  import { handleBack, userVersion } from "./lib/store";
+  import { recordOpen, suggestedOption } from "./lib/usage";
   import {
     fetchSessionInfo,
+    fetchUser,
     getToken,
     getUsername,
     logout as apiLogout,
@@ -44,24 +50,79 @@
   let frame: HTMLElement | undefined;
   let pageParams: Record<string, any> = {};
 
-  // agenda and profile are tabs of me now; the old names still land there
-  const ME_TABS: Record<string, string> = { agenda: "agenda", profile: "profile" };
-
   // a tile and the page it opens
   const TILE_PAGE: Record<HomeOptionId, string> = {
-    act: "act", logs: "logs", shop: "shop", roko: "roko", attributes: "me", journey: "journey", build: "build",
+    act: "act", logs: "agenda", shop: "shop", roko: "roko", attributes: "me", journey: "journey", build: "build",
   };
-  // the tile a page belongs to, for the icon in its header
-  const PAGE_OPTION = Object.fromEntries(HOME_OPTIONS.map((o) => [TILE_PAGE[o.id], o]));
+  // the pages read on white, each under the dark page it opens from
+  const PARENT: Record<string, string> = { profile: "me", details: "me", calendar: "agenda", logs: "agenda" };
+  const PAGE_OPTION = { ...Object.fromEntries(HOME_OPTIONS.map((o) => [TILE_PAGE[o.id], o])),
+    profile: HOME_OPTIONS.find((o) => o.id === "attributes"), details: HOME_OPTIONS.find((o) => o.id === "attributes"),
+    calendar: HOME_OPTIONS.find((o) => o.id === "logs"), logs: HOME_OPTIONS.find((o) => o.id === "logs") };
   const TITLES: Record<string, string> = {
-    act: "agir", logs: "logs", shop: "shop", roko: "roko", me: "atributos", journey: "jornada", build: "construir", skills: "skills",
+    profile: "perfil", details: "atributos e ações", calendar: "calendário", logs: "registros", skills: "skills",
   };
 
-  function nav(p: string, params: Record<string, any> = {}) {
-    if (p in ME_TABS) {
-      params = { ...params, tab: ME_TABS[p] };
-      p = "me";
+  // The home reveals its options as acts are logged. The count is kept on the
+  // device too, so the home draws at once; an option seen for the first time
+  // comes on last, glowing.
+  const ACTS_KEY = "evove_acts";
+  const SEEN_KEY = "evove_seen_options";
+  const readNumber = (key: string) => {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw === null ? NaN : Number(raw);
+    } catch {
+      return NaN;
     }
+  };
+  let acts = readNumber(ACTS_KEY);
+  let seen: Set<HomeOptionId> = (() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(SEEN_KEY) ?? "null") ?? []);
+    } catch {
+      return new Set();
+    }
+  })();
+  // until the count is known, every option
+  $: visible = Number.isFinite(acts) ? unlockedFor(acts) : null;
+  $: fresh = visible && seen.size ? new Set([...visible].filter((id) => !seen.has(id))) : new Set<HomeOptionId>();
+
+  async function countActs() {
+    try {
+      const u = await fetchUser();
+      acts = u.acts ?? 0;
+      try {
+        localStorage.setItem(ACTS_KEY, String(acts));
+      } catch {
+        // drawn from the server every time, then
+      }
+    } catch {
+      // offline: the last count stands
+    }
+  }
+  let lastUserVersion = -1;
+  $: if (username && $userVersion !== lastUserVersion) {
+    lastUserVersion = $userVersion;
+    countActs();
+  }
+  function markSeen(ids: Set<HomeOptionId> | null) {
+    if (!ids) return;
+    seen = new Set([...seen, ...ids]);
+    try {
+      localStorage.setItem(SEEN_KEY, JSON.stringify([...seen]));
+    } catch {
+      // every option stays new to this device
+    }
+  }
+
+  function open(id: HomeOptionId) {
+    recordOpen(id);
+    markSeen(visible ?? unlockedFor(Infinity));
+    nav(TILE_PAGE[id]);
+  }
+
+  function nav(p: string, params: Record<string, any> = {}) {
     if (p === "home") return goHome();
     // One history entry per visit away from the tiles, so the browser's back
     // lands on them; Android's back button is wired to the same below.
@@ -88,7 +149,8 @@
     const backButton = Capacitor.isNativePlatform()
       ? NativeApp.addListener("backButton", () => {
           if (handleBack()) return;
-          if (page !== "home") goHome();
+          if (PARENT[page]) nav(PARENT[page]);
+          else if (page !== "home") goHome();
           else NativeApp.exitApp();
         })
       : null;
@@ -102,7 +164,8 @@
       if (t && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName))) return;
       if (e.key === "Escape") {
         if (handleBack()) return;
-        if (page !== "home") goHome();
+        if (PARENT[page]) nav(PARENT[page]);
+        else if (page !== "home") goHome();
         return;
       }
       const dir = directionOf(e.key);
@@ -120,7 +183,8 @@
         return;
       }
       const jump: Record<string, string> = { a: "act", s: "shop", e: "me" };
-      if (page !== "act" && jump[e.key] && jump[e.key] !== page) {
+      const typing = page === "act" || page === "agenda";
+      if (!typing && jump[e.key] && jump[e.key] !== page) {
         e.preventDefault();
         nav(jump[e.key]);
       }
@@ -151,28 +215,35 @@
   {#if !username}
     <UserSelect {onSelected} />
   {:else if page === "home"}
-    <Home onOpen={(id) => nav(TILE_PAGE[id])} hint={suggestedOption()} />
+    <Home onOpen={open} hint={suggestedOption(visible ?? unlockedFor(Infinity))} {visible} {fresh} />
   {:else if page === "act"}
-    <!-- the acting screen has its own bar, with the way home, and no header -->
+    <!-- the dark pages have their own bar, with the way home, and no header -->
     <ActScreen onHome={goHome} />
   {:else if page === "shop"}
-    <!-- so is the shop, walked the same way -->
     <Shop onHome={goHome} initialSection={pageParams.section ?? null} />
   {:else if page === "build"}
-    <!-- and the page for building buttons on the grid -->
     <BuildScreen onHome={goHome} />
+  {:else if page === "agenda"}
+    <AgendaScreen onHome={goHome} onCalendar={() => nav("calendar")} onLogs={() => nav("logs")} />
+  {:else if page === "journey"}
+    <JourneyScreen onHome={goHome} />
+  {:else if page === "roko"}
+    <RokoScreen onHome={goHome} />
+  {:else if page === "me"}
+    <MeScreen onHome={goHome} onProfile={() => nav("profile")} onDetails={() => nav("details")} />
   {:else}
     <div class="app">
-      <ScreenHeader option={PAGE_OPTION[page] ?? null} title={TITLES[page] ?? page} onBack={goHome} />
+      <ScreenHeader option={PAGE_OPTION[page] ?? null} title={TITLES[page] ?? page}
+        onBack={() => (PARENT[page] ? nav(PARENT[page]) : goHome())} />
       <div class="page" class:padded={page === "logs"}>
         {#if page === "logs"}
           <LogsPanel />
-        {:else if page === "roko"}
-          <RokoPage />
-        {:else if page === "me"}
-          <MeTabs tab={pageParams.tab ?? "me"} onTab={(tab) => nav("me", { tab })} onLogout={logout} />
-        {:else if page === "journey"}
-          <Journey />
+        {:else if page === "profile"}
+          <ProfilePage onLogout={logout} />
+        {:else if page === "details"}
+          <MePage />
+        {:else if page === "calendar"}
+          <Calendar />
         {:else if page === "skills"}
           <!-- on hold: no tile, kept for when it comes back -->
           <SkillTree />

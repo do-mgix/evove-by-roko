@@ -7,8 +7,8 @@
  * Nothing is written on them: an option is known by its glyph — a sign from a
  * script that does not exist — and its color.
  *
- * `unlocked` is the hook for revealing the options little by little: a locked
- * option is not drawn. Everything is unlocked for now.
+ * The options are revealed little by little: `UNLOCK_AT` is how many acts a
+ * profile must have logged for each to appear; a locked option is not drawn.
  */
 
 export type HomeOptionId = "act" | "logs" | "shop" | "roko" | "attributes" | "journey" | "build";
@@ -71,7 +71,7 @@ export const HOME_OPTIONS: HomeOption[] = [
     polygon: onGrid([[1.75, 0], [2.75, 0], [2.893, 2], [1.25, 2]]) },
   { id: "shop", label: "shop", color: "#7af9ff", tone: "2", unlocked: true,
     polygon: onGrid([[0, 2], [1.75, 2], [1.25, 4], [0, 4]]) },
-  { id: "logs", label: "logs", color: "#00a8e8", tone: "4", unlocked: true,
+  { id: "logs", label: "agenda", color: "#00a8e8", tone: "4", unlocked: true,
     polygon: onGrid([[1.75, 2], [2.893, 2], [3.036, 4], [1.25, 4]]) },
   { id: "build", label: "construir", color: "#00e0ff", tone: "7", unlocked: true,
     polygon: onGrid([[0, 4], [1.4, 4], [1.7, 7], [0.214, 7]]) },
@@ -105,10 +105,15 @@ export const GLYPHS: Record<HomeOptionId, Glyph> = {
 /** Dot radius on the 24×24 grid. */
 export const DOT_R = 1.5;
 
-/** The option the interface suggests next, whose outline is lit. A placeholder
- *  for the model that will learn to predict what the user does: for now, acting. */
-export function suggestedOption(): HomeOptionId | null {
-  return "act";
+/** Acts logged before each option appears: acting, the shop and the attributes
+ *  from the start, the rest as the profile is used. */
+export const UNLOCK_AT: Record<HomeOptionId, number> = {
+  act: 0, shop: 0, attributes: 0, logs: 1, journey: 3, roko: 5, build: 10,
+};
+
+/** The options a profile with `acts` logged acts can see. */
+export function unlockedFor(acts: number): Set<HomeOptionId> {
+  return new Set(HOME_OPTIONS.filter((o) => o.unlocked && acts >= UNLOCK_AT[o.id]).map((o) => o.id));
 }
 
 /** A color moved toward white (t > 0) or black (t < 0), by |t| of the way. */
