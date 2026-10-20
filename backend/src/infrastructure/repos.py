@@ -195,6 +195,9 @@ def _user_to_dict(s: Session, u: orm.User) -> dict:
         "recover_small_at": _iso_dt(state.recover_small_at) if state else None,
         "recover_large_at": _iso_dt(state.recover_large_at) if state else None,
         "recover_uses": state.recover_uses if state else 0,
+        "discover_date": _date_iso(state.discover_date) if state else None,
+        "discover_used": state.discover_used if state else 0,
+        "nickname": u.nickname,
         "date": _date_iso(state.date) if state else None,
         "tutorial": {
             t.key: {"status": t.status, "priority": t.priority} for t in tutorial_rows
@@ -262,6 +265,8 @@ def _write_state(s: Session, u: orm.User, data: dict):
         raw = md.get(f"recover_{kind}_at")
         setattr(state, f"recover_{kind}_at", datetime.fromisoformat(raw) if raw else None)
     state.recover_uses = int(md.get("recover_uses", 0) or 0)
+    state.discover_date = _parse_date(md.get("discover_date"))
+    state.discover_used = int(md.get("discover_used", 0) or 0)
 
 
 def _write_tutorial(s: Session, u: orm.User, data: dict):
@@ -730,6 +735,7 @@ def create_user(username: str, initial_user: dict, initial_sequences: dict | Non
             from fastapi import HTTPException
             raise HTTPException(status_code=409, detail="user already exists")
         u = orm.User(username=username, password_hash=password_hash, created_at=datetime.now())
+        u.nickname, u.passcode = new_nickname(s), new_passcode(s)
         s.add(u)
         s.flush()
         _write_state(s, u, initial_user)
@@ -749,6 +755,21 @@ def create_user(username: str, initial_user: dict, initial_sequences: dict | Non
         raise
     finally:
         s.close()
+
+
+def new_nickname(s: Session) -> str:
+    """A nickname nobody has (src.domain.names)."""
+    import random
+    from src.domain.names import unique_nickname
+    taken = set(s.execute(select(orm.User.nickname).where(orm.User.nickname.is_not(None))).scalars().all())
+    return unique_nickname(random.Random(), taken)
+
+
+def new_passcode(s: Session) -> str:
+    import random
+    from src.domain.names import unique_passcode
+    taken = set(s.execute(select(orm.User.passcode).where(orm.User.passcode.is_not(None))).scalars().all())
+    return unique_passcode(random.Random(), taken)
 
 
 # ---------- auth ----------
@@ -1349,6 +1370,7 @@ def load_action_templates() -> dict[str, dict]:
                 "token_cost": int(t.token_cost),
                 "token_gain": int(t.token_gain),
                 "log_only": bool(t.log_only),
+                "author": t.author,
             }
             for t, parent_key in rows
         }

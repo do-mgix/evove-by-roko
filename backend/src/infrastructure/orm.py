@@ -37,6 +37,10 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     # Optional, and only used to recover the password. Stored lower-cased.
     email: Mapped[str | None] = mapped_column(String(254), unique=True, nullable=True)
+    # how other profiles and the entities call it (src.domain.names), and what
+    # another profile types to add it as an ally
+    nickname: Mapped[str | None] = mapped_column(String(24), unique=True, nullable=True)
+    passcode: Mapped[str | None] = mapped_column(String(8), unique=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     state: Mapped["UserState"] = relationship(back_populates="user", uselist=False, cascade="all, delete-orphan")
@@ -106,6 +110,9 @@ class UserState(Base):
     recover_small_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     recover_large_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     recover_uses: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # the day the shop's discoveries were last counted, and how many it used
+    discover_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    discover_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     date: Mapped[date] = mapped_column(Date, server_default=text("(CURRENT_DATE)"), nullable=False)
     user: Mapped[User] = relationship(back_populates="state")
 
@@ -256,6 +263,8 @@ class ActionTemplate(Base):
     # Logged, not trained: leisure. The action feeds no attribute and its marks
     # stay on the action row, out of the profile's total. See src.domain.acting.
     log_only: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # who made it: "roko" for every action of the system
+    author: Mapped[str] = mapped_column(String(32), default="roko", server_default="roko", nullable=False)
 
 # user leaf relation - level and score
 class UserLeafScore(Base):
@@ -489,3 +498,21 @@ class Thought(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+# a catalog action the user discovered: only these show in the shop
+class UserDiscovery(Base):
+    __tablename__ = "user_discoveries"
+
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    action_name: Mapped[str] = mapped_column(String(128), primary_key=True)
+    discovered_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+# another profile added by its passcode
+class Ally(Base):
+    __tablename__ = "allies"
+
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    ally_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)

@@ -1,4 +1,5 @@
 import os
+import random
 import re
 import sys
 from datetime import datetime, timedelta
@@ -20,7 +21,7 @@ from src.domain.marks import MARKS_PER_WINDOW, MarkError, options as tier_option
 from src.domain.agenda import collect_labels, DAY_NAMES as _DOMAIN_DAY_NAMES  # noqa: E402
 from src.domain.daily import PERIODS, apply_daily_tick, period_of  # noqa: E402
 from src.domain import journey as journey_mode  # noqa: E402
-from src.domain import battle, equipment, recover as recovery  # noqa: E402
+from src.domain import battle, discovery, entities, equipment, recover as recovery  # noqa: E402
 from src.domain.economy import BASE_MAX_TOKENS, INITIAL_POINTS, todo_reward  # noqa: E402
 from src.domain.user_attributes import PATCH_SEPARATOR, PatchError, engine_name  # noqa: E402
 from src.domain.attributes import (  # noqa: E402
@@ -38,7 +39,7 @@ from src.infrastructure.static_data import (  # noqa: E402
     skill_nodes_by_id,
 )
 from src.infrastructure import repos  # noqa: E402
-from src.infrastructure import agenda_repo, journey_repo  # noqa: E402
+from src.infrastructure import agenda_repo, journey_repo, social_repo  # noqa: E402
 from src.infrastructure import auth  # noqa: E402
 from src.infrastructure import mailer  # noqa: E402
 
@@ -91,6 +92,7 @@ def load_packages() -> list[dict]:
             "token_cost": meta["token_cost"],
             "token_gain": meta["token_gain"],
             "log_only": meta["log_only"],
+            "author": meta.get("author") or "roko",
         }
         if meta["log_only"]:
             logged["actions"].append(action)
@@ -758,6 +760,7 @@ def user_state(username: str = Depends(current_username)):
     base_max_tokens = int(metadata.get("max_tokens", BASE_MAX_TOKENS) or BASE_MAX_TOKENS)
     base_max_energy = journey_mode.BASE_MAX_ENERGY
     seq = _ensure_sequences(username)
+    ident = social_repo.identity(username)
     return {
         "username": metadata.get("username") or data.get("username"),
         "date": metadata.get("date"),
@@ -784,6 +787,10 @@ def user_state(username: str = Depends(current_username)):
         "checkpoint_seconds_left": journey_mode.view(metadata, datetime.now(), base_max_energy)["seconds_left"],
         "attributes_count": len(active_attrs),
         "bonuses": bonuses,
+        "nickname": ident["nickname"],
+        "passcode": ident["passcode"],
+        # every act ever logged: the interface reveals itself as this grows
+        "acts": social_repo.count_logs(username),
     }
 
 
@@ -1240,6 +1247,106 @@ def shop_catalog():
     return result
 
 
+def _discovery_state(username: str, data: dict, now: datetime) -> dict:
+    """Where the profile stands in discovering the catalog today."""
+    metadata = data.get("metadata", {}) or {}
+    found = social_repo.load_discoveries(username)
+    today = now.date().isoformat()
+    used = int(metadata.get("discover_used", 0) or 0) if metadata.get("discover_date") == today else 0
+    before = max(0, len(found) - used)
+    return {
+        "found": found,
+        "used": used,
+        "phase": discovery.phase(before),
+        "rate": discovery.rate(before),
+        # nothing found before today: the first day, which opens a few more
+        "left": discovery.left_today(before, used, all(at.date() == now.date() for at in found.values())),
+    }
+
+
+def _affinity(username: str, templates: dict) -> dict[str, float]:
+    """How much the profile uses what each catalog action trains: the marks of
+    the root it falls under, against the profile's best root."""
+    tree = repos.load_attr_tree()
+    totals = _user_leaf_totals(username, tree)
+    memo: dict[str, float] = {}
+    roots = {r: node_total(r, totals, tree, memo) for r in tree.roots}
+    best = max(roots.values(), default=0) or 0
+    if best <= 0:
+        return {}
+    out = {}
+    for name, meta in templates.items():
+        parent = meta.get("parent")
+        if parent and parent in tree.nodes_by_key:
+            out[name] = roots.get(tree.root_of(parent), 0) / best
+    return out
+
+
+def _discover(username: str, data: dict, now: datetime, count: int) -> list[str]:
+    """Opens up to `count` of today's discoveries. Returns the names found."""
+    state = _discovery_state(username, data, now)
+    count = min(count, state["left"])
+    if count <= 0:
+        return []
+    templates = repos.load_action_templates()
+    hidden = [n for n in templates if n not in state["found"]]
+    names = discovery.draw(random.Random(), hidden, _affinity(username, templates), count)
+    if names:
+        social_repo.add_discoveries(username, names)
+        metadata = data.setdefault("metadata", {})
+        metadata["discover_date"] = now.date().isoformat()
+        metadata["discover_used"] = state["used"] + len(names)
+        _save_user(username, data)
+    return names
+
+
+def _shop_view(username: str, data: dict, now: datetime, new: list[str]) -> dict:
+    state = _discovery_state(username, data, now)
+    owned = {str(a.get("name", "")).upper() for a in (data.get("actions") or {}).values() if not a.get("deleted")}
+    groups = []
+    for pkg in load_packages():
+        actions = [
+            {**a, "package_attribute": pkg["attribute"], "owned": a["name"] in owned, "new": a["name"] in new}
+            for a in pkg.get("actions", []) if a["name"] in state["found"]
+        ]
+        if actions:
+            groups.append({"key": pkg["attribute"], "name": pkg["name"], "actions": actions})
+    return {
+        "phase": state["phase"],
+        "rate": state["rate"],
+        "left": state["left"],
+        "found": len(state["found"]),
+        "catalog": len(repos.load_action_templates()),
+        "points": int((data.get("metadata") or {}).get("build_points", 0) or 0),
+        "new": new,
+        "groups": groups,
+    }
+
+
+@app.get("/shop")
+def shop(username: str = Depends(current_username)):
+    """The profile's shop: only what it discovered, grouped by practice, each
+    action with its author and whether it is owned. In the `auto` phase the
+    day's discoveries open on their own here. See src.domain.discovery."""
+    data = _load_user(username)
+    now = datetime.now()
+    new = _discover(username, data, now, discovery.MAX_RATE * 2) if _discovery_state(username, data, now)["phase"] == "auto" else []
+    return _shop_view(username, data, now, new)
+
+
+@app.post("/shop/discover")
+def shop_discover(username: str = Depends(current_username)):
+    """Opens discoveries: one frame of static in the `frames` phase, all of
+    today's at once after it."""
+    data = _load_user(username)
+    now = datetime.now()
+    state = _discovery_state(username, data, now)
+    if state["left"] <= 0:
+        raise HTTPException(status_code=409, detail="no discoveries left today")
+    new = _discover(username, data, now, 1 if state["phase"] == "frames" else state["left"])
+    return _shop_view(username, data, now, new)
+
+
 @app.post("/shop/actions/buy")
 def buy_action(payload: dict, username: str = Depends(current_username)):
     data = _load_user(username)
@@ -1255,12 +1362,14 @@ def buy_action(payload: dict, username: str = Depends(current_username)):
     template = next((a for a in pkg.get("actions", []) if str(a.get("name", "")).upper() == name), None)
     if not template:
         raise HTTPException(status_code=404, detail=f"action '{name}' not found in package")
+    if name not in social_repo.load_discoveries(username):
+        raise HTTPException(status_code=403, detail=f"action '{name}' not discovered yet")
 
     cost = int(template.get("cost", 0))
     metadata = data.setdefault("metadata", {})
     bp = int(metadata.get("build_points", 0) or 0)
     if bp < cost:
-        raise HTTPException(status_code=400, detail=f"insufficient build points (have {bp}, need {cost})")
+        raise HTTPException(status_code=400, detail=f"insufficient points (have {bp}, need {cost})")
 
     actions = data.setdefault("actions", {})
     if any(str(a.get("name", "")).upper() == name and not a.get("deleted") for a in actions.values()):
@@ -1295,7 +1404,7 @@ def buy_action(payload: dict, username: str = Depends(current_username)):
 
     _save_user(username, data)
 
-    return {"id": new_id, "name": name, "build_points": metadata["build_points"]}
+    return {"id": new_id, "name": name, "build_points": metadata["build_points"], "points": metadata["build_points"]}
 
 
 def _day_for(username: str, date_obj) -> int:
@@ -1897,6 +2006,9 @@ def act_on_action(action_id: str, payload: dict | None = None, username: str = D
         # the energy ran out on this act: the journey is back at stage 1
         "journey_reset": outcome.journey_reset,
         "log": log_entry,
+        # what roko says on the screen that follows
+        "roko": entities.line(entities.ENTITIES["roko"], {"nickname": social_repo.identity(username)["nickname"]},
+                              random.Random(), moment="after_act"),
     }
 
 
@@ -1955,3 +2067,106 @@ def list_actions(username: str = Depends(current_username)):
         (a.get("name") or "").upper(),
     ))
     return result
+
+
+def _social_call(fn, *args):
+    try:
+        return fn(*args)
+    except social_repo.SocialError as e:
+        raise HTTPException(status_code=e.status, detail=str(e))
+
+
+@app.post("/me/nickname")
+def reroll_nickname(username: str = Depends(current_username)):
+    """Draws a new random nickname."""
+    return {"nickname": _social_call(social_repo.reroll_nickname, username)}
+
+
+@app.get("/allies")
+def allies(username: str = Depends(current_username)):
+    return {"passcode": social_repo.identity(username)["passcode"], "items": _social_call(social_repo.load_allies, username)}
+
+
+@app.post("/allies")
+def add_ally(payload: dict, username: str = Depends(current_username)):
+    """Body: {passcode}. The two profiles become allies, each seeing the other
+    by nickname."""
+    return _social_call(social_repo.add_ally, username, (payload or {}).get("passcode"))
+
+
+@app.delete("/allies/{nickname}")
+def remove_ally(nickname: str, username: str = Depends(current_username)):
+    _social_call(social_repo.remove_ally, username, nickname)
+    return {"ok": True}
+
+
+def _entity_state(username: str, data: dict) -> dict:
+    """What an entity reads before it speaks (src.domain.entities)."""
+    metadata = data.get("metadata", {}) or {}
+    today = datetime.now().date()
+    _day, logs = _logs_on(username, today)
+    thoughts = agenda_repo.thoughts_on(username, today)
+    with_thought = {t["log_id"] for t in thoughts if t["log_id"] is not None}
+    state = {
+        "nickname": social_repo.identity(username)["nickname"],
+        "hp": int(metadata.get("energy", 0) or 0),
+        "max_hp": _max_energy(data, username),
+        "tokens": int(metadata.get("tokens", 0) or 0),
+        "max_tokens": int(metadata.get("max_tokens", BASE_MAX_TOKENS) or BASE_MAX_TOKENS),
+        "acts_today": len(logs),
+        "cycle_complete": bool(logs) and all(l["id"] in with_thought for l in logs)
+                          and any(t["log_id"] is None for t in thoughts),
+        "streak": int(_ensure_sequences(username).get("consecutive_days", 0) or 0),
+    }
+    boss, _coords, beaten, _tree, _templates = _current_boss(username, data)
+    if not beaten:
+        state["boss"] = boss.name
+        state["boss_type"] = boss.view()["type"]
+    return state
+
+
+@app.get("/entities")
+def list_entities(username: str = Depends(current_username)):
+    """The entities of the system, with their stats."""
+    return [entities.public(e) for e in entities.ENTITIES.values()]
+
+
+@app.get("/entities/{entity_id}/talk")
+def entity_talk(entity_id: str, username: str = Depends(current_username)):
+    """A tap on an entity's screen: whether it is there, whether it wants to
+    answer, and what it says, picked from the profile's state."""
+    e = entities.entity(entity_id)
+    if not e:
+        raise HTTPException(status_code=404, detail=f"entity '{entity_id}' not found")
+    data = _load_user(username)
+    now = datetime.now()
+    minute = int(now.timestamp() // 60)
+    return {"entity": entity_id, **entities.talk(e, _entity_state(username, data), username, minute, random.Random())}
+
+
+@app.get("/attributes/usage")
+def attribute_usage(days: int = 30, limit: int = 12, username: str = Depends(current_username)):
+    """The attributes used most in the last `days`: every act counts for the
+    attribute its action is registered under and every one above it."""
+    data = _load_user(username)
+    tree = repos.load_attr_tree()
+    templates = repos.load_action_templates()
+    actions = data.get("actions") or {}
+    uses: dict[str, int] = {}
+    last: dict[str, datetime] = {}
+    for action_id, c in social_repo.act_counts(username, max(1, days)).items():
+        action = actions.get(action_id)
+        parent = (templates.get(engine_name(actions, action).upper()) or {}).get("parent") if action else None
+        if not parent or parent not in tree.nodes_by_key:
+            continue
+        for key in tree.primary_chain(parent):
+            uses[key] = uses.get(key, 0) + c["acts"]
+            last[key] = max(last.get(key, c["last"]), c["last"])
+    totals = _user_leaf_totals(username, tree)
+    memo: dict[str, float] = {}
+    now = datetime.now()
+    out = []
+    for key in sorted(uses, key=lambda k: (-uses[k], tree.degree(k), k))[:max(1, min(limit, 50))]:
+        out.append({**_node_view(tree, key, totals, memo), "uses": uses[key],
+                    "seconds_ago": max(0, int((now - last[key]).total_seconds()))})
+    return out
