@@ -217,7 +217,7 @@
       .filter((a) => a.total_marks > (prev.get(a.key)?.total_marks ?? 0))
       .map((a) => {
         const was = prev.get(a.key);
-        const rankBefore = was?.rank ?? "A";
+        const rankBefore = was?.rank ?? "α";
         // Still on the same rank: the bar grew from where it was. A rank crossed:
         // the old rank's bar, filled to the end from where it stood — that is the
         // growth worth seeing; a fresh rank at 0/n would show nothing.
@@ -246,7 +246,7 @@
         tokens: r.token_gain - r.tokens_wasted - r.token_cost,
         marks: r.marks,
         list: diff(prev, now),
-        roko: r.journey_reset ? "a energia acabou. a jornada recomeçou do primeiro estágio." : undefined,
+        roko: r.journey_reset ? "seu hp acabou. a jornada recomeçou do primeiro estágio." : r.roko,
       };
       message = [];
       bumpLogs();

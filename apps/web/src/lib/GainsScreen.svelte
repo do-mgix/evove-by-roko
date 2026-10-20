@@ -24,8 +24,8 @@
   export let tokens: number;
   export let marks: number;
   export let gains: Gain[] = [];
-  /** Below the gains: what roko says. Fixed for now. */
-  export let roko = "registrado. o que vem a seguir?";
+  /** Below the gains: what roko says, picked by the server for the moment. */
+  export let roko = "REGISTRADO. O QUE VEM A SEGUIR?";
   export let onDone: () => void;
 
   // Everything else is gone; the gains arrive one after the other.
@@ -130,7 +130,7 @@
     font-size: 0.75rem;
   }
   .attr-name { color: #ffffff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .attr-rank { color: #00c8ff; flex-shrink: 0; }
+  .attr-rank { color: #00c8ff; flex-shrink: 0; text-transform: none; }
   .roko {
     margin: 0;
     font-size: 0.85rem;
