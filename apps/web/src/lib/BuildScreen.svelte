@@ -29,7 +29,9 @@
 
   type Built = { box: Box; form: Form; icon?: IconName };
 
-  let built: Built[] = load();
+  // the boxes count their rows from the top of a grid `at` rows tall; when the
+  // screen holds another number of rows, they move with its bottom edge
+  let { built, at } = load();
   // the first square of a button being made
   let first: [number, number] | null = null;
   let width = 0;
@@ -40,27 +42,43 @@
   let holding: ReturnType<typeof setTimeout> | null = null;
   let held = false;
 
-  // the grid every screen shares
-  $: side = gridUnit(width);
-  $: rows = side ? Math.floor(height / side) : 0;
+  // the grid every screen shares; on a screen too short for what is built, its
+  // squares shrink until all of it fits (what is built later fits the rows)
+  $: side = Math.min(gridUnit(width), fitting(height));
+  $: rows = side ? Math.floor(height / side + 1e-6) : 0;
   $: left = width - GRID_COLS * side;
   $: top = height - rows * side;
   $: squares = Array.from({ length: rows * GRID_COLS }, (_, i) => [i % GRID_COLS, Math.floor(i / GRID_COLS)] as [number, number]);
   $: taken = new Set(built.flatMap((b) => cover(b.box)));
   $: cells = built.map((b) => draw(b, side, left, top));
+  $: if (rows && rows !== at) {
+    const down = rows - at;
+    built = built.map((b) => ({ ...b, box: [b.box[0], b.box[1] + down, b.box[2], b.box[3]] as Box }));
+    at = rows;
+  }
 
-  function load(): Built[] {
+  /** The largest square that stands all that is built in `h`: as many rows as
+   *  from the top of the highest button to the bottom. */
+  function fitting(h: number): number {
+    const span = built.length ? at - Math.min(...built.map((b) => b.box[1])) : 0;
+    return span && h ? h / span : Infinity;
+  }
+
+  function load(): { built: Built[]; at: number } {
     try {
       const raw = JSON.parse(localStorage.getItem(KEY) ?? "[]");
-      return Array.isArray(raw) ? raw : [];
+      if (Array.isArray(raw?.built)) return { built: raw.built, at: raw.rows };
+      // kept before the grid's height was: its lowest button rests on the bottom
+      const old: Built[] = Array.isArray(raw) ? raw : [];
+      return { built: old, at: Math.max(0, ...old.map((b) => b.box[1] + b.box[3])) };
     } catch {
-      return [];
+      return { built: [], at: 0 };
     }
   }
 
   function save() {
     try {
-      localStorage.setItem(KEY, JSON.stringify(built));
+      localStorage.setItem(KEY, JSON.stringify({ rows: at, built }));
     } catch {
       // nowhere to keep it: it lasts as long as the page
     }
