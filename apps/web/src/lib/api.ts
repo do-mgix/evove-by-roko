@@ -205,9 +205,10 @@ export type ActResult = {
   tokens_wasted: number;
   tokens: number;
   in_agenda: boolean;
-  energy_penalty: number;  // energy this act cost: it was not on today's agenda
+  energy_penalty: number;  // hp this act cost: every act costs one
   energy: number;
-  journey_reset: boolean;  // the energy ran out: the journey is back at stage 1
+  journey_reset: boolean;  // the hp ran out: the journey is back at stage 1
+  roko?: string;           // what roko says after it
 };
 
 export async function actOnAction(id: string, opts: { option: number; note?: string; period?: Period }): Promise<ActResult> {
@@ -236,6 +237,7 @@ export type UserState = {
   marks: number;
   level: number;
   rank_letter: string;
+  rank_name?: string;
   rank_symbol: string;
   local_level_roman: string;
   local_levels_total: number;
@@ -246,11 +248,16 @@ export type UserState = {
   energy: number;
   skill_points: number;
   build_points: number;
+  points: number;
   tokens: number;
   max_tokens: number;
   checkpoint_seconds_left: number;
   attributes_count: number;
   max_energy?: number;
+  nickname?: string | null;
+  passcode?: string | null;
+  // every act ever logged: the home reveals its options as this grows
+  acts?: number;
   bonuses?: { max_energy: number; max_tokens: number; xp_multiplier: number; points_multiplier: number };
 };
 
@@ -267,13 +274,16 @@ export type AttrNode = {
   key: string;
   name: string;
   degree: number;
+  // how many levels it gathers, itself included: a leaf is 1
+  star?: number;
   is_leaf: boolean;
-  rank: string;          // A..Z, a permanent checkpoint
+  rank: string;          // α..ω, a permanent checkpoint
+  rank_name?: string;
   rank_index: number;
   marks: number;         // whole marks above the rank
   need: number;          // marks this rank asks for
   total_marks: number;
-  max: boolean;          // Z completed
+  max: boolean;          // ω completed
   // in /attributes/tree, on every child
   weight?: number;
   primary?: boolean;
@@ -283,7 +293,7 @@ export type AttrNode = {
   // a user attribute drawn by the same component
   custom?: boolean;
   // in /attributes/tree: ranks reached and not claimed yet, and what they pay
-  claim?: { ranks: number; tokens: number; skill_points: number };
+  claim?: { ranks: number; tokens: number; points?: number; skill_points: number };
 };
 
 export type ClaimResult = {
@@ -292,6 +302,7 @@ export type ClaimResult = {
   tokens_gained: number;
   tokens_wasted: number;   // past the token cap
   skill_points_gained: number;
+  points_gained?: number;
   tokens: number;
   skill_points: number;
 };
@@ -629,20 +640,6 @@ export async function fetchLogsByDate(isoDate: string): Promise<{ date: string; 
   return res.json();
 }
 
-export type Project = {
-  id?: string;
-  label: string;
-  deadline: string | null;
-  active: string;
-  created_at: string | null;
-};
-
-export async function fetchProjects(): Promise<ProjectItem[]> {
-  const res = await request("/projects");
-  if (!res.ok) throw new Error('Failed to fetch projects ($(res.status))');
-  return res.json();
-}
-
 /** The current journey stage. Times are the server's; count down from the
  *  `seconds_*` fields rather than parsing them, so the phone's clock and time
  *  zone do not matter. */
@@ -661,6 +658,20 @@ export type JourneyState = {
   resets: number;
   checkpoint_skill_points: number;
   build_points_per_day: number;
+  tokens: number;
+  balance: number;
+  recover: Recovery[];
+};
+
+/** A recovery: tokens bought back into hp, on a cooldown of its own. */
+export type Recovery = {
+  kind: "small" | "large";
+  cost: number;
+  heal: number;
+  cooldown_hours: number;
+  seconds_left: number;
+  ready: boolean;
+  blocked: "cooldown" | "tokens" | "full" | null;
 };
 
 export async function fetchJourney(): Promise<JourneyState> {
@@ -789,3 +800,237 @@ export async function acquireSkill(id: string): Promise<{ acquired: string[]; sk
   return res.json();
 }
 
+
+
+// ---------------------------------------------------------------- calls
+
+/** A JSON call that throws the server's `detail` when it fails. */
+async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const res = await request(path, init);
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((body as any).detail || `falhou (${res.status})`);
+  return body as T;
+}
+const post = <T,>(path: string, body?: unknown) =>
+  call<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
+const patch = <T,>(path: string, body: unknown) => call<T>(path, { method: "PATCH", body: JSON.stringify(body) });
+const put = <T,>(path: string, body: unknown) => call<T>(path, { method: "PUT", body: JSON.stringify(body) });
+const del = <T,>(path: string) => call<T>(path, { method: "DELETE" });
+
+// ---------------------------------------------------------------- journey
+
+export function recover(kind: Recovery["kind"]) {
+  return post<{ healed: number; energy: number; max_energy: number; tokens: number; recover: Recovery[] }>(
+    "/journey/recover", { kind },
+  );
+}
+
+export type BossType = { key: string; name: string; star: number };
+export type Boss = {
+  name: string;
+  stage: number;
+  slot: number;
+  rank: string;
+  rank_name: string;
+  type: string;
+  types: BossType[];
+  hp: number;
+  mp: number;
+  attack: number;
+  special: number;
+  defense: number;       // percent taken off every hit
+  abilities: { name: string; type: string; rank: string; power: number }[];
+};
+/** One attack of the profile, against a given boss. */
+export type Move = {
+  action_id: string;
+  name: string;          // "CORRIDA (β)"
+  attribute: string;
+  attribute_name: string;
+  rank: string;
+  rank_index: number;
+  base_damage: number;
+  multiplier: number;
+  kinship: string | null;
+  against: string | null;
+  damage: number;
+};
+export type BossState = {
+  boss: Boss;
+  beaten: boolean;
+  lineup: Move[];
+  hp: number;
+  max_hp: number;
+  armor: number;
+  reward: number;
+  kinship: Record<string, number>;
+};
+export type FightLine = { who: "you" | "boss"; text: string; damage: number; boss_hp: number; hp: number };
+export type FightResult = {
+  won: boolean;
+  log: FightLine[];
+  dealt: number;
+  taken: number;
+  boss: Boss;
+  lineup: Move[];
+  points: number;
+  energy: number;
+  journey_reset: boolean;
+};
+export type JourneyStats = {
+  fights: number;
+  wins: number;
+  losses: number;
+  bosses: number;
+  dealt: number;
+  taken: number;
+  best_hit: number;
+  points_won: number;
+  stage: number;
+  highest_stage: number;
+  resets: number;
+  recover_uses: number;
+  energy: number;
+  max_energy: number;
+};
+export type EquipmentItem = {
+  id: string;
+  slot: string;
+  name: string;
+  price: number;
+  text: string;
+  owned: boolean;
+  worn: boolean;
+};
+export type Equipment = {
+  points: number;
+  slots: string[];
+  items: EquipmentItem[];
+  bonuses: { damage: number; armor: number; hp: number; points: number };
+};
+
+export const fetchBoss = () => call<BossState>("/journey/boss");
+export const fightBoss = () => post<FightResult>("/journey/boss/fight");
+export const fetchJourneyStats = () => call<JourneyStats>("/journey/stats");
+export const fetchEquipment = () => call<Equipment>("/journey/equipment");
+export const buyEquipment = (id: string) => post<Equipment>(`/journey/equipment/${id}/buy`);
+export const wearEquipment = (id: string, on: boolean) => post<Equipment>(`/journey/equipment/${id}/wear`, { on });
+
+// ---------------------------------------------------------------- agenda
+
+export type Thought = { id: number; day: string; log_id: number | null; content: string; updated_at: string };
+export type DayLog = LogEntry & { thought: Thought | null };
+export type DayCycle = {
+  acted: boolean;
+  todo: boolean;
+  todos_done: number;
+  thoughts: number;
+  logs: number;
+  day_thought: boolean;
+  complete: boolean;
+};
+export type AgendaDay = {
+  date: string;
+  offset: number;
+  day: number;
+  logs: DayLog[];
+  day_thought: Thought | null;
+  cycle: DayCycle;
+};
+export type Todo = {
+  id: number;
+  title: string;
+  project_id: string | null;
+  deadline: string | null;
+  created_at: string;
+  done_at: string | null;
+  done: boolean;
+  reward: number;
+  late: boolean;
+  actions: { id: string; name: string; acted: boolean }[];
+};
+export type ProjectStats = {
+  active_seconds: number;
+  inactive_seconds: number;
+  actions: number;
+  marks: number;
+  todos: number;
+  todos_done: number;
+};
+export type Project = {
+  id: string;
+  name: string;
+  deadline: string | null;
+  active: boolean;
+  created_at: string;
+  ended_at: string | null;
+  outcome: "completed" | "finished" | null;
+  emblem: boolean;
+  stats: ProjectStats;
+};
+
+export const fetchAgendaDay = (offset = 0) => call<AgendaDay>(`/agenda/day?offset=${offset}`);
+export const setThought = (date: string, content: string, logId: number | null = null) =>
+  put<{ thought: Thought | null }>("/thoughts", { date, content, log_id: logId });
+export const fetchJournal = (date: string) =>
+  call<{ date: string; summary: string; entry: string; text: string }>(`/journal?date=${date}`);
+
+export const fetchTodos = () => call<{ items: Todo[] }>("/todos").then((r) => r.items);
+export const createTodo = (body: { title: string; action_ids: string[]; deadline?: string | null; project_id?: string | null }) =>
+  post<Todo>("/todos", body);
+export const updateTodo = (id: number, change: Partial<{ title: string; deadline: string | null; project_id: string | null; action_ids: string[] }>) =>
+  patch<Todo>(`/todos/${id}`, change);
+export const completeTodo = (id: number) => post<Todo & { points: number }>(`/todos/${id}/done`);
+export const deleteTodo = (id: number) => del<{ ok: boolean }>(`/todos/${id}`);
+
+export const fetchProjects = () => call<{ items: Project[] }>("/projects").then((r) => r.items);
+export const createProject = (name: string, deadline: string | null = null) => post<Project>("/projects", { name, deadline });
+export const updateProject = (id: string, change: Partial<{ name: string; deadline: string | null; active: boolean }>) =>
+  patch<Project>(`/projects/${id}`, change);
+export const endProject = (id: string) => post<Project>(`/projects/${id}/end`);
+export const deleteProject = (id: string) => del<{ ok: boolean }>(`/projects/${id}`);
+export const fetchEmblems = () => call<Project[]>("/emblems");
+
+// ---------------------------------------------------------------- shop
+
+export type ShopAction = CatalogAction & { author: string; owned: boolean; new: boolean };
+export type ShopState = {
+  phase: "frames" | "button" | "auto";
+  rate: number;
+  left: number;
+  found: number;
+  catalog: number;
+  points: number;
+  new: string[];
+  groups: { key: string; name: string; actions: ShopAction[] }[];
+};
+export const fetchShop = () => call<ShopState>("/shop");
+export const discover = () => post<ShopState>("/shop/discover");
+
+// ---------------------------------------------------------------- entities and allies
+
+export type Entity = {
+  id: string;
+  name: string;
+  title: string;
+  color: string;
+  personality: string;
+  presence: number;
+  willing: number;
+  stats: Record<string, string | number>;
+};
+export type EntityTalk = { entity: string; present: boolean; answered: boolean; line: string | null };
+export const fetchEntities = () => call<Entity[]>("/entities");
+export const talkTo = (id: string) => call<EntityTalk>(`/entities/${id}/talk`);
+
+export type Ally = { nickname: string; marks: number; stage: number };
+export const fetchAllies = () => call<{ passcode: string; items: Ally[] }>("/allies");
+export const addAlly = (passcode: string) => post<Ally>("/allies", { passcode });
+export const removeAlly = (nickname: string) => del<{ ok: boolean }>(`/allies/${encodeURIComponent(nickname)}`);
+export const rerollNickname = () => post<{ nickname: string }>("/me/nickname");
+
+// ---------------------------------------------------------------- attributes
+
+export type UsedAttribute = AttrNode & { uses: number; seconds_ago: number };
+export const fetchAttributeUsage = (days = 30, limit = 12) =>
+  call<UsedAttribute[]>(`/attributes/usage?days=${days}&limit=${limit}`);
