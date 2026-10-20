@@ -1232,19 +1232,21 @@ def shop_catalog():
 
     result = []
     for pkg in load_packages():
-        actions = []
-        for action in pkg.get("actions", []) or []:
-            contribs = contributions.get(str(action.get("name", "")).upper(), [])
-            actions.append({
-                **action,
-                "package_attribute": pkg.get("attribute"),
-                "leaves": [
-                    {"key": leaf_key, "name": tree.nodes_by_key[leaf_key].name, "weight": w}
-                    for leaf_key, w in contribs if leaf_key in tree.nodes_by_key
-                ],
-            })
+        actions = [
+            {**action, "package_attribute": pkg.get("attribute"), "leaves": _leaves_of(action, tree, contributions)}
+            for action in pkg.get("actions", []) or []
+        ]
         result.append({"key": pkg.get("attribute"), "name": pkg.get("name"), "actions": actions})
     return result
+
+
+def _leaves_of(action: dict, tree, contributions: dict) -> list[dict]:
+    """The leaves a catalog action feeds, with their weights."""
+    contribs = contributions.get(str(action.get("name", "")).upper(), [])
+    return [
+        {"key": leaf_key, "name": tree.nodes_by_key[leaf_key].name, "weight": w}
+        for leaf_key, w in contribs if leaf_key in tree.nodes_by_key
+    ]
 
 
 def _discovery_state(username: str, data: dict, now: datetime) -> dict:
@@ -1303,10 +1305,13 @@ def _discover(username: str, data: dict, now: datetime, count: int) -> list[str]
 def _shop_view(username: str, data: dict, now: datetime, new: list[str]) -> dict:
     state = _discovery_state(username, data, now)
     owned = {str(a.get("name", "")).upper() for a in (data.get("actions") or {}).values() if not a.get("deleted")}
+    tree = repos.load_attr_tree()
+    contributions = repos.load_all_contributions()
     groups = []
     for pkg in load_packages():
         actions = [
-            {**a, "package_attribute": pkg["attribute"], "owned": a["name"] in owned, "new": a["name"] in new}
+            {**a, "package_attribute": pkg["attribute"], "owned": a["name"] in owned, "new": a["name"] in new,
+             "leaves": _leaves_of(a, tree, contributions)}
             for a in pkg.get("actions", []) if a["name"] in state["found"]
         ]
         if actions:

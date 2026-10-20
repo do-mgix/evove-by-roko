@@ -448,7 +448,7 @@
           <dt>custo</dt><dd>{a.cost} pts</dd>
           <dt>autor</dt><dd>by {(a as ShopAction).author ?? "roko"}</dd>
         </dl>
-        {#if a.leaves.length}
+        {#if a.leaves?.length}
           <ul class="leaves">
             {#each a.leaves as l (l.key)}
               <li><span>{l.name}</span><span>{Math.round(l.weight * 100)}%</span></li>
