@@ -93,7 +93,7 @@ fun Cells(
     val down by rememberUpdatedState(onDown)
     val tap by rememberUpdatedState(onTap)
     val long by rememberUpdatedState(onLong)
-    fun hit(p: Offset) = current.indexOfLast { it.shape.contains(p) }
+    fun hit(p: Offset) = current.indexOfLast { it.shape.encloses(p) }
 
     Canvas(
         modifier.pointerInput(onLong != null) {

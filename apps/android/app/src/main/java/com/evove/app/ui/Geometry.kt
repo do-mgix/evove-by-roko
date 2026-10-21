@@ -173,7 +173,7 @@ fun polygonPath(points: List<Offset>): Path = Path().apply {
 }
 
 /** Whether `p` is inside the polygon. */
-fun List<Offset>.contains(p: Offset): Boolean {
+fun List<Offset>.encloses(p: Offset): Boolean {
     var inside = false
     var j = size - 1
     for (i in indices) {

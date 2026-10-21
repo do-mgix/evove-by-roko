@@ -48,7 +48,7 @@ import com.evove.app.ui.KeyIcon
 import com.evove.app.ui.LocalInk
 import com.evove.app.ui.SLANT
 import com.evove.app.ui.Small
-import com.evove.app.ui.contains
+import com.evove.app.ui.encloses
 import com.evove.app.ui.drawGlyph
 import com.evove.app.ui.formShape
 import com.evove.app.ui.formsFor
@@ -206,7 +206,7 @@ fun BuildScreen(onHome: () -> Unit) {
 
                     fun hit(p: Offset, onButton: (Int) -> Unit, onSquare: (Int, Int) -> Unit) {
                         val (sh, _, grid) = current
-                        val i = sh.indexOfLast { it.contains(p) }
+                        val i = sh.indexOfLast { it.encloses(p) }
                         if (i >= 0) return onButton(i)
                         val (l, t, s) = grid
                         if (s <= 0) return
