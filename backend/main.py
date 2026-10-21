@@ -80,7 +80,7 @@ def load_packages() -> list[dict]:
     contributions = repos.load_all_contributions()
 
     packages: dict[str, dict] = {}
-    logged = {"attribute": LOG_GROUP, "name": "Consumo", "actions": []}
+    logged = {"attribute": LOG_GROUP, "name": "Registro", "actions": []}
     unmapped = {"attribute": "_unmapped", "name": "Outros", "actions": []}
     for action_name, meta in sorted(repos.load_action_templates().items()):
         action = {
