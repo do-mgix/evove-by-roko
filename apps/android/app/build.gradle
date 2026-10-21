@@ -74,15 +74,23 @@ android {
 
     testOptions {
         unitTests.returnDefaultValues = true
+        unitTests.includeAndroidResources = true
     }
 }
 
-// SoundExport writes into res/raw only when asked: -PexportSounds.
+// SoundExport writes into res/raw only when asked: -PexportSounds. Shots
+// renders the screens into build/shots only when asked too: -Pshots.
 tasks.withType(Test).configureEach {
     if (project.hasProperty("exportSounds")) {
         systemProperty "evove.sounds", file("src/main/res/raw").absolutePath
         outputs.upToDateWhen { false }
     }
+    if (project.hasProperty("shots")) {
+        systemProperty "evove.shots", layout.buildDirectory.dir("shots").get().asFile.absolutePath
+        systemProperty "roborazzi.test.record", "true"
+        outputs.upToDateWhen { false }
+    }
+    maxHeapSize = "1g"
 }
 
 dependencies {
@@ -97,4 +105,9 @@ dependencies {
     debugImplementation "androidx.compose.ui:ui-tooling"
 
     testImplementation "junit:junit:4.13.2"
+    testImplementation "org.robolectric:robolectric:4.16"
+    testImplementation "io.github.takahirom.roborazzi:roborazzi:1.50.0"
+    testImplementation "io.github.takahirom.roborazzi:roborazzi-compose:1.50.0"
+    testImplementation "androidx.compose.ui:ui-test-junit4"
+    debugImplementation "androidx.compose.ui:ui-test-manifest"
 }

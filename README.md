@@ -68,21 +68,19 @@ backend requirements, since it imports the same domain code.
 
 ### 4. Android client
 
-The web client also ships as an APK: the same `dist/` bundle inside a WebView. It needs a
-JDK 21 and the Android SDK (platform 36, build-tools 36) reachable through `JAVA_HOME` and
-`ANDROID_HOME` — no Android Studio.
+The phone app is native: Kotlin and Jetpack Compose in `apps/android/`, talking to the same
+API. It needs a JDK 21 and the Android SDK (platform 36, build-tools 36) reachable through
+`JAVA_HOME` and `ANDROID_HOME` — no Android Studio.
 
 ```bash
-cd apps/web
-echo 'VITE_API_BASE=http://<lan-ip>:8000' > .env.local   # the phone is not localhost
-npm run apk          # build + cap sync + gradlew assembleDebug
-npm run apk:install  # the same, then adb install -r on the connected device
-npm run apk:release  # signed release APK, if android/keystore.properties is there
+cd apps/android
+./gradlew assembleDebug     # app/build/outputs/apk/debug/app-debug.apk
+./gradlew assembleRelease   # signed, if keystore.properties is there
+adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
-The APK lands in `apps/web/android/app/build/outputs/apk/debug/`. The first build downloads
-Gradle and the AndroidX dependencies and takes a few minutes; after that it is seconds.
-"Android client" below says what the native shell adds.
+It calls `https://api.voide.shop` unless `local.properties` says otherwise
+(`evove.api=http://<lan-ip>:8000`). "Android client" below has the rest.
 
 ### Development loop
 
@@ -226,8 +224,9 @@ apps/web/src/
   App.svelte                   screen switching by state, no router
   lib/api.ts                   HTTP client and API types
   lib/*.svelte                 screens and panels
-apps/web/capacitor.config.ts   app id, app name and WebView settings for the APK
-apps/web/android/              Capacitor shell: Gradle project, black theme, debug cleartext
+apps/android/                  the phone app: Kotlin + Jetpack Compose (see "Android client")
+apps/web/capacitor.config.ts   the retired Capacitor shell's settings
+apps/web/android/              the retired Capacitor shell, kept until the native app is settled
 apps/web/scripts/android-icon.sh    launcher icons, cut from the wordmark
 apps/web/scripts/android-splash.sh  launch screen wordmark, cut from the load screen
 apps/cli/
@@ -1108,40 +1107,62 @@ app straight in. Two stores (`logsVersion`,
 
 ## Android client
 
-Capacitor 8 wraps the built `dist/` in a WebView. There is no second codebase: `npm run
-apk` builds the web client, `cap sync` copies the bundle into
-`android/app/src/main/assets/public`, and Gradle packages it. `apps/web/android/` is an
-ordinary Gradle project, versioned — generated once by `cap add android` and edited by hand
-since. The identifiers live in `capacitor.config.ts`: `com.evove.app`, app name *Evove*,
-`webDir: dist`.
+`apps/android/` is the app: Kotlin, Jetpack Compose, no WebView. It replaced the Capacitor
+shell (`apps/web/android/`, which wrapped the web bundle) because the WebView was where the
+interface stuttered and the sounds crackled. The web client keeps running in a browser; the
+phone no longer goes through it. The package is still `com.evove.app`, signed with the same
+key, so the native app installs over the old one as an update and keeps the session.
 
-Three things the template does not get right for this app:
+```
+app/src/main/java/com/evove/app/
+  App.kt          pages by state, Android's back, the home revealing itself with use
+  Prefs.kt        what the web client kept in localStorage, in SharedPreferences
+  api/            the HTTP client (HttpURLConnection + kotlinx.serialization) and models
+  ui/             the dark screen's parts: frame, bar, keys, rows, the cells that come on
+                  like a tube, glyphs and icons, the home; the white pages' parts
+  screens/        one file per screen, ported from apps/web/src/lib/*.svelte
+  sound/          Synth (the Web Audio graphs in Kotlin), Wav, and Sfx, which plays them
+```
 
-- **The API is not on the phone.** `VITE_API_BASE` is baked into the bundle at build time,
-  and its default — `http://localhost:8000` — resolves to the phone itself. `.env.local`
-  holds the public HTTPS address of the backend and stays out of git. For now that is a
-  cloudflared quick tunnel (`cloudflared tunnel --url http://localhost:8000`), whose
-  `*.trycloudflare.com` URL changes whenever the tunnel restarts — the APK has to be rebuilt
-  when it does. Its replacement is the `tunnel` service in `docker-compose.yml`: a named
-  Cloudflare tunnel serving `https://api.voide.shop`, opt-in through a Compose profile
-  (`docker compose --profile tunnel up -d tunnel`) and fed its token by `tunnel.env`, which
-  is not versioned. The tunnel's hostname is set in the Cloudflare dashboard and points at
-  `http://backend:8000`, inside the Compose network.
-- **HTTPS only.** Android blocks plain HTTP since API 28, and the bundle is served from
-  `https://localhost` inside the WebView, so an http API would also be mixed content. The
-  app allows neither: there is no cleartext exception and no `allowMixedContent`, and the
-  API must answer over HTTPS in debug and release alike.
-- **Black.** The web app is black on black (`src/app.css`), so the native shell matches:
-  `styles.xml`, the launcher background and the WebView background. Otherwise every cold
-  start flashes white before the first frame. `colors.xml` is ours too — the template
-  references `@color/colorPrimary` without defining it anywhere, and without that file the
-  build does not resolve.
+The screens are ports, not redesigns: the same grid of six squares gathered in the
+bottom-right corner, the same packing of cells and their forms (`ui/Geometry.kt` is
+`homeLayout.ts`), the same glyphs and words. Where the web page relied on the browser, the
+app does it natively: polygons are drawn on a Canvas, a deadline is picked with Android's
+date dialog, records are reordered with arrows instead of a drag that never worked under a
+finger.
 
-The tile home and the page headers pad themselves by `env(safe-area-inset-*)`, which
-Capacitor feeds from the real window insets: `index.html` declares `viewport-fit=cover`,
-which is what makes WebView 140+ pass them through. Older WebViews report nothing to
-`env()`; there Capacitor pads the native view instead, so the tiles clear the status and
-gesture bars either way.
+### Sounds
+
+`sound/Synth.kt` is the synthesis of `sfx.ts` and `dtmf.ts` — oscillators, a lowpassed
+burst, a two-second convolution reverb normalized as Web Audio normalizes it — rendered
+offline into samples. The app never calls it while it runs: the sounds are exported once
+into `res/raw/` (ten taps, one per pitch variant, and three takes each of the power-on and
+of the gains, since the glints are random) and `Sfx` plays them from a `SoundPool`, which
+costs nothing at tap time. To change a sound, edit `Synth` and export again:
+
+```bash
+./gradlew :app:testDebugUnitTest --tests '*SoundExport*' -PexportSounds
+```
+
+The DTMF keys of the old dial are in `Synth` too, unexported, since nothing presses them.
+As on the web, nothing sounds until the first tap.
+
+### Looking at the screens without a phone
+
+`Shots` renders every screen with Robolectric and Roborazzi, fed canned answers
+(`Fixtures`) instead of the server's, into `app/build/shots/*.png`:
+
+```bash
+./gradlew :app:testDebugUnitTest --tests '*Shots*' -Pshots
+```
+
+The first run downloads an Android image for Robolectric and takes a while.
+
+### Signing and the API
+
+`app/build.gradle` reads `keystore.properties` (not versioned) for the release key and
+`local.properties` for `evove.api`; both are optional. Release builds are minified with R8.
+The API must answer over HTTPS: there is no cleartext exception.
 
 The launcher icon is the first "e" of the wordmark in `apps/cli/assets/media/evovepng.png`,
 white on black — the whole word is unreadable at 48dp. `scripts/android-icon.sh` cuts that
@@ -1150,7 +1171,7 @@ safe zone the launcher mask leaves alone, plus square and round legacy icons for
 that predate adaptive icons. The adaptive background is `@color/ic_launcher_background`,
 black, and the same letter serves as the `monochrome` layer for themed icons on Android 13+.
 
-What sits behind the WebView while the bundle boots is the load screen of the visual
+What shows for the instant before Compose draws is the load screen of the visual
 identity: "evove / by roko" in the bottom-right corner of black, from
 `apps/cli/assets/media/evove-mobile-loadscreen.png`. `scripts/android-splash.sh` cuts that
 block out and `drawable/launch_screen.xml` places it at the margins the original uses — as
@@ -1159,8 +1180,8 @@ proportions instead of being stretched to whatever screen it lands on. On API 31
 splash comes first, the launcher icon on black, and hands off to it. Capacitor's own
 `splash.png` in eleven orientations and densities is gone; nothing referenced it.
 
-`npm run apk:release` produces a signed release APK. What signs it is described by
-`android/keystore.properties`, which is not versioned: it names a keystore outside the
+`./gradlew assembleRelease` produces a signed release APK. What signs it is described by
+`keystore.properties`, which is not versioned: it names a keystore outside the
 repository — `~/keystores/evove-release.jks` on this machine — and carries its passwords.
 `app/build.gradle` tolerates its absence, so the project still configures and debug builds
 still work on a machine that does not have it; only `assembleRelease` comes out unsigned.
