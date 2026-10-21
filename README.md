@@ -533,6 +533,9 @@ They are marked with a boolean on the template, `action_templates.log_only`, bec
 share one shape: they charge `token_cost` instead of releasing `token_gain`, they carry six
 tiers like any action, and they have no contributions at all. The catalog has five —
 REDES SOCIAIS, VÍDEO, JOGOS, MÚSICA, GULOSEIMA — where it used to carry a brand per feed.
+The rest of the day is logged the same way but neutral, neither costing nor releasing
+tokens: ÔNIBUS and TRABALHO, then SONO, LIMPEZA, COZINHAR, LAVAR ROUPA, COMPRAS and DIRIGIR
+(see "Daily actions").
 
 What an act on one does, and does not do:
 
@@ -561,6 +564,30 @@ patch, but it takes no attributes: `POST /patches` refuses `attribute_ids` on a 
 instead of accepting links that would never pay, and the shop skips the attribute step. It
 is there to separate entries in the ledger — *REDES SOCIAIS · TRABALHO* apart from
 *REDES SOCIAIS · ROLAGEM* — without either becoming progression.
+
+### Daily actions
+
+`f2c8` filled the catalog with what an ordinary day holds, under one rule: **an action is
+atomic** — a single activity, named generically, with no brand, sport, instrument or room in
+the name. Whatever is finer is a patch on it, the same way *Esporte · Basquete* is.
+
+| Group | Actions | Specific cases are patches |
+| --- | --- | --- |
+| Calistenia | MERGULHO, ROSCA, ELEVAÇÃO DE PANTURRILHA, PONTE DE GLÚTEO, EXTENSÃO LOMBAR, LEVANTAMENTO TERRA, SUPINO, SUSPENSÃO NA BARRA | *Supino · Inclinado*, *Rosca · Martelo* |
+| Cardio | PULAR CORDA, SUBIR ESCADAS, DANÇA | *Dança · Forró* |
+| Prática Mental | PLANEJAMENTO, QUEBRA-CABEÇA, CONVERSA | *Planejamento · Finanças*, *Conversa · Ligação* |
+| Artes | TOCAR INSTRUMENTO, CANTO, DESENHO | *Tocar Instrumento · Violão*, *Desenho · Pintura* |
+| Registro (log) | SONO, LIMPEZA, COZINHAR, LAVAR ROUPA, COMPRAS, DIRIGIR | *Limpeza · Banheiro*, *Compras · Mercado* |
+
+The eight strength exercises close a gap rather than add variety: no action was
+registered under tríceps, bíceps, panturrilha, glúteo, lombar or posterior de coxa, so
+those leaves only moved as a side effect of something else. They go under Calistenia with
+DESENVOLVIMENTO and REMADA, which already meant strength work in general, so no
+Musculação practice was added for them. The arts did get one — **Artes**, a practice root
+with Música and Artes Visuais — because playing an instrument or drawing is, in practice,
+completely different from everything the graph had. Chores and sleep are neutral log
+actions like ÔNIBUS: part of the day's ledger, not a progression. COZINHAR is the chore
+and says nothing about what was eaten, so it does not bring food back into the graph.
 
 ### Naming and language
 
@@ -866,7 +893,7 @@ built yet.
 ### How the shop groups actions
 
 The shop groups by **practice** — Treino, Escrita, Literacia, Programação, Prática
-Mental — while ids classify by body and mind region. The same action is filed two ways on
+Mental, Artes — while ids classify by body and mind region. The same action is filed two ways on
 purpose.
 
 The engine has no notion of kinds, so the practice roots carry a display mark,
@@ -876,11 +903,11 @@ degrees and ids never look at the mark. Marked leaves are preferred explicitly r
 than by weight — `ESPORTE` feeds `aerobico` and `c_esportes` both at `1.0`, and a tie would
 otherwise be settled by row order.
 
-**Consumo is the exception, and not a practice.** Log actions feed no leaf, so there is
+**Registro is the exception, and not a practice.** Log actions feed no leaf, so there is
 nothing to group them by; they go in a section of their own keyed `_log`, which is not an
 attribute. `Alimentação` and `Consumo` used to be practice roots in the graph and are gone
-with the attributes under them — the shop section survived the attributes it was named
-after, because the shop needs somewhere to put five actions and the graph does not.
+with the attributes under them. The section kept the name Consumo until sleep and chores
+joined the leisure in it; it is Registro now, the word the `me` page already used.
 
 ### Catalog balance
 
