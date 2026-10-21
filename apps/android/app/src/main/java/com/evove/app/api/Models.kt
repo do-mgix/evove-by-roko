@@ -1,12 +1,39 @@
+@file:UseSerializers(LenientInt::class, LenientLong::class)
+
 package com.evove.app.api
 
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.UseSerializers
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.JsonElement
 
 // What the API answers, as the web client typed it (apps/web/src/lib/api.ts).
 // Field names are the server's snake_case, mapped by the Json in Api.kt; every
 // field the server may leave out has a default, so a missing one never fails a
 // whole screen.
+
+// Python keeps marks, values and scores as floats and writes them "3.0" or
+// "2.5": a whole number here takes either, cut down to its integer part.
+private fun Decoder.whole(): Double =
+    if (this is JsonDecoder) decodeJsonElement().jsonPrimitive.content.toDouble() else decodeDouble()
+
+object LenientInt : KSerializer<Int> {
+    override val descriptor = PrimitiveSerialDescriptor("LenientInt", PrimitiveKind.INT)
+    override fun deserialize(decoder: Decoder) = kotlin.math.floor(decoder.whole()).toInt()
+    override fun serialize(encoder: Encoder, value: Int) = encoder.encodeInt(value)
+}
+
+object LenientLong : KSerializer<Long> {
+    override val descriptor = PrimitiveSerialDescriptor("LenientLong", PrimitiveKind.LONG)
+    override fun deserialize(decoder: Decoder) = kotlin.math.floor(decoder.whole()).toLong()
+    override fun serialize(encoder: Encoder, value: Long) = encoder.encodeLong(value)
+}
 
 @Serializable
 data class Session(val token: String, val username: String, val expiresAt: String = "")
