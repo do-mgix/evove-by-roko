@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +35,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -199,19 +201,27 @@ fun PaperModal(title: String, onClose: () -> Unit, content: @Composable ColumnSc
  *  only at its ends, the count floating in the middle. `from` makes the
  *  segments past it blink, where the bar just grew. */
 @Composable
-fun MarkBar(marks: Int, need: Int, height: Dp = 16.dp, gold: Boolean = false, from: Int? = null, label: String? = null, modifier: Modifier = Modifier) {
+fun MarkBar(
+    marks: Int, need: Int, height: Dp = 16.dp, gold: Boolean = false, from: Int? = null, label: String? = null,
+    modifier: Modifier = Modifier,
+    /** makes each segment a button: tapping the n-th picks n */
+    onPick: ((Int) -> Unit)? = null,
+) {
     val segments = maxOf(1, need)
     val filled = marks.coerceIn(0, segments)
     val on = if (gold) hex("#b08a00") else Paper.text
     val blink = if (from != null) clockOnce(from, 3000f) else 3000f
     Box(modifier.fillMaxWidth().height(height), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxSize()) {
+        val pick = if (onPick != null) Modifier.pointerInput(segments) {
+            detectTapGestures { p -> onPick((p.x / size.width * segments).toInt().coerceIn(0, segments - 1) + 1) }
+        } else Modifier
+        Canvas(Modifier.fillMaxSize().then(pick)) {
             val r = size.height / 2
             val clip = androidx.compose.ui.graphics.Path().apply {
                 addRoundRect(androidx.compose.ui.geometry.RoundRect(0f, 0f, size.width, size.height, r, r))
             }
             clipPath(clip) {
-                if (segments > 40) {
+                if (segments > 40 && onPick == null) {
                     drawRect(Paper.line)
                     drawRect(on, size = size.copy(width = size.width * filled / segments))
                 } else {

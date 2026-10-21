@@ -183,7 +183,7 @@ object Api {
     suspend fun createUserAttribute(name: String, parentId: Int?): NamedId =
         post("/user-attributes", obj("name" to name, "parent_id" to parentId))
     suspend fun createUserAttributePath(path: List<String>): NamedId = post("/user-attributes", obj("path" to path))
-    suspend fun updateUserAttribute(id: Int, name: String? = null, parentId: Int? = null, moveToRoot: Boolean = false): NamedId {
+    suspend fun updateUserAttribute(id: Int, name: String? = null, parentId: Int? = null, moveToRoot: Boolean = false): JsonObject {
         val body = buildJsonObject {
             if (name != null) put("name", name)
             if (parentId != null) put("parent_id", parentId) else if (moveToRoot) put("parent_id", JsonNull)
@@ -204,8 +204,12 @@ object Api {
         }
         return post("/patches", body)
     }
-    suspend fun updatePatch(id: String, name: String): Ok = patch("/patches/$id", obj("name" to name))
-    suspend fun setPatchWeight(patchId: String, attributeId: Int, weight: Double): Ok =
+    suspend fun updatePatch(id: String, name: String? = null, attributeIds: List<Int>? = null): JsonObject =
+        patch("/patches/$id", buildJsonObject {
+            if (name != null) put("name", name)
+            if (attributeIds != null) putJsonArray("attribute_ids") { attributeIds.forEach { add(JsonPrimitive(it)) } }
+        })
+    suspend fun setPatchWeight(patchId: String, attributeId: Int, weight: Double): JsonObject =
         put("/patches/$patchId/attributes/$attributeId", obj("weight" to weight))
     suspend fun unlinkPatchAttribute(patchId: String, attributeId: Int): Ok = delete("/patches/$patchId/attributes/$attributeId")
 
