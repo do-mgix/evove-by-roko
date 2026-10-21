@@ -43,8 +43,11 @@ object Api {
 
     private class Reply(val status: Int, val body: String)
 
+    /** Answers in place of the server, for rendering the screens in tests. */
+    var fake: ((method: String, path: String) -> String)? = null
+
     private suspend fun send(method: String, path: String, body: JsonElement? = null, auth: Boolean = true): Reply =
-        withContext(Dispatchers.IO) {
+        fake?.let { Reply(200, it(method, path)) } ?: withContext(Dispatchers.IO) {
             val conn = (URL(BASE + path).openConnection() as HttpURLConnection).apply {
                 requestMethod = method
                 connectTimeout = 15_000
@@ -263,6 +266,7 @@ object Api {
     // ------------------------------------------------------------ shop
 
     suspend fun shop(): ShopState = get("/shop")
+    suspend fun shopCatalog(): List<ShopGroup> = get("/shop/catalog")
     suspend fun discover(): ShopState = post("/shop/discover")
     suspend fun buy(attribute: String, name: String): Bought = post("/shop/actions/buy", obj("attribute" to attribute, "name" to name))
 
