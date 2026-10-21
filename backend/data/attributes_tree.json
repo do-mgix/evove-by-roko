@@ -74,6 +74,10 @@
     { "key": "c_escuta", "name": "Escuta", "half_life_hours": 1440 },
     { "key": "c_raciocinio", "name": "Raciocínio", "half_life_hours": 1440 },
 
+    { "key": "c_artes", "name": "Artes", "shop_group": true },
+    { "key": "c_musica", "name": "Música", "half_life_hours": 1440 },
+    { "key": "c_artes_visuais", "name": "Artes Visuais", "half_life_hours": 1440 },
+
     { "key": "fisico", "name": "Físico" },
 
     { "key": "mental", "name": "Mental" },
@@ -178,6 +182,9 @@
     { "parent": "c_pratica_mental", "child": "c_meditacao", "weight": 0.5 },
     { "parent": "c_pratica_mental", "child": "c_escuta", "weight": 0.25 },
     { "parent": "c_pratica_mental", "child": "c_raciocinio", "weight": 0.25 },
+
+    { "parent": "c_artes", "child": "c_musica", "weight": 0.5 },
+    { "parent": "c_artes", "child": "c_artes_visuais", "weight": 0.5 },
 
     { "parent": "fisico", "child": "t_forca", "weight": 0.2 },
     { "parent": "fisico", "child": "t_resistencia", "weight": 0.2 },
@@ -539,7 +546,106 @@
 
     { "action": "PODCAST", "leaf": "c_escuta", "weight": 1.0 },
 
-    { "action": "BOARD GAME", "leaf": "c_raciocinio", "weight": 1.0 }
+    { "action": "BOARD GAME", "leaf": "c_raciocinio", "weight": 1.0 },
+
+    { "action": "MERGULHO", "leaf": "triceps", "weight": 0.45 },
+    { "action": "MERGULHO", "leaf": "peitoral", "weight": 0.3 },
+    { "action": "MERGULHO", "leaf": "deltoide", "weight": 0.25 },
+    { "action": "MERGULHO", "leaf": "c_calistenia", "weight": 1.0 },
+
+    { "action": "ELEVAÇÃO DE PANTURRILHA", "leaf": "panturrilha", "weight": 0.85 },
+    { "action": "ELEVAÇÃO DE PANTURRILHA", "leaf": "equilibrio", "weight": 0.15 },
+    { "action": "ELEVAÇÃO DE PANTURRILHA", "leaf": "c_calistenia", "weight": 1.0 },
+
+    { "action": "PONTE DE GLÚTEO", "leaf": "gluteo", "weight": 0.6 },
+    { "action": "PONTE DE GLÚTEO", "leaf": "posterior_coxa", "weight": 0.25 },
+    { "action": "PONTE DE GLÚTEO", "leaf": "lombar", "weight": 0.15 },
+    { "action": "PONTE DE GLÚTEO", "leaf": "c_calistenia", "weight": 1.0 },
+
+    { "action": "EXTENSÃO LOMBAR", "leaf": "lombar", "weight": 0.6 },
+    { "action": "EXTENSÃO LOMBAR", "leaf": "gluteo", "weight": 0.2 },
+    { "action": "EXTENSÃO LOMBAR", "leaf": "posterior_coxa", "weight": 0.2 },
+    { "action": "EXTENSÃO LOMBAR", "leaf": "c_calistenia", "weight": 1.0 },
+
+    { "action": "ROSCA", "leaf": "biceps", "weight": 0.7 },
+    { "action": "ROSCA", "leaf": "antebraco", "weight": 0.3 },
+    { "action": "ROSCA", "leaf": "c_calistenia", "weight": 1.0 },
+
+    { "action": "LEVANTAMENTO TERRA", "leaf": "posterior_coxa", "weight": 0.3 },
+    { "action": "LEVANTAMENTO TERRA", "leaf": "gluteo", "weight": 0.25 },
+    { "action": "LEVANTAMENTO TERRA", "leaf": "lombar", "weight": 0.2 },
+    { "action": "LEVANTAMENTO TERRA", "leaf": "dorsal", "weight": 0.1 },
+    { "action": "LEVANTAMENTO TERRA", "leaf": "antebraco", "weight": 0.1 },
+    { "action": "LEVANTAMENTO TERRA", "leaf": "quadriceps", "weight": 0.05 },
+    { "action": "LEVANTAMENTO TERRA", "leaf": "c_calistenia", "weight": 1.0 },
+
+    { "action": "SUSPENSÃO NA BARRA", "leaf": "antebraco", "weight": 0.6 },
+    { "action": "SUSPENSÃO NA BARRA", "leaf": "dorsal", "weight": 0.2 },
+    { "action": "SUSPENSÃO NA BARRA", "leaf": "deltoide", "weight": 0.2 },
+    { "action": "SUSPENSÃO NA BARRA", "leaf": "c_calistenia", "weight": 1.0 },
+
+    { "action": "SUPINO", "leaf": "peitoral", "weight": 0.55 },
+    { "action": "SUPINO", "leaf": "triceps", "weight": 0.25 },
+    { "action": "SUPINO", "leaf": "deltoide", "weight": 0.2 },
+    { "action": "SUPINO", "leaf": "c_calistenia", "weight": 1.0 },
+
+    { "action": "PULAR CORDA", "leaf": "aerobico", "weight": 0.4 },
+    { "action": "PULAR CORDA", "leaf": "panturrilha", "weight": 0.25 },
+    { "action": "PULAR CORDA", "leaf": "coordenacao", "weight": 0.2 },
+    { "action": "PULAR CORDA", "leaf": "anaerobico", "weight": 0.15 },
+    { "action": "PULAR CORDA", "leaf": "c_cardio", "weight": 1.0 },
+
+    { "action": "SUBIR ESCADAS", "leaf": "aerobico", "weight": 0.4 },
+    { "action": "SUBIR ESCADAS", "leaf": "quadriceps", "weight": 0.25 },
+    { "action": "SUBIR ESCADAS", "leaf": "gluteo", "weight": 0.2 },
+    { "action": "SUBIR ESCADAS", "leaf": "panturrilha", "weight": 0.15 },
+    { "action": "SUBIR ESCADAS", "leaf": "c_cardio", "weight": 1.0 },
+
+    { "action": "DANÇA", "leaf": "coordenacao", "weight": 0.3 },
+    { "action": "DANÇA", "leaf": "aerobico", "weight": 0.25 },
+    { "action": "DANÇA", "leaf": "equilibrio", "weight": 0.15 },
+    { "action": "DANÇA", "leaf": "auditivo", "weight": 0.1 },
+    { "action": "DANÇA", "leaf": "quadriceps", "weight": 0.1 },
+    { "action": "DANÇA", "leaf": "panturrilha", "weight": 0.1 },
+    { "action": "DANÇA", "leaf": "c_cardio", "weight": 0.6 },
+    { "action": "DANÇA", "leaf": "c_esportes", "weight": 0.4 },
+
+    { "action": "PLANEJAMENTO", "leaf": "executiva", "weight": 0.5 },
+    { "action": "PLANEJAMENTO", "leaf": "foco", "weight": 0.25 },
+    { "action": "PLANEJAMENTO", "leaf": "hipocampo", "weight": 0.15 },
+    { "action": "PLANEJAMENTO", "leaf": "broca", "weight": 0.1 },
+    { "action": "PLANEJAMENTO", "leaf": "c_raciocinio", "weight": 1.0 },
+
+    { "action": "QUEBRA-CABEÇA", "leaf": "executiva", "weight": 0.35 },
+    { "action": "QUEBRA-CABEÇA", "leaf": "visual", "weight": 0.25 },
+    { "action": "QUEBRA-CABEÇA", "leaf": "foco", "weight": 0.25 },
+    { "action": "QUEBRA-CABEÇA", "leaf": "hipocampo", "weight": 0.15 },
+    { "action": "QUEBRA-CABEÇA", "leaf": "c_raciocinio", "weight": 1.0 },
+
+    { "action": "CONVERSA", "leaf": "wernicke", "weight": 0.35 },
+    { "action": "CONVERSA", "leaf": "broca", "weight": 0.3 },
+    { "action": "CONVERSA", "leaf": "amigdala", "weight": 0.2 },
+    { "action": "CONVERSA", "leaf": "recompensa", "weight": 0.15 },
+    { "action": "CONVERSA", "leaf": "c_escuta", "weight": 1.0 },
+
+    { "action": "TOCAR INSTRUMENTO", "leaf": "auditivo", "weight": 0.3 },
+    { "action": "TOCAR INSTRUMENTO", "leaf": "coordenacao", "weight": 0.25 },
+    { "action": "TOCAR INSTRUMENTO", "leaf": "somatossensorial", "weight": 0.2 },
+    { "action": "TOCAR INSTRUMENTO", "leaf": "foco", "weight": 0.15 },
+    { "action": "TOCAR INSTRUMENTO", "leaf": "hipocampo", "weight": 0.1 },
+    { "action": "TOCAR INSTRUMENTO", "leaf": "c_musica", "weight": 1.0 },
+
+    { "action": "CANTO", "leaf": "auditivo", "weight": 0.4 },
+    { "action": "CANTO", "leaf": "broca", "weight": 0.3 },
+    { "action": "CANTO", "leaf": "recompensa", "weight": 0.15 },
+    { "action": "CANTO", "leaf": "amigdala", "weight": 0.15 },
+    { "action": "CANTO", "leaf": "c_musica", "weight": 1.0 },
+
+    { "action": "DESENHO", "leaf": "visual", "weight": 0.4 },
+    { "action": "DESENHO", "leaf": "coordenacao", "weight": 0.25 },
+    { "action": "DESENHO", "leaf": "foco", "weight": 0.2 },
+    { "action": "DESENHO", "leaf": "somatossensorial", "weight": 0.15 },
+    { "action": "DESENHO", "leaf": "c_artes_visuais", "weight": 1.0 }
   ],
 
   "action_templates": [
@@ -590,6 +696,29 @@
     { "action": "MÚSICA", "code": "5000004", "parent": null, "log_only": true, "type": 0, "diff": 0, "cost": 0, "token_cost": 0, "token_gain": 0, "tiers": {"unit": "min", "bounds": [15, 30, 60, 120, 180]} },
     { "action": "GULOSEIMA", "code": "5000005", "parent": null, "log_only": true, "type": 0, "diff": 0, "cost": 0, "token_cost": 1, "token_gain": 0, "tiers": {"unit": "porções", "bounds": [1, 2, 3, 4, 5]} },
     { "action": "ÔNIBUS", "code": "5000006", "parent": null, "log_only": true, "type": 0, "diff": 0, "cost": 0, "token_cost": 0, "token_gain": 0, "tiers": {"unit": "min", "bounds": [15, 30, 60, 90, 120]} },
-    { "action": "TRABALHO", "code": "5000007", "parent": null, "log_only": true, "type": 0, "diff": 0, "cost": 0, "token_cost": 0, "token_gain": 0, "tiers": {"unit": "h", "bounds": [1, 2, 4, 6, 8]} }
+    { "action": "TRABALHO", "code": "5000007", "parent": null, "log_only": true, "type": 0, "diff": 0, "cost": 0, "token_cost": 0, "token_gain": 0, "tiers": {"unit": "h", "bounds": [1, 2, 4, 6, 8]} },
+    { "action": "MERGULHO", "code": "5010701", "parent": "triceps", "type": 0, "diff": 2, "cost": 500, "token_cost": 0, "token_gain": 2, "tiers": {"unit": "reps", "bounds": [5, 15, 30, 50, 80]} },
+    { "action": "ELEVAÇÃO DE PANTURRILHA", "code": "5010801", "parent": "panturrilha", "type": 0, "diff": 1, "cost": 300, "token_cost": 0, "token_gain": 1, "tiers": {"unit": "reps", "bounds": [20, 50, 100, 150, 250]} },
+    { "action": "PONTE DE GLÚTEO", "code": "5010901", "parent": "gluteo", "type": 0, "diff": 1, "cost": 300, "token_cost": 0, "token_gain": 1, "tiers": {"unit": "reps", "bounds": [15, 40, 80, 120, 200]} },
+    { "action": "EXTENSÃO LOMBAR", "code": "5011001", "parent": "lombar", "type": 0, "diff": 1, "cost": 300, "token_cost": 0, "token_gain": 1, "tiers": {"unit": "reps", "bounds": [10, 30, 60, 100, 150]} },
+    { "action": "ROSCA", "code": "5011101", "parent": "biceps", "type": 0, "diff": 1, "cost": 300, "token_cost": 0, "token_gain": 1, "tiers": {"unit": "reps", "bounds": [10, 30, 60, 100, 150]} },
+    { "action": "LEVANTAMENTO TERRA", "code": "5011201", "parent": "posterior_coxa", "type": 0, "diff": 3, "cost": 800, "token_cost": 0, "token_gain": 3, "tiers": {"unit": "reps", "bounds": [5, 15, 30, 50, 80]} },
+    { "action": "SUSPENSÃO NA BARRA", "code": "5010205", "parent": "antebraco", "type": 0, "diff": 1, "cost": 300, "token_cost": 0, "token_gain": 1, "tiers": {"unit": "s", "bounds": [15, 30, 60, 120, 180]} },
+    { "action": "SUPINO", "code": "5010307", "parent": "peitoral", "type": 0, "diff": 2, "cost": 500, "token_cost": 0, "token_gain": 2, "tiers": {"unit": "reps", "bounds": [10, 30, 60, 100, 150]} },
+    { "action": "PULAR CORDA", "code": "5020108", "parent": "aerobico", "type": 0, "diff": 2, "cost": 500, "token_cost": 0, "token_gain": 2, "tiers": {"unit": "min", "bounds": [2, 5, 10, 20, 30]} },
+    { "action": "SUBIR ESCADAS", "code": "5020109", "parent": "aerobico", "type": 0, "diff": 1, "cost": 300, "token_cost": 0, "token_gain": 1, "tiers": {"unit": "andares", "bounds": [3, 10, 20, 40, 60]} },
+    { "action": "DANÇA", "code": "5090201", "parent": "coordenacao", "type": 0, "diff": 2, "cost": 500, "token_cost": 0, "token_gain": 2, "tiers": {"unit": "min", "bounds": [10, 20, 40, 60, 90]} },
+    { "action": "PLANEJAMENTO", "code": "5050210", "parent": "executiva", "type": 0, "diff": 1, "cost": 300, "token_cost": 0, "token_gain": 1, "tiers": {"unit": "min", "bounds": [5, 10, 20, 30, 60]} },
+    { "action": "QUEBRA-CABEÇA", "code": "5050211", "parent": "executiva", "type": 0, "diff": 1, "cost": 300, "token_cost": 0, "token_gain": 1, "tiers": {"unit": "min", "bounds": [10, 20, 40, 60, 90]} },
+    { "action": "CONVERSA", "code": "5080203", "parent": "wernicke", "type": 0, "diff": 1, "cost": 300, "token_cost": 0, "token_gain": 1, "tiers": {"unit": "min", "bounds": [10, 20, 40, 60, 120]} },
+    { "action": "TOCAR INSTRUMENTO", "code": "5070203", "parent": "auditivo", "type": 0, "diff": 2, "cost": 500, "token_cost": 0, "token_gain": 2, "tiers": {"unit": "min", "bounds": [10, 20, 40, 60, 120]} },
+    { "action": "CANTO", "code": "5070204", "parent": "auditivo", "type": 0, "diff": 1, "cost": 300, "token_cost": 0, "token_gain": 1, "tiers": {"unit": "min", "bounds": [5, 10, 20, 40, 60]} },
+    { "action": "DESENHO", "code": "5070107", "parent": "visual", "type": 0, "diff": 2, "cost": 500, "token_cost": 0, "token_gain": 2, "tiers": {"unit": "min", "bounds": [10, 20, 40, 60, 120]} },
+    { "action": "SONO", "code": "5000008", "parent": null, "log_only": true, "type": 0, "diff": 0, "cost": 0, "token_cost": 0, "token_gain": 0, "tiers": {"unit": "h", "bounds": [4, 5, 6, 7, 8]} },
+    { "action": "LIMPEZA", "code": "5000009", "parent": null, "log_only": true, "type": 0, "diff": 0, "cost": 0, "token_cost": 0, "token_gain": 0, "tiers": {"unit": "min", "bounds": [10, 20, 40, 60, 120]} },
+    { "action": "COZINHAR", "code": "5000010", "parent": null, "log_only": true, "type": 0, "diff": 0, "cost": 0, "token_cost": 0, "token_gain": 0, "tiers": {"unit": "min", "bounds": [10, 20, 40, 60, 90]} },
+    { "action": "LAVAR ROUPA", "code": "5000011", "parent": null, "log_only": true, "type": 0, "diff": 0, "cost": 0, "token_cost": 0, "token_gain": 0, "tiers": {"unit": "min", "bounds": [10, 20, 40, 60, 90]} },
+    { "action": "COMPRAS", "code": "5000012", "parent": null, "log_only": true, "type": 0, "diff": 0, "cost": 0, "token_cost": 0, "token_gain": 0, "tiers": {"unit": "min", "bounds": [15, 30, 60, 90, 120]} },
+    { "action": "DIRIGIR", "code": "5000013", "parent": null, "log_only": true, "type": 0, "diff": 0, "cost": 0, "token_cost": 0, "token_gain": 0, "tiers": {"unit": "min", "bounds": [15, 30, 60, 90, 120]} }
   ]
 }
