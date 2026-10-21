@@ -42,7 +42,7 @@ class DrawnCell(
 private val TUBE = CubicBezierEasing(0.2f, 0.8f, 0.3f, 1f)
 
 /** The tube's scale and opacity, `t` ms into its `ms` of coming on. */
-private fun tubeOn(t: Float, ms: Float): Triple<Float, Float, Float> {
+internal fun tubeOn(t: Float, ms: Float): Triple<Float, Float, Float> {
     if (t <= 0f) return Triple(0.15f, 0.006f, 0f)
     if (t >= ms) return Triple(1f, 1f, 1f)
     val p = t / ms
