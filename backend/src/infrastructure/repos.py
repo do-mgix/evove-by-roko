@@ -973,6 +973,15 @@ class EmailTaken(ValueError):
     """Raised when another profile already uses the e-mail address."""
 
 
+def get_email(username: str) -> str | None:
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        return u.email if u else None
+    finally:
+        s.close()
+
+
 def set_email(username: str, email: str | None) -> bool:
     s = SessionLocal()
     try:

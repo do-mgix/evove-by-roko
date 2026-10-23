@@ -188,7 +188,9 @@ def _say(entity: str, text: str) -> dict:
 
 # step -> (the event it waits for, whether the event fits, what happens)
 STORY: dict[str, tuple] = {
-    "start": ("act", lambda st, ev: ev.get("name") in st["given"], {
+    # any act will do: one of the given ones, most likely, but a given action
+    # deleted, or none to give, must not leave the story waiting forever
+    "start": ("act", None, {
         "lines": lambda st, ev: [
             _say("roko", f"{ev['name']}."),
             _say("roko", "AS MARCAS SÃO SUAS. MAS DAQUI EU NÃO VI ACONTECER."),

@@ -958,7 +958,8 @@ drawn from it.
   chosen (`given`). Acting on one pays its marks like any act, but roko did not see it
   happen — someone real holds the phone, and roko counts what that person does — and the
   shop opens; an action the person chose is bought, acted on, and roko believes it and
-  can be talked to; talking
+  can be talked to — and while the story asks for that purchase, the shop always holds
+  one within reach: actions are found for it and points made up if it has none; talking
   opens the agenda; a thought, a to-do or a project opens the attributes; five acts the
   journey; three visits after opening the journey, the builder. Acts, purchases, talks
   and plans feed it from their own routes and answer with `lines`, what the entities said.
@@ -974,7 +975,8 @@ drawn from it.
   again: agir tall on the right, the rest cut from the left by slanted cuts that join
   opposite edges, sized by weight and by how often each module is opened.
 - `POST /engine/events` takes what the device counted (opens, turns, dismissing the line);
-  `POST /engine/reset` takes the evove back to its first step and keeps the data. Profiles
+  `POST /auth/me/reset` starts the whole profile over — data and evove — under the same
+  name, password and e-mail. Profiles
   that existed before the engine got the legacy state: every module, the story told.
 
 ### Deleting a log
@@ -1040,6 +1042,7 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 | GET | `/auth/me` | the account behind the token (id, username, creation date), its session's start and expiry, and how many sessions are active |
 | PATCH | `/auth/me` | set or clear the recovery e-mail (`{email, password}`; 403 if the password is wrong, 409 if the address is taken) |
 | DELETE | `/auth/me` | delete the profile and all its data (`{password}`; 403 if wrong) |
+| POST | `/auth/me/reset` | start the profile over from nothing, same name and password (`{password}`); answers a new session |
 | POST | `/auth/forgot` | mail a password-reset link (`{login}`, username or e-mail); same answer whether or not it exists; no token |
 | POST | `/auth/reset` | set a new password from a link (`{token, password}`); ends every session; no token |
 | GET | `/redefinir-senha` | public page to ask for a link and to set the new password from it; no token |
@@ -1077,12 +1080,10 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 | POST | `/agenda` | create an item |
 | PATCH · DELETE | `/agenda/{id}` | edit · remove |
 | GET | `/calendar` | month view with log counts and events (`?year=&month=`) |
-| GET | `/engine` | the profile's evove: this session's tiles, modules and their passcodes, entities, story, selector, counters, ghosts |
+| GET | `/engine` | the profile's evove: this session's tiles, modules and their passcodes, entities, story, selector, counters, doubted actions |
 | POST | `/engine/visit` | the app came on (`{cold?, turns?}`); a new session after a pause |
 | POST | `/engine/events` | opens, page turns and the line dismissed (`{events: [...]}`) |
-| POST | `/engine/ghost-act` | act on one of the story's first actions (`{name, option}`) |
 | POST | `/engine/passcode` | a module's, an upgrade's or another evove's passcode (`{code}`) |
-| POST | `/engine/reset` | the evove back to its first step |
 | GET · POST | `/projects` | list · create |
 | PATCH · DELETE | `/projects/{id}` | edit · remove |
 

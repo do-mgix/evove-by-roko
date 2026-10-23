@@ -655,6 +655,26 @@ def delete_account(payload: dict | None = Body(None), username: str = Depends(cu
     return {"ok": True}
 
 
+@app.post("/auth/me/reset")
+def reset_account(payload: dict | None = Body(None), username: str = Depends(current_username)):
+    """Start the profile over: every piece of its data — actions, logs,
+    attributes, points, discoveries, agenda, journey, allies, its evove — is
+    erased and it begins again from the first step, under the same name,
+    password and e-mail. Every session ends with it; the answer is a new one
+    for this device. Body: {password}, as for deleting the account."""
+    password = str((payload or {}).get("password", ""))
+    stored = repos.get_password_hash(username)
+    if not stored or not auth.verify_password(password, stored):
+        raise HTTPException(status_code=403, detail="wrong password")
+    email = repos.get_email(username)
+    repos.delete_user(username)
+    initial, initial_sequences = _initial_profile(username)
+    repos.create_user(username, initial, initial_sequences, password_hash=stored)
+    if email:
+        repos.set_email(username, email)
+    return _issue_session(username)
+
+
 @app.patch("/auth/me")
 def update_account(payload: dict, username: str = Depends(current_username)):
     """Set or clear the recovery e-mail. Body: {email, password}; the password
@@ -1331,12 +1351,53 @@ def _shop_view(username: str, data: dict, now: datetime, new: list[str]) -> dict
     }
 
 
+_STORY_OFFER = 3
+
+
+def _story_shop(username: str, data: dict) -> bool:
+    """While the story asks for a purchase — or for an act on one, and the
+    profile owns nothing it chose — the shop must hold something it can buy,
+    whatever the day's discoveries and the points left say: when nothing found
+    is unowned, a few cheap actions are found for it, and when the cheapest of
+    them costs more than it has, the points are made up to it. Returns whether
+    the profile changed."""
+    state, _code = engine_repo.load(username)
+    step = state.get("story")
+    if step not in ("buy", "prove"):
+        return False
+    templates = repos.load_action_templates()
+    owned = {str(a.get("name", "")).upper() for a in (data.get("actions") or {}).values() if not a.get("deleted")}
+    if step == "prove" and owned - set(state.get("given") or {}):
+        return False
+    found = social_repo.load_discoveries(username)
+    buyable = [n for n in found if n in templates and n not in owned and not templates[n]["log_only"]]
+    if not buyable:
+        pool = sorted((n for n, m in templates.items()
+                       if n not in owned and n not in found and not m["log_only"] and m["code"]),
+                      key=lambda n: templates[n]["cost"])
+        if not pool:
+            return False
+        cheap = [n for n in pool if templates[n]["cost"] <= max(500, templates[pool[0]]["cost"])]
+        buyable = random.Random().sample(cheap, min(_STORY_OFFER, len(cheap)))
+        social_repo.add_discoveries(username, buyable)
+    metadata = data.setdefault("metadata", {})
+    cheapest = min(templates[n]["cost"] for n in buyable)
+    if int(metadata.get("build_points", 0) or 0) < cheapest:
+        metadata["build_points"] = cheapest
+        _save_user(username, data)
+    return True
+
+
 @app.get("/shop")
 def shop(username: str = Depends(current_username)):
     """The profile's shop: only what it discovered, grouped by practice, each
     action with its author and whether it is owned. In the `auto` phase the
-    day's discoveries open on their own here. See src.domain.discovery."""
+    day's discoveries open on their own here. While the story asks for a
+    purchase there is always one within reach (`_story_shop`). See
+    src.domain.discovery."""
     data = _load_user(username)
+    if _story_shop(username, data):
+        data = _load_user(username)
     now = datetime.now()
     new = _discover(username, data, now, discovery.MAX_RATE * 2) if _discovery_state(username, data, now)["phase"] == "auto" else []
     return _shop_view(username, data, now, new)
@@ -2395,14 +2456,3 @@ def engine_passcode(payload: dict, username: str = Depends(current_username)):
         state["line"] = {**lines[-1], "at": datetime.now().isoformat(timespec="seconds")}
     engine_repo.save(username, state)
     return {**_engine_view(username, state, code), "kind": kind, "lines": lines}
-
-
-@app.post("/engine/reset")
-def engine_reset(username: str = Depends(current_username)):
-    """The evove goes back to its first step — agir alone, the story untold.
-    The profile's data stays: only what the interface shows starts over."""
-    _state, code = engine_repo.load(username)
-    state = engine.fresh(random.Random())
-    _give_first(username, _load_user(username), state)
-    engine_repo.save(username, state)
-    return _engine_view(username, state, code)
