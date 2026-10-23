@@ -76,6 +76,9 @@ private fun relative(o: Int) = when (o) { 0 -> "hoje"; -1 -> "ontem"; else -> "$
 
 private const val ROW_DP = 50
 
+/** Where the records' screen opens: a day, and maybe one of its logs. */
+data class LogsAt(val offset: Int = 0, val id: Int? = null, val delete: Boolean = false)
+
 private sealed interface LogPane {
     data object List : LogPane
     data class Open(val log: LogEntry) : LogPane
@@ -87,10 +90,11 @@ private sealed interface LogPane {
 /** The records of a day, and everything that can be done to one: its period,
  *  its place in the day, the day it is filed under, its note — and deleting
  *  it, which takes back what its act gave, marks and ranks and tokens and hp,
- *  and says so. */
+ *  and says so. `at` is the day it opens on; with `focus`, it opens on that
+ *  log — and, with `delete`, straight on the question of deleting it. */
 @Composable
-fun LogsScreen(onBack: () -> Unit, onHome: () -> Unit) {
-    var offset by remember { mutableIntStateOf(0) }
+fun LogsScreen(onBack: () -> Unit, onHome: () -> Unit, at: Int = 0, focus: Int? = null, delete: Boolean = false) {
+    var offset by remember { mutableIntStateOf(at) }
     var logs by remember { mutableStateOf<List<LogEntry>>(emptyList()) }
     var day by remember { mutableStateOf<Int?>(null) }
     var date by remember { mutableStateOf("") }
@@ -116,7 +120,14 @@ fun LogsScreen(onBack: () -> Unit, onHome: () -> Unit) {
         }
     }
     var first by remember { mutableStateOf(true) }
-    LaunchedEffect(Bus.logs) { load(offset); if (first) Sfx.powerOn(); first = false }
+    LaunchedEffect(Bus.logs) {
+        load(offset)
+        if (first) {
+            Sfx.powerOn()
+            logs.firstOrNull { it.id == focus }?.let { pane = if (delete) LogPane.Confirm(it) else LogPane.Open(it) }
+        }
+        first = false
+    }
 
     fun run(block: suspend () -> Unit) {
         if (busy) return

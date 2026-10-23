@@ -28,6 +28,7 @@ import com.evove.app.screens.BuildScreen
 import com.evove.app.screens.CalendarPage
 import com.evove.app.screens.DetailsPage
 import com.evove.app.screens.JourneyScreen
+import com.evove.app.screens.LogsAt
 import com.evove.app.screens.LogsScreen
 import com.evove.app.screens.MeScreen
 import com.evove.app.screens.ProfilePage
@@ -81,6 +82,7 @@ fun App() {
     var page by remember { mutableStateOf(Page.HOME) }
     // the accounts screen over the login: another account is being added
     var adding by remember { mutableStateOf(false) }
+    var logsAt by remember { mutableStateOf(LogsAt()) }
     val scope = rememberCoroutineScope()
 
     // A rejected session anywhere drops back to the accounts kept, or to login.
@@ -145,7 +147,7 @@ fun App() {
                 Page.ACT -> ActScreen(onHome = ::goHome)
                 Page.SHOP -> ShopScreen(onHome = ::goHome)
                 Page.BUILD -> BuildScreen(onHome = ::goHome)
-                Page.AGENDA -> AgendaScreen(onHome = ::goHome, onCalendar = { page = Page.CALENDAR }, onLogs = { page = Page.LOGS })
+                Page.AGENDA -> AgendaScreen(onHome = ::goHome, onCalendar = { page = Page.CALENDAR }, onLogs = { at -> logsAt = at; page = Page.LOGS })
                 Page.JOURNEY -> JourneyScreen(onHome = ::goHome)
                 Page.ROKO -> RokoScreen(onHome = ::goHome)
                 Page.ME -> MeScreen(onHome = ::goHome, onProfile = { page = Page.PROFILE }, onDetails = { page = Page.DETAILS })
@@ -159,7 +161,7 @@ fun App() {
                 }
                 Page.DETAILS -> DetailsPage(onBack = ::back)
                 Page.CALENDAR -> CalendarPage(onBack = ::back)
-                Page.LOGS -> LogsScreen(onBack = ::back, onHome = ::goHome)
+                Page.LOGS -> LogsScreen(onBack = ::back, onHome = ::goHome, at = logsAt.offset, focus = logsAt.id, delete = logsAt.delete)
                 Page.ACCOUNTS -> {}
             }
         }

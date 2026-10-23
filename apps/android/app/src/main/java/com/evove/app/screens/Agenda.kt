@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -122,7 +123,7 @@ private fun hours(seconds: Long): String = when {
 }
 
 @Composable
-fun AgendaScreen(onHome: () -> Unit, onCalendar: () -> Unit, onLogs: () -> Unit) {
+fun AgendaScreen(onHome: () -> Unit, onCalendar: () -> Unit, onLogs: (LogsAt) -> Unit) {
     var plan by remember { mutableStateOf(false) }
     var mode by remember { mutableStateOf<Pane>(Pane.List) }
     var offset by remember { mutableIntStateOf(0) }
@@ -310,10 +311,18 @@ fun AgendaScreen(onHome: () -> Unit, onCalendar: () -> Unit, onLogs: () -> Unit)
                 LaunchedEffect(m) { runCatching { field.requestFocus() } }
                 Field(draft, { draft = it }, "escreva…", Modifier.weight(1f).heightIn(min = 6.remDp).focusRequester(field), singleLine = false)
                 Row(Modifier.fillMaxWidth().heightIn(min = 2.8.remDp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Key({ draft = "" }, Modifier.weight(1f).heightIn(min = 2.8.remDp)) { KeyIcon(Icon.TRASH) }
-                    if (m.log != null) Key({ press(1); onLogs() }, Modifier.weight(1f).heightIn(min = 2.8.remDp)) { KeyIcon(Icon.PENCIL) }
-                    else Box(Modifier.weight(1f))
-                    Box(Modifier.weight(1f))
+                    Key({ draft = "" }, Modifier.weight(1f).heightIn(min = 2.8.remDp)) { KeyIcon(Icon.CROSS) }
+                    val log = m.log
+                    if (log != null) {
+                        val at = day?.offset ?: 0
+                        Key({ press(1); onLogs(LogsAt(at, log.id)) }, Modifier.weight(1f).heightIn(min = 2.8.remDp)) { KeyIcon(Icon.PENCIL) }
+                        CompositionLocalProvider(LocalInk provides Ink.danger) {
+                            Key({ press(0); onLogs(LogsAt(at, log.id, delete = true)) }, Modifier.weight(1f).heightIn(min = 2.8.remDp)) { KeyIcon(Icon.TRASH) }
+                        }
+                    } else {
+                        Box(Modifier.weight(1f))
+                        Box(Modifier.weight(1f))
+                    }
                     Key({
                         val d = day ?: return@Key
                         busyRun {
