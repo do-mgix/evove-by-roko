@@ -59,16 +59,18 @@ object Ink {
     val late = hex("#ffb347")
     val danger = hex("#ff5c7a")
     val enemy = hex("#ff8fa3")
+    val eve = hex("#ff9de2")
 }
 
-/** The white pages' greys and their one accent. */
+/** The long pages' tones. They were white pages once — grey text and one teal
+ *  accent on paper — and kept the names when they went dark like the rest. */
 object Paper {
-    val text = hex("#111111")
-    val soft = hex("#444444")
-    val muted = hex("#737373")
-    val line = hex("#d4d4d4")
-    val accent = hex("#00838f")
-    val error = hex("#d93636")
+    val text = Color.White
+    val soft = Color.White.copy(alpha = 0.78f)
+    val muted = Color.White.copy(alpha = 0.52f)
+    val line = Color.White.copy(alpha = 0.2f)
+    val accent = hex("#00f0ff")
+    val error = hex("#ff5c7a")
 }
 
 /** Upper case for everything but the Greek ranks: α stays α, where a plain

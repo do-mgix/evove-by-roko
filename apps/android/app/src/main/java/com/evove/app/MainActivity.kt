@@ -20,4 +20,10 @@ class MainActivity : ComponentActivity() {
         Sfx.init(applicationContext)
         setContent { App() }
     }
+
+    // back from the background: the server decides whether it is a new session
+    override fun onRestart() {
+        super.onRestart()
+        if (Prefs.token != null) Evove.visit(cold = false)
+    }
 }

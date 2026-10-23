@@ -37,6 +37,12 @@ object Glyphs {
     val attributes = g("M12 21 V12 M12 15 C9 13 7 11 7 5 M12 12 C14 10 17 8 19 4", 7 to 18.5)
     val build = g("M5 19.5 V9 H13.5 M9.5 4.5 H19 V15", 19 to 19.5)
     val journey = g("M7 4.5 C11 4.5 14 6 17 4.5 L7 19.5 C10 18 14 20.5 17 19.5", 12 to 12, 19.5 to 7.5)
+
+    /** A glyph by the name the engine gives it; agir's when it is not one. */
+    fun byName(name: String?): Glyph = when (name) {
+        "shop" -> shop; "roko" -> roko; "logs" -> logs; "attributes" -> attributes
+        "build" -> build; "journey" -> journey; else -> act
+    }
 }
 
 /** Generic icons, for buttons that are not one of the home's options. */
