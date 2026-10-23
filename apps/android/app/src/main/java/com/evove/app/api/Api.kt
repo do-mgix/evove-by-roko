@@ -120,10 +120,23 @@ object Api {
         val s: Session = call("POST", path, obj("username" to username, "password" to password, "email" to email), auth = false)
         Prefs.token = s.token
         Prefs.username = s.username
+        Prefs.remember(s.username, s.token)
         return s
     }
 
     suspend fun login(username: String, password: String) = authCall("/auth/login", username, password, null)
+
+    /** A throwaway account for trying the evove from its first step: a random
+     *  name and password, kept only on this device. */
+    suspend fun registerTest(): Session {
+        val rng = java.security.SecureRandom()
+        val letters = "abcdefghjkmnpqrstuvwxyz"
+        val name = "t" + (1..6).map { letters[rng.nextInt(letters.length)] }.joinToString("")
+        val password = (1..16).map { (letters + "23456789")[rng.nextInt(letters.length + 8)] }.joinToString("")
+        val s = register(name, password, null)
+        Prefs.remember(s.username, s.token, test = true)
+        return s
+    }
     suspend fun register(username: String, password: String, email: String?) = authCall("/auth/register", username, password, email)
 
     /** The server answers the same whether or not the profile exists. */
@@ -222,7 +235,7 @@ object Api {
     // ------------------------------------------------------------ logs and calendar
 
     suspend fun logs(offset: Int = 0): LogsResponse = get("/logs?offset=$offset")
-    suspend fun deleteLog(id: Int): Ok = delete("/logs/$id")
+    suspend fun deleteLog(id: Int): DeletedLog = delete("/logs/$id")
     suspend fun updateLogNote(id: Int, note: String): LogEntry = patch("/logs/$id", obj("note" to note))
     suspend fun setLogPeriod(id: Int, period: String): LogEntry = patch("/logs/$id", obj("period" to period))
     suspend fun shiftLogDay(id: Int, delta: Int): LogEntry = patch("/logs/$id", obj("day_delta" to delta))
@@ -239,18 +252,18 @@ object Api {
     // ------------------------------------------------------------ agenda
 
     suspend fun agendaDay(offset: Int = 0): AgendaDay = get("/agenda/day?offset=$offset")
-    suspend fun setThought(date: String, content: String, logId: Int?): JsonObject =
+    suspend fun setThought(date: String, content: String, logId: Int?): Said =
         put("/thoughts", obj("date" to date, "content" to content, "log_id" to logId))
     suspend fun journal(date: String): Journal = get("/journal?date=$date")
 
     suspend fun todos(): List<Todo> = get<Items<Todo>>("/todos").items
-    suspend fun createTodo(title: String, actionIds: List<String>, deadline: String?, projectId: String?): Todo =
+    suspend fun createTodo(title: String, actionIds: List<String>, deadline: String?, projectId: String?): Said =
         post("/todos", obj("title" to title, "action_ids" to actionIds, "deadline" to deadline, "project_id" to projectId))
     suspend fun completeTodo(id: Int): Todo = post("/todos/$id/done")
     suspend fun deleteTodo(id: Int): Ok = delete("/todos/$id")
 
     suspend fun projects(): List<Project> = get<Items<Project>>("/projects").items
-    suspend fun createProject(name: String, deadline: String?): Project = post("/projects", obj("name" to name, "deadline" to deadline))
+    suspend fun createProject(name: String, deadline: String?): Said = post("/projects", obj("name" to name, "deadline" to deadline))
     suspend fun setProjectActive(id: String, active: Boolean): Project = patch("/projects/$id", obj("active" to active))
     suspend fun endProject(id: String): Project = post("/projects/$id/end")
     suspend fun deleteProject(id: String): Ok = delete("/projects/$id")
@@ -282,6 +295,35 @@ object Api {
     suspend fun addAlly(passcode: String): Ally = post("/allies", obj("passcode" to passcode))
     suspend fun removeAlly(nickname: String): Ok = delete("/allies/${enc(nickname)}")
     suspend fun rerollNickname(): Nickname = post("/me/nickname")
+
+    // ------------------------------------------------------------ the engine
+
+    suspend fun engine(): EngineView = get("/engine")
+    suspend fun visit(cold: Boolean, turns: Int): EngineView = post("/engine/visit", obj("cold" to cold, "turns" to turns))
+    suspend fun engineEvents(events: List<JsonObject>): EngineView = post("/engine/events", obj("events" to JsonArray(events)))
+    suspend fun ghostAct(name: String, option: Int): EngineView = post("/engine/ghost-act", obj("name" to name, "option" to option))
+    suspend fun passcode(code: String): EngineView = post("/engine/passcode", obj("code" to code))
+    suspend fun resetEngine(): EngineView = post("/engine/reset")
+
+    /** Ends a session that is not the one in use: an account kept on the device
+     *  and taken off it. */
+    suspend fun logoutToken(token: String, everywhere: Boolean = false) {
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val conn = (URL(BASE + if (everywhere) "/auth/logout-all" else "/auth/logout").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 10_000
+                    readTimeout = 10_000
+                    doOutput = true
+                    setRequestProperty("Content-Type", "application/json")
+                    setRequestProperty("Authorization", "Bearer $token")
+                }
+                conn.outputStream.use { it.write("{}".toByteArray()) }
+                conn.responseCode
+                conn.disconnect()
+            }
+        }
+    }
 }
 
 /** The part of the day a log is filed under: mo 5–12h, ev 12–18h, ni the rest. */

@@ -102,6 +102,8 @@ data class ActResult(
     val energy: Int = 0,
     val journeyReset: Boolean = false,
     val roko: String? = null,
+    /** what the act moved in the story, said by whoever said it */
+    val lines: List<Line> = emptyList(),
 )
 
 @Serializable
@@ -510,7 +512,11 @@ data class ShopState(
 )
 
 @Serializable
-data class Bought(val id: String = "", val name: String = "", val buildPoints: Int = 0)
+data class Bought(val id: String = "", val name: String = "", val buildPoints: Int = 0, val lines: List<Line> = emptyList())
+
+/** The answer of anything that may move the story: a thought, a to-do, a project. */
+@Serializable
+data class Said(val lines: List<Line> = emptyList())
 
 @Serializable
 data class Entity(
@@ -519,13 +525,22 @@ data class Entity(
     val title: String = "",
     val color: String = "#3dfff0",
     val personality: String = "",
+    /** "caps" shouts in capitals, "lower" speaks as typed */
+    val voice: String = "caps",
     val presence: Double = 0.0,
     val willing: Double = 0.0,
     val stats: Map<String, JsonElement> = emptyMap(),
 )
 
 @Serializable
-data class EntityTalk(val entity: String = "", val present: Boolean = false, val answered: Boolean = false, val line: String? = null)
+data class EntityTalk(
+    val entity: String = "",
+    val present: Boolean = false,
+    val answered: Boolean = false,
+    val line: String? = null,
+    /** what the others said about the talk, when it moved the story */
+    val lines: List<Line> = emptyList(),
+)
 
 @Serializable
 data class Ally(val nickname: String, val marks: Int = 0, val stage: Int = 0)
