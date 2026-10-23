@@ -520,3 +520,14 @@ class Ally(Base):
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     ally_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+# a profile's evove: its modules, story, counters and selector, as JSON
+# (src.domain.engine), and the passcode that hands the build to someone else
+class UserEngine(Base):
+    __tablename__ = "user_engine"
+
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    passcode: Mapped[str] = mapped_column(String(8), nullable=False, unique=True)
+    state: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)

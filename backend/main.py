@@ -21,7 +21,7 @@ from src.domain.marks import MARKS_PER_WINDOW, MarkError, options as tier_option
 from src.domain.agenda import collect_labels, DAY_NAMES as _DOMAIN_DAY_NAMES  # noqa: E402
 from src.domain.daily import PERIODS, apply_daily_tick, period_of  # noqa: E402
 from src.domain import journey as journey_mode  # noqa: E402
-from src.domain import battle, discovery, entities, equipment, recover as recovery  # noqa: E402
+from src.domain import battle, discovery, engine, entities, equipment, recover as recovery  # noqa: E402
 from src.domain.economy import BASE_MAX_TOKENS, INITIAL_POINTS, todo_reward  # noqa: E402
 from src.domain.user_attributes import PATCH_SEPARATOR, PatchError, engine_name  # noqa: E402
 from src.domain.attributes import (  # noqa: E402
@@ -39,7 +39,7 @@ from src.infrastructure.static_data import (  # noqa: E402
     skill_nodes_by_id,
 )
 from src.infrastructure import repos  # noqa: E402
-from src.infrastructure import agenda_repo, journey_repo, social_repo  # noqa: E402
+from src.infrastructure import agenda_repo, engine_repo, journey_repo, social_repo  # noqa: E402
 from src.infrastructure import auth  # noqa: E402
 from src.infrastructure import mailer  # noqa: E402
 
@@ -886,7 +886,8 @@ def projects_all(username: str = Depends(current_username)):
 def projects_add(payload: dict, username: str = Depends(current_username)):
     """Body: {name, deadline?}. A project starts active."""
     p = payload or {}
-    return _agenda_call(agenda_repo.create_project, username, p.get("name"), p.get("deadline"))
+    project = _agenda_call(agenda_repo.create_project, username, p.get("name"), p.get("deadline"))
+    return {**project, "lines": _engine_event(username, {"kind": "plan"})}
 
 
 @app.patch("/projects/{item_id}")
@@ -925,8 +926,9 @@ def todos_all(username: str = Depends(current_username)):
 def todos_add(payload: dict, username: str = Depends(current_username)):
     """Body: {title, action_ids, deadline?, project_id?}."""
     p = payload or {}
-    return _agenda_call(agenda_repo.create_todo, username, p.get("title"), p.get("action_ids") or [],
+    todo = _agenda_call(agenda_repo.create_todo, username, p.get("title"), p.get("action_ids") or [],
                         p.get("deadline"), p.get("project_id"))
+    return {**todo, "lines": _engine_event(username, {"kind": "plan"})}
 
 
 @app.patch("/todos/{todo_id}")
@@ -1030,7 +1032,8 @@ def put_thought(payload: dict, username: str = Depends(current_username)):
             raise HTTPException(status_code=404, detail=f"log {log_id} not on {day.isoformat()}")
     thought = _agenda_call(agenda_repo.set_thought, username, day, int(log_id) if log_id is not None else None,
                            str(p.get("content") or ""))
-    return {"thought": thought}
+    lines = _engine_event(username, {"kind": "plan"}) if str(p.get("content") or "").strip() else []
+    return {"thought": thought, "lines": lines}
 
 
 _WEEKDAYS = ("Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo")
@@ -1409,7 +1412,8 @@ def buy_action(payload: dict, username: str = Depends(current_username)):
 
     _save_user(username, data)
 
-    return {"id": new_id, "name": name, "build_points": metadata["build_points"], "points": metadata["build_points"]}
+    return {"id": new_id, "name": name, "build_points": metadata["build_points"], "points": metadata["build_points"],
+            "lines": _engine_event(username, {"kind": "buy", "name": name})}
 
 
 def _day_for(username: str, date_obj) -> int:
@@ -2067,6 +2071,7 @@ def act_on_action(action_id: str, payload: dict | None = None, username: str = D
         raise HTTPException(status_code=404, detail=str(e))
 
     _record_activity(username)
+    lines = _engine_event(username, {"kind": "act", "action": action_id})
     token_delta = (outcome.token_gain - outcome.tokens_wasted) - outcome.token_cost
     log_entry = _append_log(username, outcome.log_content, outcome.marks, token_delta, period, outcome.undo)
 
@@ -2092,9 +2097,12 @@ def act_on_action(action_id: str, payload: dict | None = None, username: str = D
         # the energy ran out on this act: the journey is back at stage 1
         "journey_reset": outcome.journey_reset,
         "log": log_entry,
-        # what roko says on the screen that follows
-        "roko": entities.line(entities.ENTITIES["roko"], {"nickname": social_repo.identity(username)["nickname"]},
-                              random.Random(), moment="after_act"),
+        # what roko says on the screen that follows: the story's line when the
+        # act moved it, one of its own otherwise
+        "roko": lines[-1]["text"] if lines else entities.line(
+            entities.ENTITIES["roko"], {"nickname": social_repo.identity(username)["nickname"]},
+            random.Random(), moment="after_act"),
+        "lines": lines,
     }
 
 
@@ -2213,8 +2221,10 @@ def _entity_state(username: str, data: dict) -> dict:
 
 @app.get("/entities")
 def list_entities(username: str = Depends(current_username)):
-    """The entities of the system, with their stats."""
-    return [entities.public(e) for e in entities.ENTITIES.values()]
+    """The entities the profile has met, with their stats, in the order it met
+    them."""
+    state, _code = engine_repo.load(username)
+    return [entities.public(entities.ENTITIES[e]) for e in state["entities"] if e in entities.ENTITIES]
 
 
 @app.get("/entities/{entity_id}/talk")
@@ -2227,7 +2237,20 @@ def entity_talk(entity_id: str, username: str = Depends(current_username)):
     data = _load_user(username)
     now = datetime.now()
     minute = int(now.timestamp() // 60)
-    return {"entity": entity_id, **entities.talk(e, _entity_state(username, data), username, minute, random.Random())}
+    state, _code = engine_repo.load(username)
+    if entity_id not in state["entities"]:
+        raise HTTPException(status_code=404, detail=f"entity '{entity_id}' not met yet")
+    rng = random.Random()
+    st = _entity_state(username, data)
+    if engine.entity_presence(state):
+        said = {"present": True, "answered": True, "line": entities.line(e, st, rng)}
+    else:
+        said = entities.talk(e, st, username, minute, rng)
+    lines = _engine_event(username, {"kind": "talk", "entity": entity_id}) if said["answered"] else []
+    own = [l["text"] for l in lines if l["entity"] == entity_id]
+    if own:
+        said["line"] = " ".join(own)
+    return {"entity": entity_id, **said, "lines": [l for l in lines if l["entity"] != entity_id]}
 
 
 @app.get("/attributes/usage")
@@ -2256,3 +2279,136 @@ def attribute_usage(days: int = 30, limit: int = 12, username: str = Depends(cur
         out.append({**_node_view(tree, key, totals, memo), "uses": uses[key],
                     "seconds_ago": max(0, int((now - last[key]).total_seconds()))})
     return out
+
+
+# ---------------------------------------------------------------- the engine
+
+def _engine_event(username: str, ev: dict) -> list[dict]:
+    """Runs one event through the profile's evove and saves it; returns what
+    the entities say about it (src.domain.engine)."""
+    state, _code = engine_repo.load(username)
+    lines = engine.event(state, ev, random.Random(), datetime.now())
+    engine_repo.save(username, state)
+    return lines
+
+
+_GHOSTS = 3
+
+
+def _ghosts(username: str, data: dict, state: dict) -> None:
+    """The story starts with agir and actions the profile does not own: drawn
+    once, among the cheap trained ones of the catalog."""
+    if state.get("story") != "start" or state.get("ghosts"):
+        return
+    owned = {str(a.get("name", "")).upper() for a in (data.get("actions") or {}).values() if not a.get("deleted")}
+    pool = sorted(n for n, m in repos.load_action_templates().items()
+                  if not m["log_only"] and m["cost"] <= 500 and n not in owned)
+    state["ghosts"] = random.Random().sample(pool, min(_GHOSTS, len(pool)))
+
+
+def _engine_view(username: str, state: dict, code: str) -> dict:
+    out = engine.view(state, code, period_of(datetime.now()))
+    templates = repos.load_action_templates()
+    out["ghosts"] = [
+        {"name": n, "tiers": tier_options(templates[n].get("tiers") or {}), "cost": templates[n]["cost"]}
+        for n in out["ghosts"] if n in templates
+    ]
+    return out
+
+
+@app.get("/engine")
+def engine_state(username: str = Depends(current_username)):
+    """The profile's evove: the home's tiles for this session, the modules and
+    their passcodes, the entities met, the story, the selector, the counters."""
+    data = _load_user(username)
+    state, code = engine_repo.load(username)
+    before = list(state.get("ghosts") or [])
+    _ghosts(username, data, state)
+    if state.get("ghosts") != before:
+        engine_repo.save(username, state)
+    return _engine_view(username, state, code)
+
+
+@app.post("/engine/visit")
+def engine_visit(payload: dict | None = None, username: str = Depends(current_username)):
+    """Body: {cold?: bool, turns?: int}. The app came on: after a pause, or cold,
+    that is a new session — a new layout, a visit counted, the rules that wait
+    for one run. `turns` carries what a device counted before the engine."""
+    p = payload or {}
+    data = _load_user(username)
+    state, code = engine_repo.load(username)
+    lines = engine.event(state, {"kind": "visit", "cold": bool(p.get("cold")), "turns": int(p.get("turns") or 0)},
+                         random.Random(), datetime.now())
+    _ghosts(username, data, state)
+    engine_repo.save(username, state)
+    return {**_engine_view(username, state, code), "lines": lines}
+
+
+@app.post("/engine/events")
+def engine_events(payload: dict, username: str = Depends(current_username)):
+    """Body: {events: [{kind: open|turn|dismiss, module?, n?}]}. What happened on
+    the device since the last call, counted in order."""
+    state, code = engine_repo.load(username)
+    period = period_of(datetime.now())
+    lines: list[dict] = []
+    for ev in ((payload or {}).get("events") or [])[:200]:
+        kind = str((ev or {}).get("kind") or "")
+        if kind not in ("open", "turn", "dismiss"):
+            continue
+        lines += engine.event(state, {**ev, "kind": kind, "period": period}, random.Random(), datetime.now())
+    engine_repo.save(username, state)
+    return {**_engine_view(username, state, code), "lines": lines}
+
+
+@app.post("/engine/ghost-act")
+def engine_ghost_act(payload: dict, username: str = Depends(current_username)):
+    """Body: {name, option}. Acting on one of the story's first actions, which
+    the profile does not own: nothing is logged, nothing is paid, roko answers,
+    and the action is waiting in the shop."""
+    p = payload or {}
+    name = str(p.get("name") or "").strip().upper()
+    state, code = engine_repo.load(username)
+    if name not in (state.get("ghosts") or []):
+        raise HTTPException(status_code=404, detail=f"'{name}' is not one of the first actions")
+    social_repo.add_discoveries(username, [name])
+    lines = engine.event(state, {"kind": "ghost_act", "name": name, "option": p.get("option")},
+                         random.Random(), datetime.now())
+    engine_repo.save(username, state)
+    return {**_engine_view(username, state, code), "name": name, "lines": lines}
+
+
+@app.post("/engine/passcode")
+def engine_passcode(payload: dict, username: str = Depends(current_username)):
+    """Body: {code}. A module's passcode unlocks it, an upgrade's applies it,
+    another evove's loads its build. 404 for a code that names nothing."""
+    raw = (payload or {}).get("code")
+    state, code = engine_repo.load(username)
+    module = engine.module_for_code(raw)
+    upgrade = engine.upgrade_for_code(raw) if not module else None
+    if module:
+        kind, lines = "module", engine.take_module(state, module)
+    elif upgrade:
+        kind, lines = "upgrade", engine.take_upgrade(state, upgrade)
+    else:
+        typed = engine.clean_code(raw)
+        if typed == code:
+            raise HTTPException(status_code=409, detail="this is your own evove")
+        other = engine_repo.by_passcode(typed) if len(typed) == engine.EVOVE_CODE_LENGTH else None
+        if other is None:
+            raise HTTPException(status_code=404, detail="no evove or module with this code")
+        kind, lines = "evove", engine.take_build(state, other)
+    if lines:
+        state["line"] = {**lines[-1], "at": datetime.now().isoformat(timespec="seconds")}
+    engine_repo.save(username, state)
+    return {**_engine_view(username, state, code), "kind": kind, "lines": lines}
+
+
+@app.post("/engine/reset")
+def engine_reset(username: str = Depends(current_username)):
+    """The evove goes back to its first step — agir alone, the story untold.
+    The profile's data stays: only what the interface shows starts over."""
+    _state, code = engine_repo.load(username)
+    state = engine.fresh(random.Random())
+    _ghosts(username, _load_user(username), state)
+    engine_repo.save(username, state)
+    return _engine_view(username, state, code)
