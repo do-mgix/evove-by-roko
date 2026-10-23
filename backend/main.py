@@ -192,7 +192,7 @@ def _worn(username: str) -> dict:
 
 def _max_energy(data: dict, username: str | None = None) -> int:
     """The profile's max hp: the base, its skills and, given `username`, the
-    amulet it wears."""
+    pulso it wears."""
     bonuses = aggregate_bonuses(set(data.get("skills") or []), skill_nodes_by_id())
     worn = int(_worn(username)["hp"]) if username else 0
     return journey_mode.BASE_MAX_ENERGY + int(bonuses.get("max_energy", 0) or 0) + worn

@@ -231,9 +231,9 @@ def fight(boss: Boss, chosen: list[dict], hp: int, armor: int = 0) -> dict:
         ability = boss.abilities[r % len(boss.abilities)] if boss.abilities else None
         if ability and r % 3 == 2 and mp >= SPECIAL_MP:
             mp -= SPECIAL_MP
-            blow, text = ability["power"], f"{boss.name} USA {ability['name']}"
+            blow, text = ability["power"], f"{boss.name} EMITE {ability['name']}"
         else:
-            blow, text = boss.attack, f"{boss.name} ATACA"
+            blow, text = boss.attack, f"{boss.name} PULSA"
         blow = max(0, blow - armor)
         my_hp = max(0, my_hp - blow)
         taken += blow

@@ -49,7 +49,7 @@ ENTITIES: dict[str, dict] = {
             ],
             "boss": [
                 "{boss} ESPERA POR VOCÊ. NÃO O FAÇA ESPERAR.",
-                "HÁ UM CHEFE NO SEU CAMINHO. É FRACO CONTRA {type}.",
+                "HÁ UM RUÍDO NO SEU CAMINHO. É FRACO CONTRA {type}.",
                 "{boss} NÃO VAI SE DERROTAR SOZINHO.",
             ],
             "cycle_open": [
@@ -121,7 +121,7 @@ ENTITIES: dict[str, dict] = {
             ],
             "boss": [
                 "{boss} parece forte. ou é só barulho? você já viu de perto?",
-                "o roko chama {boss} de chefe. eu chamaria de pergunta.",
+                "o roko chama {boss} de ruído. eu chamaria de pergunta.",
             ],
             "cycle_open": [
                 "você agiu mas não pensou sobre isso. o que mudou em você?",
