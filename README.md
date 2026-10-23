@@ -940,6 +940,45 @@ ended, not when the profile is next loaded — `apply_daily_tick` runs `journey.
 every load and pays everything reached since, in order. `journey_points` is how many of
 the current stage's points were paid. The rules are all in `src/domain/journey.py`.
 
+### The engine
+
+The phone app is no longer a fixed set of screens: it is an engine that draws the modules
+the server says a profile has (`src/domain/engine.py`, `user_engine`, `/engine*`). A
+profile's **evove** is one JSON state — the modules it has, the step of the story, the
+entities it met, the selector's level and the counters the rules watch — and the home is
+drawn from it.
+
+- **Modules and passcodes.** Every module (agir, shop, roko, agenda, atributos, jornada,
+  construir) has a passcode (`AGIR-7Q`, `LOJA-3K`…), and so do a few upgrades (`SELE-2R`,
+  `SELE-3V`, `EVE-5HZ`). Every evove has an eight-character passcode too; typing it
+  (`POST /engine/passcode`, from the profile or after a `#` in agir's field) loads that
+  build — modules, entities, selector — never the data behind it.
+- **The story** reveals the interface a step at a time, each step waiting for one kind of
+  event: a new profile has agir alone and three catalog actions it does not own
+  (`ghosts`); acting on one (`POST /engine/ghost-act`) makes roko say it is a lie and opens
+  the shop; buying it, acting on it, and roko believes it and can be talked to; talking
+  opens the agenda; a thought, a to-do or a project opens the attributes; five acts the
+  journey; three visits after opening the journey, the builder. Acts, purchases, talks
+  and plans feed it from their own routes and answer with `lines`, what the entities said.
+- **Rules** watch the counters: 1000 page turns make the selector a wheel; at level 2, each
+  new session has a 12% chance of making it the strip; five talks with roko bring **eve**,
+  the second entity, who asks where roko orders and speaks in lower case.
+- **The layout is per session.** `POST /engine/visit` (cold start, or back after 20
+  minutes) starts a session with a new seed, and `engine.layout` tiles the home's 5×7 grid
+  again: agir tall on the right, the rest cut from the left by slanted cuts that join
+  opposite edges, sized by weight and by how often each module is opened.
+- `POST /engine/events` takes what the device counted (opens, turns, dismissing the line);
+  `POST /engine/reset` takes the evove back to its first step and keeps the data. Profiles
+  that existed before the engine got the legacy state: every module, the story told.
+
+### Deleting a log
+
+A log keeps what its act changed in `logs.undo` (the action, its mark event, the profile's
+marks, tokens, hp, and what each leaf and custom attribute received). `DELETE /logs/{id}`
+takes all of it back — ranks too, since an act taken back never happened — and answers with
+`reverted`. Logs from before the column are rebuilt from their name, time and marks. A rank
+claim already paid stays paid.
+
 ### The token economy
 
 Tokens are not handed out over time — there is no daily refill. An action either releases
@@ -1026,12 +1065,18 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 | GET | `/logs` | logs for one day — `?offset=0` today, `-1` yesterday, `+1` tomorrow |
 | GET | `/logs/by-date` | logs for a date (`?date=YYYY-MM-DD`) |
 | PATCH | `/logs/{id}` | edit the note (`{note}`), move it across days (`{day_delta}`) or refile it under another period (`{period}`) |
-| DELETE | `/logs/{id}` | delete |
+| DELETE | `/logs/{id}` | delete, taking back what its act gave (`reverted`) |
 | POST | `/logs/reorder` | reorder within a day (`{day, ids}`) |
 | GET | `/agenda` · `/agenda/today` | full agenda · today's agenda |
 | POST | `/agenda` | create an item |
 | PATCH · DELETE | `/agenda/{id}` | edit · remove |
 | GET | `/calendar` | month view with log counts and events (`?year=&month=`) |
+| GET | `/engine` | the profile's evove: this session's tiles, modules and their passcodes, entities, story, selector, counters, ghosts |
+| POST | `/engine/visit` | the app came on (`{cold?, turns?}`); a new session after a pause |
+| POST | `/engine/events` | opens, page turns and the line dismissed (`{events: [...]}`) |
+| POST | `/engine/ghost-act` | act on one of the story's first actions (`{name, option}`) |
+| POST | `/engine/passcode` | a module's, an upgrade's or another evove's passcode (`{code}`) |
+| POST | `/engine/reset` | the evove back to its first step |
 | GET · POST | `/projects` | list · create |
 | PATCH · DELETE | `/projects/{id}` | edit · remove |
 
@@ -1172,7 +1217,17 @@ costs nothing at tap time. To change a sound, edit `Synth` and export again:
 ```
 
 The DTMF keys of the old dial are in `Synth` too, unexported, since nothing presses them.
-As on the web, nothing sounds until the first tap.
+As on the web, nothing sounds until the first tap. They play on the media stream
+(`USAGE_GAME`), which the volume keys move: as sonification they went to the system stream,
+which silent mode mutes. `Synth.finish` brings every file to −1 dB and the glints sit above
+560 Hz, where a phone's speaker reaches.
+
+### Accounts
+
+The device keeps several signed-in accounts (`Prefs.accounts`), switched from the accounts
+screen — a long press above the home's tiles, the profile, or the login. Each has its own
+evove and tutorial. The dice makes a test account with a random name and password, kept
+only on the device.
 
 ### Looking at the screens without a phone
 
