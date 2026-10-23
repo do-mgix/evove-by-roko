@@ -345,6 +345,10 @@ class Log(Base):
     # part of the day it happened in — mo, ev or ni (src.domain.daily.PERIODS);
     # picked when acting, so something logged later can still say when it was
     period: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    # what the act changed, as JSON, so deleting the log can take it back:
+    # the action, its mark event, the profile's marks, tokens and hp, and the
+    # marks each leaf and custom attribute received (main.delete_log)
+    undo: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     user: Mapped[User] = relationship(back_populates="logs")
 

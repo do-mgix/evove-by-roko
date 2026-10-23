@@ -1437,12 +1437,92 @@ def reorder_logs(payload: dict, username: str = Depends(current_username)):
     return {"ok": True, "count": len(ids)}
 
 
+def _legacy_undo(username: str, data: dict, log: dict) -> dict | None:
+    """What an act changed, rebuilt for a log written before `logs.undo`: the
+    action from the log's name, its mark event from the time and the marks, the
+    leaves from the action's contributions. None when the action is gone."""
+    from src.domain.user_attributes import children_of, reached_leaves
+
+    head = str(log.get("content") or "").split(" : ")[0]
+    name = re.sub(r"\s*\[[^\]]*\]\s*$", "", head).strip().upper()
+    actions = data.get("actions") or {}
+    action_id = next((i for i, a in actions.items()
+                      if str(a.get("name", "")).upper() == name and not a.get("deleted")), None)
+    if not action_id:
+        return None
+    action = actions[action_id]
+    marks = int(log.get("marks", 0) or 0)
+    at = repos._parse_log_dt(log.get("timestamp")) or datetime.now()
+    templates = repos.load_action_templates()
+    engine = engine_name(actions, action)
+    log_only = bool((templates.get(engine) or {}).get("log_only"))
+    leaves, custom = {}, {}
+    if not log_only and marks > 0:
+        leaves = {str(lid): marks * float(w) for lid, _k, w in repos.load_action_contributions(engine)}
+        links = repos.load_patch_links(username).get(action_id) or {}
+        if links:
+            attrs = repos.load_user_attributes(username)
+            by_id = {a["id"] for a in attrs}
+            reached = reached_leaves({a: w for a, w in links.items() if a in by_id}, children_of(attrs))
+            custom = {str(i): marks * w for i, w in reached.items()}
+    return {
+        "action_id": action_id,
+        "mark_event_id": repos.find_mark_event(username, action_id, at, marks),
+        "marks": marks,
+        "log_only": log_only,
+        "tokens": int(log.get("tokens", 0) or 0),
+        "energy": ENERGY_PENALTY_OUT_OF_AGENDA,
+        "leaves": leaves,
+        "custom": custom,
+    }
+
+
 @app.delete("/logs/{log_id}")
 def delete_log(log_id: int, username: str = Depends(current_username)):
-    removed = repos.delete_log(username, int(log_id))
-    if removed is None:
+    """Deletes a log and takes back what its act gave: the marks on the action,
+    on the profile and on every attribute (ranks included), the mark event that
+    filled the 6-hour window, the tokens it moved and the hp it cost. The answer's
+    `reverted` says what was taken back; it is null for a log no act wrote."""
+    log = next((l for l in repos.load_logs(username) if int(l.get("id", -1)) == int(log_id)), None)
+    if log is None:
         raise HTTPException(status_code=404, detail=f"log {log_id} not found")
-    return {"ok": True, "id": int(log_id), "removed": removed}
+    data = _load_user(username)
+    undo = log.get("undo") or _legacy_undo(username, data, log)
+    reverted = None
+    if undo:
+        metadata = data.setdefault("metadata", {})
+        marks = int(undo.get("marks", 0) or 0)
+        action = (data.get("actions") or {}).get(undo.get("action_id"))
+        if action:
+            action["value"] = max(0.0, float(action.get("value", 0) or 0) - 1)
+            action["score"] = max(0.0, float(action.get("score", 0) or 0) - marks)
+        if not undo.get("log_only"):
+            data["marks"] = max(0, int(data.get("marks", 0) or 0) - marks)
+        tokens = int(undo.get("tokens", 0) or 0)
+        if tokens:
+            metadata["tokens"] = int(metadata.get("tokens", 0) or 0) - tokens
+        energy = int(undo.get("energy", 0) or 0)
+        if energy:
+            metadata["energy"] = min(_max_energy(data, username), int(metadata.get("energy", 0) or 0) + energy)
+        _save_user(username, data)
+        touched = repos.take_back_marks(
+            username, undo.get("mark_event_id"),
+            {int(k): float(v) for k, v in (undo.get("leaves") or {}).items()},
+            {int(k): float(v) for k, v in (undo.get("custom") or {}).items()},
+        )
+        reverted = {
+            "marks": marks,
+            "tokens": -tokens,
+            "energy": energy,
+            "user_marks": int(data.get("marks", 0) or 0),
+            "balance": int(metadata.get("tokens", 0) or 0),
+            "leaves": sorted(touched["leaves"], key=lambda l: -l["marks"]),
+            "custom": sorted(touched["custom"], key=lambda l: -l["marks"]),
+        }
+    removed = repos.delete_log(username, int(log_id))
+    if removed is not None:
+        removed.pop("undo", None)
+    return {"ok": True, "id": int(log_id), "removed": removed, "reverted": reverted}
 
 
 @app.patch("/logs/{log_id}")
@@ -1902,7 +1982,7 @@ def _period(raw) -> str | None:
 
 
 def _append_log(username: str, content: str, marks: int, tokens: int = 0,
-                period: str | None = None) -> dict | None:
+                period: str | None = None, undo: dict | None = None) -> dict | None:
     logs = repos.load_logs(username)
     today_day = _day_for(username, datetime.now().date())
     max_id = 0
@@ -1931,9 +2011,10 @@ def _append_log(username: str, content: str, marks: int, tokens: int = 0,
         "tokens": int(tokens),
         "coord": [today_day, next_order + 1],
         "period": period or period_of(datetime.now()),
+        "undo": undo,
     }
     repos.append_log(username, entry)
-    return entry
+    return {k: v for k, v in entry.items() if k != "undo"}
 
 
 @app.post("/actions/{action_id}/act")
@@ -1987,7 +2068,7 @@ def act_on_action(action_id: str, payload: dict | None = None, username: str = D
 
     _record_activity(username)
     token_delta = (outcome.token_gain - outcome.tokens_wasted) - outcome.token_cost
-    log_entry = _append_log(username, outcome.log_content, outcome.marks, token_delta, period)
+    log_entry = _append_log(username, outcome.log_content, outcome.marks, token_delta, period, outcome.undo)
 
     return {
         "id": action_id,

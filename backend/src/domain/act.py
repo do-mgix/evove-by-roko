@@ -36,6 +36,8 @@ class ActOutcome:
     # energy ran out on this act and the journey went back to stage 1
     journey_reset: bool = False
     bonuses: dict = field(default_factory=dict)
+    # what the act changed, for taking it back when its log is deleted
+    undo: dict = field(default_factory=dict)
 
 
 def apply_act(

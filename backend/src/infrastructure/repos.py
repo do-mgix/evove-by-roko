@@ -6,6 +6,7 @@ that is fine — endpoints touch one user-aggregate at a time.
 """
 from __future__ import annotations
 
+import json
 from datetime import datetime, date
 
 from sqlalchemy import select, update, func
@@ -365,6 +366,7 @@ def _log_to_dict(r: orm.Log) -> dict:
         "tokens": r.tokens,
         "coord": [r.day_num, r.order_in_day],
         "period": r.period,
+        "undo": json.loads(r.undo) if r.undo else None,
     }
 
 
@@ -399,6 +401,7 @@ def save_logs(username: str, logs: list[dict]) -> None:
                 day_num=day,
                 order_in_day=order,
                 period=log.get("period"),
+                undo=json.dumps(log["undo"]) if log.get("undo") else None,
             ))
         s.commit()
     except Exception:
@@ -436,6 +439,7 @@ def append_log(username: str, log: dict) -> None:
             day_num=day,
             order_in_day=order,
             period=log.get("period"),
+            undo=json.dumps(log["undo"]) if log.get("undo") else None,
         ))
         s.commit()
     except Exception:
@@ -1936,14 +1940,17 @@ def load_mark_window(username: str, engine_action_id: str, since: datetime) -> l
 
 
 def record_mark_event(username: str, engine_action_id: str, action_id: str, acted_at: datetime,
-                      option_index: int, amount: float, marks: int) -> None:
+                      option_index: int, amount: float, marks: int) -> int:
+    """Writes the event and returns its id."""
     s = SessionLocal()
     try:
         u = _get_user(s, username)
-        s.add(orm.MarkEvent(user_id=u.id, engine_action_id=engine_action_id, action_id=action_id,
-                            acted_at=acted_at, option_index=int(option_index),
-                            amount=float(amount), marks=int(marks)))
+        ev = orm.MarkEvent(user_id=u.id, engine_action_id=engine_action_id, action_id=action_id,
+                           acted_at=acted_at, option_index=int(option_index),
+                           amount=float(amount), marks=int(marks))
+        s.add(ev)
         s.commit()
+        return int(ev.id)
     except Exception:
         s.rollback()
         raise
@@ -1985,6 +1992,74 @@ def lose_marks(username: str, rule: dict, now: datetime | None = None) -> int:
                 changed += 1
         s.commit()
         return changed
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+# ---------- taking an act back ----------
+
+def find_mark_event(username: str, action_id: str, at: datetime, marks: int, slack_seconds: int = 300) -> int | None:
+    """The event an act wrote, for a log that predates `logs.undo`: the one of
+    that action, worth those marks, closest to the log's time."""
+    from datetime import timedelta
+
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        if not u:
+            return None
+        rows = s.execute(
+            select(orm.MarkEvent.id, orm.MarkEvent.acted_at)
+            .where(orm.MarkEvent.user_id == u.id,
+                   orm.MarkEvent.action_id == action_id,
+                   orm.MarkEvent.marks == int(marks),
+                   orm.MarkEvent.acted_at >= at - timedelta(seconds=slack_seconds),
+                   orm.MarkEvent.acted_at <= at + timedelta(seconds=slack_seconds))
+        ).all()
+        if not rows:
+            return None
+        return int(min(rows, key=lambda r: abs((r[1] - at).total_seconds()))[0])
+    finally:
+        s.close()
+
+
+def take_back_marks(username: str, mark_event_id: int | None, leaves: dict[int, float],
+                    custom: dict[int, float]) -> dict:
+    """Removes an act's mark event and subtracts what it gave each leaf of the
+    graph and each of the profile's own attributes, ranks included: an act that
+    is taken back never happened. One transaction. Returns the names touched,
+    with the marks taken: {"leaves": [{key, name, marks}], "custom": [...]}."""
+    from src.domain.attributes import split_total, total_marks
+
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        if not u:
+            return {"leaves": [], "custom": []}
+        if mark_event_id:
+            s.query(orm.MarkEvent).filter_by(id=int(mark_event_id), user_id=u.id).delete()
+        out_leaves, out_custom = [], []
+        for leaf_id, amount in leaves.items():
+            row = s.execute(select(orm.UserLeafScore).where(
+                orm.UserLeafScore.user_id == u.id, orm.UserLeafScore.leaf_id == int(leaf_id))).scalar_one_or_none()
+            if row is None:
+                continue
+            row.marks, row.rank_index = split_total(total_marks(float(row.marks), int(row.rank_index)) - float(amount))
+            node = s.get(orm.AttrNode, int(leaf_id))
+            if node is not None:
+                out_leaves.append({"key": node.key, "name": node.name, "marks": float(amount)})
+        for attr_id, amount in custom.items():
+            row = s.execute(select(orm.UserAttribute).where(
+                orm.UserAttribute.user_id == u.id, orm.UserAttribute.id == int(attr_id))).scalar_one_or_none()
+            if row is None:
+                continue
+            row.marks, row.rank_index = split_total(total_marks(float(row.marks), int(row.rank_index)) - float(amount))
+            out_custom.append({"id": row.id, "name": row.name, "marks": float(amount)})
+        s.commit()
+        return {"leaves": out_leaves, "custom": out_custom}
     except Exception:
         s.rollback()
         raise

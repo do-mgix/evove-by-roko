@@ -87,10 +87,23 @@ def perform_act(username: str, data: dict, action_id: str, option, note: str = "
     save(data)
 
     engine_id = engine_action_id(action_id, action)
-    repos.record_mark_event(username, engine_id, action_id, now, int(option), decided["amount"], decided["marks"])
+    event_id = repos.record_mark_event(username, engine_id, action_id, now, int(option), decided["amount"], decided["marks"])
+    outcome.undo = {
+        "action_id": action_id,
+        "mark_event_id": event_id,
+        "marks": outcome.marks,
+        "log_only": log_only,
+        "tokens": (outcome.token_gain - outcome.tokens_wasted) - outcome.token_cost,
+        # an act that emptied the hp restarted the journey: that is not undone
+        "energy": 0 if outcome.journey_reset else outcome.energy_penalty,
+        "leaves": {},
+        "custom": {},
+    }
     if log_only:
         return outcome
-    apply_action_contributions(username, engine_name(data.get("actions") or {}, action), decided["marks"], now)
+    gains = apply_action_contributions(username, engine_name(data.get("actions") or {}, action), decided["marks"], now)
+    outcome.undo["leaves"] = {str(k): v for k, v in gains.items()}
     if action.get("base_action_id"):
-        apply_patch_attributes(username, action_id, decided["marks"], now)
+        custom = apply_patch_attributes(username, action_id, decided["marks"], now)
+        outcome.undo["custom"] = {str(k): v for k, v in custom.items()}
     return outcome
