@@ -33,9 +33,9 @@ object Synth {
     /** Three strengths of the same sound, as in sfx.ts. */
     data class Strength(val gain: Double, val wet: Double, val thump: Double, val glints: Int, val spread: Double)
 
-    val TAP = Strength(gain = 0.35, wet = 0.2, thump = 0.18, glints = 1, spread = 0.0)
-    val POWER_ON = Strength(gain = 0.4, wet = 0.3, thump = 0.3, glints = 2, spread = 0.12)
-    val GAINS = Strength(gain = 0.45, wet = 0.4, thump = 0.45, glints = 2, spread = 0.18)
+    val TAP = Strength(gain = 0.35, wet = 0.14, thump = 0.18, glints = 1, spread = 0.0)
+    val POWER_ON = Strength(gain = 0.4, wet = 0.21, thump = 0.3, glints = 2, spread = 0.12)
+    val GAINS = Strength(gain = 0.45, wet = 0.28, thump = 0.45, glints = 2, spread = 0.18)
 
     /** A light `tap` for every button; `variant` (0–9) nudges the pitch. */
     fun tap(variant: Int, random: Random = Random()) = play(TAP, 0.9 + (variant % 10) * 0.03, random)
@@ -48,8 +48,8 @@ object Synth {
 
     // ---------------------------------------------------------------- the sound
 
-    /** A scatter of low, bell-like glints over a soft impact, in a room with a
-     *  moderate echo. `pitch` shifts the whole sound (1 = as designed). */
+    /** A scatter of low, bell-like glints over a soft impact, in a small room
+     *  with a short echo. `pitch` shifts the whole sound (1 = as designed). */
     fun play(s: Strength, pitch: Double, random: Random): Stereo {
         val hall = hall(random)
         val length = seconds(maxOf(s.thump * 1.2 + 0.02, 0.08, 0.01 + s.spread + 0.27))
@@ -97,7 +97,7 @@ object Synth {
         for (i in 0 until length) {
             val shimmer = 0.7 * glints[i]
             dry[i] = s.gain * (bus[i] + shimmer)
-            room[i] = s.wet * dry[i] + 0.4 * shimmer
+            room[i] = s.wet * dry[i] + 0.28 * shimmer
         }
         val left = convolve(room, hall.left)
         val right = convolve(room, hall.right)
@@ -107,17 +107,17 @@ object Synth {
         ))
     }
 
-    /** The room: a stereo impulse response of decaying noise — two seconds,
+    /** The room: a stereo impulse response of decaying noise — a second or so,
      *  enough for the glints to ring a little without trailing on — scaled as a
      *  Web Audio convolver normalizes its buffer. */
     private fun hall(random: Random): Stereo {
-        val length = seconds(2.0)
+        val length = seconds(1.2)
         val ch = Array(2) {
             FloatArray(length) { i ->
-                // a few early reflections, then a long, slightly uneven tail
+                // a few early reflections, then a short, slightly uneven tail
                 val t = i.toDouble() / length
                 val early = if (i < RATE * 0.08 && i % 997 < 40) 0.6 else 0.0
-                (((random.nextDouble() * 2 - 1) + early) * (1 - t).pow(3.5)).toFloat()
+                (((random.nextDouble() * 2 - 1) + early) * (1 - t).pow(4.5)).toFloat()
             }
         }
         var power = 0.0
@@ -222,7 +222,7 @@ object Synth {
         }
     }
 
-    /** Linear convolution, through the FFT: the room is two seconds long. */
+    /** Linear convolution, through the FFT: the room is about a second long. */
     private fun convolve(signal: DoubleArray, ir: FloatArray): DoubleArray {
         val n = signal.size + ir.size - 1
         var size = 1
