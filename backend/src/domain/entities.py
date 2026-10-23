@@ -28,6 +28,7 @@ ENTITIES: dict[str, dict] = {
         "title": "O ARQUITETO",
         "color": "#3dfff0",
         "personality": "autoritário",
+        "voice": "caps",
         "presence": 0.8,
         "willing": 0.85,
         "stats": {
@@ -88,6 +89,73 @@ ENTITIES: dict[str, dict] = {
                 "AGORA NÃO.",
                 "NÃO TENHO NADA A DIZER A VOCÊ.",
                 "SAIA DA MINHA FRENTE.",
+            ],
+        },
+    },
+    # the second entity, for now a test of what more than one voice does: she
+    # asks where roko orders, speaks low where he shouts, and would rather the
+    # profile understood why it acts than acted more. She is met after five
+    # talks with roko (src.domain.engine).
+    "eve": {
+        "id": "eve",
+        "name": "EVE",
+        "title": "A QUE PERGUNTA",
+        "color": "#ff9de2",
+        "personality": "curiosa",
+        "voice": "lower",
+        "presence": 0.55,
+        "willing": 0.9,
+        "stats": {
+            "rank": "?", "hp": 404, "mp": 777, "ataque": 12, "defesa": 640,
+            "especial": "PERGUNTA (?)", "tipo": "DÚVIDA",
+        },
+        "lines": {
+            "no_acts": [
+                "nada hoje ainda. tudo bem. o que você queria ter feito?",
+                "um dia vazio também conta alguma coisa, {nick}. o quê?",
+                "você abriu o app e não agiu. curioso. por quê?",
+            ],
+            "low_hp": [
+                "você está cansado. o roko não vai dizer, mas descansar também é uma ação.",
+                "pouco hp. talvez seja um sinal, não um defeito.",
+            ],
+            "boss": [
+                "{boss} parece forte. ou é só barulho? você já viu de perto?",
+                "o roko chama {boss} de chefe. eu chamaria de pergunta.",
+            ],
+            "cycle_open": [
+                "você agiu mas não pensou sobre isso. o que mudou em você?",
+                "os registros estão sem pensamentos. eles não se explicam sozinhos.",
+                "por que você fez o que fez hoje? escreve. eu leio.",
+            ],
+            "cycle_done": [
+                "ciclo fechado. e agora, o que você sabe que não sabia?",
+                "você pensou em tudo hoje. gostei disso.",
+            ],
+            "tokens_full": [
+                "tokens no limite. pra quê você está guardando?",
+            ],
+            "streak": [
+                "{streak} dias seguidos. você faz isso por você ou por ele?",
+                "uma sequência bonita. ela ainda te diz alguma coisa?",
+            ],
+            "after_act": [
+                "anotado. foi bom?",
+                "e isso, você faria de novo?",
+                "registrei. e como você se sentiu?",
+            ],
+            "greet": [
+                "oi, {nick}. o que você está procurando aqui?",
+                "o roko acha que construiu tudo isso. você acredita?",
+                "toda ação tem um porquê. qual é o seu?",
+                "eu não mando em nada. só pergunto.",
+                "você já reparou que a interface muda quando você não está olhando?",
+                "às vezes o melhor seletor é parar.",
+            ],
+            "refuse": [
+                "agora não. estou pensando.",
+                "…",
+                "depois. pergunta de novo depois.",
             ],
         },
     },
