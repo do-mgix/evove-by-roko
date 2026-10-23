@@ -63,7 +63,7 @@ private sealed interface Subject {
 }
 
 private const val SEPARATOR = " · "
-private val gold = hex("#b08a00")
+private val gold = com.evove.app.ui.Ink.gold
 
 private fun flatCustom(list: List<UserAttribute>): List<UserAttribute> = list.flatMap { listOf(it) + flatCustom(it.children) }
 
@@ -187,7 +187,7 @@ fun DetailsPage(onBack: () -> Unit) {
                 style = paperMuted,
             )
             for (g in groups) {
-                BasicText(g.title, Modifier.padding(top = 6.dp), style = paperMuted.copy(fontWeight = FontWeight.Bold))
+                BasicText(com.evove.app.ui.caps(g.title), Modifier.padding(top = 6.dp), style = paperMuted.copy(fontWeight = FontWeight.Bold, color = com.evove.app.ui.LocalInk.current))
                 for (a in g.items) Column(
                     Modifier.fillMaxWidth().clickable { subject = if (a.baseActionId != null) Subject.Patch(a.id) else Subject.Act(a.id) }.padding(vertical = 4.dp),
                 ) {
@@ -207,7 +207,7 @@ fun DetailsPage(onBack: () -> Unit) {
 
 @Composable
 private fun Degree(view: String, title: String, onClick: () -> Unit) {
-    Row(Modifier.clickable(onClick = onClick).border(1.dp, Paper.line, RoundedCornerShape(3.dp)).padding(horizontal = 8.dp, vertical = 3.dp)) {
+    Row(Modifier.clickable(onClick = onClick).border(1.5.dp, Paper.line).padding(horizontal = 8.dp, vertical = 3.dp)) {
         BasicText("★$view · $title", style = paperMuted)
     }
 }
@@ -220,7 +220,7 @@ private fun AttrRow(node: AttrNode, note: String?, onOpen: (() -> Unit)? = null,
     val tap = if (claimable) onClaim else onOpen
     Column(
         Modifier.fillMaxWidth()
-            .then(if (claimable) Modifier.border(1.dp, gold, RoundedCornerShape(6.dp)).padding(horizontal = 0.55.remDp, vertical = 0.4.remDp) else Modifier.padding(vertical = 0.3.remDp))
+            .then(if (claimable) Modifier.border(1.5.dp, gold).padding(horizontal = 0.55.remDp, vertical = 0.4.remDp) else Modifier.padding(vertical = 0.3.remDp))
             .then(if (tap != null) Modifier.clickable(onClick = tap) else Modifier),
         verticalArrangement = Arrangement.spacedBy(0.3.remDp),
     ) {
@@ -502,7 +502,7 @@ private fun Pick(text: String, on: Boolean, enabled: Boolean, note: String? = nu
 private fun LinkRow(r: Linked, editing: Boolean, busy: Boolean, onWeight: (Int) -> Unit, onRemove: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (editing && r.remove != null) BasicText("−", Modifier.clickable(enabled = !busy, onClick = onRemove).border(1.dp, Paper.error, RoundedCornerShape(3.dp)).padding(horizontal = 8.dp),
+            if (editing && r.remove != null) BasicText("−", Modifier.clickable(enabled = !busy, onClick = onRemove).border(1.5.dp, Paper.error).padding(horizontal = 8.dp),
                 style = paperText.copy(color = Paper.error))
             Column(Modifier.weight(1f)) {
                 BasicText(r.name, style = paperText.copy(color = if (r.custom) Paper.accent else Paper.text))

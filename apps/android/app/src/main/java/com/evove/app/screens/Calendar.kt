@@ -78,9 +78,10 @@ fun CalendarPage(onBack: () -> Unit) {
     fun goMonth(y: Int, m: Int) { year = y; month = m; selected = null; dayLogs = emptyList() }
 
     PaperPage(Page.CALENDAR.option, Page.CALENDAR.title, onBack) {
+        val ink = com.evove.app.ui.LocalInk.current
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Nav("‹") { val ym = YearMonth.of(year, month).minusMonths(1); goMonth(ym.year, ym.monthValue) }
-            BasicText("${MONTHS[month - 1]} $year", Modifier.weight(1f).clickable { picker = !picker }, style = paperText.copy(fontSize = 1.rem, textAlign = TextAlign.Center))
+            BasicText(com.evove.app.ui.caps("${MONTHS[month - 1]} $year"), Modifier.weight(1f).clickable { picker = !picker }, style = paperText.copy(fontSize = 0.95.rem, textAlign = TextAlign.Center))
             Nav("›") { val ym = YearMonth.of(year, month).plusMonths(1); goMonth(ym.year, ym.monthValue) }
         }
         if (picker) {
@@ -110,8 +111,8 @@ fun CalendarPage(onBack: () -> Unit) {
                         val future = d.isAfter(today)
                         Column(
                             Modifier.weight(1f).aspectRatio(0.8f)
-                                .border(if (iso == selected) 2.dp else 1.dp, if (d == today || iso == selected) Paper.accent else Paper.line, RoundedCornerShape(3.dp))
-                                .background(if (future) Color(0xFFFAFAFA) else Color.White)
+                                .background(if (iso == selected) ink.copy(alpha = 0.22f) else if (future) Color.Transparent else ink.copy(alpha = 0.06f))
+                                .border(if (iso == selected || d == today) 2.dp else 1.dp, if (d == today || iso == selected) ink else Paper.line)
                                 .clickable {
                                     if (future) eventDate = iso
                                     else {
@@ -125,9 +126,9 @@ fun CalendarPage(onBack: () -> Unit) {
                                 }.padding(3.dp),
                         ) {
                             BasicText("${d.dayOfMonth}", style = paperMuted.copy(color = if (future) Paper.muted else Paper.text))
-                            for (ev in data?.events.orEmpty().take(2)) BasicText(ev.label, style = paperMuted.copy(fontSize = 0.5.rem, color = Paper.accent), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            for (ev in data?.events.orEmpty().take(2)) BasicText(ev.label, style = paperMuted.copy(fontSize = 0.5.rem, color = ink), maxLines = 1, overflow = TextOverflow.Ellipsis)
                             if ((data?.events?.size ?: 0) > 2) BasicText("+${data!!.events.size - 2}", style = paperMuted.copy(fontSize = 0.5.rem))
-                            if ((data?.logCount ?: 0) > 0) Box(Modifier.size(5.dp).background(Paper.accent, CircleShape))
+                            if ((data?.logCount ?: 0) > 0) Box(Modifier.size(5.dp).background(ink, CircleShape))
                         }
                     }
                 }
@@ -138,7 +139,7 @@ fun CalendarPage(onBack: () -> Unit) {
                 } else {
                     Row { BasicText(short(s), Modifier.weight(1f), style = paperText); BasicText("${dayLogs.size} logs", style = paperMuted) }
                     for (ev in c.days[s]?.events.orEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        BasicText("evento", style = paperMuted.copy(color = Paper.accent)); BasicText(ev.label, style = paperText)
+                        BasicText("EVENTO", style = paperMuted.copy(color = ink)); BasicText(ev.label, style = paperText)
                     }
                     when {
                         dayLoading -> BasicText("…", style = paperMuted)
@@ -197,9 +198,23 @@ fun CalendarPage(onBack: () -> Unit) {
 
 @Composable
 private fun Choice(text: String, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val ink = com.evove.app.ui.LocalInk.current
+    BasicText(
+        com.evove.app.ui.caps(text),
+        modifier.background(if (on) ink.copy(alpha = 0.22f) else Color.Transparent).border(1.5.dp, if (on) ink else Paper.line)
+            .clickable { com.evove.app.sound.Sfx.tap(4); onClick() }.padding(vertical = 5.dp),
+        style = paperText.copy(fontSize = 0.7.rem, color = if (on) ink else Paper.text, textAlign = TextAlign.Center),
+    )
+}
+
+/** An arrow of the month's row. */
+@Composable
+fun Nav(text: String, enabled: Boolean = true, onClick: () -> Unit) {
+    val ink = com.evove.app.ui.LocalInk.current
     BasicText(
         text,
-        modifier.border(1.dp, if (on) Paper.accent else Paper.line, RoundedCornerShape(3.dp)).clickable(onClick = onClick).padding(vertical = 5.dp),
-        style = paperText.copy(fontSize = 0.75.rem, color = if (on) Paper.accent else Paper.text, textAlign = TextAlign.Center),
+        Modifier.border(1.5.dp, if (enabled) ink else Paper.line).clickable(enabled = enabled) { com.evove.app.sound.Sfx.tap(2); onClick() }
+            .padding(horizontal = 14.dp, vertical = 2.dp),
+        style = paperText.copy(fontSize = 1.2.rem, color = if (enabled) ink else Paper.line),
     )
 }

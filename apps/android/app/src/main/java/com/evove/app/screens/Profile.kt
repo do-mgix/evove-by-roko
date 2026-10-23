@@ -19,7 +19,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.evove.app.Evove
 import com.evove.app.Page
+import com.evove.app.sound.Sfx
 import com.evove.app.api.Ally
 import com.evove.app.api.Api
 import com.evove.app.api.Project
@@ -50,7 +52,7 @@ private fun checkpointIn(seconds: Long): String {
 }
 
 @Composable
-fun ProfilePage(onBack: () -> Unit, onLogout: (everywhere: Boolean) -> Unit) {
+fun ProfilePage(onBack: () -> Unit, onAccounts: () -> Unit, onLogout: (everywhere: Boolean) -> Unit) {
     var info by remember { mutableStateOf<SessionInfo?>(null) }
     var user by remember { mutableStateOf<UserState?>(null) }
     var allies by remember { mutableStateOf<List<Ally>>(emptyList()) }
@@ -81,9 +83,11 @@ fun ProfilePage(onBack: () -> Unit, onLogout: (everywhere: Boolean) -> Unit) {
         PaperError(error)
         if (i != null) {
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                BasicText(i.username, style = paperText.copy(fontSize = 1.4.rem))
-                BasicText("profile", style = paperMuted)
+                BasicText(com.evove.app.ui.caps(i.username), style = paperText.copy(fontSize = 1.4.rem))
+                BasicText("PERFIL", style = paperMuted)
             }
+            EvoveCard()
+            PaperButton("contas deste aparelho", ghost = true, onClick = onAccounts)
             if (u != null) {
                 PaperCard("identidade") {
                     PaperRow("nickname", u.nickname ?: "—", action = "sortear outro" to {
@@ -226,5 +230,70 @@ private fun Exit(label: String, note: String, onClick: () -> Unit) {
     Column {
         PaperButton(label, ghost = true, onClick = onClick)
         BasicText(note, style = paperMuted.copy(fontSize = 0.7.rem))
+    }
+}
+
+/** The profile's evove as the server keeps it: the passcode that hands the
+ *  build to someone else, a field for someone else's or a module's, every
+ *  module with its code once it is had, the selector and what moves it, the
+ *  counters the rules watch, the story's step — and going back to its start. */
+@Composable
+private fun EvoveCard() {
+    val v = Evove.view
+    var code by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var said by remember { mutableStateOf<String?>(null) }
+    var resetting by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    fun send() {
+        if (code.isBlank() || busy) return
+        busy = true
+        said = null
+        scope.launch {
+            try {
+                val r = Api.passcode(code)
+                Evove.apply(r)
+                said = r.lines.lastOrNull()?.text
+                code = ""
+                Sfx.gains()
+            } catch (e: Exception) {
+                said = e.message ?: "erro"
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    PaperCard("evove") {
+        if (v == null) { BasicText("…", style = paperMuted); return@PaperCard }
+        PaperRow("passcode", v.passcode, "quem digitar recebe este evove: módulos, entidades e seletor — os dados ficam com você")
+        PaperRow("sessão", "${v.session}", "o layout da home muda a cada uma")
+        PaperRow("história", if (v.story.done) "contada" else "${v.story.at}/${v.story.of} · ${v.story.step}")
+        val sel = v.selector
+        PaperRow("seletor", "nível ${sel.level}", when (sel.level) {
+            1 -> "${sel.turns}/${sel.nextAt ?: 1000} viradas para o nível 2"
+            2 -> "${((sel.chance ?: 0.0) * 100).toInt()}% de chance de nível 3 a cada sessão"
+            else -> "o último, por enquanto"
+        })
+        PaperRow("contagens", listOf("visits", "acts", "opens", "talks", "buys", "plans").joinToString(" · ") { k -> "${v.counters[k] ?: 0} ${mapOf("visits" to "visitas", "acts" to "atos", "opens" to "aberturas", "talks" to "conversas", "buys" to "compras", "plans" to "planos")[k] ?: k}" })
+        PaperRow("entidades", v.entities.joinToString(" · ").ifEmpty { "nenhuma ainda" })
+        for (m in v.modules) PaperRow(m.label, if (m.on) (m.code ?: "—") else "??????", if (m.on) null else "ainda não")
+        PaperField(code, { code = it.take(16) }, "digite um passcode", actions = KeyboardActions(onDone = { send() }))
+        PaperButton(if (busy) "..." else "carregar", enabled = code.isNotBlank() && !busy, onClick = ::send)
+        said?.let { BasicText(com.evove.app.ui.caps(it), style = paperText.copy(color = com.evove.app.ui.LocalInk.current)) }
+        if (!resetting) PaperButton("recomeçar o tutorial", ghost = true) { resetting = true }
+        else {
+            BasicText("o evove volta ao primeiro passo: só agir na home, a história de novo. seus dados ficam.", style = paperText)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PaperButton("recomeçar", danger = true, modifier = Modifier.weight(1f)) {
+                    scope.launch {
+                        runCatching { Api.resetEngine() }.onSuccess { Evove.apply(it); said = "tutorial recomeçado" }.onFailure { said = it.message }
+                        resetting = false
+                    }
+                }
+                PaperButton("cancelar", ghost = true, modifier = Modifier.weight(1f)) { resetting = false }
+            }
+        }
     }
 }
