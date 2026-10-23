@@ -1355,6 +1355,24 @@ def shop_discover(username: str = Depends(current_username)):
     return _shop_view(username, data, now, new)
 
 
+def _owned_action(action_id: str, name: str, template: dict) -> dict:
+    """An action of the catalog as a profile holds it, never acted on."""
+    return {
+        "id": action_id,
+        "name": name,
+        "type": int(template.get("type", 0)),
+        "diff": int(template.get("diff", 0)),
+        "value": 0,
+        "max_value": 0,
+        "score": 0,
+        "deleted": False,
+        "logic_type": None,
+        "sub_logic_type": None,
+        "token_cost": int(template.get("token_cost", 0) or 0),
+        "token_gain": int(template.get("token_gain", 0) or 0),
+    }
+
+
 @app.post("/shop/actions/buy")
 def buy_action(payload: dict, username: str = Depends(current_username)):
     data = _load_user(username)
@@ -1390,20 +1408,7 @@ def buy_action(payload: dict, username: str = Depends(current_username)):
         raise HTTPException(status_code=500, detail=f"action '{name}' has no catalog code")
     if new_id in actions:
         raise HTTPException(status_code=409, detail=f"action '{name}' already exists")
-    actions[new_id] = {
-        "id": new_id,
-        "name": name,
-        "type": int(template.get("type", 0)),
-        "diff": int(template.get("diff", 0)),
-        "value": 0,
-        "max_value": 0,
-        "score": 0,
-        "deleted": False,
-        "logic_type": None,
-        "sub_logic_type": None,
-        "token_cost": int(template.get("token_cost", 0) or 0),
-        "token_gain": int(template.get("token_gain", 0) or 0),
-    }
+    actions[new_id] = _owned_action(new_id, name, template)
 
     # Attribute scoring is now driven by the action_contributions tree (DB-side),
     # not the legacy per-user attribute table. No attribute row created on buy.
@@ -2071,7 +2076,7 @@ def act_on_action(action_id: str, payload: dict | None = None, username: str = D
         raise HTTPException(status_code=404, detail=str(e))
 
     _record_activity(username)
-    lines = _engine_event(username, {"kind": "act", "action": action_id})
+    lines = _engine_event(username, {"kind": "act", "action": action_id, "name": str(action.get("name") or "").upper()})
     token_delta = (outcome.token_gain - outcome.tokens_wasted) - outcome.token_cost
     log_entry = _append_log(username, outcome.log_content, outcome.marks, token_delta, period, outcome.undo)
 
@@ -2292,28 +2297,36 @@ def _engine_event(username: str, ev: dict) -> list[dict]:
     return lines
 
 
-_GHOSTS = 3
+_GIVEN = 3
 
 
-def _ghosts(username: str, data: dict, state: dict) -> None:
-    """The story starts with agir and actions the profile does not own: drawn
-    once, among the cheap trained ones of the catalog."""
-    if state.get("story") != "start" or state.get("ghosts"):
-        return
-    owned = {str(a.get("name", "")).upper() for a in (data.get("actions") or {}).values() if not a.get("deleted")}
-    pool = sorted(n for n, m in repos.load_action_templates().items()
-                  if not m["log_only"] and m["cost"] <= 500 and n not in owned)
-    state["ghosts"] = random.Random().sample(pool, min(_GHOSTS, len(pool)))
+def _give_first(username: str, data: dict, state: dict) -> bool:
+    """The story starts with agir and a few actions handed out, not chosen:
+    drawn once among the cheap trained ones of the catalog and added to the
+    profile, where they are acted on like any other. Roko doubts them until
+    they come back on other days. Returns whether anything was given."""
+    drawn = state.pop("ghosts", None)  # drawn by the first engine, never owned
+    if state.get("story") != "start" or state.get("given"):
+        return drawn is not None
+    templates = repos.load_action_templates()
+    actions = data.setdefault("actions", {})
+    owned = {str(a.get("name", "")).upper() for a in actions.values() if not a.get("deleted")}
+    pool = sorted(n for n, m in templates.items()
+                  if not m["log_only"] and m["cost"] <= 500 and m["code"] and n not in owned)
+    names = [n for n in (drawn or []) if n in pool][:_GIVEN]
+    names += random.Random().sample([n for n in pool if n not in names], max(0, min(_GIVEN, len(pool)) - len(names)))
+    for n in names:
+        code = templates[n]["code"]
+        if code not in actions:
+            actions[code] = _owned_action(code, n, templates[n])
+    _save_user(username, data)
+    social_repo.add_discoveries(username, names)
+    state["given"] = {n: [] for n in names}
+    return True
 
 
 def _engine_view(username: str, state: dict, code: str) -> dict:
-    out = engine.view(state, code, period_of(datetime.now()))
-    templates = repos.load_action_templates()
-    out["ghosts"] = [
-        {"name": n, "tiers": tier_options(templates[n].get("tiers") or {}), "cost": templates[n]["cost"]}
-        for n in out["ghosts"] if n in templates
-    ]
-    return out
+    return engine.view(state, code, period_of(datetime.now()))
 
 
 @app.get("/engine")
@@ -2322,9 +2335,7 @@ def engine_state(username: str = Depends(current_username)):
     their passcodes, the entities met, the story, the selector, the counters."""
     data = _load_user(username)
     state, code = engine_repo.load(username)
-    before = list(state.get("ghosts") or [])
-    _ghosts(username, data, state)
-    if state.get("ghosts") != before:
+    if _give_first(username, data, state):
         engine_repo.save(username, state)
     return _engine_view(username, state, code)
 
@@ -2339,7 +2350,7 @@ def engine_visit(payload: dict | None = None, username: str = Depends(current_us
     state, code = engine_repo.load(username)
     lines = engine.event(state, {"kind": "visit", "cold": bool(p.get("cold")), "turns": int(p.get("turns") or 0)},
                          random.Random(), datetime.now())
-    _ghosts(username, data, state)
+    _give_first(username, data, state)
     engine_repo.save(username, state)
     return {**_engine_view(username, state, code), "lines": lines}
 
@@ -2358,23 +2369,6 @@ def engine_events(payload: dict, username: str = Depends(current_username)):
         lines += engine.event(state, {**ev, "kind": kind, "period": period}, random.Random(), datetime.now())
     engine_repo.save(username, state)
     return {**_engine_view(username, state, code), "lines": lines}
-
-
-@app.post("/engine/ghost-act")
-def engine_ghost_act(payload: dict, username: str = Depends(current_username)):
-    """Body: {name, option}. Acting on one of the story's first actions, which
-    the profile does not own: nothing is logged, nothing is paid, roko answers,
-    and the action is waiting in the shop."""
-    p = payload or {}
-    name = str(p.get("name") or "").strip().upper()
-    state, code = engine_repo.load(username)
-    if name not in (state.get("ghosts") or []):
-        raise HTTPException(status_code=404, detail=f"'{name}' is not one of the first actions")
-    social_repo.add_discoveries(username, [name])
-    lines = engine.event(state, {"kind": "ghost_act", "name": name, "option": p.get("option")},
-                         random.Random(), datetime.now())
-    engine_repo.save(username, state)
-    return {**_engine_view(username, state, code), "name": name, "lines": lines}
 
 
 @app.post("/engine/passcode")
@@ -2409,6 +2403,6 @@ def engine_reset(username: str = Depends(current_username)):
     The profile's data stays: only what the interface shows starts over."""
     _state, code = engine_repo.load(username)
     state = engine.fresh(random.Random())
-    _ghosts(username, _load_user(username), state)
+    _give_first(username, _load_user(username), state)
     engine_repo.save(username, state)
     return _engine_view(username, state, code)

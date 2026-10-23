@@ -15,10 +15,15 @@ Things are revealed a little at a time, by a story and by rules:
 
 - the story is a line of steps. Each waits for one kind of event — a visit, an
   act, a purchase, a talk, a plan — and, when it comes, an entity says
-  something and a module opens. It starts with agir alone: acting on an action
-  the profile does not own makes roko call it a lie; the shop opens, the action
-  is bought, acted on, and roko believes it — then roko can be talked to, and
-  so on;
+  something and a module opens. It starts with agir alone and a few actions
+  the profile was given, not chosen — a climb, a song, whatever the draw
+  brought. Acting on one pays its marks like any act, but roko did not see it
+  happen: someone real holds the phone, and roko counts what that person does
+  out there. The shop opens; an action the person chose is bought, acted on,
+  and roko believes it — then roko can be talked to, and so on;
+- a given action stays in doubt until it comes back on other days: roko
+  comments on it, the marks come all the same, and on its third day roko
+  believes it. The evove ends up showing what its person really does;
 - the rules watch counters — visits, opens of each module, page turns, acts,
   talks — and change the interface when one crosses its mark: the selector
   becomes a slider after 1000 turns, and then, at each new visit, has a chance
@@ -49,6 +54,11 @@ SESSION_GAP_MINUTES = 20
 SELECTOR_2_TURNS = 1000
 SELECTOR_3_CHANCE = 0.12
 EVE_AFTER_TALKS = 5
+
+# a given action is believed once acted on, on this many different days
+BELIEVE_AFTER_DAYS = 3
+# after the story, how often roko still comments on a doubted act
+DOUBT_CHANCE = 0.4
 
 EVOVE_CODE_LENGTH = 8
 
@@ -107,7 +117,8 @@ def fresh(rng: random.Random) -> dict:
         "selector": 1,
         "counters": {},
         "session": {"n": 0, "at": None, "seed": rng.randrange(1 << 30)},
-        "ghosts": [],
+        # the actions handed out at the start: name -> the days it was acted on
+        "given": {},
         # the first thing a new profile reads, above agir alone
         "line": {"entity": "roko", "text": "AGE."},
     }
@@ -133,6 +144,7 @@ def normalized(state: dict | None, rng: random.Random) -> dict:
     out["counters"] = dict(state.get("counters") or {})
     out["session"] = {**base["session"], **(state.get("session") or {})}
     out["modules"] = [m for m in out.get("modules") or [] if m in MODULES] or ["act"]
+    out["given"] = dict(state.get("given") or {})
     return out
 
 
@@ -176,15 +188,21 @@ def _say(entity: str, text: str) -> dict:
 
 # step -> (the event it waits for, whether the event fits, what happens)
 STORY: dict[str, tuple] = {
-    "start": ("ghost_act", None, {
-        "lines": [_say("roko", "MENTIRA."), _say("roko", "ESSA AÇÃO NÃO É SUA. COMPRE-A. DEPOIS AJA DE NOVO.")],
+    "start": ("act", lambda st, ev: ev.get("name") in st["given"], {
+        "lines": lambda st, ev: [
+            _say("roko", f"{ev['name']}."),
+            _say("roko", "AS MARCAS SÃO SUAS. MAS DAQUI EU NÃO VI ACONTECER."),
+            _say("roko", "DO OUTRO LADO DO VIDRO TEM ALGUÉM. É ESSA PESSOA QUE EU CONTO."),
+            _say("roko", "O QUE ELA FAZ DE VERDADE? PROCURE NO SHOP."),
+        ],
         "unlock": ["shop"], "next": "buy",
     }),
     "buy": ("buy", None, {
-        "lines": [_say("roko", "AGORA ELA É SUA. PROVE.")], "next": "prove",
+        "lines": [_say("roko", "ESSA FOI VOCÊ QUEM ESCOLHEU."), _say("roko", "QUANDO ACONTECER LÁ FORA, AJA.")],
+        "next": "prove",
     }),
-    "prove": ("act", None, {
-        "lines": [_say("roko", "AGORA EU ACREDITO."), _say("roko", "PODE FALAR COMIGO.")],
+    "prove": ("act", lambda st, ev: ev.get("name") not in st["given"], {
+        "lines": [_say("roko", "ESSA EU ACREDITO."), _say("roko", "PODE FALAR COMIGO.")],
         "unlock": ["roko"], "meet": ["roko"], "next": "listen",
     }),
     "listen": ("talk", lambda st, ev: ev.get("entity") == "roko", {
@@ -213,12 +231,13 @@ def story_progress(state: dict) -> tuple[int, int]:
     return (STORY_ORDER.index(step) if step in STORY_ORDER else len(STORY_ORDER) - 1), len(STORY_ORDER) - 1
 
 
-def _apply(state: dict, effect: dict, out: list[dict]) -> None:
+def _apply(state: dict, effect: dict, ev: dict, out: list[dict]) -> None:
     for m in effect.get("unlock", []):
         unlock(state, m)
     for e in effect.get("meet", []):
         meet(state, e)
-    out.extend(effect.get("lines", []))
+    lines = effect.get("lines", [])
+    out.extend(lines(state, ev) if callable(lines) else lines)
     if "next" in effect:
         state["story"] = effect["next"]
 
@@ -240,7 +259,46 @@ def _selector(state: dict, ev: dict, rng: random.Random, out: list[dict]) -> Non
         out.append(_say("system", "O SELETOR MUDOU: TOQUE ONDE QUISER IR."))
 
 
-RULES = (_eve, _selector)
+_NUMBERS = {2: "DOIS", 3: "TRÊS", 4: "QUATRO", 5: "CINCO"}
+
+DOUBTS = (
+    "{a}? HOJE?",
+    "EU CONTO AS MARCAS. O RESTO EU SÓ IMAGINO.",
+    "QUEM SEGURA ESTE APARELHO FEZ {a} MESMO?",
+    "AS MARCAS VÊM DO MESMO JEITO. EU SÓ QUERIA TER VISTO.",
+    "SE FOR VERDADE, OUTRO DIA VOCÊ FAZ DE NOVO.",
+    "{a}. ANOTADO. ACREDITAR É OUTRA COISA.",
+)
+
+
+def doubted(state: dict) -> list[str]:
+    """The given actions roko does not believe yet."""
+    return [n for n, days in (state.get("given") or {}).items() if days is not None]
+
+
+def _doubt(state: dict, ev: dict, rng: random.Random, out: list[dict]) -> None:
+    """An act on a given action: its day is kept, and roko believes it on the
+    third one. Until then roko may say something about it — always while the
+    story is told — unless the story just spoke."""
+    name = ev.get("name")
+    days = (state.get("given") or {}).get(name, None) if ev["kind"] == "act" else None
+    if days is None:
+        return
+    spoke, new = bool(out), ev["day"] not in days
+    if new:
+        days.append(ev["day"])
+    if len(days) >= BELIEVE_AFTER_DAYS:
+        state["given"][name] = None
+        out.append(_say("roko", f"{name}. {_NUMBERS.get(len(days), len(days))} DIAS. AGORA EU ACREDITO."))
+    elif spoke:
+        return
+    elif new and len(days) > 1:
+        out.append(_say("roko", f"{name}. OUTRO DIA. TALVEZ."))
+    elif state.get("story") != "done" or rng.random() < DOUBT_CHANCE:
+        out.append(_say("roko", rng.choice(DOUBTS).format(a=name)))
+
+
+RULES = (_doubt, _eve, _selector)
 
 
 def event(state: dict, ev: dict, rng: random.Random, now: datetime) -> list[dict]:
@@ -272,8 +330,7 @@ def event(state: dict, ev: dict, rng: random.Random, now: datetime) -> list[dict
         _count(state, "turns", int(ev.get("n", 1) or 1))
     elif kind == "act":
         _count(state, "acts")
-    elif kind == "ghost_act":
-        _count(state, "ghost_acts")
+        ev["day"] = now.date().isoformat()
     elif kind == "buy":
         _count(state, "buys")
     elif kind == "talk":
@@ -288,7 +345,7 @@ def event(state: dict, ev: dict, rng: random.Random, now: datetime) -> list[dict
     if step in STORY:
         waits, fits, effect = STORY[step]
         if waits == kind and (fits is None or fits(state, ev)):
-            _apply(state, effect, out)
+            _apply(state, effect, ev, out)
     for rule in RULES:
         rule(state, ev, rng, out)
     if out:
@@ -424,7 +481,7 @@ def view(state: dict, passcode: str, period: str) -> dict:
                      "on": m in state["modules"]} for m, d in MODULES.items()],
         "entities": list(state["entities"]),
         "story": {"step": state.get("story", "done"), "at": step, "of": steps, "done": state.get("story") == "done"},
-        "ghosts": list(state.get("ghosts") or []) if state.get("story") == "start" else [],
+        "doubted": doubted(state),
         "line": state.get("line"),
         "selector": {
             "level": level,

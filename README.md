@@ -954,12 +954,18 @@ drawn from it.
   (`POST /engine/passcode`, from the profile or after a `#` in agir's field) loads that
   build — modules, entities, selector — never the data behind it.
 - **The story** reveals the interface a step at a time, each step waiting for one kind of
-  event: a new profile has agir alone and three catalog actions it does not own
-  (`ghosts`); acting on one (`POST /engine/ghost-act`) makes roko say it is a lie and opens
-  the shop; buying it, acting on it, and roko believes it and can be talked to; talking
+  event: a new profile has agir alone and three catalog actions handed out to it, not
+  chosen (`given`). Acting on one pays its marks like any act, but roko did not see it
+  happen — someone real holds the phone, and roko counts what that person does — and the
+  shop opens; an action the person chose is bought, acted on, and roko believes it and
+  can be talked to; talking
   opens the agenda; a thought, a to-do or a project opens the attributes; five acts the
   journey; three visits after opening the journey, the builder. Acts, purchases, talks
   and plans feed it from their own routes and answer with `lines`, what the entities said.
+- **Doubt.** A handed-out action stays doubted (`doubted` in `/engine`, drawn white in
+  agir) until it is acted on on three different days: roko comments on it — always while
+  the story is told, 40% of the time after — the marks come all the same, and on the third
+  day roko believes it. The evove ends up showing what its person really does.
 - **Rules** watch the counters: 1000 page turns make the selector a wheel; at level 2, each
   new session has a 12% chance of making it the strip; five talks with roko bring **eve**,
   the second entity, who asks where roko orders and speaks in lower case.
