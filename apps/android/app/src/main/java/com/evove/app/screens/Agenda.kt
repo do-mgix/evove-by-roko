@@ -36,6 +36,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.evove.app.Bus
+import com.evove.app.Evove
 import com.evove.app.api.Action
 import com.evove.app.api.AgendaDay
 import com.evove.app.api.Api
@@ -143,6 +144,8 @@ fun AgendaScreen(onHome: () -> Unit, onCalendar: () -> Unit, onLogs: () -> Unit)
     var deadline by remember { mutableStateOf("") }
     var projectId by remember { mutableStateOf<String?>(null) }
     var pickPage by remember { mutableIntStateOf(0) }
+    // the project a to-do was opened or made from, to go back to
+    var from by remember { mutableStateOf<Project?>(null) }
     val field = remember { FocusRequester() }
 
     suspend fun loadDay() {
@@ -166,7 +169,26 @@ fun AgendaScreen(onHome: () -> Unit, onCalendar: () -> Unit, onLogs: () -> Unit)
     LaunchedEffect(Bus.logs) { if (Bus.logs != lastLogs) { lastLogs = Bus.logs; loadDay() } }
 
     fun press(n: Int = 0) = Sfx.tap(n)
-    fun back() { mode = Pane.List; message = emptyList() }
+    fun back() {
+        message = emptyList()
+        val p = from
+        mode = if (p != null && mode !is Pane.ProjectOpen) Pane.ProjectOpen(projects.find { it.id == p.id } ?: p) else Pane.List
+        if (mode == Pane.List) from = null
+    }
+    /** What an entity said about it, when it moved the story. */
+    fun heard(lines: List<com.evove.app.api.Line>) {
+        if (lines.isEmpty()) return
+        message = lines.map { it.text }
+        Evove.refresh()
+    }
+    fun newTodo(project: Project?) {
+        press(6)
+        deadline = ""
+        title = ""; chosen = emptyList(); projectId = project?.id; pickPage = 0
+        from = project
+        mode = Pane.NewTodo
+        if (actions.isEmpty()) scope.launch { actions = runCatching { Api.actions() }.getOrDefault(emptyList()) }
+    }
     fun fail(e: Exception) { message = listOf(e.message ?: "erro") }
 
     fun pickDate(onPicked: (String) -> Unit) {
@@ -184,16 +206,13 @@ fun AgendaScreen(onHome: () -> Unit, onCalendar: () -> Unit, onLogs: () -> Unit)
         when (it) {
             is Entry.Log -> openThought(it.log)
             Entry.Day -> openThought(null)
-            is Entry.TodoItem -> { press(6); mode = Pane.TodoOpen(it.todo) }
+            is Entry.TodoItem -> { press(6); from = null; mode = Pane.TodoOpen(it.todo) }
             is Entry.ProjectItem -> { press(6); mode = Pane.ProjectOpen(it.project) }
             is Entry.Add -> {
-                press(6)
-                deadline = ""
-                if (it.todo) {
-                    title = ""; chosen = emptyList(); projectId = null; pickPage = 0
-                    mode = Pane.NewTodo
-                    if (actions.isEmpty()) scope.launch { actions = runCatching { Api.actions() }.getOrDefault(emptyList()) }
-                } else {
+                if (it.todo) newTodo(null)
+                else {
+                    press(6)
+                    deadline = ""
                     title = ""
                     mode = Pane.NewProject
                 }
@@ -225,6 +244,7 @@ fun AgendaScreen(onHome: () -> Unit, onCalendar: () -> Unit, onLogs: () -> Unit)
                     val t = m.todo
                     Big(t.title)
                     Small(buildString {
+                        projects.find { it.id == t.projectId }?.let { append(it.name).append(" · ") }
                         append(if (t.done) "concluído · +${t.reward} pts" else "${t.actions.count { it.acted }}/${t.actions.size} ações")
                         if (t.deadline != null) append(" · até ${short(t.deadline)}")
                         if (t.late) append(" · atrasado")
@@ -238,7 +258,8 @@ fun AgendaScreen(onHome: () -> Unit, onCalendar: () -> Unit, onLogs: () -> Unit)
                 m is Pane.ProjectOpen -> {
                     val p = m.project
                     Big(p.name)
-                    Small(if (p.emblem) (if (p.outcome == "completed") "emblema · completado" else "emblema · finalizado") else if (p.active) "ativo" else "desativado")
+                    Small((if (p.emblem) (if (p.outcome == "completed") "emblema · completado" else "emblema · finalizado") else if (p.active) "ativo" else "desativado") +
+                        " · ${p.stats.todosDone}/${p.stats.todos} to-dos")
                 }
                 m is Pane.NewProject -> { Big("novo projeto"); if (deadline.isNotEmpty()) Small("até ${short(deadline)}") }
                 !plan -> {
@@ -296,13 +317,14 @@ fun AgendaScreen(onHome: () -> Unit, onCalendar: () -> Unit, onLogs: () -> Unit)
                     Key({
                         val d = day ?: return@Key
                         busyRun {
-                            Api.setThought(d.date, draft, m.log?.id)
+                            val said = Api.setThought(d.date, draft, m.log?.id)
                             press(8)
                             loadDay()
                             mode = Pane.List
                             val done = day?.cycle?.complete == true
                             message = if (done) listOf("ciclo completo") else emptyList()
                             if (done) Sfx.gains()
+                            heard(said.lines)
                         }
                     }, Modifier.weight(3f).heightIn(min = 2.8.remDp), enabled = !busy) { KeyIcon(Icon.CHECK) }
                 }
@@ -322,17 +344,17 @@ fun AgendaScreen(onHome: () -> Unit, onCalendar: () -> Unit, onLogs: () -> Unit)
                     Grow(a.name)
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Key({ busyRun { press(0); runCatching { Api.deleteTodo(t.id) }; loadPlan(); mode = Pane.List } }, Modifier.weight(1f).heightIn(min = 2.8.remDp)) { KeyIcon(Icon.TRASH) }
+                    Key({ busyRun { press(0); runCatching { Api.deleteTodo(t.id) }; loadPlan(); back() } }, Modifier.weight(1f).heightIn(min = 2.8.remDp)) { KeyIcon(Icon.TRASH) }
                     if (!t.done) {
                         Box(Modifier.weight(2f))
                         Key({
                             busyRun {
                                 val r = Api.completeTodo(t.id)
                                 Sfx.gains()
-                                message = listOf("+${r.reward} pontos", if (r.late) "concluído com atraso" else "concluído")
                                 Bus.bumpUser()
                                 loadPlan(); loadDay()
-                                mode = Pane.List
+                                back()
+                                message = listOf("+${r.reward} pontos", if (r.late) "concluído com atraso" else "concluído")
                             }
                         }, Modifier.weight(3f).heightIn(min = 2.8.remDp), enabled = !busy) { KeyIcon(Icon.CHECK); KeyText("concluir") }
                     }
@@ -365,23 +387,31 @@ fun AgendaScreen(onHome: () -> Unit, onCalendar: () -> Unit, onLogs: () -> Unit)
                     }, Modifier.weight(1f).then(h), on = projectId != null) { KeyIcon(Icon.LIST) }
                     Key({
                         busyRun {
-                            Api.createTodo(title, chosen, deadline.ifEmpty { null }, projectId)
-                            press(8); loadPlan(); mode = Pane.List
+                            val said = Api.createTodo(title, chosen, deadline.ifEmpty { null }, projectId)
+                            press(8); loadPlan()
+                            val p = from
+                            mode = if (p != null) Pane.ProjectOpen(projects.find { it.id == p.id } ?: p) else Pane.List
+                            heard(said.lines)
                         }
                     }, Modifier.weight(3f).then(h), enabled = !busy && title.isNotBlank()) { KeyIcon(Icon.CHECK) }
                 }
             }
             is Pane.ProjectOpen -> {
+                // a project is its to-dos: they are listed in it, and made from it
                 val p = m.project
+                val its = todos.filter { it.projectId == p.id }
                 Stats(buildList {
-                    add("tempo ativo" to hours(p.stats.activeSeconds))
-                    add("desativado" to hours(p.stats.inactiveSeconds))
-                    add("ações" to "${p.stats.actions}")
-                    add("marcas" to "${p.stats.marks}")
-                    add("to-dos" to "${p.stats.todosDone}/${p.stats.todos}")
+                    add("tempo ativo" to "${hours(p.stats.activeSeconds)} · parado ${hours(p.stats.inactiveSeconds)}")
+                    add("ações · marcas" to "${p.stats.actions} · ${p.stats.marks}")
                     if (p.deadline != null) add("prazo" to short(p.deadline))
                 })
-                if (p.emblem) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { IconView(Icon.STAR, ink, 40.dp) }
+                if (p.emblem) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { IconView(Icon.STAR, ink, 32.dp) }
+                Label("to-dos · ${its.count { it.done }}/${its.size}")
+                val room = maxOf(1, floor((info.height.value - 230) / (ROW_DP + 8)).toInt())
+                if (its.isEmpty()) Empty("nenhum to-do neste projeto")
+                for (t in its.sortedBy { it.done }.take(room)) AgendaRow(Entry.TodoItem(t), day) { press(6); from = p; mode = Pane.TodoOpen(t) }
+                if (its.size > room) Small("+${its.size - room} to-dos")
+                if (!p.emblem) AgendaRow(Entry.Add(true), day) { newTodo(p) }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     val h = Modifier.heightIn(min = 2.8.remDp)
                     Key({ busyRun { Api.deleteProject(p.id); mode = Pane.List; press(5); loadPlan() } }, Modifier.weight(1f).then(h), enabled = !busy) { KeyIcon(Icon.TRASH) }
@@ -409,7 +439,7 @@ fun AgendaScreen(onHome: () -> Unit, onCalendar: () -> Unit, onLogs: () -> Unit)
                     val h = Modifier.heightIn(min = 2.8.remDp)
                     Key({ pickDate { deadline = it } }, Modifier.weight(1f).then(h), on = deadline.isNotEmpty()) { KeyIcon(Icon.FLAG, 16.dp) }
                     Box(Modifier.weight(2f))
-                    Key({ busyRun { Api.createProject(title, deadline.ifEmpty { null }); press(8); loadPlan(); mode = Pane.List } },
+                    Key({ busyRun { val said = Api.createProject(title, deadline.ifEmpty { null }); press(8); loadPlan(); mode = Pane.List; heard(said.lines) } },
                         Modifier.weight(3f).then(h), enabled = !busy && title.isNotBlank()) { KeyIcon(Icon.CHECK) }
                 }
             }

@@ -108,6 +108,8 @@ fun JourneyScreen(onHome: () -> Unit) {
     var gear by remember { mutableStateOf<Equipment?>(null) }
     var fight by remember { mutableStateOf<FightResult?>(null) }
     var shown by remember { mutableIntStateOf(0) }
+    // the equipment's slot on show: one at a time, nothing scrolls
+    var slotAt by remember { mutableIntStateOf(0) }
     var message by remember { mutableStateOf<List<String>>(emptyList()) }
     var busy by remember { mutableStateOf(false) }
     var loadedAt by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -264,7 +266,7 @@ fun JourneyScreen(onHome: () -> Unit) {
                 message.isNotEmpty() -> Message(message)
                 mode == Leg.BOSS && b != null -> { Big("${b.boss.name} (${b.boss.rank})"); Small(b.boss.type) }
                 mode == Leg.FIGHT && f != null -> {
-                    Big(if (over) (if (f.won) "vitória" else "derrota") else f.boss.name)
+                    Big(if (over) (if (f.won) "dissolvido" else "saturado") else f.boss.name)
                     Small(
                         if (!over) "toque para pular"
                         else if (f.won) "+${f.points} pontos"
@@ -280,10 +282,11 @@ fun JourneyScreen(onHome: () -> Unit) {
         bar = {
             if (mode == Leg.MAIN) {
                 Key({ go(Leg.BOSS) }, Modifier.at(1)) { KeyIcon(Icon.BOLT) }
-                Key({ go(Leg.EQUIP) }, Modifier.at(2)) { KeyIcon(Icon.SHIELD) }
+                Key({ go(Leg.EQUIP) }, Modifier.at(2)) { KeyIcon(Icon.TRIANGLE) }
                 Key({ go(Leg.STATS) }, Modifier.at(3)) { KeyIcon(Icon.BARS) }
             } else {
                 Key({ press(0); back() }, Modifier.at(1, 2)) { KeyIcon(Icon.LEFT) }
+                if (mode == Leg.EQUIP) Key({ press(2); slotAt++; com.evove.app.sound.Sfx.powerOn() }, Modifier.at(3)) { KeyIcon(Icon.DOWN) }
             }
             HomeKey { press(0); onHome() }
         },
@@ -338,7 +341,7 @@ fun JourneyScreen(onHome: () -> Unit) {
                     }
                 }
                 boss?.let { b ->
-                    Label("chefe do trecho")
+                    Label("ruído do trecho")
                     ListRow({ go(Leg.BOSS) }, Modifier.alpha(if (b.beaten) 0.55f else 1f)) {
                         IconView(if (b.beaten) Icon.CHECK else Icon.BOLT, Color.White, 16.dp)
                         Grow(caps("${b.boss.name} (${b.boss.rank}) · ${b.boss.type}"))
@@ -381,7 +384,7 @@ fun JourneyScreen(onHome: () -> Unit) {
                             }
                         }
                         if (over) BasicText(
-                            caps(if (f.won) "${f.boss.name} caiu." else "você recuou."),
+                            caps(if (f.won) "${f.boss.name} se dissolveu." else "o sinal caiu."),
                             style = font.copy(fontSize = 1.rem, fontWeight = FontWeight.SemiBold, color = ink),
                         )
                     }
@@ -392,7 +395,7 @@ fun JourneyScreen(onHome: () -> Unit) {
                 if (s == null) Empty("…")
                 else Stats(listOf(
                     "lutas" to "${s.fights}", "vitórias" to "${s.wins}", "derrotas" to "${s.losses}",
-                    "chefes vencidos" to "${s.bosses}", "dano causado" to "${s.dealt}", "dano recebido" to "${s.taken}",
+                    "ruídos dissolvidos" to "${s.bosses}", "dano causado" to "${s.dealt}", "dano recebido" to "${s.taken}",
                     "maior golpe" to "${s.bestHit}", "pontos ganhos" to "${s.pointsWon}", "maior estágio" to "${s.highestStage}",
                     "reinícios" to "${s.resets}", "recuperações" to "${s.recoverUses}",
                 ))
@@ -400,10 +403,12 @@ fun JourneyScreen(onHome: () -> Unit) {
             mode == Leg.EQUIP -> {
                 val g = gear
                 if (g == null) Empty("…")
-                else for (slot in g.slots) {
-                    Label(slot)
+                else if (g.slots.isNotEmpty()) {
+                    val slot = g.slots[slotAt % g.slots.size]
+                    Label("$slot · ${slotAt % g.slots.size + 1}/${g.slots.size}")
+                    // no blades and no amulets: a shape for each slot, a word for each item
+                    val icon = when (slot) { "vetor" -> Icon.TRIANGLE; "filtro" -> Icon.SQUARE; else -> Icon.CIRCLE }
                     for (item in g.items.filter { it.slot == slot }) {
-                        val icon = when (slot) { "arma" -> Icon.SWORD; "armadura" -> Icon.SHIELD; else -> Icon.AMULET }
                         ListRow(
                             { useItem(item) },
                             enabled = !busy && (item.owned || g.points >= item.price),

@@ -35,7 +35,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import com.evove.app.Evove
 import com.evove.app.api.Api
+import com.evove.app.api.Line
 import com.evove.app.api.Entity
 import com.evove.app.api.text
 import com.evove.app.sound.Sfx
@@ -79,6 +81,8 @@ fun RokoScreen(onHome: () -> Unit) {
     var asking by remember { mutableStateOf(false) }
     var typer by remember { mutableStateOf<Job?>(null) }
     var talks by remember { mutableIntStateOf(0) }
+    // what another entity said about the talk, typed out at the next tap
+    var queue by remember { mutableStateOf<List<Line>>(emptyList()) }
     val scope = rememberCoroutineScope()
 
     val entity = list.getOrNull(index)
@@ -108,6 +112,14 @@ fun RokoScreen(onHome: () -> Unit) {
             typed = line
             return
         }
+        queue.firstOrNull()?.let { next ->
+            queue = queue.drop(1)
+            list.indexOfFirst { it.id == next.entity }.takeIf { it >= 0 }?.let { index = it }
+            away = false
+            Sfx.powerOn()
+            type(next.text)
+            return
+        }
         asking = true
         scope.launch {
             try {
@@ -115,6 +127,12 @@ fun RokoScreen(onHome: () -> Unit) {
                 talks += 1
                 away = !r.present
                 type(if (r.present) r.line ?: "…" else "${e.name} NÃO ESTÁ AQUI.")
+                if (r.lines.isNotEmpty()) {
+                    // the talk moved the story: someone else may be here now
+                    queue = r.lines
+                    runCatching { Api.entities() }.onSuccess { list = it }
+                    Evove.refresh()
+                }
             } catch (x: Exception) {
                 type((x.message ?: "…").uppercase())
             } finally {
@@ -183,13 +201,13 @@ fun RokoScreen(onHome: () -> Unit) {
                 val showCaret = typer != null || caret > 0.5f
                 BasicText(
                     buildAnnotatedString {
-                        append(caps(typed))
+                        append(if (entity?.voice == "lower") typed else caps(typed))
                         withStyle(SpanStyle(color = if (showCaret) ink else Color.Transparent)) { append("▍") }
                     },
                     style = TextStyle(fontFamily = Display, fontSize = 1.15.rem, fontWeight = FontWeight.Medium, lineHeight = 1.55.em, letterSpacing = 0.08.em, color = Color.White),
                 )
                 BasicText(
-                    caps(if (asking) "…" else "toque para ouvir"),
+                    caps(if (asking) "…" else if (queue.isNotEmpty()) "${queue.first().entity} quer falar" else "toque para ouvir"),
                     Modifier.align(Alignment.End).alpha(0.6f),
                     style = TextStyle(fontFamily = Mono, fontSize = 0.7.rem, color = ink),
                 )
