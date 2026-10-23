@@ -8,7 +8,9 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -124,6 +126,12 @@ fun HomeScreen(tiles: List<Tile>, hint: String?, said: Line?, onOpen: (Tile) -> 
         }
         // over the canvas, which would take its touches, and above the tiles
         Said(said, Modifier.fillMaxWidth().height(with(LocalDensity.current) { (top - 8 * density).coerceAtLeast(0f).toDp() }), onDismiss, onAccounts)
+        // the way out of any evove, however little of it is open: faint, in the
+        // corner, to the accounts — switch, create, start over, delete
+        Box(
+            Modifier.align(Alignment.TopEnd).size(44.dp).clickable { Sfx.tap(5); onAccounts() },
+            contentAlignment = Alignment.Center,
+        ) { IconView(Icon.LIST, Color.White.copy(alpha = 0.28f), 20.dp) }
     }
 }
 

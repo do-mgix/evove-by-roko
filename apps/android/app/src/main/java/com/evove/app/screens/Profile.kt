@@ -87,7 +87,7 @@ fun ProfilePage(onBack: () -> Unit, onAccounts: () -> Unit, onLogout: (everywher
                 BasicText("PERFIL", style = paperMuted)
             }
             EvoveCard()
-            PaperButton("contas deste aparelho", ghost = true, onClick = onAccounts)
+            PaperButton("contas: trocar, reiniciar, apagar", ghost = true, onClick = onAccounts)
             if (u != null) {
                 PaperCard("identidade") {
                     PaperRow("nickname", u.nickname ?: "—", action = "sortear outro" to {
@@ -236,14 +236,14 @@ private fun Exit(label: String, note: String, onClick: () -> Unit) {
 /** The profile's evove as the server keeps it: the passcode that hands the
  *  build to someone else, a field for someone else's or a module's, every
  *  module with its code once it is had, the selector and what moves it, the
- *  counters the rules watch, the story's step — and going back to its start. */
+ *  counters the rules watch, the story's step. Starting it over is done from
+ *  the accounts, with all the rest of the profile. */
 @Composable
 private fun EvoveCard() {
     val v = Evove.view
     var code by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var said by remember { mutableStateOf<String?>(null) }
-    var resetting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     fun send() {
@@ -282,18 +282,5 @@ private fun EvoveCard() {
         PaperField(code, { code = it.take(16) }, "digite um passcode", actions = KeyboardActions(onDone = { send() }))
         PaperButton(if (busy) "..." else "carregar", enabled = code.isNotBlank() && !busy, onClick = ::send)
         said?.let { BasicText(com.evove.app.ui.caps(it), style = paperText.copy(color = com.evove.app.ui.LocalInk.current)) }
-        if (!resetting) PaperButton("recomeçar o tutorial", ghost = true) { resetting = true }
-        else {
-            BasicText("o evove volta ao primeiro passo: só agir na home, a história de novo. seus dados ficam.", style = paperText)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PaperButton("recomeçar", danger = true, modifier = Modifier.weight(1f)) {
-                    scope.launch {
-                        runCatching { Api.resetEngine() }.onSuccess { Evove.apply(it); said = "tutorial recomeçado" }.onFailure { said = it.message }
-                        resetting = false
-                    }
-                }
-                PaperButton("cancelar", ghost = true, modifier = Modifier.weight(1f)) { resetting = false }
-            }
-        }
     }
 }

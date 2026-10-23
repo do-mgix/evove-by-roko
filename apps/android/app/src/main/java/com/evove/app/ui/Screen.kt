@@ -51,6 +51,9 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
@@ -249,6 +252,7 @@ fun Field(
     singleLine: Boolean = true,
     maxLength: Int = Int.MAX_VALUE,
     keyboard: KeyboardOptions = KeyboardOptions.Default,
+    password: Boolean = false,
 ) {
     val ink = LocalInk.current
     BasicTextField(
@@ -260,7 +264,8 @@ fun Field(
             .border(1.5.dp, ink)
             .padding(horizontal = 0.7.remDp, vertical = 0.6.remDp),
         singleLine = singleLine,
-        keyboardOptions = keyboard,
+        keyboardOptions = if (password) keyboard.copy(keyboardType = KeyboardType.Password) else keyboard,
+        visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
         textStyle = TextStyle(fontFamily = Mono, fontSize = 0.9.rem, color = Color.White),
         cursorBrush = SolidColor(ink),
         decorationBox = { inner ->

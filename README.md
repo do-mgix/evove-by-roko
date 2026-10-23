@@ -1232,9 +1232,12 @@ which silent mode mutes. `Synth.finish` brings every file to −1 dB and the gli
 ### Accounts
 
 The device keeps several signed-in accounts (`Prefs.accounts`), switched from the accounts
-screen — a long press above the home's tiles, the profile, or the login. Each has its own
+screen — the faint menu in the home's top right corner, always there however little of the
+evove is open, a long press above the tiles, the profile, or the login. Each has its own
 evove and tutorial. The dice makes a test account with a random name and password, kept
-only on the device.
+only on the device. Managing an account (the dots) starts it over from nothing
+(`POST /auth/me/reset`), deletes it for good, or only takes it off the device; a test
+account keeps its password on the device, so neither asks for it.
 
 ### Looking at the screens without a phone
 

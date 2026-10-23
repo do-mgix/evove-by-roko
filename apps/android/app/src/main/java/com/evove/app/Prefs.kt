@@ -34,9 +34,11 @@ object Prefs {
 
     // ------------------------------------------------------------ accounts
 
-    /** An account kept on the device, signed in: switching to it needs no password. */
+    /** An account kept on the device, signed in: switching to it needs no password.
+     *  A test account keeps its password too — drawn at random, no one knows it —
+     *  so it can be started over or deleted. */
     @Serializable
-    data class Account(val username: String, val token: String, val test: Boolean = false)
+    data class Account(val username: String, val token: String, val test: Boolean = false, val password: String? = null)
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -47,9 +49,16 @@ object Prefs {
         set(v) = prefs.edit().putString("evove_accounts", json.encodeToString(ListSerializer(Account.serializer()), v)).apply()
 
     /** Keeps the session as the account in use, first in the list. */
-    fun remember(name: String, token: String, test: Boolean = false) {
+    fun remember(name: String, token: String, test: Boolean = false, password: String? = null) {
         val was = accounts.find { it.username == name }
-        accounts = listOf(Account(name, token, test || was?.test == true)) + accounts.filter { it.username != name }
+        accounts = listOf(Account(name, token, test || was?.test == true, password ?: was?.password)) + accounts.filter { it.username != name }
+    }
+
+    /** A kept account's new session, in its place in the list; the session in
+     *  use too, when it is that account. */
+    fun replace(name: String, token: String) {
+        accounts = accounts.map { if (it.username == name) it.copy(token = token) else it }
+        if (username == name) this.token = token
     }
 
     /** Makes a kept account the one in use. */

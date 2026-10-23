@@ -131,6 +131,9 @@ fun App() {
                     onTest = ::signedIn,
                     onBack = if (name != null) ({ page = Page.HOME }) else null,
                     onEmpty = { username = null; page = Page.HOME },
+                    // the account in use started over: its evove drawn again from the first step
+                    onReset = { n -> if (n == username) { Evove.switchTo(n); Evove.visit(cold = true); Bus.bumpUser() } },
+                    onGone = { n -> if (n == username) { username = null; page = Page.ACCOUNTS } },
                 )
                 return@Frame
             }

@@ -46,14 +46,14 @@ object Api {
     /** Answers in place of the server, for rendering the screens in tests. */
     var fake: ((method: String, path: String) -> String)? = null
 
-    private suspend fun send(method: String, path: String, body: JsonElement? = null, auth: Boolean = true): Reply =
+    private suspend fun send(method: String, path: String, body: JsonElement? = null, auth: Boolean = true, token: String? = null): Reply =
         fake?.let { Reply(200, it(method, path)) } ?: withContext(Dispatchers.IO) {
             val conn = (URL(BASE + path).openConnection() as HttpURLConnection).apply {
                 requestMethod = method
                 connectTimeout = 15_000
                 readTimeout = 20_000
                 setRequestProperty("Accept", "application/json")
-                if (auth) Prefs.token?.let { setRequestProperty("Authorization", "Bearer $it") }
+                if (auth) (token ?: Prefs.token)?.let { setRequestProperty("Authorization", "Bearer $it") }
             }
             try {
                 if (body != null) {
@@ -134,7 +134,7 @@ object Api {
         val name = "t" + (1..6).map { letters[rng.nextInt(letters.length)] }.joinToString("")
         val password = (1..16).map { (letters + "23456789")[rng.nextInt(letters.length + 8)] }.joinToString("")
         val s = register(name, password, null)
-        Prefs.remember(s.username, s.token, test = true)
+        Prefs.remember(s.username, s.token, test = true, password = password)
         return s
     }
     suspend fun register(username: String, password: String, email: String?) = authCall("/auth/register", username, password, email)
@@ -175,6 +175,25 @@ object Api {
     }
 
     suspend fun sessionInfo(): SessionInfo = get("/auth/me")
+
+    /** Starts a kept account over from nothing — `token` is its session —
+     *  and keeps the new session the server answers with in its place. */
+    suspend fun resetAccount(token: String, password: String): Session {
+        val r = send("POST", "/auth/me/reset", obj("password" to password), token = token)
+        if (r.status == 403) throw ApiException("senha incorreta")
+        if (r.status !in 200..299) throw ApiException(detail(r.body) ?: "falhou (${r.status})", r.status)
+        val s: Session = json.decodeFromString(r.body)
+        Prefs.replace(s.username, s.token)
+        return s
+    }
+
+    /** Deletes a kept account for good, by its session, and takes it off the device. */
+    suspend fun deleteAccountOf(a: Prefs.Account, password: String) {
+        val r = send("DELETE", "/auth/me", obj("password" to password), token = a.token)
+        if (r.status == 403) throw ApiException("senha incorreta")
+        if (r.status !in 200..299 && r.status != 401) throw ApiException(detail(r.body) ?: "falhou (${r.status})", r.status)
+        Prefs.forget(a.username)
+    }
 
     // ------------------------------------------------------------ acting
 
@@ -302,7 +321,6 @@ object Api {
     suspend fun visit(cold: Boolean, turns: Int): EngineView = post("/engine/visit", obj("cold" to cold, "turns" to turns))
     suspend fun engineEvents(events: List<JsonObject>): EngineView = post("/engine/events", obj("events" to JsonArray(events)))
     suspend fun passcode(code: String): EngineView = post("/engine/passcode", obj("code" to code))
-    suspend fun resetEngine(): EngineView = post("/engine/reset")
 
     /** Ends a session that is not the one in use: an account kept on the device
      *  and taken off it. */
