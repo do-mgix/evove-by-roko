@@ -52,8 +52,11 @@ fun LoginScreen(onSelected: (String) -> Unit, onAccounts: (() -> Unit)? = null) 
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
-    val canSubmit = username.isNotBlank() &&
+    // read when called, not when composed: a reference to a local function compares
+    // equal across compositions, so the buttons keep calling the first `submit`
+    fun ready() = username.isNotBlank() &&
         (mode == "forgot" || (password.length >= 8 && (mode == "login" || password == confirm)))
+    val canSubmit = ready()
 
     fun switch(next: String) {
         mode = next
@@ -64,7 +67,7 @@ fun LoginScreen(onSelected: (String) -> Unit, onAccounts: (() -> Unit)? = null) 
     }
 
     fun submit() {
-        if (!canSubmit || busy) return
+        if (!ready() || busy) return
         busy = true
         error = null
         scope.launch {
