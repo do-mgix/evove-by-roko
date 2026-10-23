@@ -31,7 +31,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import com.evove.app.api.Line
 import com.evove.app.sound.Sfx
+import com.evove.app.ui.voiceInk
 import com.evove.app.ui.Display
 import com.evove.app.ui.Ink
 import com.evove.app.ui.MarkBar
@@ -64,7 +66,7 @@ fun Arrive(ms: Int = 350, content: @Composable () -> Unit) {
 /** After an act, everything else is gone and what it paid arrives, one part
  *  after the other; a tap goes on. */
 @Composable
-fun GainsScreen(title: String, tokens: Int, marks: Int, gains: List<Gain>, roko: String?, onDone: () -> Unit) {
+fun GainsScreen(title: String, tokens: Int, marks: Int, gains: List<Gain>, lines: List<Line>, onDone: () -> Unit) {
     var step by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) {
         Sfx.gains()
@@ -106,8 +108,13 @@ fun GainsScreen(title: String, tokens: Int, marks: Int, gains: List<Gain>, roko:
                 }
             }
         }
+        // what the entities say about it, each in its own voice and color
         if (step >= 3) Arrive(600) {
-            BasicText(caps(roko ?: "registrado. o que vem a seguir?"), style = font.copy(fontSize = 0.85.rem, lineHeight = 1.5.em, color = hex("#00ffd0")))
+            Column(verticalArrangement = Arrangement.spacedBy(0.6.remDp)) {
+                for (l in lines.ifEmpty { listOf(Line("roko", "registrado. o que vem a seguir?")) }) {
+                    BasicText(if (l.entity == "eve") l.text else caps(l.text), style = font.copy(fontSize = 0.85.rem, lineHeight = 1.5.em, color = voiceInk(l.entity)))
+                }
+            }
         }
     }
 }

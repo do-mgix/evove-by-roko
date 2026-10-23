@@ -54,7 +54,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import com.evove.app.Bus
-import com.evove.app.Prefs
+import com.evove.app.Evove
+import com.evove.app.ui.Selector
 import com.evove.app.api.Api
 import com.evove.app.api.ShopAction
 import com.evove.app.api.ShopGroup
@@ -98,21 +99,17 @@ import kotlin.math.roundToInt
 // middle, a bar with two buttons at the bottom. It opens on its first screen,
 // where the catalog is discovered, and the centre button turns the page through
 // what was discovered, one attribute after the other; with an action chosen it
-// goes back a step instead.
+// goes back a step instead. That button is the selector (ui/Selector.kt), whose
+// level the engine keeps: an arrow, then a grooved wheel, then a strip.
 //
 // Only what was discovered is sold. Discovering changes with use: frames of
 // static to tap open, one by one; then a single button for the day's; then
-// nothing to do, they open on arrival. And the interface evolves too: after
-// TURNS_TO_SLIDER turns of the page, the arrow becomes a grooved slider, slid to
-// walk the catalog and tapped to go back a step.
+// nothing to do, they open on arrival.
 
 private const val SCALE = 3
 private const val SMALL = 2
 private const val PER_PAGE = 6
 private val DELAY = intArrayOf(0, 110, 60, 170, 30, 220, 140, 90, 200, 50)
-private const val TURNS_TO_SLIDER = 1000
-private const val TURNS_KEY = "evove_shop_turns"
-private const val STEP_DP = 34f
 
 val TYPE_LABEL = mapOf(
     0 to "sessão", 1 to "reps", 2 to "segundos", 3 to "minutos", 4 to "horas",
@@ -142,7 +139,6 @@ fun ShopScreen(onHome: () -> Unit) {
     var confirming by remember { mutableStateOf(false) }
     var buying by remember { mutableStateOf(false) }
     var forge by remember { mutableStateOf<String?>(null) }
-    var turns by remember { mutableIntStateOf(Prefs.int(TURNS_KEY)) }
     val scope = rememberCoroutineScope()
 
     fun apply(s: ShopState) {
@@ -195,6 +191,7 @@ fun ShopScreen(onHome: () -> Unit) {
     fun goTo(next: Int) {
         val n = next.coerceIn(0, stops.size - 1)
         if (n == stop) return
+        Evove.turn()
         stop = n
         selected = null
         confirming = false
@@ -246,7 +243,9 @@ fun ShopScreen(onHome: () -> Unit) {
                     }
                 }
                 Sfx.gains()
-                message = listOf("adquirida", a.name.lowercase())
+                // what roko says about it, when the purchase moved the story
+                message = if (res.lines.isNotEmpty()) res.lines.map { it.text } else listOf("adquirida", a.name.lowercase())
+                if (res.lines.isNotEmpty()) Evove.refresh()
                 selected = null
                 confirming = false
                 Bus.bumpUser()
@@ -312,20 +311,17 @@ fun ShopScreen(onHome: () -> Unit) {
                                 .background(Color.White.copy(alpha = if (i == stop) 1f else 0.25f)))
                         }
                     }
-                    if (turns >= TURNS_TO_SLIDER) {
-                        Slider(stop, stops.size, Modifier.at(3, 3), onStep = ::goTo, onTap = { Sfx.tap(0); if (!back()) onHome() })
-                    } else {
-                        Key({
-                            if (selected != null) { Sfx.tap(0); back() }
-                            else {
-                                stop = (stop + 1) % stops.size
-                                message = emptyList()
-                                turns = Prefs.int(TURNS_KEY) + 1
-                                Prefs.putInt(TURNS_KEY, turns)
-                                Sfx.powerOn()
-                            }
-                        }, Modifier.at(3, 3)) { KeyIcon(if (selected != null) Icon.LEFT else Icon.RIGHT) }
-                    }
+                    Selector(
+                        Evove.selector, stop, stops.size, back = selected != null && Evove.selector <= 1, Modifier.at(3, 3),
+                        onNext = {
+                            stop = (stop + 1) % stops.size
+                            message = emptyList()
+                            Evove.turn()
+                            Sfx.powerOn()
+                        },
+                        onStep = ::goTo,
+                        onTap = { Sfx.tap(0); if (!back()) onHome() },
+                    )
                     HomeKey { Sfx.tap(0); onHome() }
                 }
             }
@@ -485,45 +481,5 @@ private fun Static(modifier: Modifier) {
         // read the frame so each new one is drawn
         val image = remember(frame) { bitmap.asImageBitmap() }
         Image(image, null, Modifier.fillMaxSize().alpha(0.55f), contentScale = ContentScale.FillBounds, filterQuality = FilterQuality.None)
-    }
-}
-
-/** The grooved button: slid, it walks the catalog; tapped, it goes back. */
-@Composable
-private fun Slider(stop: Int, count: Int, modifier: Modifier, onStep: (Int) -> Unit, onTap: () -> Unit) {
-    val ink = LocalInk.current
-    val density = LocalDensity.current.density
-    val step = STEP_DP * density
-    var groove by remember { mutableFloatStateOf(0f) }
-    var dragging by remember { mutableStateOf(false) }
-    var startStop by remember { mutableIntStateOf(0) }
-    var startGroove by remember { mutableFloatStateOf(0f) }
-    var dx by remember { mutableFloatStateOf(0f) }
-    Canvas(
-        modifier.fillMaxSize().border(1.5.dp, if (dragging) Color.White else ink)
-            .pointerInput(Unit) { detectTapGestures { onTap() } }
-            .pointerInput(count) {
-                detectHorizontalDragGestures(
-                    onDragStart = { dragging = true; startStop = stop; startGroove = groove; dx = 0f },
-                    onDragEnd = { dragging = false; groove = startGroove + (stop - startStop) * step; if (stop != startStop) Sfx.powerOn() },
-                    onDragCancel = { dragging = false },
-                ) { change, amount ->
-                    change.consume()
-                    val min = -startStop * step - step * 0.4f
-                    val max = (count - 1 - startStop) * step + step * 0.4f
-                    dx = (dx + amount).coerceIn(min, max)
-                    groove = startGroove + dx
-                    onStep(startStop + (dx / step).toInt())
-                }
-            },
-    ) {
-        // thin ridges that roll with the finger, like a thumb wheel, fading at the ends
-        val gap = 9 * density
-        var x = ((groove % gap) + gap) % gap
-        while (x < size.width) {
-            drawRect(ink.copy(alpha = 0.85f), Offset(x, 0f), androidx.compose.ui.geometry.Size(1.5f * density, size.height))
-            x += gap
-        }
-        drawRect(Brush.horizontalGradient(0f to Color.Black, 0.22f to Color.Transparent, 0.78f to Color.Transparent, 1f to Color.Black))
     }
 }

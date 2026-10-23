@@ -52,6 +52,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import com.evove.app.Bus
+import com.evove.app.Evove
+import com.evove.app.api.Ghost
+import com.evove.app.api.Line
+import com.evove.app.ui.Selector
 import com.evove.app.api.Action
 import com.evove.app.api.Api
 import com.evove.app.api.AttrNode
@@ -114,7 +118,13 @@ private fun sizes(n: Int, rand: () -> Float, fit: Int): MutableList<Pair<Int, In
     return out
 }
 
-private class GainsShown(val title: String, val tokens: Int, val marks: Int, val list: List<Gain>, val roko: String?)
+private class GainsShown(val title: String, val tokens: Int, val marks: Int, val list: List<Gain>, val lines: List<Line>)
+
+/** The story's first actions, which the profile does not own, as actions to
+ *  draw among its own: their ids say so. */
+private const val GHOST = "ghost:"
+private fun Ghost.asAction() = Action(id = GHOST + name, name = name, tiers = tiers)
+private val Action.ghost get() = id.startsWith(GHOST)
 
 /** The leaves whose marks grew since `before`, with where each bar stood. */
 private fun diff(prev: Map<String, AttrNode>?, now: List<AttrNode>): List<Gain> {
@@ -153,14 +163,36 @@ fun ActScreen(onHome: () -> Unit) {
     val keyboard = LocalSoftwareKeyboardController.current
     val keyboardUp = WindowInsets.isImeVisible
 
+    // what can be acted on: the profile's actions, and while the story starts,
+    // the ones it does not own
+    val all = (Evove.view?.ghosts ?: emptyList()).map { it.asAction() } + actions
     val q = fold(query.trim())
-    val matches = if (q.isEmpty()) emptyList()
-    else if (q.all { it.isDigit() }) actions.filter { it.id.startsWith(q) }
-    else actions.filter { fold(it.name).contains(q) }
+    // a passcode is typed after a #, as into a terminal
+    val code = query.trim().startsWith("#")
+    val matches = if (q.isEmpty() || code) emptyList()
+    else if (q.all { it.isDigit() }) all.filter { it.id.startsWith(q) }
+    else all.filter { fold(it.name).contains(q) }
 
     fun raiseKeyboard() {
         runCatching { focus.requestFocus() }
         keyboard?.show()
+    }
+
+    fun sendCode() {
+        val typed = query.trim().removePrefix("#")
+        if (typed.isEmpty()) return
+        focusManager.clearFocus()
+        query = ""
+        scope.launch {
+            try {
+                val r = Api.passcode(typed)
+                Evove.apply(r)
+                message = r.lines.map { it.text }.ifEmpty { listOf("código aceito") }
+                Sfx.gains()
+            } catch (e: Exception) {
+                message = listOf("código", e.message ?: "não reconhecido")
+            }
+        }
     }
 
     fun choose(a: Action) {
@@ -170,6 +202,7 @@ fun ActScreen(onHome: () -> Unit) {
         query = ""
         focusManager.clearFocus()
         before = null
+        if (a.ghost) return
         scope.launch { runCatching { Api.actionWindow(a.id) }.onSuccess { if (selected?.id == a.id) windowMarks = it.windowMarks } }
         scope.launch { runCatching { Api.attributes() }.onSuccess { list -> if (selected?.id == a.id) before = list.associateBy { it.key } } }
     }
@@ -195,6 +228,15 @@ fun ActScreen(onHome: () -> Unit) {
         scope.launch {
             try {
                 val tier = action.tiers.find { it.index == option }
+                if (action.ghost) {
+                    // not the profile's: nothing is logged or paid, and roko says so
+                    val r = Api.ghostAct(action.name, option)
+                    Evove.apply(r)
+                    gains = GainsShown(if (tier != null) "${action.name} · ${tier.label}" else action.name, 0, 0, emptyList(), r.lines)
+                    message = emptyList()
+                    selected = null
+                    return@launch
+                }
                 val prev = before
                 val r = Api.act(action.id, option, currentPeriod())
                 val now = if (r.logOnly) emptyList() else runCatching { Api.attributes() }.getOrDefault(emptyList())
@@ -203,8 +245,11 @@ fun ActScreen(onHome: () -> Unit) {
                     r.tokenGain - r.tokensWasted - r.tokenCost,
                     r.marks,
                     diff(prev, now),
-                    if (r.journeyReset) "seu hp acabou. a jornada recomeçou do primeiro estágio." else r.roko,
+                    if (r.journeyReset) listOf(Line("roko", "seu hp acabou. a jornada recomeçou do primeiro estágio."))
+                    else r.lines.ifEmpty { listOfNotNull(r.roko?.let { Line("roko", it) }) },
                 )
+                // an act can open a module: the home should know before it is back
+                if (r.lines.isNotEmpty()) Evove.refresh()
                 message = emptyList()
                 Bus.bumpLogs()
                 Bus.bumpUser()
@@ -222,7 +267,8 @@ fun ActScreen(onHome: () -> Unit) {
         raiseKeyboard()
         try {
             actions = Api.actions()
-            if (actions.isNotEmpty()) Sfx.powerOn() else message = listOf("nenhuma ação ainda", "adquira uma no shop")
+            if (actions.isNotEmpty() || Evove.view?.ghosts?.isNotEmpty() == true) Sfx.powerOn()
+            else message = listOf("nenhuma ação ainda", "adquira uma no shop")
         } catch (e: Exception) {
             message = listOf(e.message ?: "erro ao carregar")
         } finally {
@@ -235,11 +281,11 @@ fun ActScreen(onHome: () -> Unit) {
     }
 
     gains?.let { g ->
-        GainsScreen(g.title, g.tokens, g.marks, g.list, g.roko, onDone = onHome)
+        GainsScreen(g.title, g.tokens, g.marks, g.list, g.lines, onDone = onHome)
         return
     }
 
-    val shown = if (q.isNotEmpty()) matches else actions
+    val shown = if (q.isNotEmpty() && !code) matches else all
     val pages = maxOf(1, ceil(shown.size / PER_PAGE.toFloat()).toInt())
     if (page >= pages) page = 0
     val onPage = shown.drop(page * PER_PAGE).take(PER_PAGE)
@@ -268,13 +314,17 @@ fun ActScreen(onHome: () -> Unit) {
                         },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false, imeAction = ImeAction.Go),
-                        keyboardActions = KeyboardActions(onGo = { matches.firstOrNull()?.let(::choose) }),
+                        keyboardActions = KeyboardActions(onGo = { if (code) sendCode() else matches.firstOrNull()?.let(::choose) }),
                     )
                     val sel = selected
                     when {
                         sel != null -> {
                             Big(sel.name, size = 1.6f)
-                            Small(windowMarks?.let { "$it/5 marcas nas últimas 6h" } ?: "…")
+                            Small(if (sel.ghost) "não é sua" else windowMarks?.let { "$it/5 marcas nas últimas 6h" } ?: "…")
+                        }
+                        typing && code -> {
+                            Big(query, size = 1.6f)
+                            Small("passcode · enter para carregar")
                         }
                         typing -> {
                             Big(query.ifEmpty { "▍" }, size = 1.6f)
@@ -296,10 +346,12 @@ fun ActScreen(onHome: () -> Unit) {
                                 Box(Modifier.size(6.dp).border(1.dp, Color.White.copy(alpha = if (i == page) 1f else 0.6f)).background(if (i == page) Color.White else Color.Transparent))
                             }
                         } else Box(Modifier.at(1, 2))
-                        Key({
-                            if (selected != null) { Sfx.tap(0); selected = null }
-                            else { page = (page + 1) % pages; Sfx.powerOn() }
-                        }, Modifier.at(3, 3)) { KeyIcon(if (selected != null) Icon.LEFT else Icon.RIGHT) }
+                        Selector(
+                            Evove.selector, page, pages, back = selected != null, Modifier.at(3, 3),
+                            onNext = { page = (page + 1) % pages; Evove.turn(); Sfx.powerOn() },
+                            onStep = { i -> if (i != page) { page = i; Evove.turn() } },
+                            onTap = { Sfx.tap(0); if (selected != null) selected = null else onHome() },
+                        )
                         HomeKey { Sfx.tap(0); onHome() }
                     }
                 }
@@ -327,10 +379,11 @@ private fun ActionCells(list: List<Action>, page: Int, unit: Dp, modifier: Modif
             val forms = formsFor(boxes, rand)
             drawBoxes(boxes, rows, w, h, side, GRID_GAP_DP * density.density, forms, slant = side * SCALE * SLANT).mapIndexed { i, c ->
                 val perLine = maxOf(6, floor((c.w / density.density - 16) / 8.4f).toInt())
-                DrawnCell(c.shape, c.cx, c.cy, ink, DELAY[i % DELAY.size]) to wrapWords(list[i].name, perLine, 3)
+                // an action not owned is drawn in white: there, but not the profile's
+                DrawnCell(c.shape, c.cx, c.cy, if (list[i].ghost) Color.White else ink, DELAY[i % DELAY.size]) to wrapWords(list[i].name, perLine, 3)
             }
         }
-        val texts = remember(laid) { laid.map { (_, lines) -> lines.map { measurer.measure(caps(it), style) } } }
+        val texts = remember(laid) { laid.mapIndexed { i, (_, lines) -> lines.map { measurer.measure(caps(it), if (list[i].ghost) style.copy(color = Color.White) else style) } } }
         Cells(laid.map { it.first }, key = list, modifier = Modifier.fillMaxSize(), onTap = { onChoose(list[it]) }) { i, c, alpha ->
             val lines = texts[i]
             val step = 16 * density.density
