@@ -11,14 +11,18 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
+import com.evove.app.Evove
 import com.evove.app.Prefs
 import com.evove.app.api.Api
+import com.evove.app.api.EngineView
+import com.evove.app.api.Line
+import com.evove.app.screens.AccountsScreen
 import com.evove.app.screens.ActScreen
 import com.evove.app.screens.AgendaScreen
 import com.evove.app.screens.BuildScreen
 import com.evove.app.screens.CalendarPage
 import com.evove.app.screens.DetailsPage
-import com.evove.app.screens.LogsPage
+import com.evove.app.screens.LogsScreen
 import com.evove.app.screens.ProfilePage
 import com.evove.app.screens.Gain
 import com.evove.app.screens.GainsScreen
@@ -54,7 +58,10 @@ class Shots {
         assumeTrue(System.getProperty("evove.shots") != null)
         Prefs.init(ApplicationProvider.getApplicationContext())
         Api.fake = Fixtures::answer
+        Evove.apply(Api.json.decodeFromString<EngineView>(Fixtures.engine))
     }
+
+    private fun fresh() = Evove.apply(Api.json.decodeFromString<EngineView>(Fixtures.engineFresh))
 
     /** Renders `content` in the frame, `ms` after it came on. */
     private fun shot(name: String, ms: Long = 3000, content: @Composable () -> Unit) {
@@ -67,12 +74,23 @@ class Shots {
         rule.onRoot().captureRoboImage("${System.getProperty("evove.shots")}/$name.png")
     }
 
-    @Test fun home() = shot("home") { HomeScreen(HomeOption.entries.toSet(), emptySet(), HomeOption.ACT) {} }
-    @Test fun homeComingOn() = shot("home-coming-on", 180) { HomeScreen(HomeOption.entries.toSet(), setOf(HomeOption.BUILD), HomeOption.ACT) {} }
-    @Test fun login() = shot("login") { LoginScreen {} }
+    @Test fun home() = shot("home") { HomeScreen(Evove.view!!.tiles, "act", Evove.view!!.line, {}, {}, {}) }
+    @Test fun homeFallback() = shot("home-fallback") { HomeScreen(HomeOption.fallback, "act", null, {}, {}, {}) }
+    @Test fun homeComingOn() = shot("home-coming-on", 180) { HomeScreen(Evove.view!!.tiles, "act", null, {}, {}, {}) }
+    @Test fun homeStory() { fresh(); shot("home-story") { HomeScreen(Evove.view!!.tiles, "act", Evove.view!!.line, {}, {}, {}) } }
+    @Test fun login() = shot("login") { LoginScreen({}, {}) }
+    @Test fun accounts() {
+        Prefs.remember("tqzmkp", "y", test = true); Prefs.remember("roko", "x")
+        shot("accounts") { AccountsScreen("roko", {}, {}, {}, {}, {}) }
+    }
     @Test fun act() = shot("act") { ActScreen {} }
+    @Test fun actStory() { fresh(); shot("act-story") { ActScreen {} } }
     @Test fun gains() = shot("gains") {
-        GainsScreen("CORRIDA · 5km", 3, 4, listOf(Gain("a", "Resistência", "α", "β", 2, 3, 3), Gain("b", "Velocidade", "β", "β", 1, 3, 5)), null) {}
+        GainsScreen("CORRIDA · 5km", 3, 4, listOf(Gain("a", "Resistência", "α", "β", 2, 3, 3), Gain("b", "Velocidade", "β", "β", 1, 3, 5)),
+            listOf(Line("roko", "AGORA EU ACREDITO."), Line("roko", "PODE FALAR COMIGO."))) {}
+    }
+    @Test fun gainsLie() = shot("gains-lie") {
+        GainsScreen("CORRIDA · 10–30m", 0, 0, emptyList(), listOf(Line("roko", "MENTIRA."), Line("roko", "ESSA AÇÃO NÃO É SUA. COMPRE-A. DEPOIS AJA DE NOVO."))) {}
     }
     @Test fun shop() = shot("shop") { ShopScreen {} }
     @Test fun journey() = shot("journey") { JourneyScreen {} }
@@ -80,8 +98,8 @@ class Shots {
     @Test fun agenda() = shot("agenda") { AgendaScreen({}, {}, {}) }
     @Test fun roko() = shot("roko") { RokoScreen {} }
     @Test fun build() = shot("build") { BuildScreen {} }
-    @Test fun profile() = shot("profile") { ProfilePage({}) {} }
+    @Test fun profile() = shot("profile") { ProfilePage({}, {}) {} }
     @Test fun details() = shot("details") { DetailsPage {} }
-    @Test fun logs() = shot("logs") { LogsPage {} }
+    @Test fun logs() = shot("logs") { LogsScreen({}, {}) }
     @Test fun calendar() = shot("calendar") { CalendarPage {} }
 }
