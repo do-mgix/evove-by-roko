@@ -108,7 +108,8 @@ def fresh(rng: random.Random) -> dict:
         "counters": {},
         "session": {"n": 0, "at": None, "seed": rng.randrange(1 << 30)},
         "ghosts": [],
-        "line": None,
+        # the first thing a new profile reads, above agir alone
+        "line": {"entity": "roko", "text": "AGE."},
     }
 
 
@@ -119,6 +120,7 @@ def legacy() -> dict:
     s["modules"] = list(ALL_MODULES)
     s["story"] = "done"
     s["entities"] = ["roko"]
+    s["line"] = None
     return s
 
 
