@@ -89,8 +89,11 @@ class Shots {
         GainsScreen("CORRIDA · 5km", 3, 4, listOf(Gain("a", "Resistência", "α", "β", 2, 3, 3), Gain("b", "Velocidade", "β", "β", 1, 3, 5)),
             listOf(Line("roko", "AGORA EU ACREDITO."), Line("roko", "PODE FALAR COMIGO."))) {}
     }
-    @Test fun gainsLie() = shot("gains-lie") {
-        GainsScreen("CORRIDA · 10–30m", 0, 0, emptyList(), listOf(Line("roko", "MENTIRA."), Line("roko", "ESSA AÇÃO NÃO É SUA. COMPRE-A. DEPOIS AJA DE NOVO."))) {}
+    @Test fun gainsDoubt() = shot("gains-doubt") {
+        GainsScreen("CORRIDA · 10–30m", 1, 2, listOf(Gain("a", "Resistência", "α", "α", 1, 1, 3)), listOf(Line("roko", "CORRIDA."),
+            Line("roko", "AS MARCAS SÃO SUAS. MAS DAQUI EU NÃO VI ACONTECER."),
+            Line("roko", "DO OUTRO LADO DO VIDRO TEM ALGUÉM. É ESSA PESSOA QUE EU CONTO."),
+            Line("roko", "O QUE ELA FAZ DE VERDADE? PROCURE NO SHOP."))) {}
     }
     @Test fun shop() = shot("shop") { ShopScreen {} }
     @Test fun journey() = shot("journey") { JourneyScreen {} }

@@ -27,10 +27,6 @@ data class Tile(
 @Serializable
 data class Line(val entity: String = "roko", val text: String = "", val at: String? = null)
 
-/** An action of the story's first step, which the profile does not own. */
-@Serializable
-data class Ghost(val name: String, val tiers: List<TierOption> = emptyList(), val cost: Int = 0)
-
 @Serializable
 data class SelectorState(val level: Int = 1, val turns: Int = 0, val nextAt: Int? = null, val chance: Double? = null)
 
@@ -50,11 +46,12 @@ data class EngineView(
     val modules: List<ModuleInfo> = emptyList(),
     val entities: List<String> = emptyList(),
     val story: StoryState = StoryState(),
-    val ghosts: List<Ghost> = emptyList(),
+    // the actions handed out at the start that roko does not believe yet
+    val doubted: List<String> = emptyList(),
     val line: Line? = null,
     val selector: SelectorState = SelectorState(),
     val counters: Map<String, Int> = emptyMap(),
-    // in the answers to events, passcodes and ghost acts
+    // in the answers to events and passcodes
     val lines: List<Line> = emptyList(),
     val kind: String? = null,
     val name: String? = null,

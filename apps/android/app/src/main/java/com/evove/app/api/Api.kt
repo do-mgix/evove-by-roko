@@ -301,7 +301,6 @@ object Api {
     suspend fun engine(): EngineView = get("/engine")
     suspend fun visit(cold: Boolean, turns: Int): EngineView = post("/engine/visit", obj("cold" to cold, "turns" to turns))
     suspend fun engineEvents(events: List<JsonObject>): EngineView = post("/engine/events", obj("events" to JsonArray(events)))
-    suspend fun ghostAct(name: String, option: Int): EngineView = post("/engine/ghost-act", obj("name" to name, "option" to option))
     suspend fun passcode(code: String): EngineView = post("/engine/passcode", obj("code" to code))
     suspend fun resetEngine(): EngineView = post("/engine/reset")
 
