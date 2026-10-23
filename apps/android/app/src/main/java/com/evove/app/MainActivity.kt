@@ -14,6 +14,8 @@ class MainActivity : ComponentActivity() {
         // the bars and of the keyboard through the window insets
         enableEdgeToEdge(SystemBarStyle.dark(Color.BLACK), SystemBarStyle.dark(Color.BLACK))
         super.onCreate(savedInstanceState)
+        // the volume keys move the stream the sounds play on
+        volumeControlStream = android.media.AudioManager.STREAM_MUSIC
         Prefs.init(applicationContext)
         Sfx.init(applicationContext)
         setContent { App() }

@@ -13,6 +13,11 @@ import com.evove.app.R
  *  thumb. The sounds are files rendered by Synth (see SoundExport), loaded into
  *  a SoundPool once: a tap only starts a stream that is already decoded.
  *
+ * They play on the media stream, as a game's do. They used to go out as
+ * sonification, which Android routes to the system stream — the one a phone on
+ * silent or vibrate mutes, and the one most phones keep low — so on most phones
+ * they were never heard.
+ *
  * As on the web, nothing plays until the first tap: a screen coming on at
  * launch stays silent until someone has touched the app. */
 object Sfx {
@@ -26,7 +31,7 @@ object Sfx {
 
     fun init(context: Context) {
         val attrs = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+            .setUsage(AudioAttributes.USAGE_GAME)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .build()
         val p = SoundPool.Builder().setMaxStreams(8).setAudioAttributes(attrs).build()
@@ -44,24 +49,24 @@ object Sfx {
         }
     }
 
-    private fun play(id: Int) {
+    private fun play(id: Int, volume: Float) {
         if (muted || !primed || id == 0) return
-        pool?.play(id, 1f, 1f, 1, 0, 1f)
+        pool?.play(id, volume, volume, 1, 0, 1f)
     }
 
     /** Every button: light, with a buzz. `variant` (0–9) nudges the pitch. */
     fun tap(variant: Int = 0) {
         primed = true
-        play(taps[Math.floorMod(variant, 10)])
+        play(taps[Math.floorMod(variant, 10)], 0.55f)
         buzz(10)
     }
 
     /** A screen of cells coming on. */
-    fun powerOn() = play(powerOns.random())
+    fun powerOn() = play(powerOns.random(), 0.7f)
 
     /** What an act paid, arriving. */
     fun gains() {
-        play(gainsTakes.random())
+        play(gainsTakes.random(), 1f)
         buzz(20, 40, 20)
     }
 

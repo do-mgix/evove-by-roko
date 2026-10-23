@@ -22,6 +22,9 @@ object Synth {
      *  thump, a triangle's falling overtones), so a low rate loses nothing. */
     const val RATE = 22050
 
+    /** Where every sound's loudest sample is brought to; Sfx sets how loud each plays. */
+    const val PEAK = 0.9f
+
     /** Two channels of samples. */
     class Stereo(val left: FloatArray, val right: FloatArray) {
         val frames get() = left.size
@@ -68,7 +71,7 @@ object Synth {
 
         // a dull burst on top: noise, lowpassed
         val burst = DoubleArray(seconds(0.08)) { random.nextDouble() * 2 - 1 }
-        lowpass(burst, 380 * pitch)
+        lowpass(burst, 1600 * pitch)
         val burstGain = Param(0.15).set(0.15, 0.0).exp(0.001, 0.06)
         for (i in burst.indices) bus[i] += burst[i] * burstGain.at(i.toDouble() / RATE)
 
@@ -77,7 +80,9 @@ object Synth {
         // makes it twinkle.
         for (n in 0 until s.glints) {
             val t0 = 0.01 + if (n == 0) 0.0 else s.spread
-            val f = (220 + random.nextDouble() * 230) * pitch
+            // high enough for a phone's speaker, which loses most of what is
+            // under 400 Hz
+            val f = (560 + random.nextDouble() * 420) * pitch
             val decay = 0.12 + random.nextDouble() * 0.13
             val g = Param(0.0).set(0.0001, t0).exp(0.4, t0 + 0.008).exp(0.001, t0 + decay)
             for (detune in doubleArrayOf(1.0, 1.005 + random.nextDouble() * 0.005)) {
@@ -90,7 +95,7 @@ object Synth {
         val dry = DoubleArray(length)
         val room = DoubleArray(length)
         for (i in 0 until length) {
-            val shimmer = 0.3 * glints[i]
+            val shimmer = 0.7 * glints[i]
             dry[i] = s.gain * (bus[i] + shimmer)
             room[i] = s.wet * dry[i] + 0.4 * shimmer
         }
@@ -271,14 +276,19 @@ object Synth {
         }
     }
 
-    /** Clipped as the speaker's output would clip it, and cut where it falls
-     *  under −60 dB, with a short fade so the cut does not click. */
+    /** Raised until its loudest sample stands at PEAK — a phone plays these
+     *  through a small speaker, and the synthesis alone peaked near −12 dB —
+     *  then cut where it falls under −60 dB, with a short fade so the cut does
+     *  not click. */
     private fun finish(s: Stereo): Stereo {
+        var peak = 0f
+        for (i in 0 until s.frames) peak = maxOf(peak, abs(s.left[i]), abs(s.right[i]))
+        val k = if (peak > 0f) PEAK / peak else 1f
         var end = s.frames
-        while (end > 0 && abs(s.left[end - 1]) < 0.001f && abs(s.right[end - 1]) < 0.001f) end--
+        while (end > 0 && abs(s.left[end - 1] * k) < 0.001f && abs(s.right[end - 1] * k) < 0.001f) end--
         val fade = minOf(end, RATE / 50)
-        val l = FloatArray(end) { s.left[it].coerceIn(-1f, 1f) }
-        val r = FloatArray(end) { s.right[it].coerceIn(-1f, 1f) }
+        val l = FloatArray(end) { (s.left[it] * k).coerceIn(-1f, 1f) }
+        val r = FloatArray(end) { (s.right[it] * k).coerceIn(-1f, 1f) }
         for (k in 0 until fade) {
             val g = k.toFloat() / fade
             l[end - 1 - k] *= g
