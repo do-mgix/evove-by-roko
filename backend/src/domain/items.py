@@ -52,10 +52,11 @@ def _base(name: str) -> str:
     return re.sub(r"\s*\([^)]*\)\s*$", "", str(name or "")).strip().upper()
 
 
-def drop(rng: random.Random, abilities: list[str], level: int) -> dict | None:
-    """What a beaten opponent may leave: an item of one of its abilities."""
+def drop(rng: random.Random, abilities: list[str], level: int, chance: float = DROP_CHANCE) -> dict | None:
+    """What a beaten opponent may leave — or a chest keep: an item of one of
+    its abilities."""
     names = [_base(a) for a in abilities if _base(a)]
-    if not names or rng.random() >= DROP_CHANCE:
+    if not names or rng.random() >= chance:
         return None
     action = rng.choice(names)
     slot = rng.choice(SLOTS)

@@ -1,16 +1,18 @@
-"""The journey as a mode: a dungeon that walks itself, and a story in three acts.
+"""The journey as a mode: a dungeon walked step by step, and a story in three acts.
 
 Many people are trapped in a place far too big. All of them carry the same
 technology: they act, gain abilities with it and hunt for entities, to get out
 or to grow stronger. Every opponent met down there is one of them.
 
-The top of the screen is a map. It does not mean much: the profile's figure
-explores it alone, floor after floor, and nothing can be done about it but a
-few options. Walking a floor takes as long as the journey's checkpoints say —
-ten minutes for each day of the stage it stands for (1, 3, 7… days, as
-src.domain.journey counts them), up to WALK_CAP — and at its end another
-person waits, and the figure stops in front of them until the fight is
-started (src.domain.fight). The journey's button carries a hint meanwhile.
+Each floor is a maze of corridors that turn, and of rooms, seen from inside
+(`floor_map`): the profile walks it a step at a time — forward, or turning —
+and in the room farthest from where it starts another person waits, until
+the fight is started (src.domain.fight). The other rooms keep a chest each,
+with an item. Steps come with time: walking the shortest way to whoever waits
+takes as long as the journey's checkpoints say — ten minutes for each day of
+the stage the floor stands for (1, 3, 7… days, as src.domain.journey counts
+them), up to WALK_CAP — and a detour into a room costs the steps it takes.
+The journey's button carries a hint when someone waits, or steps do.
 
 - **Act 1**: the first floors, the profile's entity at its side. At the end,
   the way out: whoever leaves is gone — the journey, opened again, shows
@@ -29,8 +31,9 @@ started (src.domain.fight). The journey's button carries a hint meanwhile.
 The journey has a level of its own: every blow that lands in a fight is
 experience, three or four levels a fight, each raising the bar (from 100) and
 the stats; the opponents mirror it, and the entities carried grow levels too.
-A fight lost sends the act back to its first floor. A fight won may drop an
-item (src.domain.items).
+A fight lost sends the journey back to its very beginning: the first floor,
+the first level, nothing carried. A fight won may drop an item
+(src.domain.items).
 
 Kept inside the profile's evove state (`state["dungeon"]`). Pure logic — no I/O.
 """
@@ -49,7 +52,17 @@ WALK_SECONDS_PER_DAY = 600
 WALK_CAP = 6 * 3600
 FAST = 60
 
-MAP_W, MAP_H = 7, 5
+# a floor's maze: cells of corridor or room, walls between them — 13×13 tiles
+MAP_CELLS = 6
+WALL, FLOOR, DOOR = "#", ".", "D"
+# walls taken down past the maze's own, so it has a loop or two
+LOOPS = 3
+# the steps a floor starts with, before time brings the rest
+FIRST_STEPS = 3
+# the floors' looks, one for each floor of an act: tones of green and grey
+THEMES = 6
+# north, east, south, west
+DIRS = ((0, -1), (1, 0), (0, 1), (-1, 0))
 
 # who comes after whom in the third act; each finished objective brings the next
 CHAIN = ("no", "eve", "osso", "zira", "mura", "vela")
@@ -69,10 +82,14 @@ FOE_ENTITIES = ("ALGO INCOMPREENSÍVEL", "AJUDA DO ALÉM", "UMA PRESENÇA", "O Q
 
 # The journey's level: blows landed in fights are its experience, about three
 # or four levels a fight, and each level raises the bar and the stats.
-XP_NEED = 10
+XP_NEED = 5
 BASE = {"hp": 100, "resist": 100, "defense": 2, "absorb": 80, "bonus": 0}
 PER_LEVEL = {"hp": 6, "resist": 5, "defense": 1, "bonus": 4}
 DEFENSE_CAP = 60
+# what an opponent's attack hits for, before its type's stars
+FOE_DAMAGE = 6
+# the chance an opponent's attack of a type that gathers more lands a critical
+FOE_CRIT = 10
 # an entity at level n: força and agilidade over its own (src.domain.fight)
 ALLY_FORCA = 5
 ALLY_AGILIDADE = 1
@@ -102,6 +119,11 @@ def fresh(now: datetime) -> dict:
         "act": 1,
         "floor": 1,
         "walk_from": now.isoformat(timespec="seconds"),
+        "pos": None,
+        "face": 1,
+        "spent": 0,
+        "seen": "",
+        "opened": [],
         "seed": random.Random().randrange(1 << 30),
         "pending": None,
         "ending": None,
@@ -121,8 +143,11 @@ def state_of(evove: dict, now: datetime) -> dict:
     d = evove.get("dungeon")
     if not isinstance(d, dict):
         d = evove["dungeon"] = fresh(now)
-    for k, v in (("level", 1), ("xp", 0), ("allies", {}), ("items", []), ("worn", {})):
+    for k, v in (("level", 1), ("xp", 0), ("allies", {}), ("items", []), ("worn", {}), ("pos", None), ("face", 1),
+                 ("spent", 0), ("seen", ""), ("opened", [])):
         d.setdefault(k, v)
+    if not d["pos"]:
+        _enter(d)
     return d
 
 
@@ -139,48 +164,193 @@ def walk_seconds(d: dict, fast: bool) -> int:
     return max(1, secs // FAST) if fast else secs
 
 
-def progress(d: dict, now: datetime, fast: bool) -> float:
-    start = datetime.fromisoformat(d["walk_from"])
-    return max(0.0, min(1.0, (now - start).total_seconds() / walk_seconds(d, fast)))
+def floor_map(d: dict) -> dict:
+    """The floor's maze, the same every time it is asked for: a randomized
+    spanning tree over the cells — two or three rooms counting as one cell
+    each, a door on every wall the tree takes down next to a room — and a few
+    walls more taken down for loops. The profile starts at the west edge; whoever
+    waits stands in the middle of the room farthest from it; the other rooms
+    keep a chest each. `need` is the steps of the shortest way to stand in
+    front of them."""
+    rng = random.Random(f"{d['seed']}:{d['floor']}:maze")
+    n = MAP_CELLS
+    size = 2 * n + 1
+    g = [[WALL] * size for _ in range(size)]
+    # the rooms: 2×2 or 2×3 cells, apart from each other and from the west edge
+    rooms: list[tuple[int, int, int, int]] = []
+    room_of: dict[tuple[int, int], int] = {}
+    want = rng.randint(2, 3)
+    for _ in range(60):
+        if len(rooms) >= want:
+            break
+        rw, rh = rng.choice(((2, 2), (2, 2), (3, 2), (2, 3)))
+        rx, ry = rng.randrange(1, n - rw + 1), rng.randrange(0, n - rh + 1)
+        if any((x, y) in room_of for x in range(rx - 1, rx + rw + 1) for y in range(ry - 1, ry + rh + 1)):
+            continue
+        for x in range(rx, rx + rw):
+            for y in range(ry, ry + rh):
+                room_of[(x, y)] = len(rooms)
+        rooms.append((rx, ry, rw, rh))
+    for (x, y) in [(x, y) for x in range(n) for y in range(n)]:
+        g[2 * y + 1][2 * x + 1] = FLOOR
+    for (x, y), r in room_of.items():
+        # inside a room, the walls between its cells are floor too
+        for dx, dy in ((1, 0), (0, 1), (1, 1)):
+            if all(room_of.get((x + a, y + b)) == r for a, b in ((dx, 0), (0, dy), (dx, dy))):
+                g[2 * y + 1 + dy][2 * x + 1 + dx] = FLOOR
+
+    def node(c):
+        return ("room", room_of[c]) if c in room_of else c
+
+    parent: dict = {}
+
+    def find(a):
+        while parent.get(a, a) != a:
+            a = parent[a]
+        return a
+
+    edges = [((x, y), (x + dx, y + dy)) for x in range(n) for y in range(n) for dx, dy in ((1, 0), (0, 1))
+             if x + dx < n and y + dy < n and node((x, y)) != node((x + dx, y + dy))]
+    rng.shuffle(edges)
+    left = []
+    for a, b in edges:
+        ra, rb = find(node(a)), find(node(b))
+        if ra == rb:
+            left.append((a, b))
+            continue
+        parent[ra] = rb
+        _open(g, a, b, a in room_of or b in room_of)
+    for a, b in rng.sample(left, min(LOOPS, len(left))):
+        _open(g, a, b, a in room_of or b in room_of)
+    start = (1, 2 * rng.choice([y for y in range(n) if (0, y) not in room_of]) + 1)
+    dist = _distances(g, start, None)
+    centers = [(2 * rx + rw, 2 * ry + rh) for rx, ry, rw, rh in rooms]
+    boss = max(centers, key=lambda c: (dist.get(c, -1), c)) if centers else max(dist, key=lambda c: (dist[c], c))
+    chests = [list(c) for c in centers if c != boss]
+    near = _distances(g, start, boss)
+    need = min((near[(boss[0] + dx, boss[1] + dy)] for dx, dy in DIRS if (boss[0] + dx, boss[1] + dy) in near), default=1)
+    return {"size": size, "tiles": ["".join(r) for r in g], "start": list(start), "boss": list(boss),
+            "chests": chests, "rooms": [list(r) for r in rooms], "need": max(1, need)}
+
+
+def _open(g: list[list[str]], a: tuple[int, int], b: tuple[int, int], door: bool) -> None:
+    """Takes down the wall between cells `a` and `b`: a door, by a room."""
+    g[a[1] + b[1] + 1][a[0] + b[0] + 1] = DOOR if door else FLOOR
+
+
+def passable(m: dict, x: int, y: int) -> bool:
+    if not (0 <= x < m["size"] and 0 <= y < m["size"]) or [x, y] == m["boss"]:
+        return False
+    return m["tiles"][y][x] != WALL
+
+
+def _distances(g: list[list[str]], start: tuple[int, int], block: tuple[int, int] | None) -> dict:
+    out = {start: 0}
+    todo = [start]
+    for c in todo:
+        for dx, dy in DIRS:
+            nxt = (c[0] + dx, c[1] + dy)
+            if nxt in out or nxt == block or g[nxt[1]][nxt[0]] == WALL:
+                continue
+            out[nxt] = out[c] + 1
+            todo.append(nxt)
+    return out
+
+
+def theme(d: dict) -> int:
+    """Which of the floors' looks this one wears."""
+    return (int(d["floor"]) - 1) % THEMES
+
+
+def _enter(d: dict) -> None:
+    """The profile at the floor's start, facing east, nothing walked."""
+    m = floor_map(d)
+    d["pos"], d["face"], d["spent"], d["opened"] = list(m["start"]), 1, 0, []
+    d["seen"] = ""
+    _look(d, m)
+
+
+def _look(d: dict, m: dict) -> None:
+    """What the profile sees from where it stands joins the map it drew: the
+    tiles around it, and ahead as far as the corridor goes."""
+    size = m["size"]
+    seen = list(d.get("seen") or "0" * size * size)
+    if len(seen) != size * size:
+        seen = ["0"] * size * size
+    x, y = d["pos"]
+    for dx in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+            if 0 <= x + dx < size and 0 <= y + dy < size:
+                seen[(y + dy) * size + x + dx] = "1"
+    fx, fy = DIRS[int(d["face"])]
+    for k in range(1, 5):
+        cx, cy = x + fx * k, y + fy * k
+        if not (0 <= cx < size and 0 <= cy < size):
+            break
+        seen[cy * size + cx] = "1"
+        if m["tiles"][cy][cx] == WALL or [cx, cy] == m["boss"]:
+            break
+    d["seen"] = "".join(seen)
+
+
+def steps(d: dict, now: datetime, fast: bool) -> dict:
+    """The floor's steps: how many came with time — a few to start, then the
+    shortest way to whoever waits over the floor's walk — how many are left,
+    and in how many seconds the next one comes."""
+    m = floor_map(d)
+    secs = walk_seconds(d, fast)
+    elapsed = max(0.0, (now - datetime.fromisoformat(d["walk_from"])).total_seconds())
+    every = secs / m["need"]
+    came = FIRST_STEPS + int(elapsed / every)
+    left = max(0, came - int(d.get("spent", 0) or 0))
+    return {"left": left, "came": came, "spent": int(d.get("spent", 0) or 0), "need": m["need"],
+            "every": round(every, 2), "next_in": max(0, int(math.ceil((came - FIRST_STEPS + 1) * every - elapsed)))}
+
+
+def walk(d: dict, moves: str, now: datetime, fast: bool) -> list[dict]:
+    """The profile's moves, in order — F a step forward, L and R a quarter turn,
+    B a half one — up to the first that cannot be made: a step into a wall, or
+    with none left. Returns what happened on the way: the chests stepped on."""
+    if d.get("ending") or d.get("pending"):
+        return []
+    m = floor_map(d)
+    left = steps(d, now, fast)["left"]
+    out = []
+    opened = d.setdefault("opened", [])
+    for mv in str(moves or "")[:64].upper():
+        if mv in "LRB":
+            d["face"] = (int(d["face"]) + {"L": 3, "R": 1, "B": 2}[mv]) % 4
+        elif mv == "F":
+            dx, dy = DIRS[int(d["face"])]
+            x, y = d["pos"][0] + dx, d["pos"][1] + dy
+            if left <= 0 or not passable(m, x, y):
+                break
+            d["pos"] = [x, y]
+            d["spent"] = int(d.get("spent", 0) or 0) + 1
+            left -= 1
+            if [x, y] in m["chests"] and [x, y] not in opened:
+                opened.append([x, y])
+                out.append({"chest": [x, y]})
+        else:
+            break
+        _look(d, m)
+    return out
 
 
 def waiting(d: dict, now: datetime, fast: bool) -> bool:
-    """Whether the figure stands in front of someone, waiting for the fight."""
-    return not d.get("ending") and not d.get("pending") and progress(d, now, fast) >= 1.0
+    """Whether the profile stands in front of someone, waiting for the fight."""
+    if d.get("ending") or d.get("pending") or not d.get("pos"):
+        return False
+    bx, by = floor_map(d)["boss"]
+    return abs(d["pos"][0] - bx) + abs(d["pos"][1] - by) == 1
 
 
 def alert(d: dict | None, now: datetime, fast: bool) -> bool:
-    """What the journey's button hints at: someone waits, or a choice does."""
+    """What the journey's button hints at: someone waits, a choice does, or
+    steps to walk."""
     if not isinstance(d, dict) or d.get("ending"):
         return False
-    return bool(d.get("pending")) or waiting(d, now, fast)
-
-
-def floor_map(d: dict) -> dict:
-    """The floor's map, the same every time it is drawn: a path of rooms from
-    the left edge to the right one — the figure walks it, the opponent waits
-    at its end — and a few rooms off it that lead nowhere."""
-    rng = random.Random(f"{d['seed']}:{d['floor']}")
-    x, y = 0, rng.randrange(MAP_H)
-    path = [[x, y]]
-    seen = {(x, y)}
-    while x < MAP_W - 1:
-        moves = [(1, 0), (1, 0), (0, 1), (0, -1)]
-        dx, dy = rng.choice(moves)
-        nx, ny = x + dx, y + dy
-        if not (0 <= ny < MAP_H) or (nx, ny) in seen:
-            nx, ny = x + 1, y
-        x, y = nx, ny
-        seen.add((x, y))
-        path.append([x, y])
-    rooms = []
-    for _ in range(rng.randint(3, 6)):
-        px, py = rng.choice(path[1:-1] or path)
-        cx, cy = px, py + rng.choice((-1, 1))
-        if 0 <= cy < MAP_H and (cx, cy) not in seen:
-            seen.add((cx, cy))
-            rooms.append([cx, cy, px, py])
-    return {"w": MAP_W, "h": MAP_H, "path": path, "rooms": rooms}
+    return bool(d.get("pending")) or waiting(d, now, fast) or steps(d, now, fast)["left"] >= FIRST_STEPS
 
 
 # ---------------------------------------------------------------- who waits
@@ -272,6 +442,7 @@ ENDINGS = {
 def _next_floor(d: dict, now: datetime) -> None:
     d["floor"] = int(d["floor"]) + 1
     d["walk_from"] = now.isoformat(timespec="seconds")
+    _enter(d)
 
 
 def _start_act3(d: dict, carried: str | None) -> None:
@@ -300,10 +471,14 @@ def won(d: dict, result: dict, rng: random.Random, now: datetime) -> list[str]:
 
 
 def lost(d: dict, now: datetime) -> None:
-    """A fight lost: the act's floors are walked again, from its first one."""
-    d["losses"] = int(d.get("losses", 0) or 0) + 1
-    d["floor"] = 1 + ACT_FLOORS * (min(3, int(d["act"])) - 1)
-    d["walk_from"] = now.isoformat(timespec="seconds")
+    """A fight lost: the journey starts over — the first floor of the first act,
+    on new floors, the first level, no items, entities back at their first
+    level. Only the count of wins and losses stays."""
+    wins, losses = int(d.get("wins", 0) or 0), int(d.get("losses", 0) or 0) + 1
+    d.clear()
+    d.update(fresh(now))
+    d["wins"], d["losses"] = wins, losses
+    _enter(d)
 
 
 def _objectives(d: dict, result: dict, rng: random.Random) -> list[str]:
@@ -387,11 +562,12 @@ def foe_setup(d: dict, abilities: list[dict], defense: float, entity_battle) -> 
     level = int(d.get("level", 1)) + (2 if o["kind"] == "roko" else 0)
     st = level_stats(level)
     hp = int(st["hp"] * foe_hp_factor(d))
-    moves = [{"name": "PULSO", "dmg": 1, "cd": 60}]
+    moves = []
     for a in abilities[:3]:
-        # past the first act, a type that gathers more hits harder
+        # past the first act, a type that gathers more hits harder, and may
+        # land a critical
         up = a.get("star", 1) - 1 if int(d["act"]) > 1 else 0
-        moves.append({"name": a["name"], "dmg": 3 + up, "cd": rng.randint(100, 120)})
+        moves.append({"name": a["name"], "dmg": FOE_DAMAGE + 2 * up, "cd": rng.randint(100, 120), "crit": FOE_CRIT if up else 0})
     stage = floor_in_act(d)
     if o.get("entity"):
         ents = [{"id": o["entity"], "name": o["name"], **entity_battle(o["entity"]), "level": 1}]
@@ -407,17 +583,19 @@ def foe_setup(d: dict, abilities: list[dict], defense: float, entity_battle) -> 
 
 
 def view(d: dict, now: datetime, fast: bool) -> dict:
-    p = progress(d, now, fast)
-    secs = walk_seconds(d, fast)
+    m = floor_map(d)
     out = {
         "act": int(d["act"]),
         "floor": int(d["floor"]),
         "floor_in_act": floor_in_act(d),
         "of": ACT_FLOORS if int(d["act"]) < 3 else None,
-        "map": floor_map(d),
-        "progress": round(p, 4),
-        "walk_seconds": secs,
-        "seconds_left": max(0, int(math.ceil(secs * (1 - p)))),
+        "map": {**m, "chests": [c for c in m["chests"] if c not in (d.get("opened") or [])]},
+        "pos": d["pos"],
+        "face": int(d["face"]),
+        "seen": d.get("seen") or "",
+        "steps": steps(d, now, fast),
+        "theme": theme(d),
+        "walk_seconds": walk_seconds(d, fast),
         "waiting": waiting(d, now, fast),
         "opponent": {k: v for k, v in opponent(d).items() if k in ("name", "title", "kind")},
         "pending": {"kind": d["pending"], **CHOICES[d["pending"]]} if d.get("pending") in CHOICES else None,

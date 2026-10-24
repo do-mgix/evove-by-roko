@@ -2806,7 +2806,7 @@ def save_mount(payload: dict, username: str = Depends(current_username)):
 _FIGHT_CAP = 50_000_000
 _FIGHT_ATTACKS = 2
 # what an attack at the profile's own rank hits for, before its multiplier
-_FIGHT_DAMAGE = 6
+_FIGHT_DAMAGE = 12
 # a fight started and never ended is played out after this long
 _STALE_FIGHT_SECONDS = 600
 
@@ -2815,10 +2815,22 @@ def _cap(n: float) -> int:
     return max(1, min(_FIGHT_CAP, int(round(n))))
 
 
+def _crit(multiplier: float) -> int:
+    """The chance, in percent, an attack lands a critical: only an effective
+    one — of a kin of the opponent's type — and likelier the closer the kin."""
+    return 30 if multiplier >= 4 else 20 if multiplier >= 2 else 10 if multiplier > 1 else 0
+
+
 def _entity_battle(entity_id: str) -> dict:
     b = (entities.entity(entity_id) or {}).get("battle") or {}
     return {k: b[k] for k in ("forca", "agilidade", "skill", "ability")} if b else \
         {"forca": 10, "agilidade": 3, "skill": "atacar", "ability": "interferencia"}
+
+
+def _floor_boss(d: dict):
+    """The floor's opponent as src.domain.battle makes it: its types and attacks."""
+    return battle.make_boss(repos.load_attr_tree(), repos.load_action_templates(), f"dungeon:{d['seed']}:{d['floor']}",
+                            max(1, dungeon.floor_in_act(d)), 0)
 
 
 def _fight_lineup(username: str, data: dict, d: dict):
@@ -2826,7 +2838,7 @@ def _fight_lineup(username: str, data: dict, d: dict):
     they were weighed against, and the average rank of the two."""
     tree = repos.load_attr_tree()
     templates = repos.load_action_templates()
-    boss = battle.make_boss(tree, templates, f"dungeon:{d['seed']}:{d['floor']}", max(1, dungeon.floor_in_act(d)), 0)
+    boss = _floor_boss(d)
     totals = _user_leaf_totals(username, tree)
     memo: dict[str, float] = {}
     moves = battle.moves_for(tree, templates, data.get("actions") or {},
@@ -2858,6 +2870,7 @@ def _fight_setup(username: str, data: dict, state: dict, d: dict) -> dict:
             "dmg": _cap(_FIGHT_DAMAGE * m["multiplier"] * m["base_damage"] / battle.rank_damage(rank)),
             # roko's decree: as efficient as the best of them, a rank above
             "decree": _cap(_FIGHT_DAMAGE * best_mult * battle.RANK_DAMAGE_GROWTH),
+            "crit": _crit(m["multiplier"]),
         })
     if not out_moves:
         out_moves = [{"name": "EMPURRÃO (α)", "attribute": "", "multiplier": 1.0, "dmg": _FIGHT_DAMAGE,
@@ -2980,13 +2993,13 @@ def _resolve_fight(username: str, state: dict, d: dict, now: datetime, plays: li
     if result["won"]:
         points = battle.win_points(int(d["floor"]), 0)
         lines = dungeon.won(d, result, rng, now)
-        dropped = items.drop(rng, [m["name"] for m in setup["foe"]["moves"][1:]], int(d.get("level", 1)))
+        dropped = items.drop(rng, [m["name"] for m in setup["foe"]["moves"]], int(d.get("level", 1)))
         if dropped:
             item = items.add(d, dropped, rng)
             lines.insert(0, f"{setup['foe']['name']} DEIXOU {item['name']} (NÍVEL {item['level']}).")
     else:
         dungeon.lost(d, now)
-        lines = ["O SINAL CAIU. O ATO RECOMEÇA DO PRIMEIRO ANDAR."]
+        lines = ["O SINAL CAIU. A JORNADA RECOMEÇA DO COMEÇO: PRIMEIRO ANDAR, PRIMEIRO NÍVEL, NADA NAS MÃOS."]
     sold, paid = items.sell_low(d, int(d.get("level", 1)))
     if sold:
         lines.append(f"{sold} {'ITEM ANTIGO SE VENDEU' if sold == 1 else 'ITENS ANTIGOS SE VENDERAM'}: +{paid} PONTOS.")
@@ -3013,6 +3026,27 @@ def dungeon_fight_end(payload: dict | None = None, username: str = Depends(curre
     plays = [int(t) for t in ((payload or {}).get("plays") or [])[:600] if 0 <= int(t) <= fight.MAX_TICKS]
     out = _resolve_fight(username, state, d, now, plays, bool((payload or {}).get("left")))
     return {**out, "view": _dungeon_view(username, state, d, now, fast)}
+
+
+@app.post("/dungeon/walk")
+def dungeon_walk(payload: dict, username: str = Depends(current_username)):
+    """Body: {moves: "FFLF…"}. The profile's moves through the floor's maze —
+    F a step, L and R a quarter turn, B a half one — up to the first that
+    cannot be made (src.domain.dungeon.walk). A chest stepped on gives its
+    item. Answers what was found and the view, where the profile stands."""
+    state, d, now, fast = _dungeon(username)
+    found = dungeon.walk(d, str((payload or {}).get("moves") or ""), now, fast)
+    lines = []
+    if found:
+        rng = random.Random()
+        names = [a["name"] for a in _floor_boss(d).abilities]
+        for _f in found:
+            got = items.drop(rng, names, int(d.get("level", 1)), chance=1.0)
+            if got:
+                item = items.add(d, got, rng)
+                lines.append(f"UM BAÚ: {item['name']} (NÍVEL {item['level']}).")
+    engine_repo.save(username, state)
+    return {"lines": lines, "view": _dungeon_view(username, state, d, now, fast)}
 
 
 def _items_view(username: str, d: dict) -> dict:
