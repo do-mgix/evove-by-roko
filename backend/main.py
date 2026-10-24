@@ -1,3 +1,4 @@
+import math
 import os
 import random
 import re
@@ -21,7 +22,7 @@ from src.domain.marks import DEFAULT_TIERS, MARKS_PER_WINDOW, MarkError, options
 from src.domain.agenda import collect_labels, DAY_NAMES as _DOMAIN_DAY_NAMES  # noqa: E402
 from src.domain.daily import PERIODS, apply_daily_tick, period_of  # noqa: E402
 from src.domain import journey as journey_mode  # noqa: E402
-from src.domain import battle, discovery, engine, entities, equipment, recover as recovery, sandbox, save  # noqa: E402
+from src.domain import battle, discovery, engine, entities, equipment, recover as recovery, sandbox, save, dungeon, fight  # noqa: E402
 from src.domain.economy import BASE_MAX_TOKENS, INITIAL_POINTS, todo_reward  # noqa: E402
 from src.domain.user_attributes import PATCH_SEPARATOR, PatchError, engine_name  # noqa: E402
 from src.domain.attributes import (  # noqa: E402
@@ -2412,7 +2413,15 @@ def _give_first(username: str, data: dict, state: dict) -> bool:
 
 
 def _engine_view(username: str, state: dict, code: str) -> dict:
-    return engine.view(state, code, period_of(datetime.now()))
+    now = datetime.now()
+    view = engine.view(state, code, period_of(now))
+    d = state.get("dungeon")
+    alert = dungeon.alert(d, now, bool(state["flags"].get("fast")))
+    view["modes"]["journey_alert"] = alert
+    view["modes"]["journey_ending"] = d.get("ending") if isinstance(d, dict) else None
+    for t in view["tiles"]:
+        t["alert"] = t["kind"] == "journey" and alert
+    return view
 
 
 @app.get("/engine")
@@ -2752,3 +2761,218 @@ def save_mount(payload: dict, username: str = Depends(current_username)):
     lines = _mount(username, snap)
     state, code = engine_repo.load(username)
     return {**_engine_view(username, state, code), "kind": "save", "lines": lines}
+
+
+# ---------------------------------------------------------------- the journey's mode
+
+_FIGHT_CAP = 50_000_000
+# a fight started and never ended is played out after this long
+_STALE_FIGHT_SECONDS = 600
+
+
+def _cap(n: float) -> int:
+    return max(1, min(_FIGHT_CAP, int(round(n))))
+
+
+def _entity_battle(entity_id: str) -> dict:
+    b = (entities.entity(entity_id) or {}).get("battle") or {}
+    return {k: b[k] for k in ("forca", "agilidade", "skill", "ability")} if b else \
+        {"forca": 10, "agilidade": 3, "skill": "atacar", "ability": "interferencia"}
+
+
+def _fight_setup(username: str, data: dict, state: dict, d: dict) -> dict:
+    """Both sides of the floor's fight (src.domain.fight): the profile's best
+    attacks against this opponent, its heal, stats and entities; the opponent
+    mirrored on its rank (src.domain.dungeon.foe_setup)."""
+    from src.domain.attributes import MAX_RANK
+    tree = repos.load_attr_tree()
+    templates = repos.load_action_templates()
+    boss = battle.make_boss(tree, templates, f"dungeon:{d['seed']}:{d['floor']}", max(1, dungeon.floor_in_act(d)), 0)
+    worn = _worn(username)
+    totals = _user_leaf_totals(username, tree)
+    memo: dict[str, float] = {}
+    actions = data.get("actions") or {}
+    moves = battle.moves_for(tree, templates, actions, lambda key: rank_view(node_total(key, totals, tree, memo))["rank_index"])
+    scored = sorted((battle.score_move(tree, m, boss, worn["damage"]) for m in moves), key=lambda m: (-m["damage"], m["name"]))
+    lineup = scored[:battle.LINEUP_SIZE]
+    rank = sum(m["rank_index"] for m in lineup) // len(lineup) if lineup else 0
+    best_mult = max((m["multiplier"] for m in lineup), default=1.0)
+    out_moves = []
+    for m in lineup:
+        out_moves.append({
+            "name": m["name"], "attribute": m["attribute_name"], "multiplier": m["multiplier"],
+            "dmg": _cap(m["base_damage"] * m["multiplier"] * (1 + worn["damage"])),
+            "decree": _cap(battle.rank_damage(min(MAX_RANK, m["rank_index"] + 1)) * best_mult * (1 + worn["damage"])),
+        })
+    if not out_moves:
+        out_moves = [{"name": "EMPURRÃO (α)", "attribute": "", "multiplier": 1.0, "dmg": 15, "decree": 41}]
+    order = sorted(range(len(out_moves)), key=lambda i: (out_moves[i]["dmg"], i))
+    for k, i in enumerate(order):
+        out_moves[i]["cd"] = 30 + 10 * k
+    metadata = data.get("metadata") or {}
+    max_energy = _max_energy(data, username)
+    per = 10 * battle.rank_damage(rank) / battle.RANK_DAMAGE_BASE
+    max_hp = _cap(max_energy * per)
+    # the heal: the best of the actions of reward owned, the ones that spend tokens
+    heals = []
+    for a in actions.values():
+        meta = templates.get(str(a.get("name", "")).upper()) or {}
+        cost = int(a.get("token_cost") or meta.get("token_cost") or 0)
+        if a.get("deleted") or not meta.get("log_only") or cost <= 0:
+            continue
+        heals.append({"name": str(a.get("name", "")).upper(), "amount": _cap(max_hp * min(35, 10 + 3 * cost) / 100),
+                      "cd": 60 + 15 * cost})
+    heal = max(heals, key=lambda h: (h["amount"] * 1000 // h["cd"], h["amount"]), default=None) or \
+        {"name": "RESPIRO", "amount": _cap(max_hp * 8 / 100), "cd": 100}
+    roots_marked = sum(1 for r in tree.roots if node_total(r, totals, tree, memo) > 0)
+    companions = dungeon.companions(d, state.get("entity"))
+    you = {
+        "name": social_repo.identity(username)["nickname"],
+        "hp": _cap(int(metadata.get("energy", 0) or 0) * per), "max_hp": max_hp, "per_energy": per,
+        "resist": 10 * rank + 2 * int(worn["hp"]),
+        "defense": min(60, 4 * int(worn["armor"]) + 3 * rank),
+        "absorb": min(200, 100 + 5 * roots_marked),
+        "moves": out_moves, "heal": heal,
+        "entities": [{"id": e, "name": entities.name_of(e), **_entity_battle(e)} for e in companions],
+    }
+    foe = dungeon.foe_setup(d, rank, battle.rank_damage, [{**a, "star": t["star"]} for a, t in zip(boss.abilities, boss.types)],
+                            boss.defense, _entity_battle)
+    for m in foe["moves"]:
+        m["dmg"] = _cap(m["dmg"])
+    foe["hp"] = foe["max_hp"] = _cap(foe["max_hp"])
+    foe["heal"]["amount"] = _cap(foe["heal"]["amount"])
+    seed = random.SystemRandom().randrange(1, 1 << 32)
+    return {"seed": seed, "max_ticks": fight.MAX_TICKS, "tick_ms": fight.TICK_MS, "you": you, "foe": foe,
+            "opponent": dungeon.opponent(d), "tricks": list(fight.TRICKS)}
+
+
+def _dungeon(username: str):
+    state, code = engine_repo.load(username)
+    if not engine.modes(state)["journey"]:
+        raise HTTPException(status_code=403, detail="the journey opens in the evove's story")
+    now = datetime.now()
+    created = not isinstance(state.get("dungeon"), dict)
+    d = dungeon.state_of(state, now)
+    if created:
+        engine_repo.save(username, state)
+    return state, d, now, bool(state["flags"].get("fast"))
+
+
+def _dungeon_view(username: str, state: dict, d: dict, now: datetime, fast: bool) -> dict:
+    data = _load_user(username)
+    metadata = data.get("metadata") or {}
+    max_energy = _max_energy(data, username)
+    view = dungeon.view(d, now, fast)
+    view["companions"] = [
+        {"id": e, "name": entities.name_of(e), "color": entities.ENTITIES[e]["color"], "glyph": entities.ENTITIES[e]["glyph"],
+         "ability": (entities.ENTITIES[e].get("battle") or {}).get("ability_name")}
+        for e in dungeon.companions(d, state.get("entity")) if e in entities.ENTITIES]
+    view["energy"] = int(metadata.get("energy", 0) or 0)
+    view["max_energy"] = max_energy
+    view["tokens"] = int(metadata.get("tokens", 0) or 0)
+    view["recover"] = recovery.view(metadata, now, max_energy)
+    view["checkpoint"] = journey_mode.view(metadata, now, max_energy)
+    view["fighting"] = bool(d.get("battle"))
+    if d.get("ending") in ("left", "entity"):
+        view["code"] = save.group(save.pack(_snapshot(username), _save_secret()))
+    return view
+
+
+@app.get("/dungeon")
+def dungeon_home(username: str = Depends(current_username)):
+    """The journey as a mode: the floor and its map, how far the figure walked,
+    who waits at its end, the choice waiting, the ending — with its code — and
+    the hp, tokens and recoveries. See src.domain.dungeon."""
+    state, d, now, fast = _dungeon(username)
+    b = d.get("battle")
+    if b and (now - datetime.fromisoformat(b["at"])).total_seconds() > _STALE_FIGHT_SECONDS:
+        # a fight the app never came back to: it played itself, no tricks
+        _resolve_fight(username, state, d, now, [])
+    return _dungeon_view(username, state, d, now, fast)
+
+
+@app.post("/dungeon/fight")
+def dungeon_fight(username: str = Depends(current_username)):
+    """Starts the fight with whoever waits: answers its setup, which the app
+    plays live (src.domain.fight) and sends back with the ticks of its tricks."""
+    state, d, now, fast = _dungeon(username)
+    if not dungeon.waiting(d, now, fast):
+        raise HTTPException(status_code=409, detail="no one is waiting")
+    data = _load_user(username)
+    if int((data.get("metadata") or {}).get("energy", 0) or 0) <= 0:
+        raise HTTPException(status_code=409, detail="no hp left")
+    setup = _fight_setup(username, data, state, d)
+    d["battle"] = {"setup": setup, "at": now.isoformat(timespec="seconds")}
+    engine_repo.save(username, state)
+    return setup
+
+
+def _resolve_fight(username: str, state: dict, d: dict, now: datetime, plays: list[int]) -> dict:
+    """The fight replayed on the server with the tricks played at `plays`:
+    what it decides is what counts. A win pays points and moves the story; the
+    bar's end is the hp left, and an empty one restarts the checkpoints
+    (src.domain.journey.fail)."""
+    setup = d["battle"]["setup"]
+    result = fight.replay(setup, plays)
+    result["max_hp"] = setup["you"]["max_hp"]
+    data = _load_user(username)
+    metadata = data.setdefault("metadata", {})
+    max_energy = _max_energy(data, username)
+    hp = result["hp"][0]
+    metadata["energy"] = min(max_energy, int(math.ceil(hp / max(1e-9, float(setup["you"]["per_energy"]))))) if hp > 0 else 0
+    reset = False
+    points = 0
+    if result["won"]:
+        points = battle.win_points(int(d["floor"]), 0, _worn(username)["points"])
+        metadata["build_points"] = int(metadata.get("build_points", 0) or 0) + points
+        lines = dungeon.won(d, result, random.Random(), now)
+    else:
+        dungeon.lost(d)
+        lines = ["O SINAL CAIU."]
+    if metadata["energy"] <= 0:
+        journey_mode.fail(metadata, now, max_energy)
+        reset = True
+        lines.append("SUA BARRA ACABOU. OS CHECKPOINTS VOLTARAM AO ESTÁGIO 1.")
+    d["battle"] = None
+    _save_user(username, data)
+    engine_repo.save(username, state)
+    return {"result": result, "won": result["won"], "points": points, "journey_reset": reset, "lines": lines,
+            "close": d.get("ending") == "free"}
+
+
+@app.post("/dungeon/fight/end")
+def dungeon_fight_end(payload: dict | None = None, username: str = Depends(current_username)):
+    """Body: {plays: [tick, …]}. The fight's end, as `_resolve_fight` decides
+    it. A fight left halfway — the app closed — is sent with the tricks played
+    so far: the rest plays itself, as an autobattler does."""
+    state, d, now, fast = _dungeon(username)
+    if not d.get("battle"):
+        raise HTTPException(status_code=409, detail="no fight going on")
+    plays = [int(t) for t in ((payload or {}).get("plays") or [])[:600] if 0 <= int(t) <= fight.MAX_TICKS]
+    out = _resolve_fight(username, state, d, now, plays)
+    return {**out, "view": _dungeon_view(username, state, d, now, fast)}
+
+
+@app.post("/dungeon/choose")
+def dungeon_choose(payload: dict, username: str = Depends(current_username)):
+    """Body: {option}. The answer to the choice waiting — leave or stay, become
+    an entity or let it escape."""
+    state, d, now, fast = _dungeon(username)
+    try:
+        lines = dungeon.choose(d, str((payload or {}).get("option") or ""), state.get("entity"), now)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    engine_repo.save(username, state)
+    return {"lines": lines, "view": _dungeon_view(username, state, d, now, fast)}
+
+
+@app.post("/dungeon/pair")
+def dungeon_pair(payload: dict, username: str = Depends(current_username)):
+    """Body: {entities: [a, b]}. In the third act, the two entities carried."""
+    state, d, now, fast = _dungeon(username)
+    try:
+        dungeon.set_pair(d, list((payload or {}).get("entities") or []))
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    engine_repo.save(username, state)
+    return _dungeon_view(username, state, d, now, fast)
