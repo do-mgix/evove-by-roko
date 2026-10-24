@@ -28,5 +28,12 @@ class SoundExport {
         Wav.write(File(raw, "heal.wav"), Synth.heal())
         Wav.write(File(raw, "entity.wav"), Synth.entity())
         Wav.write(File(raw, "boom.wav"), Synth.boom())
+        Wav.write(File(raw, "level_up.wav"), Synth.levelUp())
+        Wav.write(File(raw, "ambient.wav"), Synth.ambient(), mono = true)
+        Wav.write(File(raw, "layer_base.wav"), Synth.layerBase(), mono = true)
+        Wav.write(File(raw, "layer_bass.wav"), Synth.layerBass(), mono = true)
+        Wav.write(File(raw, "layer_lead.wav"), Synth.layerLead(), mono = true)
+        Wav.write(File(raw, "layer_arp.wav"), Synth.layerArp(), mono = true)
+        Wav.write(File(raw, "layer_pad.wav"), Synth.layerPad(), mono = true)
     }
 }

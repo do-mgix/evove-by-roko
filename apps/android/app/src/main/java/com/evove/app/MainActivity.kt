@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import com.evove.app.sound.Music
 import com.evove.app.sound.Sfx
 
 class MainActivity : ComponentActivity() {
@@ -18,7 +19,18 @@ class MainActivity : ComponentActivity() {
         volumeControlStream = android.media.AudioManager.STREAM_MUSIC
         Prefs.init(applicationContext)
         Sfx.init(applicationContext)
+        Music.init(applicationContext)
         setContent { App() }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        Music.resume()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        Music.pause()
     }
 
     // back from the background: the server decides whether it is a new session

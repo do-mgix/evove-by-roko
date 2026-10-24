@@ -60,14 +60,25 @@ object Synth {
         return mono(x)
     }
 
-    /** A blow landing: a falling triangle over a dull burst. */
+    /** A dry sound sent into the room too: `wet` of it rings on. */
+    private fun roomy(x: DoubleArray, wet: Double, random: Random): Stereo {
+        val hall = hall(random)
+        val send = DoubleArray(x.size) { x[it] * wet }
+        val l = convolve(send, hall.left)
+        val r = convolve(send, hall.right)
+        return finish(Stereo(FloatArray(l.size) { (l[it] + x.getOrElse(it) { 0.0 }).toFloat() },
+            FloatArray(r.size) { (r[it] + x.getOrElse(it) { 0.0 }).toFloat() }))
+    }
+
+    /** A blow landing: a falling triangle and a cracking burst, ringing on in the room. */
     fun hit(random: Random = Random(7)): Stereo {
-        val x = DoubleArray(seconds(0.16))
-        oscillator(x, Wave.TRIANGLE, Param(420.0).set(420.0, 0.0).exp(110.0, 0.14), Param(0.0).set(0.0001, 0.0).exp(0.6, 0.004).exp(0.001, 0.15), 0.0, 0.16)
-        val burst = DoubleArray(seconds(0.06)) { random.nextDouble() * 2 - 1 }
-        lowpass(burst, 2200.0)
-        for (i in burst.indices) x[i] += burst[i] * 0.35 * (1 - i.toDouble() / burst.size)
-        return mono(x)
+        val x = DoubleArray(seconds(0.3))
+        oscillator(x, Wave.TRIANGLE, Param(520.0).set(520.0, 0.0).exp(90.0, 0.22), Param(0.0).set(0.0001, 0.0).exp(0.8, 0.003).exp(0.001, 0.26), 0.0, 0.28)
+        oscillator(x, Wave.SINE, Param(130.0).set(130.0, 0.0).exp(45.0, 0.2), Param(0.0).set(0.0001, 0.0).exp(0.7, 0.004).exp(0.001, 0.25), 0.0, 0.27)
+        val burst = DoubleArray(seconds(0.09)) { random.nextDouble() * 2 - 1 }
+        lowpass(burst, 3200.0)
+        for (i in burst.indices) x[i] += burst[i] * 0.7 * (1 - i.toDouble() / burst.size).pow(1.5)
+        return roomy(x, 0.55, random)
     }
 
     /** A heal: a sine gliding up an octave. */
@@ -97,8 +108,107 @@ object Synth {
         lowpass(rumble, 320.0)
         lowpass(rumble, 320.0)
         for (i in rumble.indices) x[i] += rumble[i] * 1.4 * (1 - i.toDouble() / rumble.size).pow(2)
-        return mono(x)
+        return roomy(x, 0.7, random)
     }
+
+    /** A level gained: notes climbing, bright, in the room. */
+    fun levelUp(random: Random = Random(13)): Stereo {
+        val x = DoubleArray(seconds(0.7))
+        for ((k, f) in listOf(523.25, 659.25, 783.99, 1046.5).withIndex()) {
+            val t0 = k * 0.09
+            val g = Param(0.0).set(0.0001, t0).exp(0.4, t0 + 0.005).exp(0.001, t0 + 0.32)
+            oscillator(x, Wave.TRIANGLE, Param(f), g, t0, t0 + 0.34)
+            oscillator(x, Wave.SINE, Param(f * 2.003), Param(0.0).set(0.0001, t0).exp(0.12, t0 + 0.005).exp(0.001, t0 + 0.2), t0, t0 + 0.22)
+        }
+        return roomy(x, 0.4, random)
+    }
+
+    // ---------------------------------------------------------------- the music
+    //
+    // Loops that close on themselves: every note starts and ends inside the
+    // loop, and what holds across it — the drone — has a whole number of
+    // cycles in it. The fight's layers are all one length and start together,
+    // so they stay in time whichever of them is heard.
+
+    private const val BEAT = 0.5           // 120 beats a minute
+    private const val LAYER_SECONDS = 8.0  // four bars
+
+    private fun note(midi: Int) = 440.0 * 2.0.pow((midi - 69) / 12.0)
+
+    private fun loop(seconds: Double, fill: (DoubleArray) -> Unit): Stereo {
+        val x = DoubleArray((seconds * RATE).toInt())
+        fill(x)
+        var peak = 0.0
+        for (v in x) peak = maxOf(peak, abs(v))
+        val k = if (peak > 0) 0.8 / peak else 1.0
+        val f = FloatArray(x.size) { (x[it] * k).toFloat() }
+        return Stereo(f, f.copyOf())
+    }
+
+    /** The menus' ambience: a low drone breathing slowly, and wind. */
+    fun ambient(random: Random = Random(21)): Stereo = loop(16.0) { x ->
+        val n = x.size
+        for (i in 0 until n) {
+            val t = i.toDouble() / RATE
+            val breath = 0.6 + 0.4 * sin(2 * PI * t / 8.0)
+            x[i] = breath * (0.5 * sin(2 * PI * 55.0 * t) + 0.35 * sin(2 * PI * 82.5 * t) + 0.12 * sin(2 * PI * 110.25 * t))
+        }
+        val wind = DoubleArray(n) { random.nextDouble() * 2 - 1 }
+        lowpass(wind, 500.0)
+        lowpass(wind, 500.0)
+        for (i in 0 until n) x[i] += wind[i] * 0.6 * (0.5 + 0.5 * sin(2 * PI * i / n.toDouble() * 2 + 1.0))
+    }
+
+    /** The fight's ground, always there: a kick on each beat, a tick between. */
+    fun layerBase(random: Random = Random(31)): Stereo = loop(LAYER_SECONDS) { x ->
+        for (b in 0 until 16) {
+            val t0 = b * BEAT
+            oscillator(x, Wave.SINE, Param(120.0).set(120.0, t0).exp(42.0, t0 + 0.12), Param(0.0).set(0.0001, t0).exp(0.9, t0 + 0.003).exp(0.001, t0 + 0.2), t0, t0 + 0.22)
+            val from = ((t0 + BEAT / 2) * RATE).toInt()
+            val tick = DoubleArray(seconds(0.03)) { random.nextDouble() * 2 - 1 }
+            for (i in tick.indices) if (from + i < x.size) x[from + i] += tick[i] * 0.12 * (1 - i.toDouble() / tick.size)
+        }
+    }
+
+    /** The bass, which comes in as the fight drags on. */
+    fun layerBass(): Stereo = loop(LAYER_SECONDS) { x ->
+        val line = listOf(45, 45, 48, 45, 43, 43, 47, 43, 41, 41, 45, 41, 40, 43, 44, 40)
+        for ((b, m) in line.withIndex()) {
+            val t0 = b * BEAT
+            oscillator(x, Wave.TRIANGLE, Param(note(m)), Param(0.0).set(0.0001, t0).exp(0.6, t0 + 0.01).exp(0.001, t0 + BEAT * 0.9), t0, t0 + BEAT * 0.95)
+        }
+    }
+
+    /** The lead, which comes in when the hp runs low. */
+    fun layerLead(): Stereo = loop(LAYER_SECONDS) { x ->
+        val tune = listOf(69, -1, 72, 71, 69, -1, 67, 64, 65, -1, 69, 67, 64, -1, 62, 64)
+        for ((b, m) in tune.withIndex()) {
+            if (m < 0) continue
+            val t0 = b * BEAT
+            oscillator(x, Wave.TRIANGLE, Param(note(m)), Param(0.0).set(0.0001, t0).exp(0.35, t0 + 0.02).exp(0.001, t0 + BEAT * 0.95), t0, t0 + BEAT)
+            oscillator(x, Wave.SINE, Param(note(m) * 2.002), Param(0.0).set(0.0001, t0).exp(0.08, t0 + 0.02).exp(0.001, t0 + BEAT * 0.6), t0, t0 + BEAT * 0.7)
+        }
+    }
+
+    /** The arpeggio, which comes in under fúria. */
+    fun layerArp(): Stereo = loop(LAYER_SECONDS) { x ->
+        val chords = listOf(listOf(57, 60, 64, 69), listOf(55, 59, 62, 67), listOf(53, 57, 60, 65), listOf(52, 56, 59, 64))
+        for (bar in 0 until 4) for (k in 0 until 16) {
+            val t0 = bar * 4 * BEAT + k * BEAT / 4
+            oscillator(x, Wave.SINE, Param(note(chords[bar][k % 4] + 12)), Param(0.0).set(0.0001, t0).exp(0.3, t0 + 0.004).exp(0.001, t0 + 0.11), t0, t0 + 0.12)
+        }
+    }
+
+    /** The pad, which comes in as the entities grow impatient. */
+    fun layerPad(): Stereo = loop(LAYER_SECONDS) { x ->
+        val chords = listOf(listOf(57, 64, 72), listOf(55, 62, 71), listOf(53, 60, 69), listOf(52, 59, 68))
+        for ((bar, c) in chords.withIndex()) {
+            val t0 = bar * 4 * BEAT
+            val g = Param(0.0).set(0.0001, t0).lin(0.2, t0 + 0.6).lin(0.2, t0 + 1.4).lin(0.0001, t0 + 4 * BEAT - 0.02)
+            for (m in c) for (d in doubleArrayOf(1.0, 1.004)) oscillator(x, Wave.SINE, Param(note(m) * d), g, t0, t0 + 4 * BEAT)
+        }
+    }
+
 
     // ---------------------------------------------------------------- the sound
 

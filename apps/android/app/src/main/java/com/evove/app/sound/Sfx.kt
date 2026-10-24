@@ -31,7 +31,10 @@ object Sfx {
     private var healId = 0
     private var entityId = 0
     private var boomId = 0
-    private var primed = false
+    private var levelId = 0
+    /** Whether anything may sound yet: only after the first tap. */
+    var primed = false
+        private set
     var muted = false
 
     fun init(context: Context) {
@@ -50,6 +53,7 @@ object Sfx {
         healId = p.load(context, R.raw.heal, 1)
         entityId = p.load(context, R.raw.entity, 1)
         boomId = p.load(context, R.raw.boom, 1)
+        levelId = p.load(context, R.raw.level_up, 1)
         pool = p
         vibrator = if (Build.VERSION.SDK_INT >= 31) {
             (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
@@ -66,7 +70,10 @@ object Sfx {
 
     /** Every button: light, with a buzz. `variant` (0–9) nudges the pitch. */
     fun tap(variant: Int = 0) {
-        primed = true
+        if (!primed) {
+            primed = true
+            Music.primed()
+        }
         play(taps[Math.floorMod(variant, 10)], 0.55f)
         buzz(10)
     }
@@ -78,6 +85,9 @@ object Sfx {
     fun hit() = play(hitId, 0.6f)
     fun heal() = play(healId, 0.55f)
     fun entity() = play(entityId, 0.6f)
+
+    /** A level gained in a fight. */
+    fun levelUp() = play(levelId, 0.7f)
 
     /** An entity's blow: muffled, heavy. */
     fun boom() {
