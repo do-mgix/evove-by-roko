@@ -389,8 +389,10 @@ def companions(d: dict, carried: str | None) -> list[str]:
 def foe_hp_factor(d: dict) -> float:
     if final(d):
         return 4.4
-    base = {1: 2.4, 2: 2.9, 3: 3.2}[min(3, int(d["act"]))]
-    return base + 0.15 * min(ACT_FLOORS - 1, floor_in_act(d) - 1)
+    # the first floors gentle — losing starts the journey over — the rest steeper
+    base = {1: 1.4, 2: 2.9, 3: 3.2}[min(3, int(d["act"]))]
+    per = 0.25 if int(d["act"]) == 1 else 0.15
+    return base + per * min(ACT_FLOORS - 1, floor_in_act(d) - 1)
 
 
 # ---------------------------------------------------------------- the story
