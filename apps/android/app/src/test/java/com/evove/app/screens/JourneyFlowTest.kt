@@ -43,11 +43,11 @@ class JourneyFlowTest {
         rule.setContent { JourneyScreen(onHome = {}) }
         rule.mainClock.advanceTimeBy(1500)
         rule.onNodeWithTag("fight-now").performClick()
-        repeat(80) { rule.mainClock.advanceTimeBy(100) }
-        // the bars moved: the opponent is not at its full 550 any more
-        assertTrue(rule.onRoot().printToString(), rule.onAllNodesWithText("KIROCUME 550").fetchSemanticsNodes().isEmpty())
+        repeat(120) { rule.mainClock.advanceTimeBy(100) }
+        // the fight is told one action at a time
+        assertTrue(rule.onRoot().printToString(), rule.onAllNodesWithText("USOU", substring = true).fetchSemanticsNodes().isNotEmpty())
         var n = 0
-        while (calls.none { it.startsWith("POST /dungeon/fight/end") } && n++ < 1400) rule.mainClock.advanceTimeBy(100)
+        while (calls.none { it.startsWith("POST /dungeon/fight/end") } && n++ < 6000) rule.mainClock.advanceTimeBy(100)
         assertTrue(calls.toString(), calls.contains("POST /dungeon/fight"))
         assertTrue("never ended after $n ticks: $calls", calls.any { it.startsWith("POST /dungeon/fight/end") })
     }

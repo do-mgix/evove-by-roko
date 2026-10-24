@@ -164,7 +164,7 @@ private fun Said(line: Line?, modifier: Modifier, onDismiss: () -> Unit, onAccou
         for (i in 1..text.length) {
             delay(32)
             typed = text.take(i)
-            if (i % 4 == 0) Sfx.tap(i % 10)
+            if (i % 3 == 0) Sfx.type()
         }
     }
     val blink = rememberInfiniteTransition(label = "caret")

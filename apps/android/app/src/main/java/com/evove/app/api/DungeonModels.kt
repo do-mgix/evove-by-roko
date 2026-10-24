@@ -46,7 +46,7 @@ data class Opponent(val name: String = "", val title: String = "", val kind: Str
 @Serializable
 data class FightSetup(
     val seed: Long,
-    val maxTicks: Int = 1200,
+    val maxTicks: Int = 2400,
     val tickMs: Int = 100,
     val you: FightSide,
     val foe: FightSide,

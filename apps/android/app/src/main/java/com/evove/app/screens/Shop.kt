@@ -79,6 +79,7 @@ import com.evove.app.ui.Message
 import com.evove.app.ui.Mono
 import com.evove.app.ui.SLANT
 import com.evove.app.ui.Small
+import com.evove.app.ui.Static
 import com.evove.app.ui.caps
 import com.evove.app.ui.dashed
 import com.evove.app.ui.drawBoxes
@@ -457,29 +458,5 @@ private fun Vault(found: ShopState?, discovering: Boolean, opened: List<String>,
             else -> BasicText(caps("as descobertas chegam sozinhas"), Modifier.fillMaxWidth().alpha(0.7f), style = note)
         }
         if (opened.isNotEmpty()) BasicText(caps(opened.joinToString(" · ").lowercase()), Modifier.fillMaxWidth(), style = note.copy(color = Color.White))
-    }
-}
-
-/** Static: random grey pixels, a dozen frames a second. */
-@Composable
-private fun Static(modifier: Modifier) {
-    val bitmap = remember { Bitmap.createBitmap(48, 48, Bitmap.Config.ARGB_8888) }
-    val pixels = remember { IntArray(48 * 48) }
-    var frame by remember { mutableIntStateOf(0) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            for (i in pixels.indices) {
-                val v = (Math.random() * 255).toInt()
-                pixels[i] = (0xFF shl 24) or (v shl 16) or (v shl 8) or v
-            }
-            bitmap.setPixels(pixels, 0, 48, 0, 0, 48, 48)
-            frame++
-            delay(80)
-        }
-    }
-    Box(modifier.background(Color.Black)) {
-        // read the frame so each new one is drawn
-        val image = remember(frame) { bitmap.asImageBitmap() }
-        Image(image, null, Modifier.fillMaxSize().alpha(0.55f), contentScale = ContentScale.FillBounds, filterQuality = FilterQuality.None)
     }
 }

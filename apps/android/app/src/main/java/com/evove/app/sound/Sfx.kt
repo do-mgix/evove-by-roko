@@ -26,6 +26,10 @@ object Sfx {
     private val taps = IntArray(10)
     private val powerOns = IntArray(3)
     private val gainsTakes = IntArray(3)
+    private var typeId = 0
+    private var hitId = 0
+    private var healId = 0
+    private var entityId = 0
     private var primed = false
     var muted = false
 
@@ -40,6 +44,10 @@ object Sfx {
         tapIds.forEachIndexed { i, id -> taps[i] = p.load(context, id, 1) }
         intArrayOf(R.raw.power_on_0, R.raw.power_on_1, R.raw.power_on_2).forEachIndexed { i, id -> powerOns[i] = p.load(context, id, 1) }
         intArrayOf(R.raw.gains_0, R.raw.gains_1, R.raw.gains_2).forEachIndexed { i, id -> gainsTakes[i] = p.load(context, id, 1) }
+        typeId = p.load(context, R.raw.type, 1)
+        hitId = p.load(context, R.raw.hit, 1)
+        healId = p.load(context, R.raw.heal, 1)
+        entityId = p.load(context, R.raw.entity, 1)
         pool = p
         vibrator = if (Build.VERSION.SDK_INT >= 31) {
             (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
@@ -61,8 +69,13 @@ object Sfx {
         buzz(10)
     }
 
-    /** A tap's sound alone, no buzz: for what happens by itself, a blow in a fight. */
-    fun tick(variant: Int = 0) = play(taps[Math.floorMod(variant, 10)], 0.35f)
+    /** An entity's letter typed out: one soft tone, always the same, no buzz. */
+    fun type() = play(typeId, 0.22f)
+
+    /** In a fight: a blow landing, a heal, an entity stepping in. */
+    fun hit() = play(hitId, 0.6f)
+    fun heal() = play(healId, 0.55f)
+    fun entity() = play(entityId, 0.6f)
 
     /** A screen of cells coming on. */
     fun powerOn() = play(powerOns.random(), 0.7f)

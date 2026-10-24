@@ -154,7 +154,7 @@ fun StartScreen(username: String, onMode: (Mode) -> Unit, onAccounts: () -> Unit
                     enabled = true, alert = false, tag = "mode-evove",
                 ) { onMode(Mode.EVOVE) }
                 ModeKey(
-                    Glyphs.coleto, Ink.sandbox, "sandbox",
+                    Glyphs.act, Ink.sandbox, "sandbox",
                     if (modes?.sandbox == true) "tudo liberado, nada custa" else "termine o tutorial",
                     enabled = modes?.sandbox == true, alert = false, tag = "mode-sandbox",
                 ) { onMode(Mode.SANDBOX) }

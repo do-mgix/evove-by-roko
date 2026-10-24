@@ -101,7 +101,7 @@ fun RokoScreen(onHome: () -> Unit, sandbox: Boolean = false, focus: String? = nu
             for (i in 1..text.length) {
                 delay(TYPE_MS)
                 typed = text.take(i)
-                if (i % 3 == 0) Sfx.tap(i % 10)
+                if (i % 3 == 0) Sfx.type()
             }
             typer = null
         }
@@ -174,7 +174,7 @@ fun RokoScreen(onHome: () -> Unit, sandbox: Boolean = false, focus: String? = nu
         ink, display = 0.2f,
         displayContent = {
             if (mute) {
-                GlyphView(Glyphs.mute, ink, 2.6.remDp)
+                GlyphView(Glyphs.roko, ink, 2.6.remDp)
                 BasicText("—", style = TextStyle(fontFamily = Display, fontSize = 1.6.rem, fontWeight = FontWeight.SemiBold, letterSpacing = 0.25.em, color = ink))
                 Small("sem entidade")
             } else if (entity != null) {

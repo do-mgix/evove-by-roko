@@ -4,11 +4,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -24,35 +21,46 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import com.evove.app.Bus
@@ -87,40 +95,42 @@ import com.evove.app.ui.LocalInk
 import com.evove.app.ui.Message
 import com.evove.app.ui.Mono
 import com.evove.app.ui.Small
+import com.evove.app.ui.Static
 import com.evove.app.ui.Stats
 import com.evove.app.ui.Tag
 import com.evove.app.ui.Ticker
 import com.evove.app.ui.Type
 import com.evove.app.ui.caps
-import com.evove.app.ui.drawGlyph
 import com.evove.app.ui.hex
 import com.evove.app.ui.rem
 import com.evove.app.ui.remDp
 import com.evove.app.ui.voiceInk
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.floor
+import kotlin.math.pow
 
-// The journey as a mode: on top, the floor's map, which the figure explores by
-// itself for as long as the checkpoints say, the opponent waiting at the end of
-// it; under it, a line of the story. Below, the few things that can be done:
-// start the fight when someone waits, answer a choice, buy hp back with
-// tokens, wear equipment, see the stats, and, in the third act, choose the two
-// entities carried. The fight takes the top over and plays itself in real
-// time (com.evove.app.fight.Fight); the only input is the trick on offer.
+// The journey as a mode: a corridor seen from inside, walked by itself for as
+// long as the checkpoints say, someone waiting — a frame of static — at the end
+// of it. Below, the few things that can be done: start the fight, answer a
+// choice, buy hp back with tokens, wear equipment, see the stats, and, in the
+// third act, choose the two entities carried. No one talks here.
+//
+// The fight is drawn as an old console's: one message at a time in a box on
+// top, the opponent as static in the middle, the hp at the bottom as a counter
+// that rolls down, and the four attacks recharging beside it. Each action is a
+// message and one shape — a blow shrinks toward the opponent, the opponent's
+// blows wash over the screen — and while a message is read the fight waits.
+// It plays itself, tricks included (com.evove.app.fight.Fight).
 
 private enum class Leg { MAP, FIGHT, STATUS, EQUIP, STATS, PAIR }
 
-/** What each trick does, said where it is offered. */
-private val TRICK_TEXT = mapOf(
-    "atordoar" to "pausa as recargas do oponente",
-    "furia" to "avança as suas recargas no tempo",
-    "baque" to "para todos — depois, golpes ao mesmo tempo",
-    "rasteira" to "devolve um ataque do oponente ao início",
-    "escudo" to "segura a maior parte do próximo golpe",
-    "eco" to "repete o seu último ataque, de graça",
-)
+/** How long a message of the fight stays, the fight waiting under it. */
+private const val BEAT_MS = 1100L
 
-private val TRICK_NAME = mapOf("furia" to "fúria")
+private val TRICK_NAME = mapOf("atordoar" to "atordoar", "furia" to "fúria", "baque" to "baque", "rasteira" to "rasteira", "escudo" to "escudo", "eco" to "eco")
+private val ABILITY_NAME = mapOf("decreto" to "decreto", "pergunta" to "pergunta", "ficar" to "ficar", "pressa" to "pressa", "troca" to "troca",
+    "amarra" to "amarra", "chama" to "chama", "interferencia" to "interferência")
 
 /** "2d 05h", "3h 07m", "4m 09s". */
 fun clock(total: Long): String {
@@ -135,6 +145,29 @@ fun clock(total: Long): String {
 /** 1.5 as "1.5", 2.0 as "2". */
 fun trim(d: Double): String = if (d == Math.floor(d)) d.toLong().toString() else d.toString()
 
+/** A message of the fight and the shape that goes with it. */
+private data class Beat(val n: Int, val text: String, val shape: String, val side: Int, val color: Color)
+
+private fun beatOf(n: Int, e: FightEvent, setup: FightSetup): Beat? {
+    val who = if (e.side == 0) setup.you.name else setup.foe.name
+    val ally = e.name.substringBefore("|")
+    val color = if (e.side == 0) Ink.journey else Ink.enemy
+    return when (e.kind) {
+        "attack" -> Beat(n, "$who usou ${e.name}", if (e.side == 0) "attack" else "hurt", e.side, color)
+        "heal" -> Beat(n, "$who usou ${e.name}", "heal", e.side, Ink.act)
+        "trick" -> Beat(n, "$who usou ${TRICK_NAME[e.name] ?: e.name}", "trick", e.side, color)
+        "skill" -> Beat(n, "$ally agiu", "entity", e.side, if (e.side == 0) voiceInk(entityOf(setup, ally)) else Ink.enemy)
+        "ability" -> Beat(n, "$ally usou ${ABILITY_NAME[e.name.substringAfter("|")] ?: e.name.substringAfter("|")}", "entity", e.side,
+            if (e.side == 0) voiceInk(entityOf(setup, ally)) else Ink.enemy)
+        "interfere" -> Beat(n, "$ally interferiu", "entity", e.side, if (e.side == 0) voiceInk(entityOf(setup, ally)) else Ink.enemy)
+        "deny" -> Beat(n, "${e.name} foi negado", "none", e.side, color)
+        "miss" -> Beat(n, "${e.name} falhou", "none", e.side, color)
+        else -> null
+    }
+}
+
+private fun entityOf(setup: FightSetup, name: String) = setup.you.entities.find { it.name == name }?.id
+
 @Composable
 fun JourneyScreen(onHome: () -> Unit, onClose: () -> Unit = {}) {
     var leg by remember { mutableStateOf(Leg.MAP) }
@@ -146,13 +179,11 @@ fun JourneyScreen(onHome: () -> Unit, onClose: () -> Unit = {}) {
     var busy by remember { mutableStateOf(false) }
     var loadedAt by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    // the fight going on: its setup, the rules running it, the ticks the tricks were played at
+    // the fight going on: its setup, the rules running it, what the screen shows of it
     var setup by remember { mutableStateOf<FightSetup?>(null) }
     var fight by remember { mutableStateOf<Fight?>(null) }
-    // what the screen shows of it, copied at every tick
     var shown by remember { mutableStateOf<FightView?>(null) }
-    var wantPlay by remember { mutableStateOf(false) }
-    val plays = remember { mutableListOf<Int>() }
+    var beat by remember { mutableStateOf<Beat?>(null) }
     var ended by remember { mutableStateOf<FightEnd?>(null) }
     var pair by remember { mutableStateOf<List<String>>(emptyList()) }
     val scope = rememberCoroutineScope()
@@ -172,10 +203,7 @@ fun JourneyScreen(onHome: () -> Unit, onClose: () -> Unit = {}) {
     val v = view
     val elapsed = (now - loadedAt) / 1000
     val left = v?.let { maxOf(0, it.secondsLeft - elapsed) } ?: 0
-    val progress = v?.let {
-        if (it.walkSeconds <= 0) 1f else (it.progress + elapsed / it.walkSeconds.toDouble()).coerceIn(0.0, 1.0).toFloat()
-    } ?: 0f
-    val arrived = v != null && v.ending == null && v.pending == null && (v.waiting || progress >= 1f)
+    val arrived = v != null && v.ending == null && v.pending == null && (v.waiting || left == 0L)
 
     fun go(l: Leg) {
         Sfx.tap(if (l == Leg.MAP) 0 else 4)
@@ -186,30 +214,28 @@ fun JourneyScreen(onHome: () -> Unit, onClose: () -> Unit = {}) {
         Sfx.powerOn()
     }
 
-    /** The fight is over, here or because the person left: the server replays
-     *  it with the tricks played so far, the rest playing itself. */
+    /** The fight is over, or the person left it: the server replays it — the
+     *  rest of it plays itself — and decides what it pays. */
     fun finish(leaving: Boolean = false) {
-        val f = fight ?: return
-        val ticks = plays.toList()
+        fight ?: return
         fight = null
         if (leaving) {
-            Evove.later { runCatching { Api.endFight(ticks) } }
+            Evove.later { runCatching { Api.endFight(emptyList()) } }
             return
         }
         scope.launch {
             try {
-                val r = Api.endFight(ticks)
+                val r = Api.endFight(emptyList())
                 ended = r
                 view = r.view
                 loadedAt = System.currentTimeMillis()
                 now = loadedAt
                 if (r.won) Sfx.gains() else Sfx.buzz(0, 120, 80, 120)
-                message = listOf(if (r.won) "vitória" else "derrota") + r.lines.map { it.lowercase() }
                 Bus.bumpUser()
                 Evove.refresh()
                 if (r.close) {
-                    // the evove undone: the ending told, the app closes by itself
-                    delay(6000)
+                    // the evove undone: the app closes by itself
+                    delay(4000)
                     onClose()
                 }
             } catch (e: Exception) {
@@ -226,9 +252,8 @@ fun JourneyScreen(onHome: () -> Unit, onClose: () -> Unit = {}) {
             try {
                 val s = Api.startFight()
                 setup = s
-                plays.clear()
-                wantPlay = false
                 ended = null
+                beat = null
                 fight = Fight(s).also { shown = it.view() }
                 leg = Leg.FIGHT
                 message = emptyList()
@@ -247,10 +272,8 @@ fun JourneyScreen(onHome: () -> Unit, onClose: () -> Unit = {}) {
         Sfx.tap(7)
         scope.launch {
             try {
-                val r = Api.choose(option)
-                view = r.view
+                view = Api.choose(option).view
                 loadedAt = System.currentTimeMillis()
-                message = r.lines.map { it.lowercase() }
                 Evove.refresh()
                 Sfx.powerOn()
             } catch (e: Exception) {
@@ -315,40 +338,62 @@ fun JourneyScreen(onHome: () -> Unit, onClose: () -> Unit = {}) {
         val cur = view
         if (fight == null && cur != null && !cur.waiting && cur.ending == null && left == 0L && now - loadedAt > 1500) scope.launch { load() }
     }
-    // the fight's clock: a tick every tenth of a second, a trick played at the start of one
+    // the fight's clock: a tick every tenth of a second, and every message read
+    // before the next one, the fight waiting under it
     LaunchedEffect(fight) {
         val f = fight ?: return@LaunchedEffect
-        val ms = (setup?.tickMs ?: 100).toLong()
+        val s = setup ?: return@LaunchedEffect
+        val ms = s.tickMs.toLong()
+        var n = 0
         while (!f.over) {
             delay(ms)
-            val play = wantPlay && f.sides[0].ready
-            wantPlay = false
-            if (play) plays += f.tick
             val before = f.events.size
-            f.step(play)
-            for (e in f.events.drop(before)) when (e.kind) {
-                "attack" -> Sfx.tick(if (e.side == 0) 3 else 1)
-                "interfere", "ability" -> Sfx.powerOn()
-                "trick" -> Sfx.tick(9)
-                "heal" -> Sfx.tick(8)
-            }
+            f.step()
             shown = f.view()
+            for (e in f.events.drop(before)) {
+                val b = beatOf(++n, e, s) ?: continue
+                beat = b
+                when (b.shape) {
+                    "attack", "hurt" -> Sfx.hit()
+                    "heal" -> Sfx.heal()
+                    "entity", "trick" -> Sfx.entity()
+                }
+                delay(BEAT_MS)
+            }
         }
+        beat = null
         finish()
     }
 
     BackHandler(enabled = leg != Leg.MAP && leg != Leg.FIGHT) { go(Leg.MAP) }
     BackHandler(enabled = leg == Leg.FIGHT && fight == null) { ended = null; go(Leg.MAP) }
 
-    val f = fight
+    if (leg == Leg.FIGHT && setup != null) {
+        FightScreen(setup!!, shown, beat, fight == null, ended, onBack = { ended = null; go(Leg.MAP) }) {
+            Sfx.tap(0)
+            if (fight != null) finish(leaving = true)
+            onHome()
+        }
+        return
+    }
+
     val ink = Ink.journey
     DarkScreen(
-        ink, display = 0.42f,
+        ink, display = 0.46f,
         displayContent = {
-            if (leg == Leg.FIGHT && (shown != null || ended != null)) {
-                FightPanel(shown, f == null, setup, ended)
-            } else if (v != null) MapPanel(v, progress, left, arrived, message)
-            else Small("…")
+            when {
+                message.isNotEmpty() -> Message(message)
+                v == null -> Small("…")
+                v.ending != null -> Big(if (v.ending == "free") "livre" else "fim")
+                else -> {
+                    Row(Modifier.fillMaxWidth()) {
+                        val head = TextStyle(fontFamily = Mono, fontSize = 0.68.rem, letterSpacing = 0.1.em, color = ink.copy(alpha = 0.85f))
+                        BasicText(caps("ato ${v.act} · andar ${v.floorInAct}" + (v.of?.let { "/$it" } ?: "")), Modifier.weight(1f), style = head)
+                        BasicText(caps(if (v.pending != null) "escolha" else if (arrived) "" else clock(left)), style = head)
+                    }
+                    Corridor(walking = !arrived && v.pending == null, waiting = arrived, Modifier.fillMaxWidth().weight(1f))
+                }
+            }
         },
         bar = {
             when (leg) {
@@ -359,28 +404,22 @@ fun JourneyScreen(onHome: () -> Unit, onClose: () -> Unit = {}) {
                     Key({ go(Leg.STATS) }, Modifier.at(4)) { KeyIcon(Icon.BARS) }
                     if (v?.act3 != null && v.ending == null) Key({ go(Leg.PAIR) }, Modifier.at(5)) { KeyIcon(Icon.DOTS) }
                 }
-                Leg.FIGHT -> if (f == null) Key({ Sfx.tap(0); ended = null; go(Leg.MAP) }, Modifier.at(1, 2)) { KeyIcon(Icon.LEFT) }
                 else -> {
                     Key({ go(Leg.MAP) }, Modifier.at(1, 2)) { KeyIcon(Icon.LEFT) }
                     if (leg == Leg.EQUIP) Key({ Sfx.tap(2); slotAt++; Sfx.powerOn() }, Modifier.at(3)) { KeyIcon(Icon.DOWN) }
                 }
             }
-            HomeKey {
-                Sfx.tap(0)
-                if (fight != null) finish(leaving = true)
-                onHome()
-            }
+            HomeKey { Sfx.tap(0); onHome() }
         },
     ) {
         when {
-            leg == Leg.FIGHT -> FightBody(if (f == null) null else shown, ended, wantPlay) { if (f?.sides?.get(0)?.ready == true) { wantPlay = true; Sfx.tap(9) } }
             v == null -> Empty("…")
             v.ending != null -> Ending(v) { code ->
                 (context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager)?.setPrimaryClip(ClipData.newPlainText("evove", code.replace(" ", "")))
                 Sfx.gains()
                 message = listOf("copiado")
             }
-            leg == Leg.MAP -> MapBody(v, arrived, busy, left, ::startFight, ::choose)
+            leg == Leg.MAP -> MapBody(v, arrived, busy, ::startFight, ::choose)
             leg == Leg.STATUS -> StatusBody(v, busy, elapsed, ::heal)
             leg == Leg.EQUIP -> EquipBody(gear, slotAt, busy, ::useItem)
             leg == Leg.STATS -> {
@@ -397,128 +436,97 @@ fun JourneyScreen(onHome: () -> Unit, onClose: () -> Unit = {}) {
     }
 }
 
-// ---------------------------------------------------------------- the map
+// ---------------------------------------------------------------- the corridor
 
+/** The corridor seen from inside: frames receding to a vanishing point, the
+ *  walls' edges joining them, doors opening on either side now and then. While
+ *  walking the frames come toward the eye; at the end of the floor a wall
+ *  stands ahead, and on it whoever waits, as static. */
 @Composable
-private fun ColumnScope.MapPanel(v: DungeonView, progress: Float, left: Long, arrived: Boolean, message: List<String>) {
+private fun Corridor(walking: Boolean, waiting: Boolean, modifier: Modifier) {
     val ink = LocalInk.current
-    val head = TextStyle(fontFamily = Mono, fontSize = 0.68.rem, letterSpacing = 0.1.em, color = ink.copy(alpha = 0.85f))
-    Row(Modifier.fillMaxWidth()) {
-        BasicText(caps("ato ${v.act} · andar ${v.floorInAct}" + (v.of?.let { "/$it" } ?: "")), Modifier.weight(1f), style = head)
-        BasicText(
-            caps(when {
-                v.ending != null -> "fim"
-                v.pending != null -> "escolha"
-                arrived -> "esperando você"
-                else -> clock(left)
-            }),
-            style = head,
-        )
-    }
-    if (v.ending == null) DungeonMap(v, progress, arrived, Modifier.fillMaxWidth().weight(1f))
-    else Box(Modifier.fillMaxWidth().weight(1f))
-    // a line of the story: what happened, the choice, who waits, or the floor's own
-    val story = when {
-        message.isNotEmpty() -> message
-        v.ending != null -> v.endingLines
-        v.pending != null -> listOf(v.pending.text)
-        arrived -> listOf(v.waitingLine)
-        else -> v.intro
-    }
-    StoryLine(story)
-}
-
-/** The lines of the story, typed out one after the other, and again. */
-@Composable
-private fun StoryLine(lines: List<String>) {
-    var at by remember(lines) { mutableIntStateOf(0) }
-    var typed by remember(lines, at) { mutableStateOf("") }
-    LaunchedEffect(lines, at) {
-        val text = lines.getOrNull(at) ?: return@LaunchedEffect
-        for (i in 1..text.length) {
-            delay(26)
-            typed = text.take(i)
-            if (i % 4 == 0) Sfx.tap(i % 10)
-        }
-        if (lines.size > 1) {
-            delay(2600)
-            at = (at + 1) % lines.size
+    // the distance walked, in frames: it grows while walking, stops when not
+    var walked by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(walking) {
+        if (!walking) return@LaunchedEffect
+        var last = withFrameMillis { it }
+        while (true) {
+            val t = withFrameMillis { it }
+            walked += (t - last) / 1400f
+            last = t
         }
     }
-    BasicText(
-        caps(typed) + "▍",
-        Modifier.fillMaxWidth().heightIn(min = 2.6.remDp),
-        style = TextStyle(fontFamily = Display, fontSize = 0.82.rem, fontWeight = FontWeight.Medium, lineHeight = 1.4.em,
-            letterSpacing = 0.05.em, color = Color.White, textAlign = TextAlign.End),
-    )
-}
-
-/** The floor: rooms on a grid, the corridors between them, the part walked lit,
- *  the figure on its way, the opponent at the end. */
-@Composable
-private fun DungeonMap(v: DungeonView, progress: Float, arrived: Boolean, modifier: Modifier) {
-    val ink = LocalInk.current
-    val pulse = rememberInfiniteTransition(label = "pulse")
-    val beat by pulse.animateFloat(0.35f, 1f, infiniteRepeatable(tween(650, easing = LinearEasing), RepeatMode.Reverse), label = "b")
-    val m = v.map
-    val foe = if (v.opponent.kind == "entity" || v.opponent.kind == "roko") Glyphs.byName(if (v.opponent.kind == "roko") "roko" else "no") else Glyphs.zira
-    Canvas(modifier.padding(vertical = 6.dp)) {
-        if (m.path.isEmpty()) return@Canvas
-        val cell = minOf(size.width / m.w, size.height / m.h)
-        val ox = size.width - cell * m.w
-        val oy = (size.height - cell * m.h) / 2
-        fun center(x: Int, y: Int) = Offset(ox + (x + 0.5f) * cell, oy + (y + 0.5f) * cell)
-        val room = cell * 0.46f
-        val stroke = 1.5.dp.toPx()
-        val n = m.path.size
-        val pos = progress * (n - 1)
-        // the rooms off the path, and their corridors: faint, they lead nowhere
-        for (r in m.rooms) {
-            val c = center(r[0], r[1])
-            drawLine(ink.copy(alpha = 0.18f), center(r[2], r[3]), c, stroke)
-            drawRect(ink.copy(alpha = 0.22f), Offset(c.x - room / 2, c.y - room / 2), Size(room, room), style = Stroke(stroke))
+    BoxWithConstraints(modifier.clipToBounds()) {
+        val density = LocalDensity.current
+        val w = constraints.maxWidth.toFloat()
+        val h = constraints.maxHeight.toFloat()
+        val farDepth = 3.2f
+        fun scaleAt(z: Float) = 1f / (1f + z * 0.55f)
+        Canvas(Modifier.fillMaxSize()) {
+            val cx = w / 2
+            val cy = h * 0.48f
+            val stroke = 1.5.dp.toPx()
+            fun rect(z: Float): Pair<Offset, Size> {
+                val k = scaleAt(z)
+                val rw = w * 0.96f * k
+                val rh = h * 0.96f * k
+                return Offset(cx - rw / 2, cy - rh / 2) to Size(rw, rh)
+            }
+            val frac = walked - floor(walked)
+            val base = floor(walked).toInt()
+            val depths = if (waiting) (0..3).map { it.toFloat() } else (1..9).map { it - frac }
+            val maxZ = if (waiting) farDepth else 9f
+            // the walls' four edges, from the eye to the farthest frame
+            val (fo, fs) = rect(maxZ)
+            val alphaFar = 0.25f
+            for ((a, b) in listOf(Offset(0f, 0f) to fo, Offset(w, 0f) to Offset(fo.x + fs.width, fo.y),
+                    Offset(0f, h) to Offset(fo.x, fo.y + fs.height), Offset(w, h) to Offset(fo.x + fs.width, fo.y + fs.height))) {
+                drawLine(ink.copy(alpha = 0.55f), a, b, stroke)
+            }
+            for (z in depths) {
+                if (z <= 0.05f || z > maxZ) continue
+                val (o, s) = rect(z)
+                val alpha = (1f - z / (maxZ + 1)).coerceIn(alphaFar, 0.9f)
+                drawRect(ink.copy(alpha = alpha), o, s, style = Stroke(stroke))
+                // a door on the left or right wall of some frames, the same each time it comes by
+                val k = (base + z.toInt()) * 7919 % 5
+                if (!waiting && (k == 1 || k == 3)) {
+                    val (o2, s2) = rect(z + 0.55f)
+                    val left = k == 1
+                    val x1 = if (left) o.x else o.x + s.width
+                    val x2 = if (left) o2.x else o2.x + s2.width
+                    val top1 = o.y + s.height * 0.28f
+                    val top2 = o2.y + s2.height * 0.28f
+                    val p = Path().apply {
+                        moveTo(x1, o.y + s.height); lineTo(x1, top1); lineTo(x2, top2); lineTo(x2, o2.y + s2.height)
+                    }
+                    drawPath(p, ink.copy(alpha = alpha * 0.8f), style = Stroke(stroke))
+                }
+            }
+            if (waiting) {
+                // the wall at the end of the floor
+                drawRect(ink.copy(alpha = 0.06f), fo, fs)
+                drawRect(ink.copy(alpha = 0.6f), fo, fs, style = Stroke(stroke))
+            }
+            // the floor's line at the eye's feet
+            drawLine(ink.copy(alpha = 0.2f), Offset(0f, h * 0.98f), Offset(w, h * 0.98f), stroke)
         }
-        for (i in 0 until n - 1) {
-            val a = center(m.path[i][0], m.path[i][1])
-            val b = center(m.path[i + 1][0], m.path[i + 1][1])
-            drawLine(ink.copy(alpha = if (i < pos) 0.9f else 0.25f), a, b, stroke)
+        if (waiting) {
+            val k = scaleAt(farDepth)
+            val side = with(density) { (minOf(w, h) * 0.96f * k * 0.62f).toDp() }
+            val cxDp = with(density) { (w / 2).toDp() }
+            val cyDp = with(density) { (h * 0.48f).toDp() }
+            Static(Modifier.offset(cxDp - side / 2, cyDp - side / 2).size(side).border(1.5.dp, Ink.enemy).testTag("waiting"), opacity = 0.6f)
         }
-        for ((i, p) in m.path.withIndex()) {
-            val c = center(p[0], p[1])
-            val lit = i <= pos
-            drawRect(ink.copy(alpha = if (lit) 0.16f else 0.04f), Offset(c.x - room / 2, c.y - room / 2), Size(room, room))
-            drawRect(ink.copy(alpha = if (lit) 0.95f else 0.3f), Offset(c.x - room / 2, c.y - room / 2), Size(room, room), style = Stroke(stroke))
-        }
-        // who waits at the end
-        val end = center(m.path[n - 1][0], m.path[n - 1][1])
-        val side = room * 0.8f
-        drawGlyph(foe, Offset(end.x - side / 2, end.y - side / 2), side, Ink.enemy.copy(alpha = if (arrived) beat else 0.55f), stroke = 1.6.dp.toPx())
-        // the figure, between two rooms
-        val i = pos.toInt().coerceIn(0, n - 1)
-        val j = minOf(n - 1, i + 1)
-        val t = pos - i
-        val a = center(m.path[i][0], m.path[i][1])
-        val b = center(m.path[j][0], m.path[j][1])
-        val at = if (arrived) Offset(end.x - room * 0.95f, end.y) else Offset(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t)
-        val dot = room * 0.32f
-        drawRect(Color.White.copy(alpha = if (arrived) 1f else beat), Offset(at.x - dot / 2, at.y - dot / 2), Size(dot, dot))
     }
 }
 
 @Composable
-private fun ColumnScope.MapBody(v: DungeonView, arrived: Boolean, busy: Boolean, left: Long, onFight: () -> Unit, onChoose: (String) -> Unit) {
+private fun ColumnScope.MapBody(v: DungeonView, arrived: Boolean, busy: Boolean, onFight: () -> Unit, onChoose: (String) -> Unit) {
     val ink = LocalInk.current
     HpBar(v.energy, v.maxEnergy)
     Partners(v)
-    v.act3?.let { a3 ->
-        Label("objetivos · ${a3.done.size}/${a3.objectives.size}")
-        for (o in a3.objectives.filter { it.unlocked && !it.done }.take(2)) {
-            BasicText(buildAnnotatedString {
-                withStyle(SpanStyle(color = voiceInk(o.entity))) { append(caps(o.entity)) }
-                append(" · ${o.text} (${o.have}/${o.need})")
-            }, style = Type.row.copy(fontSize = 0.72.rem), maxLines = 2, overflow = TextOverflow.Ellipsis)
-        }
-    }
+    v.act3?.let { Label("objetivos · ${it.done.size}/${it.objectives.size}") }
     val p = v.pending
     when {
         p != null -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -532,7 +540,6 @@ private fun ColumnScope.MapBody(v: DungeonView, arrived: Boolean, busy: Boolean,
             KeyIcon(Icon.BOLT)
             KeyText(if (v.energy > 0) "lutar com ${v.opponent.name}" else "sem hp — recupere", Type.key.copy(fontSize = 0.9.rem))
         }
-        else -> Label("explorando · alguém no fim do andar em ${clock(left)}")
     }
 }
 
@@ -552,21 +559,18 @@ private fun HpBar(energy: Int, max: Int) {
     }
 }
 
-/** The entities at the profile's side — or none, and the system goes along, mute. */
+/** The entities at the profile's side — one mark, each in its color — or none. */
 @Composable
 private fun Partners(v: DungeonView) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         if (v.companions.isEmpty()) {
-            IconView(Icon.DOTS, Ink.mute, 16.dp)
-            BasicText(caps(if (v.act == 2) "roko sumiu · sem entidade" else "sem entidade · só o sistema, mudo"), style = Type.row.copy(fontSize = 0.72.rem, color = Ink.mute))
+            com.evove.app.ui.GlyphView(Glyphs.roko, Ink.mute, 18.dp)
+            BasicText(caps("sem entidade"), style = Type.row.copy(fontSize = 0.72.rem, color = Ink.mute))
         }
         for (c in v.companions) {
             val ink = runCatching { hex(c.color) }.getOrDefault(Color.White)
-            com.evove.app.ui.GlyphView(Glyphs.byName(c.glyph), ink, 18.dp)
-            BasicText(buildAnnotatedString {
-                withStyle(SpanStyle(color = ink)) { append(c.name) }
-                c.ability?.let { withStyle(SpanStyle(color = Color.White.copy(alpha = 0.55f))) { append(" · $it") } }
-            }, style = Type.row.copy(fontSize = 0.72.rem))
+            com.evove.app.ui.GlyphView(Glyphs.roko, ink, 18.dp)
+            BasicText(c.name, style = Type.row.copy(fontSize = 0.72.rem, color = ink))
         }
     }
 }
@@ -635,12 +639,12 @@ private fun ColumnScope.PairBody(v: DungeonView, pair: List<String>, onToggle: (
         val c = voiceInk(o.entity)
         ListRow(if (o.unlocked) ({ onToggle(o.entity) }) else null, enabled = o.unlocked,
             background = if (o.entity in pair) c.copy(alpha = 0.22f) else null) {
-            com.evove.app.ui.GlyphView(Glyphs.byName(o.entity), c, 16.dp)
+            com.evove.app.ui.GlyphView(Glyphs.roko, c, 16.dp)
             BasicText(
                 buildAnnotatedString {
                     withStyle(SpanStyle(color = c)) { append(caps(if (o.unlocked) o.entity else "?")) }
                     withStyle(SpanStyle(color = Color.White.copy(alpha = 0.6f), fontSize = 0.66.rem)) {
-                        append(if (o.unlocked) " · ${o.text}" else " · ainda não apareceu")
+                        append(if (o.unlocked) " · ${o.text}" else "")
                     }
                 },
                 Modifier.weight(1f), style = Type.row.copy(fontSize = 0.74.rem), maxLines = 2, overflow = TextOverflow.Ellipsis,
@@ -652,12 +656,7 @@ private fun ColumnScope.PairBody(v: DungeonView, pair: List<String>, onToggle: (
 
 @Composable
 private fun ColumnScope.Ending(v: DungeonView, onCopy: (String) -> Unit) {
-    val code = v.code
-    if (code == null) {
-        Empty("livre. não há código.")
-        return
-    }
-    Label("o que ficou")
+    val code = v.code ?: return
     BasicText(
         code,
         Modifier.fillMaxWidth().weight(1f, fill = false).border(1.5.dp, LocalInk.current).padding(0.7.remDp),
@@ -668,125 +667,204 @@ private fun ColumnScope.Ending(v: DungeonView, onCopy: (String) -> Unit) {
 
 // ---------------------------------------------------------------- the fight
 
-/** The top of the fight: both bars, the entities on each side, the last blows. */
+/** The fight: the message box, the opponent as static, the shape of the action
+ *  read, the hp rolling down and the four attacks recharging. */
 @Composable
-private fun ColumnScope.FightPanel(v: FightView?, done: Boolean, setup: FightSetup?, ended: FightEnd?) {
-    val ink = LocalInk.current
-    val font = TextStyle(fontFamily = Display, fontSize = 0.7.rem, letterSpacing = 0.08.em)
-    val s = setup ?: return
+private fun FightScreen(setup: FightSetup, v: FightView?, beat: Beat?, done: Boolean, ended: FightEnd?, onBack: () -> Unit, onHome: () -> Unit) {
+    val ink = Ink.journey
     val you = v?.sides?.get(0)
-    val foe = v?.sides?.get(1)
-    val youHp = ended?.result?.hp?.getOrNull(0) ?: you?.hp ?: 0L
-    val foeHp = ended?.result?.hp?.getOrNull(1) ?: foe?.hp ?: 0L
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            BasicText(caps("${s.you.name} ${maxOf(0, youHp)}"), style = font.copy(color = Color.White), maxLines = 1)
-            Bar(youHp, s.you.maxHp, ink)
-        }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp), horizontalAlignment = Alignment.End) {
-            BasicText(caps("${s.foe.name} ${maxOf(0, foeHp)}"), style = font.copy(color = Ink.enemy), maxLines = 1)
-            Bar(foeHp, s.foe.maxHp, Ink.enemy)
+    // the opponent's blows shake the screen a little
+    val shake = remember { Animatable(0f) }
+    LaunchedEffect(beat?.n) {
+        if (beat?.shape == "hurt") {
+            shake.snapTo(1f)
+            shake.animateTo(0f, tween(450, easing = LinearEasing))
         }
     }
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            if (you != null) for (a in you.allies) AllyRow(a.name, voiceInk(a.id), a.skill, a.ability)
-            if (you != null && you.allies.isEmpty()) BasicText(caps("sem entidade"), style = font.copy(fontSize = 0.6.rem, color = Ink.mute))
+    CompositionLocalProvider(LocalInk provides ink) {
+        BoxWithConstraints(Modifier.fillMaxSize().padding(10.dp)) {
+            val jitter = with(LocalDensity.current) { (shake.value * 6.dp.toPx() * if ((beat?.n ?: 0) % 2 == 0) 1 else -1).toInt() }
+            Column(Modifier.fillMaxSize().offset { IntOffset(jitter, 0) }, verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                MessageBox(
+                    when {
+                        done && ended != null -> if (ended.won) "vitória · +${ended.points} pontos" else "derrota"
+                        done -> "…"
+                        beat != null -> beat.text
+                        else -> "${setup.foe.name} está na sua frente"
+                    },
+                )
+                // the opponent, and the shapes flying to it or from it
+                Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        val side = minOf(maxWidth, maxHeight) * 0.62f
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Static(Modifier.size(side).border(1.5.dp, Ink.enemy).testTag("foe"), opacity = if (done && ended?.won == true) 0.12f else 0.6f)
+                            BasicText(caps(setup.foe.name), style = TextStyle(fontFamily = Display, fontSize = 0.8.rem, letterSpacing = 0.15.em, color = Ink.enemy))
+                        }
+                    }
+                    Shapes(beat, Modifier.fillMaxSize())
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+                    HpCard(setup.you.name, you?.hp ?: ended?.result?.hp?.getOrNull(0) ?: setup.you.hp, ink)
+                    Skills(you, ink)
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (done) Key({ Sfx.tap(0); onBack() }, Modifier.weight(1f).height(3.remDp)) { KeyIcon(Icon.LEFT) } else Box(Modifier.weight(1f))
+                    Box(Modifier.weight(3f))
+                    Key(onHome, Modifier.weight(1f).height(3.remDp)) { KeyIcon(Icon.CIRCLE, 16.dp) }
+                }
+            }
         }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp), horizontalAlignment = Alignment.End) {
-            if (foe != null) for (a in foe.allies) AllyRow(a.name, Ink.enemy, a.skill, a.ability)
-        }
-    }
-    Column(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(0.3.remDp, Alignment.Bottom)) {
-        val names = s.you.name to s.foe.name
-        for (e in v?.events.orEmpty()) BasicText(eventText(e, names), style = font.copy(fontSize = 0.72.rem, color = if (e.side == 0) Color.White else Ink.enemy), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (done && ended != null) BasicText(
-            caps(if (ended.won) "${s.foe.name} caiu." else "o sinal caiu."),
-            style = font.copy(fontSize = 1.rem, fontWeight = FontWeight.SemiBold, color = ink),
-        )
-        else if (done) BasicText("…", style = font.copy(color = ink))
     }
 }
 
+/** One message at a time, in a box. */
 @Composable
-private fun Bar(hp: Long, max: Long, color: Color) {
-    BoxWithConstraints(Modifier.fillMaxWidth().height(8.dp).border(1.dp, color)) {
-        Box(Modifier.width(maxWidth * (maxOf(0L, hp).toFloat() / maxOf(1L, max)).coerceIn(0f, 1f)).fillMaxHeight().background(color))
-    }
-}
-
-/** An entity in the fight: its name, and how close its skill and its ability are. */
-@Composable
-private fun AllyRow(name: String, color: Color, skill: Float, ability: Float) {
-    Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-        BasicText(caps(name), style = TextStyle(fontFamily = Mono, fontSize = 0.58.rem, color = color), maxLines = 1)
-        Charge(skill, color, 22.dp)
-        Charge(ability, color, 34.dp)
-    }
-}
-
-@Composable
-private fun Charge(p: Float, color: Color, w: androidx.compose.ui.unit.Dp) {
-    Box(Modifier.width(w).height(4.dp).border(0.5.dp, color.copy(alpha = 0.7f))) {
-        Box(Modifier.fillMaxHeight().width(w * p.coerceIn(0f, 1f)).background(color))
-    }
-}
-
-private fun eventText(e: FightEvent, names: Pair<String, String>): String {
-    val who = if (e.side == 0) names.first else names.second
-    return caps(when (e.kind) {
-        "attack" -> "${e.name} −${e.value}"
-        "heal" -> "${e.name} +${e.value}"
-        "trick" -> "$who: ${TRICK_NAME[e.name] ?: e.name}"
-        "skill" -> "${e.name} age"
-        "ability" -> "${e.name}!"
-        "interfere" -> "${e.name} interfere −${e.value}"
-        "deny" -> "${e.name} negado"
-        "miss" -> "${e.name} falhou"
-        "burn" -> "chama −${e.value}"
-        else -> e.kind
-    })
-}
-
-/** The bottom of the fight: the attacks recharging, the heal, and the trick —
- *  the one thing to do. */
-@Composable
-private fun ColumnScope.FightBody(v: FightView?, ended: FightEnd?, queued: Boolean, onTrick: () -> Unit) {
+private fun MessageBox(text: String) {
     val ink = LocalInk.current
-    if (v == null) {
-        val r = ended
-        if (r == null) { Empty("…"); return }
-        Stats(listOf(
-            "resultado" to (if (r.won) "vitória" else "derrota"),
-            "tempo" to "${r.result.ticks / 10}s",
-            "dano causado" to "${r.result.dealt.getOrNull(0) ?: 0}",
-            "truques" to "${r.result.tricks.getOrNull(0) ?: 0}",
-            "pontos" to "+${r.points}",
-        ))
-        return
+    Box(Modifier.fillMaxWidth().heightIn(min = 4.2.remDp).border(1.5.dp, ink).background(Color.Black).padding(horizontal = 0.9.remDp, vertical = 0.8.remDp),
+        contentAlignment = Alignment.CenterStart) {
+        BasicText("• ${caps(text)}", style = TextStyle(fontFamily = Display, fontSize = 0.92.rem, fontWeight = FontWeight.Medium, lineHeight = 1.4.em,
+            letterSpacing = 0.05.em, color = Color.White), maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
-    val you = v.sides[0]
-    for ((name, p) in you.moves) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            BasicText(caps(name), Modifier.weight(1f), style = Type.row.copy(fontSize = 0.72.rem), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Charge(p, ink, 72.dp)
+}
+
+/** The shape of the action being read: one per kind. A blow, a trick or an
+ *  entity of the profile's side shrinks from below toward the opponent; the
+ *  opponent's blows come at the screen as rings; a heal opens where it lands. */
+@Composable
+private fun Shapes(beat: Beat?, modifier: Modifier) {
+    val t = remember { Animatable(1f) }
+    LaunchedEffect(beat?.n) {
+        if (beat == null) return@LaunchedEffect
+        t.snapTo(0f)
+        t.animateTo(1f, tween(700, easing = LinearEasing))
+    }
+    val b = beat ?: return
+    if (b.shape == "none") return
+    Canvas(modifier) {
+        val p = t.value
+        if (p >= 1f) return@Canvas
+        val foe = Offset(size.width / 2, size.height * 0.45f)
+        val self = Offset(size.width / 2, size.height * 1.05f)
+        val stroke = 2.dp.toPx()
+        val from = if (b.side == 0) self else foe
+        val to = if (b.side == 0) foe else self
+        fun at(k: Float) = Offset(from.x + (to.x - from.x) * k, from.y + (to.y - from.y) * k)
+        val big = size.minDimension * 0.5f
+        when (b.shape) {
+            "attack" -> {
+                val s = big * (1f - p).pow(1.4f) + 6.dp.toPx()
+                val c = at(p)
+                drawRect(b.color.copy(alpha = 1f - p * 0.4f), Offset(c.x - s / 2, c.y - s / 2), Size(s, s), style = Stroke(stroke))
+            }
+            "trick" -> {
+                val s = big * 0.8f * (1f - p) + 6.dp.toPx()
+                rotate(p * 180f, at(p)) { diamond(at(p), s, b.color.copy(alpha = 1f - p * 0.4f), stroke) }
+            }
+            "entity" -> {
+                val s = big * 0.9f * (1f - p).pow(1.2f) + 6.dp.toPx()
+                triangle(at(p), s, b.color.copy(alpha = 1f - p * 0.3f), stroke)
+            }
+            "heal" -> {
+                val c = if (b.side == 0) Offset(size.width / 2, size.height * 0.95f) else foe
+                drawCircle(b.color.copy(alpha = 1f - p), big * 0.15f + big * 0.6f * p, c, style = Stroke(stroke))
+            }
+            "hurt" -> {
+                // rings from the opponent washing over the screen
+                for (k in 0..2) {
+                    val q = (p - k * 0.15f).coerceIn(0f, 1f)
+                    if (q <= 0f) continue
+                    drawCircle(b.color.copy(alpha = (1f - q) * 0.8f), size.maxDimension * q, foe, style = Stroke(stroke * (1 + k)))
+                }
+                drawRect(b.color.copy(alpha = (1f - p) * 0.12f))
+            }
         }
     }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        BasicText(caps("${you.heal.first} · cura"), Modifier.weight(1f), style = Type.row.copy(fontSize = 0.72.rem, color = Ink.act), maxLines = 1)
-        Charge(you.heal.second, Ink.act, 72.dp)
-    }
-    val trick = you.trick ?: ""
-    val ready = you.ready
-    Key(onTrick, Modifier.fillMaxWidth().heightIn(min = 5.remDp).testTag("trick"), enabled = true, on = ready || queued) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(0.25.remDp)) {
-            BasicText(caps(TRICK_NAME[trick] ?: trick), style = Type.key.copy(fontSize = 1.1.rem, color = if (ready) Color.White else ink))
-            BasicText(TRICK_TEXT[trick] ?: "", Modifier.alpha(0.7f), style = Type.small.copy(fontSize = 0.66.rem))
-            Charge(you.charge, if (ready) Color.White else ink, 140.dp)
+}
+
+private fun DrawScope.diamond(c: Offset, s: Float, color: Color, stroke: Float) {
+    val p = Path().apply { moveTo(c.x, c.y - s / 2); lineTo(c.x + s / 2, c.y); lineTo(c.x, c.y + s / 2); lineTo(c.x - s / 2, c.y); close() }
+    drawPath(p, color, style = Stroke(stroke))
+}
+
+private fun DrawScope.triangle(c: Offset, s: Float, color: Color, stroke: Float) {
+    val p = Path().apply { moveTo(c.x, c.y - s / 2); lineTo(c.x + s / 2, c.y + s / 2); lineTo(c.x - s / 2, c.y + s / 2); close() }
+    drawPath(p, color, style = Stroke(stroke))
+}
+
+/** The hp as the old consoles kept it: the name, and a counter whose digits
+ *  roll down toward the hp left, never jumping. */
+@Composable
+private fun HpCard(name: String, hp: Long, ink: Color) {
+    val target = maxOf(0L, hp).toFloat()
+    var shownHp by remember { mutableFloatStateOf(target) }
+    val goalNow by rememberUpdatedState(target)
+    LaunchedEffect(Unit) {
+        var last = withFrameMillis { it }
+        while (true) {
+            val t = withFrameMillis { it }
+            val dt = (t - last) / 1000f
+            last = t
+            val goal = goalNow
+            // a few points a second, faster the farther it has to go
+            val speed = maxOf(12f, kotlin.math.abs(goal - shownHp) * 1.2f)
+            shownHp = if (shownHp > goal) maxOf(goal, shownHp - speed * dt) else minOf(goal, shownHp + speed * dt)
         }
-        Column(horizontalAlignment = Alignment.End) {
-            BasicText(caps("depois"), Modifier.alpha(0.6f), style = Type.label.copy(color = ink))
-            BasicText(caps(TRICK_NAME[you.next ?: ""] ?: you.next ?: ""), style = Type.key.copy(color = ink))
+    }
+    Column(
+        Modifier.border(1.5.dp, ink).background(Color.Black).padding(horizontal = 1.remDp, vertical = 0.6.remDp).testTag("hp"),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(0.3.remDp),
+    ) {
+        BasicText(caps(name), style = TextStyle(fontFamily = Display, fontSize = 0.78.rem, letterSpacing = 0.12.em, color = Color.White), maxLines = 1)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.4.remDp)) {
+            BasicText("HP", style = TextStyle(fontFamily = Mono, fontSize = 0.7.rem, color = ink))
+            Odometer(shownHp, digits = maxOf(3, target.toLong().toString().length), color = if (target <= 0f) Ink.danger else Color.White)
+        }
+    }
+}
+
+/** Digits that roll like an odometer's: each one moves on as the one to its
+ *  right passes from 9 to 0. */
+@Composable
+private fun Odometer(value: Float, digits: Int, color: Color) {
+    val style = TextStyle(fontFamily = Mono, fontSize = 1.6.rem, fontWeight = FontWeight.SemiBold, color = color)
+    val h = 1.9.remDp
+    Row(Modifier.clipToBounds()) {
+        for (place in digits - 1 downTo 0) {
+            val unit = 10f.pow(place)
+            val d = (value / unit) % 10f
+            // the digit turns only while the places to its right roll over
+            val lower = value % unit
+            val turn = if (place == 0) d - floor(d) else ((lower - (unit - 1f)).coerceIn(0f, 1f))
+            val digit = floor(d).toInt() % 10
+            Box(Modifier.width(1.05.remDp).height(h).clipToBounds()) {
+                val off = with(LocalDensity.current) { (h.toPx() * turn).toInt() }
+                BasicText("$digit", Modifier.offset { IntOffset(0, -off) }, style = style)
+                BasicText("${(digit + 1) % 10}", Modifier.offset { IntOffset(0, h.roundToPx() - off) }, style = style)
+            }
+        }
+    }
+}
+
+/** The four attacks, two by two, each a ring that closes as it recharges. */
+@Composable
+private fun Skills(you: com.evove.app.fight.SideView?, ink: Color) {
+    // the attacks, and the heal in the slot one of them leaves free
+    val slots = (you?.moves.orEmpty().map { Triple(it.first, it.second, false) } +
+        listOfNotNull(you?.heal?.let { Triple(it.first, it.second, true) })).take(4)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        for (row in slots.chunked(2)) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            for ((name, p, heal) in row) Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                val c = if (heal) Ink.act else ink
+                Canvas(Modifier.size(2.2.remDp)) {
+                    val s = 2.5.dp.toPx()
+                    drawCircle(c.copy(alpha = 0.25f), size.minDimension / 2 - s, style = Stroke(s))
+                    drawArc(c, -90f, 360f * p.coerceIn(0f, 1f), false, Offset(s, s), Size(size.width - 2 * s, size.height - 2 * s),
+                        style = Stroke(s, cap = StrokeCap.Round))
+                }
+                BasicText(caps(name.substringBefore(" (").take(7)), style = TextStyle(fontFamily = Mono, fontSize = 0.52.rem, color = c), maxLines = 1)
+            }
         }
     }
 }

@@ -10,33 +10,33 @@ import com.evove.app.api.FightSide
 // replays the fight with the ticks the tricks were played at. Every number is
 // a whole one; FightParityTest checks both sides against the same fights.
 
-const val TRICK_CD = 60
-const val TRICK_ROLL = 30
-private const val FOE_TRICK_PPM = 30_000
-private const val STUN_TICKS = 25
-private const val FURY_TICKS = 20
-private const val THUD_TICKS = 20
+const val TRICK_CD = 120
+const val TRICK_ROLL = 60
+private const val TRICK_PPM = 15_000
+private const val STUN_TICKS = 50
+private const val FURY_TICKS = 40
+private const val THUD_TICKS = 40
 private const val SHIELD_PCT = 60
 private const val ECHO_PCT = 60
 private const val HEAL_AT_PCT = 60
 private const val DEFENSE_CAP = 75
-private const val PATIENCE_BASE_PPM = 500
-private const val PATIENCE_GROWTH_PPM = 19
-const val ABILITY_CD = 200
-private const val ABILITY_FIRST = 150
-private const val BOOST_TICKS = 50
-private const val STAND_TICKS = 80
-private const val HASTE_TICKS = 60
-private const val BLOCK_TICKS = 120
-private const val BURN_TICKS = 100
-private const val DECREE_TICKS = 60
+private const val PATIENCE_BASE_PPM = 250
+private const val PATIENCE_GROWTH_PPM = 5
+const val ABILITY_CD = 400
+private const val ABILITY_FIRST = 300
+private const val BOOST_TICKS = 100
+private const val STAND_TICKS = 160
+private const val HASTE_TICKS = 120
+private const val BLOCK_TICKS = 240
+private const val BURN_TICKS = 200
+private const val DECREE_TICKS = 120
 private const val MASK = 0xFFFFFFFFL
 
 val TRICKS = listOf("atordoar", "furia", "baque", "rasteira", "escudo", "eco")
 val SKILLS = listOf("negar", "atacar", "potencia", "cura", "truques")
 private val EVENTS = listOf("attack", "heal", "trick", "skill", "ability", "interfere", "deny", "miss", "burn", "end")
 
-fun skillCd(agilidade: Int) = maxOf(30, 120 - 8 * agilidade)
+fun skillCd(agilidade: Int) = maxOf(60, 240 - 16 * agilidade)
 
 /** xorshift32, as the server's. */
 class Rng(seed: Long) {
@@ -245,7 +245,7 @@ class Fight(setup: FightSetup) {
                 else -> heal(i, s.maxHp * 8 / 100, e.name)
             }
         }
-        event("ability", i, 0, e.ability)
+        event("ability", i, 0, "${e.name}|${e.ability}")
     }
 
     /** One tick; `play` is whether the trick on offer was played at its start.
@@ -255,7 +255,8 @@ class Fight(setup: FightSetup) {
         val you = sides[0]
         val foe = sides[1]
         if (play) play(0)
-        if (foe.tricks && foe.charge >= TRICK_CD && rng.below(1_000_000) < FOE_TRICK_PPM) play(1)
+        // the tricks play themselves, a little after they are charged
+        for (i in sides.indices) if (sides[i].tricks && sides[i].charge >= TRICK_CD && rng.below(1_000_000) < TRICK_PPM) play(i)
         if (freeze > 0) {
             freeze -= 1
         } else {
@@ -306,7 +307,7 @@ class Fight(setup: FightSetup) {
             if (s.decree > 0) s.decree -= 1
             if (s.burn > 0) {
                 s.burn -= 1
-                if (s.burn % 10 == 0) hit(1 - i, maxOf(1L, s.maxHp * 2 / 100), "burn", "chama")
+                if (s.burn % 20 == 0) hit(1 - i, maxOf(1L, s.maxHp * 2 / 100), "burn", "chama")
             }
             if (s.tricks) {
                 if (s.charge < TRICK_CD) s.charge += 1

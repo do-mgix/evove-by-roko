@@ -23,5 +23,9 @@ class SoundExport {
         for (v in 0..9) Wav.write(File(raw, "tap_$v.wav"), Synth.tap(v, Random(100L + v)))
         for (k in 0..2) Wav.write(File(raw, "power_on_$k.wav"), Synth.powerOn(Random(200L + k)))
         for (k in 0..2) Wav.write(File(raw, "gains_$k.wav"), Synth.gains(Random(300L + k)))
+        Wav.write(File(raw, "type.wav"), Synth.type())
+        Wav.write(File(raw, "hit.wav"), Synth.hit())
+        Wav.write(File(raw, "heal.wav"), Synth.heal())
+        Wav.write(File(raw, "entity.wav"), Synth.entity())
     }
 }

@@ -46,6 +46,47 @@ object Synth {
     /** What an act paid, arriving. */
     fun gains(random: Random = Random()) = play(GAINS, 0.75, random)
 
+    // ---------------------------------------------------------------- plain tones
+    //
+    // Sounds with no room and no glints, for what repeats a lot: an entity's
+    // letters typed out, and what happens in a fight.
+
+    private fun mono(x: DoubleArray) = finish(Stereo(FloatArray(x.size) { x[it].toFloat() }, FloatArray(x.size) { x[it].toFloat() }))
+
+    /** A letter typed out by an entity: one short, soft sine, always the same. */
+    fun type(): Stereo {
+        val x = DoubleArray(seconds(0.03))
+        oscillator(x, Wave.SINE, Param(880.0), Param(0.0).set(0.0001, 0.0).exp(0.5, 0.003).exp(0.001, 0.028), 0.0, 0.03)
+        return mono(x)
+    }
+
+    /** A blow landing: a falling triangle over a dull burst. */
+    fun hit(random: Random = Random(7)): Stereo {
+        val x = DoubleArray(seconds(0.16))
+        oscillator(x, Wave.TRIANGLE, Param(420.0).set(420.0, 0.0).exp(110.0, 0.14), Param(0.0).set(0.0001, 0.0).exp(0.6, 0.004).exp(0.001, 0.15), 0.0, 0.16)
+        val burst = DoubleArray(seconds(0.06)) { random.nextDouble() * 2 - 1 }
+        lowpass(burst, 2200.0)
+        for (i in burst.indices) x[i] += burst[i] * 0.35 * (1 - i.toDouble() / burst.size)
+        return mono(x)
+    }
+
+    /** A heal: a sine gliding up an octave. */
+    fun heal(): Stereo {
+        val x = DoubleArray(seconds(0.32))
+        oscillator(x, Wave.SINE, Param(520.0).set(520.0, 0.0).exp(1040.0, 0.26), Param(0.0).set(0.0001, 0.0).exp(0.45, 0.03).exp(0.001, 0.31), 0.0, 0.32)
+        return mono(x)
+    }
+
+    /** An entity stepping in: two notes, a fifth apart, a little detuned. */
+    fun entity(): Stereo {
+        val x = DoubleArray(seconds(0.42))
+        for ((f, t0) in listOf(660.0 to 0.0, 990.0 to 0.11)) {
+            val g = Param(0.0).set(0.0001, t0).exp(0.35, t0 + 0.006).exp(0.001, t0 + 0.3)
+            for (d in doubleArrayOf(1.0, 1.006)) oscillator(x, Wave.SINE, Param(f * d), g, t0, t0 + 0.31)
+        }
+        return mono(x)
+    }
+
     // ---------------------------------------------------------------- the sound
 
     /** A scatter of low, bell-like glints over a soft impact, in a small room
