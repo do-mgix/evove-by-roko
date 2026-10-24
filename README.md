@@ -1030,7 +1030,7 @@ abilities, hunt entities — to get out or grow stronger, and every opponent is 
   on the first screen and its tile on the home blink meanwhile.
 - **Fights** (`src/domain/fight.py`) are an autobattler in real time, ten ticks a second,
   with cooldowns of six to twelve seconds.
-  Attacks are the profile's best actions against this opponent, each on a cooldown and paid
+  Attacks are the profile's two best actions against this opponent, each on a cooldown and paid
   out of the hp bar itself (resistência slows that, defesa cuts damage, absorção raises
   heals); one heal, the best action of reward owned; **truques** — atordoar, fúria,
   baque, rasteira, escudo, eco — play themselves on both sides a little after charging, the
@@ -1041,10 +1041,16 @@ abilities, hunt entities — to get out or grow stronger, and every opponent is 
   xorshift32: the app plays the fight live and `POST /dungeon/fight/end` replays it; what
   the server decides counts. The app draws it as an old console did: one message at a
   time in a box ("LUME usou CORRIDA (α)"), the fight waiting while it is read; the opponent
-  as static; one shape per kind of action — a square shrinking toward the opponent for a
-  blow, a diamond for a trick, a triangle in the entity's color, a ring for a heal, rings
-  washing over the screen for the opponent's blows; the hp as a centered counter that rolls
-  down, and the four attacks beside it as rings that close as they recharge. The bar's end is
+  as a cluster of unstable frames of static, small, over its shadow on a floor in
+  perspective, its energy bar above; one shape per kind of action — square for a blow,
+  diamond for a trick, triangle for an entity, circle for a heal — the profile's coming
+  from behind the screen, as big as it, shrinking into the opponent, the opponent's born at
+  its center and growing to fill the screen, which shakes. When an entity acts the camera
+  cuts to it: its own unstable frames, in its color, with a muffled, heavy blow. At the
+  bottom, the hp as a centered counter rolling down; beside it the two attacks, the heal
+  and the trick charging, as rings; beside those, each entity's chance to step in within
+  the next second. What tricks do shows: everything grey under a baque, the stunned side
+  grey, a second border under a shield, gold while strengthened. The bar's end is
   the hp left, and an empty bar restarts the checkpoints.
 - **Three acts.** Act 1 ends at the way out: leaving ends the journey, which shows nothing
   but a save code from then on (`POST /dungeon/choose`). Staying opens act 2, where roko is
