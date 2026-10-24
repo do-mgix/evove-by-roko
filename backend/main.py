@@ -2808,7 +2808,7 @@ def _fight_setup(username: str, data: dict, state: dict, d: dict) -> dict:
         out_moves = [{"name": "EMPURRÃO (α)", "attribute": "", "multiplier": 1.0, "dmg": 15, "decree": 41}]
     order = sorted(range(len(out_moves)), key=lambda i: (out_moves[i]["dmg"], i))
     for k, i in enumerate(order):
-        out_moves[i]["cd"] = 30 + 10 * k
+        out_moves[i]["cd"] = 60 + 20 * k
     metadata = data.get("metadata") or {}
     max_energy = _max_energy(data, username)
     per = 10 * battle.rank_damage(rank) / battle.RANK_DAMAGE_BASE
@@ -2821,9 +2821,9 @@ def _fight_setup(username: str, data: dict, state: dict, d: dict) -> dict:
         if a.get("deleted") or not meta.get("log_only") or cost <= 0:
             continue
         heals.append({"name": str(a.get("name", "")).upper(), "amount": _cap(max_hp * min(35, 10 + 3 * cost) / 100),
-                      "cd": 60 + 15 * cost})
+                      "cd": 120 + 30 * cost})
     heal = max(heals, key=lambda h: (h["amount"] * 1000 // h["cd"], h["amount"]), default=None) or \
-        {"name": "RESPIRO", "amount": _cap(max_hp * 8 / 100), "cd": 100}
+        {"name": "RESPIRO", "amount": _cap(max_hp * 8 / 100), "cd": 200}
     roots_marked = sum(1 for r in tree.roots if node_total(r, totals, tree, memo) > 0)
     companions = dungeon.companions(d, state.get("entity"))
     you = {

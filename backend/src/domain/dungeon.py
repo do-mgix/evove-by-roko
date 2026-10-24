@@ -53,7 +53,7 @@ OBJECTIVES = {
     "no": ("vença 3 lutas com nó ao seu lado", 3),
     "eve": ("vença uma luta sem curar", 1),
     "osso": ("vença com menos de 25% da barra", 1),
-    "zira": ("vença em menos de 25 segundos", 1),
+    "zira": ("vença em menos de 50 segundos de luta", 1),
     "mura": ("junte 3 fragmentos (caem das lutas vencidas com mura)", 3),
     "vela": ("vença jogando 8 truques numa luta", 1),
 }
@@ -275,7 +275,7 @@ def _objectives(d: dict, result: dict, rng: random.Random) -> list[str]:
             "no": True,
             "eve": result.get("heals", [0])[0] == 0,
             "osso": you_hp * 4 < max_hp,
-            "zira": result.get("ticks", 9999) < 250,
+            "zira": result.get("ticks", 9999) < 500,
             "mura": rng.random() < FRAGMENT_CHANCE,
             "vela": result.get("tricks", [0])[0] >= 8,
         }[e]
@@ -342,11 +342,11 @@ def foe_setup(d: dict, rank_index: int, rank_damage, abilities: list[dict], defe
     r = min(23, rank_index + (1 if o["kind"] == "roko" else 0))
     scale = rank_damage(r) / 15
     hp = int(250 * scale * foe_hp_factor(d))
-    moves = [{"name": "PULSO", "dmg": max(1, int(6 * scale)), "cd": 25}]
+    moves = [{"name": "PULSO", "dmg": max(1, int(6 * scale)), "cd": 50}]
     for a in abilities[:3]:
         # past the first act, a type that gathers more hits harder
         up = a.get("star", 1) - 1 if int(d["act"]) > 1 else 0
-        moves.append({"name": a["name"], "dmg": max(1, int(rank_damage(min(23, r + up)) * 0.8)), "cd": rng.randint(45, 55)})
+        moves.append({"name": a["name"], "dmg": max(1, int(rank_damage(min(23, r + up)) * 0.8)), "cd": rng.randint(90, 110)})
     stage = floor_in_act(d)
     if o.get("entity"):
         b = entity_battle(o["entity"])
@@ -356,7 +356,7 @@ def foe_setup(d: dict, rank_index: int, rank_damage, abilities: list[dict], defe
                  "agilidade": 3 + min(5, stage // 2), "skill": rng.choice(fight.SKILLS), "ability": "interferencia"}]
     return {
         "name": o["name"], "hp": hp, "max_hp": hp, "resist": 10 * r, "defense": int(round(defense * 100)),
-        "absorb": 100, "moves": moves, "heal": {"name": "RECOMPOR", "amount": hp // 10, "cd": 90},
+        "absorb": 100, "moves": moves, "heal": {"name": "RECOMPOR", "amount": hp // 10, "cd": 180},
         "entities": ents, "tricks": True,
     }
 

@@ -10,9 +10,9 @@ every tenth of a second:
   way, **defesa** cuts the damage taken, **absorção** raises what a heal gives;
 - it carries one heal — the profile's best action of reward, the ones that
   spend tokens — used by itself when the bar drops under 60%;
-- the only thing the person does is play **truques**: one charges, the next
-  is shown, and once charged the one on offer changes every few seconds, so
-  waiting may bring a better one. Atordoar pauses the opponent's cooldowns,
+- both sides play **truques** by themselves, a little after one is charged:
+  the next is shown, and once charged the one on offer changes every few
+  seconds, so the wait may bring a better one. Atordoar pauses the opponent's cooldowns,
   fúria moves one's own forward in time, baque stops everyone (and both sides
   then tend to strike together), rasteira sends one of the opponent's
   attacks back to the start of its cooldown, escudo takes most of the next
@@ -27,8 +27,8 @@ every tenth of a second:
   above, and raises its stats. The opponent's entity has no name.
 
 Everything is integer arithmetic over a xorshift32 generator, so a fight is
-fully decided by its setup and the ticks at which the person played a trick:
-the app runs it live (com.evove.app.fight.Fight, the same rules in Kotlin) and
+fully decided by its setup (and, for an older app, the ticks a trick was
+played at by hand): the app runs it live (com.evove.app.fight.Fight, the same rules in Kotlin) and
 the server replays it to decide what it pays. `tests` in the app check both
 against the same cases.
 
@@ -38,34 +38,34 @@ from __future__ import annotations
 
 
 TICK_MS = 100
-MAX_TICKS = 1200
+MAX_TICKS = 2400
 
 TRICKS = ("atordoar", "furia", "baque", "rasteira", "escudo", "eco")
-TRICK_CD = 60
-TRICK_ROLL = 30
-FOE_TRICK_PPM = 30_000
+TRICK_CD = 120
+TRICK_ROLL = 60
+TRICK_PPM = 15_000
 
-STUN_TICKS = 25
-FURY_TICKS = 20
-THUD_TICKS = 20
+STUN_TICKS = 50
+FURY_TICKS = 40
+THUD_TICKS = 40
 SHIELD_PCT = 60
 ECHO_PCT = 60
 
 HEAL_AT_PCT = 60
 DEFENSE_CAP = 75
 
-PATIENCE_BASE_PPM = 500
-PATIENCE_GROWTH_PPM = 19
-ABILITY_CD = 200
-ABILITY_FIRST = 150
+PATIENCE_BASE_PPM = 250
+PATIENCE_GROWTH_PPM = 5
+ABILITY_CD = 400
+ABILITY_FIRST = 300
 
 SKILLS = ("negar", "atacar", "potencia", "cura", "truques")
-BOOST_TICKS = 50
-STAND_TICKS = 80
-HASTE_TICKS = 60
-BLOCK_TICKS = 120
-BURN_TICKS = 100
-DECREE_TICKS = 60
+BOOST_TICKS = 100
+STAND_TICKS = 160
+HASTE_TICKS = 120
+BLOCK_TICKS = 240
+BURN_TICKS = 200
+DECREE_TICKS = 120
 
 # the kinds of event, in the order the checksum numbers them
 EVENTS = ("attack", "heal", "trick", "skill", "ability", "interfere", "deny", "miss", "burn", "end")
@@ -74,7 +74,7 @@ MASK = 0xFFFFFFFF
 
 
 def skill_cd(agilidade: int) -> int:
-    return max(30, 120 - 8 * int(agilidade))
+    return max(60, 240 - 16 * int(agilidade))
 
 
 class Rng:
@@ -294,8 +294,11 @@ class Fight:
         you, foe = self.sides
         if play:
             self._play(0)
-        if foe.tricks and foe.charge >= TRICK_CD and self.rng.below(1_000_000) < FOE_TRICK_PPM:
-            self._play(1)
+        # the tricks play themselves, a little after they are charged: waiting
+        # may bring a better one, and no one decides
+        for i, s in enumerate(self.sides):
+            if s.tricks and s.charge >= TRICK_CD and self.rng.below(1_000_000) < TRICK_PPM:
+                self._play(i)
         if self.freeze:
             self.freeze -= 1
         else:
@@ -341,7 +344,7 @@ class Fight:
                     setattr(s, b, getattr(s, b) - 1)
             if s.burn:
                 s.burn -= 1
-                if s.burn % 10 == 0:
+                if s.burn % 20 == 0:
                     self._hit(1 - i, max(1, s.max_hp * 2 // 100), "burn", "chama")
             if s.tricks:
                 if s.charge < TRICK_CD:
