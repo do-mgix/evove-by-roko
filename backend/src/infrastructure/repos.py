@@ -1470,6 +1470,48 @@ def upsert_user_leaf_score(username: str, leaf_id: int, marks: float, last_updat
         s.close()
 
 
+def replace_leaf_scores(username: str, rows: list[tuple[str, float, int]], now: datetime) -> None:
+    """Every leaf score of the profile becomes `rows` — (leaf key, marks,
+    rank index) — and nothing else: what mounting a save does. Keys the graph
+    does not know are dropped."""
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        if not u:
+            return
+        ids = dict(s.execute(select(orm.AttrNode.key, orm.AttrNode.id)).all())
+        s.query(orm.UserLeafScore).filter_by(user_id=u.id).delete()
+        s.flush()
+        for key, marks, rank_index in rows:
+            if key in ids:
+                s.add(orm.UserLeafScore(user_id=u.id, leaf_id=ids[key], marks=float(marks),
+                                        last_updated_at=now, rank_index=int(rank_index)))
+        s.commit()
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+def replace_rank_claims(username: str, claims: dict[str, int]) -> None:
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        if not u:
+            return
+        s.query(orm.RankClaim).filter_by(user_id=u.id).delete()
+        s.flush()
+        for key, rank in claims.items():
+            s.add(orm.RankClaim(user_id=u.id, node_key=str(key)[:64], claimed_rank=int(rank)))
+        s.commit()
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
 # ---------- user attributes and patches ----------
 #
 # The rules live in src.domain.user_attributes; these functions only load and

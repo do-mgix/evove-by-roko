@@ -103,6 +103,25 @@ def add_equipment(username: str, item_id: str) -> None:
         s.close()
 
 
+def replace_equipment(username: str, items: dict[str, bool]) -> None:
+    """The profile owns `items` — {item_id: worn} — and nothing else."""
+    s = SessionLocal()
+    try:
+        u = _get_user(s, username)
+        if not u:
+            return
+        s.query(orm.UserEquipment).filter_by(user_id=u.id).delete()
+        s.flush()
+        for item_id, worn in items.items():
+            s.add(orm.UserEquipment(user_id=u.id, item_id=str(item_id)[:32], equipped=bool(worn), bought_at=datetime.now()))
+        s.commit()
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
 def wear(username: str, item_id: str, same_slot: list[str], on: bool) -> None:
     """Puts `item_id` on, taking off the others of its slot, or takes it off."""
     s = SessionLocal()

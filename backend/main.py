@@ -21,7 +21,7 @@ from src.domain.marks import DEFAULT_TIERS, MARKS_PER_WINDOW, MarkError, options
 from src.domain.agenda import collect_labels, DAY_NAMES as _DOMAIN_DAY_NAMES  # noqa: E402
 from src.domain.daily import PERIODS, apply_daily_tick, period_of  # noqa: E402
 from src.domain import journey as journey_mode  # noqa: E402
-from src.domain import battle, discovery, engine, entities, equipment, recover as recovery, sandbox  # noqa: E402
+from src.domain import battle, discovery, engine, entities, equipment, recover as recovery, sandbox, save  # noqa: E402
 from src.domain.economy import BASE_MAX_TOKENS, INITIAL_POINTS, todo_reward  # noqa: E402
 from src.domain.user_attributes import PATCH_SEPARATOR, PatchError, engine_name  # noqa: E402
 from src.domain.attributes import (  # noqa: E402
@@ -2460,8 +2460,11 @@ def engine_events(payload: dict, username: str = Depends(current_username)):
 @app.post("/engine/passcode")
 def engine_passcode(payload: dict, username: str = Depends(current_username)):
     """Body: {code}. A module's passcode unlocks it, an upgrade's applies it,
-    another evove's loads its build. 404 for a code that names nothing."""
+    another evove's loads its build, a save code mounts the save. 404 for a
+    code that names nothing."""
     raw = (payload or {}).get("code")
+    if save.is_save(raw):
+        return save_mount({"code": raw}, username)
     state, code = engine_repo.load(username)
     module = engine.module_for_code(raw)
     upgrade = engine.upgrade_for_code(raw) if not module else None
@@ -2626,3 +2629,126 @@ def sandbox_talk(entity_id: str, username: str = Depends(current_username)):
     data = _load_user(username)
     return {"entity": entity_id, "present": True, "answered": True,
             "line": entities.line(e, _entity_state(username, data), random.Random()), "lines": []}
+
+
+# ---------------------------------------------------------------- saves
+
+_SAVE_SECRET_FILE = _BACKEND_DIR / ".save_secret"
+
+
+def _save_secret() -> bytes:
+    """What signs the save codes: EVOVE_SAVE_SECRET, or a key made once and
+    kept beside the backend (not versioned)."""
+    env = os.environ.get("EVOVE_SAVE_SECRET")
+    if env:
+        return env.encode()
+    if not _SAVE_SECRET_FILE.exists():
+        import secrets
+        _SAVE_SECRET_FILE.write_text(secrets.token_hex(32))
+    return _SAVE_SECRET_FILE.read_text().strip().encode()
+
+
+_SAVED_METADATA = ("build_points", "tokens", "max_tokens", "skill_points", "energy", "stage", "journey_resets")
+
+
+def _snapshot(username: str) -> dict:
+    """Everything of the profile a save carries (src.domain.save)."""
+    data = _load_user(username)
+    codes = {m["code"] for m in repos.load_action_templates().values() if m["code"]}
+    metadata = data.get("metadata") or {}
+    state, _code = engine_repo.load(username)
+    state = engine.copy_state(state)
+    state.pop("session", None)
+    if isinstance(state.get("dungeon"), dict):
+        state["dungeon"].pop("battle", None)
+    return {
+        "a": [[aid, a.get("value", 0), a.get("score", 0)] for aid, a in sorted((data.get("actions") or {}).items())
+              if aid in codes and not a.get("deleted") and not a.get("base_action_id")],
+        "l": [[k, round(float(r["marks"]), 4), int(r["rank_index"])] for k, r in sorted(repos.get_user_leaf_scores(username).items())],
+        "c": repos.load_rank_claims(username),
+        "m": {"marks": int(data.get("marks", 0) or 0), **{k: metadata.get(k) for k in _SAVED_METADATA}},
+        "s": list(data.get("skills") or []),
+        "d": sorted(social_repo.load_discoveries(username)),
+        "q": journey_repo.load_equipment(username),
+        "e": state,
+    }
+
+
+def _mount(username: str, snap: dict) -> list[dict]:
+    """Puts a save in place of what the profile had of the same kind. The
+    patches stay, and so does every action one of them is built on; the logs,
+    thoughts and agenda are not touched. Returns what is said about it."""
+    now = datetime.now()
+    data = _load_user(username)
+    templates = repos.load_action_templates()
+    by_code = {m["code"]: (n, m) for n, m in templates.items() if m["code"]}
+    actions = data.setdefault("actions", {})
+    bases = {a.get("base_action_id") for a in actions.values() if a.get("base_action_id") and not a.get("deleted")}
+    saved = {str(c): (v, sc) for c, v, sc in snap.get("a") or [] if str(c) in by_code}
+    for aid, a in actions.items():
+        if a.get("base_action_id") or aid not in by_code:
+            continue
+        if aid in saved:
+            a["value"], a["score"] = saved[aid]
+            a["deleted"] = False
+        elif aid not in bases:
+            a["deleted"] = True
+    for code, (v, sc) in saved.items():
+        if code not in actions:
+            name, meta = by_code[code]
+            actions[code] = {**_owned_action(code, name, meta), "value": v, "score": sc}
+    m = snap.get("m") or {}
+    data["marks"] = int(m.get("marks", 0) or 0)
+    metadata = data.setdefault("metadata", {})
+    for k in _SAVED_METADATA:
+        if m.get(k) is not None:
+            metadata[k] = m[k]
+    # the journey's clock starts again from the stage it had
+    metadata["journey_started_at"] = now.isoformat(timespec="seconds")
+    metadata["journey_points"] = 0
+    data["skills"] = list(snap.get("s") or [])
+    _save_user(username, data)
+    repos.replace_leaf_scores(username, [(k, mk, r) for k, mk, r in snap.get("l") or []], now)
+    repos.replace_rank_claims(username, {str(k): int(v) for k, v in (snap.get("c") or {}).items()})
+    social_repo.add_discoveries(username, [n for n in snap.get("d") or [] if n in templates])
+    journey_repo.replace_equipment(username, {k: bool(v) for k, v in (snap.get("q") or {}).items()
+                                              if k in equipment.ITEMS_BY_ID})
+    state, _code = engine_repo.load(username)
+    mounted = engine.normalized(snap.get("e") or {}, random.Random())
+    mounted["session"] = state["session"]
+    dungeon = mounted.get("dungeon")
+    if isinstance(dungeon, dict) and dungeon.get("ending") in ("left", "entity"):
+        # left behind: whoever mounts it walks the journey again
+        mounted["dungeon"] = None
+    line = {"entity": "system", "text": "SAVE MONTADO."}
+    mounted["line"] = {**line, "at": now.isoformat(timespec="seconds")}
+    engine_repo.save(username, mounted)
+    return [line]
+
+
+@app.get("/save")
+def save_code(username: str = Depends(current_username)):
+    """The profile's save code: its evove, ranks, attributes and actions of the
+    system in one signed code, `grouped` in fours for the eye."""
+    snap = _snapshot(username)
+    code = save.pack(snap, _save_secret())
+    return {
+        "code": code,
+        "grouped": save.group(code),
+        "length": len(code),
+        "actions": len(snap["a"]),
+        "attributes": len(snap["l"]),
+    }
+
+
+@app.post("/save/mount")
+def save_mount(payload: dict, username: str = Depends(current_username)):
+    """Body: {code}. Mounts a save code on this profile (see `_mount`); 400 for
+    a code that is not one, or was changed."""
+    try:
+        snap = save.unpack((payload or {}).get("code"), _save_secret())
+    except save.SaveError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    lines = _mount(username, snap)
+    state, code = engine_repo.load(username)
+    return {**_engine_view(username, state, code), "kind": "save", "lines": lines}
