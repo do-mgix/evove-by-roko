@@ -16,6 +16,8 @@ data class FightMove(
     val cd: Int,
     val attribute: String = "",
     val multiplier: Double = 1.0,
+    // the chance, in percent, it lands a critical
+    val crit: Int = 0,
 )
 
 @Serializable
@@ -76,8 +78,26 @@ data class FightOutcome(
     val levels: List<Int> = emptyList(),
 )
 
+/** The floor's maze: rows of tiles — # wall, . floor, D door — where the
+ *  profile starts, where whoever waits stands, the chests not yet opened, and
+ *  the steps of the shortest way. */
 @Serializable
-data class MapRooms(val w: Int = 7, val h: Int = 5, val path: List<List<Int>> = emptyList(), val rooms: List<List<Int>> = emptyList())
+data class Maze(
+    val size: Int = 0,
+    val tiles: List<String> = emptyList(),
+    val start: List<Int> = listOf(1, 1),
+    val boss: List<Int> = listOf(0, 0),
+    val chests: List<List<Int>> = emptyList(),
+    val rooms: List<List<Int>> = emptyList(),
+    val need: Int = 1,
+) {
+    fun at(x: Int, y: Int): Char = tiles.getOrNull(y)?.getOrNull(x) ?: '#'
+    fun passable(x: Int, y: Int) = at(x, y) != '#' && !(x == boss[0] && y == boss[1])
+}
+
+/** The floor's steps: how many came with time, how many are left, and when the next comes. */
+@Serializable
+data class Steps(val left: Int = 0, val came: Int = 0, val spent: Int = 0, val need: Int = 1, val every: Double = 1.0, val nextIn: Long = 0)
 
 @Serializable
 data class ChoiceOption(val id: String, val label: String)
@@ -106,10 +126,13 @@ data class DungeonView(
     val floor: Int = 1,
     val floorInAct: Int = 1,
     val of: Int? = null,
-    val map: MapRooms = MapRooms(),
-    val progress: Double = 0.0,
+    val map: Maze = Maze(),
+    val pos: List<Int> = listOf(1, 1),
+    val face: Int = 1,
+    val seen: String = "",
+    val steps: Steps = Steps(),
+    val theme: Int = 0,
     val walkSeconds: Long = 0,
-    val secondsLeft: Long = 0,
     val waiting: Boolean = false,
     val opponent: Opponent = Opponent(),
     val pending: Pending? = null,

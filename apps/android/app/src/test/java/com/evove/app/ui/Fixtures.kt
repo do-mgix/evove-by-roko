@@ -43,7 +43,12 @@ object Fixtures {
     /** Which dungeon /dungeon answers: walk, wait, choice, ending, act3. */
     var dungeon = "walk"
 
-    private val map = """{"w":7,"h":5,"path":[[0,3],[0,2],[1,2],[2,2],[3,2],[3,3],[4,3],[5,3],[6,3]],"rooms":[[1,1,1,2],[3,4,3,3],[5,2,5,3]]}"""
+    private val map = """{"size":13,"tiles":["#############","#...#.D...D.#","#.###.#...#.#","#.#.#.#...#.#","#.#.###...###","#.....D...#.#",
+        "#.#####D#D#.#","#.......#.#.#","#.#######D#D#","#.D...D.D...#","#.#...#.#...#","#.#...#.D...#","#############"],
+        "start":[1,3],"boss":[10,10],"chests":[[8,3],[4,10]],"rooms":[[3,0,2,3],[1,4,2,2],[4,4,2,2]],"need":15}"""
+
+    /** What was seen of the maze: its upper two thirds. */
+    private val seen = "1".repeat(13 * 9) + "0".repeat(13 * 4)
 
     private val recover = """[{"kind":"small","cost":3,"heal":5,"ready":true},{"kind":"large","cost":8,"heal":15,"ready":false,"blocked":"cooldown","seconds_left":5000}]"""
 
@@ -61,7 +66,8 @@ object Fixtures {
         val partners = if (dungeon == "act3") """[{"id":"no","name":"NÓ","color":"#ff6b3d","glyph":"no","ability":"AMARRA"},{"id":"eve","name":"EVE","color":"#ff9de2","glyph":"eve","ability":"PERGUNTA"}]"""
             else """[{"id":"roko","name":"ROKO","color":"#3dfff0","glyph":"roko","ability":"DECRETO"}]"""
         return """{"act":$act,"floor":${if (act == 3) 15 else 3},"floor_in_act":3,"of":${if (act == 3) "null" else "6"},"map":$map,
-            "progress":${if (wait || dungeon == "choice") 1.0 else 0.46},"walk_seconds":4200,"seconds_left":${if (wait) 0 else 2268},"waiting":$wait,
+            "pos":${if (wait) "[9,10]" else "[1,7]"},"face":1,"seen":"$seen","theme":${if (act == 3) 2 else 0},"walk_seconds":4200,
+            "steps":{"left":${if (wait) 0 else 6},"came":14,"spent":8,"need":15,"every":280.0,"next_in":141},"waiting":$wait,
             "opponent":{"name":"KIROCUME","title":"PRESO COMO VOCÊ","kind":"person"},"pending":$pending,"ending":$ending,
             "ending_lines":${if (dungeon == "ending") """["VOCÊ SAIU.","AQUI DENTRO, SÓ FICOU UM CÓDIGO."]""" else "[]"},
             "intro":["O CORREDOR CONTINUA."],"waiting_line":"KIROCUME ESTÁ PARADO NA SUA FRENTE. ELE TAMBÉM QUER SAIR.",
@@ -72,7 +78,7 @@ object Fixtures {
 
     val fightSetup = """{"seed":123456789,"max_ticks":1200,"tick_ms":100,
         "you":{"name":"LUME","hp":112,"max_hp":112,"resist":110,"defense":4,"absorb":80,
-            "moves":[{"name":"CORRIDA (α)","dmg":12,"decree":33,"cd":80,"multiplier":2.0},{"name":"LEITURA (α)","dmg":6,"decree":33,"cd":60}],
+            "moves":[{"name":"CORRIDA (α)","dmg":24,"decree":66,"cd":80,"multiplier":2.0,"crit":20},{"name":"LEITURA (α)","dmg":6,"decree":33,"cd":60}],
             "heal":{"name":"FILME","amount":16,"cd":150},
             "entities":[{"id":"roko","name":"ROKO","forca":60,"agilidade":8,"skill":"potencia","ability":"decreto","level":2}],
             "level":3,"xp":4,"xp_need":10,"per_level":{"hp":6,"resist":5,"defense":1,"bonus":4}},
@@ -101,6 +107,7 @@ object Fixtures {
             {"id":"a1","name":"FERRAMENTA DE CORRIDA","slot":"arma","action":"CORRIDA","level":3,"value":9,"synergy":1.6,"count":2,"worn":true,"effective":14,"synergy_on":true},
             {"id":"a2","name":"MARCA DE PIANO","slot":"acessorio","action":"PIANO","level":2,"value":3,"synergy":1.8,"worn":true,"effective":3},
             {"id":"a3","name":"FAIXA DE SALTO","slot":"cabeca","action":"SALTO","level":3,"value":17,"synergy":1.5,"worn":true,"effective":17}]}"""
+        path.startsWith("/dungeon/walk") -> """{"lines":[],"view":${dungeonView()}}"""
         path.startsWith("/dungeon") -> dungeonView()
         path.startsWith("/entity/talk") -> if (mute) """{"entity":null,"present":false,"answered":false,"line":"CANAL ABERTO. NENHUMA VOZ."}"""
             else """{"entity":"roko","present":true,"answered":true,"line":"VOCÊ VOLTOU. AJA ANTES DE PENSAR DEMAIS."}"""

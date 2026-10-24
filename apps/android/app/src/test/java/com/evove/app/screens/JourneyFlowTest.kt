@@ -18,7 +18,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/** A fight started where someone waits, played to its end and sent back. */
+/** A step through the maze, sent; a fight started where someone waits, played to its end and sent back. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], qualifiers = "w393dp-h851dp-xxhdpi")
 class JourneyFlowTest {
@@ -35,6 +35,19 @@ class JourneyFlowTest {
             if (path.startsWith("/dungeon/fight/end")) """{"won":true,"points":300,"lines":[],"result":{"won":true,"ticks":300,"hp":[100,0]}}"""
             else Fixtures.answer(method, path)
         }
+    }
+
+    @Test
+    fun walksAStepAndSendsIt() {
+        Fixtures.dungeon = "walk"
+        rule.mainClock.autoAdvance = false
+        rule.setContent { JourneyScreen(onHome = {}) }
+        rule.mainClock.advanceTimeBy(1500)
+        rule.onNodeWithTag("move-F").performClick()
+        rule.onNodeWithTag("move-R").performClick()
+        repeat(10) { rule.mainClock.advanceTimeBy(100) }
+        assertTrue(calls.toString(), calls.contains("POST /dungeon/walk"))
+        Fixtures.dungeon = "wait"
     }
 
     @Test

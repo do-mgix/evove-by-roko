@@ -350,6 +350,7 @@ object Api {
     suspend fun wearItem(id: String): Inventory = post("/dungeon/items/$id/wear")
     suspend fun wearBest(): Inventory = post("/dungeon/items/best")
     suspend fun choose(option: String): Chosen = post("/dungeon/choose", obj("option" to option))
+    suspend fun walk(moves: String): Chosen = post("/dungeon/walk", obj("moves" to moves))
     suspend fun pair(entities: List<String>): DungeonView = post("/dungeon/pair", obj("entities" to entities))
 
     /** Ends a session that is not the one in use: an account kept on the device
