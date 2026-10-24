@@ -1,13 +1,21 @@
 package com.evove.app.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -15,83 +23,101 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.min
 import com.evove.app.Bus
+import com.evove.app.Evove
 import com.evove.app.api.Api
 import com.evove.app.api.AttrNode
 import com.evove.app.api.UserState
 import com.evove.app.sound.Sfx
+import com.evove.app.ui.AttributeFigure
+import com.evove.app.ui.Bar
 import com.evove.app.ui.Big
-import com.evove.app.ui.DarkScreen
+import com.evove.app.ui.Cells
 import com.evove.app.ui.Display
+import com.evove.app.ui.DrawnCell
 import com.evove.app.ui.Empty
-import com.evove.app.ui.Grow
+import com.evove.app.ui.GRID_COLS
+import com.evove.app.ui.GRID_GAP_DP
 import com.evove.app.ui.HomeKey
 import com.evove.app.ui.Icon
-import com.evove.app.ui.IconView
 import com.evove.app.ui.Ink
 import com.evove.app.ui.Key
 import com.evove.app.ui.KeyIcon
 import com.evove.app.ui.KeyText
-import com.evove.app.ui.Label
-import com.evove.app.ui.ListRow
 import com.evove.app.ui.LocalInk
 import com.evove.app.ui.MarkBar
 import com.evove.app.ui.Message
+import com.evove.app.ui.Mono
+import com.evove.app.ui.Selector
 import com.evove.app.ui.Small
 import com.evove.app.ui.Stats
-import com.evove.app.ui.Tag
+import com.evove.app.ui.caps
+import com.evove.app.ui.drawBoxes
+import com.evove.app.ui.figureOf
+import com.evove.app.ui.packFree
 import com.evove.app.ui.rem
 import com.evove.app.ui.remDp
+import com.evove.app.ui.unitFor
+import com.evove.app.ui.wrapWords
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import java.text.Collator
 import java.util.Locale
-import kotlin.math.ceil
 import kotlin.math.floor
 
-// The profile's attributes. The ones used most come first; "all" walks the
-// graph, an attribute opening onto its children; and every attribute of one
-// star level can be listed together — the star level being how many levels an
-// attribute gathers, a leaf ★1, Físico far above.
+// The profile's attributes, walked as agir's actions are: cells of one size,
+// in rows, the selector turning the pages — first the ones gaining marks most
+// recently, then every attribute of each star level, ★1 the leaves, Físico
+// far above. A tap opens one: its figure — the body with the part trained
+// lit, a close on an arm, a leg or the torso, the brain with its region, or a
+// web of its parts for what the mind does — its rank and its marks.
 
-private const val ROW_DP = 46
-
-private enum class View(val icon: Icon, val label: String) {
-    USED(Icon.EYE, "mais usados"), ALL(Icon.TREE, "todos"), STAR(Icon.STAR, "por estrela")
-}
+private const val SCALE = 2
+private val DELAY = intArrayOf(0, 110, 60, 170, 30, 220, 140, 90, 200)
 
 val pt: Collator = Collator.getInstance(Locale.forLanguageTag("pt-BR"))
 
 private fun kids(n: AttrNode) = n.children.filter { it.primary != false }
 
-/** Every attribute once, by its primary place, keyed. */
-private fun flatten(list: List<AttrNode>): Map<String, AttrNode> {
+/** Every attribute once, by its primary place, keyed; and the keys above each. */
+private fun flatten(list: List<AttrNode>): Pair<Map<String, AttrNode>, Map<String, List<String>>> {
     val out = LinkedHashMap<String, AttrNode>()
-    fun walk(n: AttrNode) {
-        if (n.key !in out) out[n.key] = n
-        kids(n).forEach(::walk)
+    val chains = HashMap<String, List<String>>()
+    fun walk(n: AttrNode, above: List<String>) {
+        if (n.key !in out) {
+            out[n.key] = n
+            chains[n.key] = above + n.key
+        }
+        kids(n).forEach { walk(it, above + n.key) }
     }
-    list.forEach(::walk)
-    return out
+    list.forEach { walk(it, emptyList()) }
+    return out to chains
 }
+
+/** A page of the walk: its title and the attributes on it. */
+private data class Leaf(val title: String, val items: List<AttrNode>)
 
 @Composable
 fun MeScreen(onHome: () -> Unit, onProfile: () -> Unit, onDetails: () -> Unit) {
     var user by remember { mutableStateOf<UserState?>(null) }
     var roots by remember { mutableStateOf<List<AttrNode>>(emptyList()) }
-    var used by remember { mutableStateOf<List<AttrNode>>(emptyList()) }
-    var view by remember { mutableStateOf(View.USED) }
-    var path by remember { mutableStateOf<List<AttrNode>>(emptyList()) }
-    var star by remember { mutableIntStateOf(1) }
+    var recent by remember { mutableStateOf<List<AttrNode>>(emptyList()) }
     var page by remember { mutableIntStateOf(0) }
     var detail by remember { mutableStateOf<AttrNode?>(null) }
     var message by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -102,10 +128,10 @@ fun MeScreen(onHome: () -> Unit, onProfile: () -> Unit, onDetails: () -> Unit) {
         try {
             val u = scope.async { Api.user() }
             val t = scope.async { Api.attributeTree() }
-            val us = scope.async { Api.attributeUsage(30, 24) }
+            val r = scope.async { Api.recentAttributes(24) }
             user = u.await()
             roots = t.await().roots
-            used = us.await()
+            recent = r.await()
         } catch (e: Exception) {
             message = listOf(e.message ?: "erro")
         }
@@ -118,26 +144,9 @@ fun MeScreen(onHome: () -> Unit, onProfile: () -> Unit, onDetails: () -> Unit) {
         first = false
     }
 
-    val all = remember(roots) { flatten(roots) }
+    val (all, chains) = remember(roots) { flatten(roots) }
     val maxStar = maxOf(1, all.values.maxOfOrNull { it.star } ?: 1)
-    val usesOf = used.associate { it.key to it.uses }
-    val listed: List<AttrNode> = when (view) {
-        View.USED -> used.map { all[it.key] ?: it }
-        View.ALL -> if (path.isNotEmpty()) kids(path.last()) else roots
-        View.STAR -> all.values.filter { it.star == star }
-            .sortedWith(compareByDescending<AttrNode> { it.totalMarks }.thenComparator { a, b -> pt.compare(a.name, b.name) })
-    }
 
-    fun press(n: Int = 0) = Sfx.tap(n)
-    fun up() { press(1); path = path.dropLast(1); page = 0 }
-    fun open(n: AttrNode) {
-        press(7)
-        message = emptyList()
-        if (view == View.ALL && kids(n).isNotEmpty()) { path = path + n; page = 0 } else detail = n
-    }
-    fun back() {
-        if (detail != null) detail = null else if (view == View.ALL && path.isNotEmpty()) up()
-    }
     fun claim(n: AttrNode) {
         if (busy || n.claim == null) return
         busy = true
@@ -145,11 +154,9 @@ fun MeScreen(onHome: () -> Unit, onProfile: () -> Unit, onDetails: () -> Unit) {
             try {
                 val r = Api.claimRank(n.key)
                 Sfx.gains()
-                message = listOf(
-                    "${r.ranks} ${if (r.ranks == 1) "rank" else "ranks"}",
-                    "+${r.pointsGained} pts · +${r.tokensGained}t · +${r.skillPointsGained} skill",
-                )
+                message = listOf("${r.ranks} ${if (r.ranks == 1) "rank" else "ranks"}", "+${r.pointsGained} pts · +${r.tokensGained}t")
                 Bus.bumpUser()
+                Evove.refresh()
                 detail = n.copy(claim = null)
             } catch (e: Exception) {
                 message = listOf(e.message ?: "erro")
@@ -159,96 +166,133 @@ fun MeScreen(onHome: () -> Unit, onProfile: () -> Unit, onDetails: () -> Unit) {
         }
     }
 
-    BackHandler(enabled = detail != null || (view == View.ALL && path.isNotEmpty())) { back() }
+    BackHandler(enabled = detail != null) { detail = null }
 
-    // counted by the body, which is laid out after the bar is composed
-    var pages by remember { mutableIntStateOf(1) }
-    DarkScreen(
-        Ink.attributes, display = 0.17f,
-        displayContent = {
-            val d = detail
-            val u = user
-            when {
-                message.isNotEmpty() -> Message(message)
-                d != null -> { Big(d.name); Small("${d.rank} ${d.rankName ?: ""} · ★${d.star} · grau ${d.degree}") }
-                u != null -> {
-                    BasicText(
-                        buildAnnotatedString {
-                            append(u.rankSymbol)
-                            withStyle(SpanStyle(fontSize = 0.8.rem, letterSpacing = 0.2.em, color = Color.White)) { append("  " + com.evove.app.ui.caps(u.rankName ?: "")) }
-                        },
-                        style = TextStyle(fontFamily = Display, fontSize = 2.6.rem, lineHeight = 1.em, color = LocalInk.current, textAlign = TextAlign.End),
+    val ink = Ink.attributes
+    CompositionLocalProvider(LocalInk provides ink) {
+        BoxWithConstraints(Modifier.fillMaxSize().padding(10.dp)) {
+            val unit = unitFor(maxWidth)
+            val row = min(unit * GRID_COLS, maxWidth)
+            val tall = maxHeight
+            val side = unit * SCALE
+            // how many cells a page holds, three to a row
+            val fit = maxOf(1, floor(((tall * 0.82f - unit) / side).toDouble()).toInt() - 1)
+            val perPage = fit * (GRID_COLS / SCALE)
+            val pages = remember(all, recent, perPage) {
+                val out = mutableListOf<Leaf>()
+                val r = recent.mapNotNull { all[it.key] ?: it }.distinctBy { it.key }
+                r.chunked(perPage).ifEmpty { listOf(emptyList()) }.forEach { out += Leaf("recentes", it) }
+                for (st in 1..maxStar) {
+                    val list = all.values.filter { it.star == st }
+                        .sortedWith(compareByDescending<AttrNode> { it.totalMarks }.thenComparator { a, b -> pt.compare(a.name, b.name) })
+                    list.chunked(perPage).forEach { out += Leaf("★$st", it) }
+                }
+                out
+            }
+            if (page >= pages.size) page = 0
+            val here = pages.getOrNull(page)
+            Column(Modifier.fillMaxSize()) {
+                Column(
+                    Modifier.fillMaxWidth().height(tall * 0.18f).padding(horizontal = 0.4.remDp, vertical = 0.5.remDp),
+                    verticalArrangement = Arrangement.spacedBy(0.35.remDp, Alignment.Bottom),
+                    horizontalAlignment = Alignment.End,
+                ) {
+                    val d = detail
+                    val u = user
+                    when {
+                        message.isNotEmpty() -> Message(message)
+                        d != null -> { Big(d.name); Small("${d.rank} ${d.rankName ?: ""} · ★${d.star} · ${d.marks}/${d.need}") }
+                        u != null -> {
+                            BasicText(
+                                buildAnnotatedString {
+                                    append(u.rankSymbol)
+                                    withStyle(SpanStyle(fontSize = 0.8.rem, letterSpacing = 0.2.em, color = Color.White)) { append("  " + caps(u.rankName ?: "")) }
+                                },
+                                style = TextStyle(fontFamily = Display, fontSize = 2.4.rem, lineHeight = 1.em, color = ink, textAlign = TextAlign.End),
+                            )
+                            Small("${here?.title ?: ""} · ${u.nickname ?: u.username} · nível ${u.level}")
+                            Box(Modifier.widthIn(max = 16.remDp).fillMaxWidth()) { MarkBar(u.levelMarks, u.levelCost) }
+                        }
+                    }
+                }
+                val d = detail
+                if (d != null) {
+                    Detail(d, chains[d.key].orEmpty(), all, busy, row, Modifier.weight(1f).align(Alignment.End), ::claim)
+                } else if (here == null || here.items.isEmpty()) {
+                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.BottomEnd) { Empty("nada aqui ainda — aja") }
+                } else {
+                    AttributeCells(here.items, page, unit, Modifier.weight(1f).fillMaxWidth()) { n -> Sfx.tap(7); message = emptyList(); detail = n }
+                }
+                Bar(unit, row, Modifier.align(Alignment.End)) {
+                    Key({ Sfx.tap(3); onDetails() }, Modifier.at(1)) { KeyIcon(Icon.TREE) }
+                    Key({ Sfx.tap(5); onProfile() }, Modifier.at(2)) { KeyIcon(Icon.USER) }
+                    Selector(
+                        Evove.selector, page, pages.size, back = detail != null, Modifier.at(3, 3),
+                        onNext = { page = (page + 1) % maxOf(1, pages.size); Evove.turn(); Sfx.powerOn() },
+                        onStep = { i -> if (i != page) { page = i; Evove.turn() } },
+                        onTap = { Sfx.tap(0); if (detail != null) detail = null else onHome() },
                     )
-                    Small("${u.nickname ?: u.username} · nível ${u.level} · ${u.localLevelRoman}/${u.localLevelsTotal}")
-                    Box(Modifier.widthIn(max = 16.remDp).fillMaxWidth()) { MarkBar(u.levelMarks, u.levelCost) }
+                    HomeKey { Sfx.tap(0); onHome() }
                 }
             }
-        },
-        bar = {
-            if (detail != null) {
-                Key({ press(0); back() }, Modifier.at(1, 2)) { KeyIcon(Icon.LEFT) }
-            } else {
-                Key({
-                    press(4)
-                    view = View.entries[(view.ordinal + 1) % View.entries.size]
-                    page = 0; detail = null; message = emptyList()
-                    Sfx.powerOn()
-                }, Modifier.at(1)) { KeyIcon(view.icon) }
-                when (view) {
-                    View.STAR -> Key({ press(6); star = (star % maxStar) + 1; page = 0 }, Modifier.at(2)) { KeyText("★$star") }
-                    View.ALL -> Key(::up, Modifier.at(2), enabled = path.isNotEmpty()) { KeyIcon(Icon.UP) }
-                    View.USED -> {}
-                }
-                Key({ press(2); page = (page + 1) % pages }, Modifier.at(3), enabled = pages > 1) { KeyIcon(Icon.DOWN) }
-                Key({ press(3); onDetails() }, Modifier.at(4)) { KeyIcon(Icon.LIST) }
-                Key({ press(5); onProfile() }, Modifier.at(5)) { KeyIcon(Icon.USER) }
-            }
-            HomeKey { press(0); onHome() }
-        },
-    ) { info ->
-        val d = detail
-        if (d != null) {
-            Stats(buildList {
-                add("rank" to "${d.rank} · ${d.rankName ?: ""}")
-                add("marcas" to "${d.marks}/${d.need}")
-                add("total" to "${d.totalMarks}")
-                add("estrela" to "★${d.star}")
-                add("grau" to "${d.degree}")
-                add("filhos" to "${kids(d).size}")
-                usesOf[d.key]?.takeIf { it > 0 }?.let { add("usos em 30 dias" to "$it") }
-            })
-            MarkBar(d.marks, d.need, gold = true)
-            d.claim?.let { c ->
-                Key({ claim(d) }, Modifier.fillMaxWidth().heightIn(min = 2.8.remDp), enabled = !busy) {
-                    KeyIcon(Icon.STAR, 16.dp); KeyText("reclamar ${c.ranks} · +${c.points} pts")
-                }
-            }
-            if (kids(d).isNotEmpty()) {
-                Key({ press(7); view = View.ALL; path = path + d; detail = null; page = 0 }, Modifier.fillMaxWidth().heightIn(min = 2.8.remDp)) {
-                    KeyIcon(Icon.TREE, 16.dp); KeyText("ver filhos")
-                }
-            }
-            return@DarkScreen
         }
-        val perPage = maxOf(1, floor((info.height.value - 30) / (ROW_DP + 8)).toInt())
-        val count = maxOf(1, ceil(listed.size / perPage.toFloat()).toInt())
-        if (pages != count) pages = count
-        if (page >= pages) page = pages - 1
-        val shown = listed.drop(page * perPage).take(perPage)
-        Label(buildString {
-            append(view.label)
-            if (view == View.ALL && path.isNotEmpty()) append(" · " + path.joinToString(" › ") { it.name })
-            if (view == View.STAR) append(" · ★$star")
-            if (pages > 1) append(" · ${page + 1}/$pages")
-        })
-        if (shown.isEmpty()) Empty(if (view == View.USED) "nada usado nos últimos 30 dias — aja" else "nenhum atributo aqui")
-        for (n in shown) {
-            ListRow({ open(n) }, minHeight = 2.9.remDp) {
-                BasicText(n.rank, Modifier.width(1.4.remDp), style = TextStyle(fontFamily = Display, fontSize = 1.05.rem, color = LocalInk.current, textAlign = TextAlign.Center))
-                Grow(n.name, upper = true)
-                if (n.claim != null) IconView(Icon.STAR, Ink.gold, 12.dp)
-                Tag(if (view == View.USED) "${usesOf[n.key] ?: 0}×" else "${n.marks}/${n.need}")
-                if (view == View.ALL && kids(n).isNotEmpty()) Tag("›")
+    }
+}
+
+/** A page of attributes as cells of one size, three to a row, packed into the
+ *  bottom-right corner: the name, and the rank under it. */
+@Composable
+private fun AttributeCells(list: List<AttrNode>, page: Int, unit: Dp, modifier: Modifier, onChoose: (AttrNode) -> Unit) {
+    val density = LocalDensity.current
+    val measurer = rememberTextMeasurer()
+    val ink = LocalInk.current
+    val style = TextStyle(fontFamily = Mono, fontSize = with(density) { 12.dp.toSp() }, color = ink)
+    val rankStyle = TextStyle(fontFamily = Display, fontSize = with(density) { 15.dp.toSp() }, color = Color.White)
+    BoxWithConstraints(modifier) {
+        val w = constraints.maxWidth.toFloat()
+        val h = constraints.maxHeight.toFloat()
+        val side = with(density) { unit.toPx() }
+        val laid = remember(list, page, w, h, side) {
+            if (list.isEmpty()) return@remember emptyList<Pair<DrawnCell, List<String>>>()
+            val (boxes, rows) = packFree(List(list.size) { SCALE to SCALE }, GRID_COLS)
+            drawBoxes(boxes, rows, w, h, side, GRID_GAP_DP * density.density).mapIndexed { i, c ->
+                val perLine = maxOf(6, floor((c.w / density.density - 14) / 7.8f).toInt())
+                DrawnCell(c.shape, c.cx, c.cy, if (list[i].claim != null) Ink.gold else ink, DELAY[i % DELAY.size]) to wrapWords(list[i].name, perLine, 2)
+            }
+        }
+        val texts = remember(laid) {
+            laid.mapIndexed { i, (_, lines) -> lines.map { measurer.measure(caps(it), style) } + measurer.measure(list[i].rank, rankStyle) }
+        }
+        Cells(laid.map { it.first }, key = list, modifier = Modifier.fillMaxSize(), onTap = { onChoose(list[it]) }) { i, c, alpha ->
+            val t = texts[i]
+            val step = 15 * density.density
+            var y = c.cy - t.size * step / 2 + step / 2
+            for (x in t) {
+                drawText(x, topLeft = Offset(c.cx - x.size.width / 2, y - x.size.height / 2), alpha = alpha)
+                y += step
+            }
+        }
+    }
+}
+
+/** One attribute: its figure, its rank and marks, and its reward when ranks
+ *  wait to be claimed. */
+@Composable
+private fun Detail(d: AttrNode, chain: List<String>, all: Map<String, AttrNode>, busy: Boolean, row: Dp, modifier: Modifier, onClaim: (AttrNode) -> Unit) {
+    val ink = LocalInk.current
+    val kind = figureOf(chain)
+    // the web's parts: its children, or, for a leaf, it and its siblings
+    val parent = chain.dropLast(1).lastOrNull()?.let { all[it] }
+    val parts = (if (kids(d).size >= 3) kids(d) else parent?.let(::kids) ?: listOf(d)).take(8)
+    val top = maxOf(1, parts.maxOfOrNull { it.totalMarks } ?: 1)
+    Column(modifier.widthIn(max = row).fillMaxWidth().padding(6.dp), verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Bottom)) {
+        AttributeFigure(kind, ink, Modifier.fillMaxWidth().weight(1f), parts.map { it.name to it.totalMarks / top.toFloat() })
+        Stats(listOf("rank" to "${d.rank} · ${d.rankName ?: ""}", "marcas" to "${d.marks}/${d.need}", "total" to "${d.totalMarks}",
+            "estrela" to "★${d.star}", "grau" to "${d.degree}"))
+        MarkBar(d.marks, d.need, gold = true)
+        d.claim?.let { c ->
+            Key({ onClaim(d) }, Modifier.fillMaxWidth().heightIn(min = 2.8.remDp), enabled = !busy) {
+                KeyIcon(Icon.STAR, 16.dp); KeyText("reclamar ${c.ranks} · +${c.points} pts")
             }
         }
     }

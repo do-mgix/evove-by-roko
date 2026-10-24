@@ -104,6 +104,8 @@ data class ActResult(
     val roko: String? = null,
     /** who said `roko`: the entity carried, coleto, or the system */
     val speaker: String = "roko",
+    /** the ranks the act reached, claimed by themselves */
+    val claimed: Claim? = null,
     /** what the act moved in the story, said by whoever said it */
     val lines: List<Line> = emptyList(),
 )

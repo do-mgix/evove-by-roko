@@ -39,6 +39,10 @@ data class StoryState(val step: String = "done", val at: Int = 0, val of: Int = 
 @Serializable
 data class Carried(val id: String, val name: String = "", val title: String = "", val color: String = "#3dfff0", val glyph: String = "roko", val voice: String = "caps")
 
+/** Points and tokens, on top of every screen but a fight. */
+@Serializable
+data class Wallet(val points: Int = 0, val tokens: Int = 0)
+
 /** The modes of the first screen this profile can enter, and what the journey holds. */
 @Serializable
 data class Modes(
@@ -64,6 +68,8 @@ data class EngineView(
     // the one carried, null for none
     val entity: Carried? = null,
     val modes: Modes = Modes(),
+    // what the top of every screen shows
+    val wallet: Wallet = Wallet(),
     val story: StoryState = StoryState(),
     // the actions handed out at the start that roko does not believe yet
     val doubted: List<String> = emptyList(),

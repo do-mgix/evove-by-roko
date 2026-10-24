@@ -109,6 +109,8 @@ fun App() {
         onDispose { Api.onUnauthorized = null }
     }
 
+    LaunchedEffect(Unit) { com.evove.app.sound.Music.menus() }
+
     // Each account has its own evove: drawn from the device at once, then the
     // visit tells the server the app came on and brings this session's home.
     LaunchedEffect(username) {
@@ -235,6 +237,10 @@ fun App() {
                 Page.LOGS -> LogsScreen(onBack = ::back, onHome = ::goHome, at = logsAt.offset, focus = logsAt.id, delete = logsAt.delete)
                 Page.ACCOUNTS -> {}
             }
+        }
+        // points and tokens, on top of every screen but a fight
+        if (username != null && !adding && page != Page.ACCOUNTS && !Evove.fighting) Evove.view?.wallet?.let { w ->
+            com.evove.app.ui.WalletBar(w.points, w.tokens, Modifier.align(androidx.compose.ui.Alignment.TopCenter))
         }
     }
 }

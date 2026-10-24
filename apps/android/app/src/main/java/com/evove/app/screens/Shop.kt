@@ -246,7 +246,7 @@ fun ShopScreen(onHome: () -> Unit) {
                 Sfx.gains()
                 // what roko says about it, when the purchase moved the story
                 message = if (res.lines.isNotEmpty()) res.lines.map { it.text } else listOf("adquirida", a.name.lowercase())
-                if (res.lines.isNotEmpty()) Evove.refresh()
+                Evove.refresh()
                 selected = null
                 confirming = false
                 Bus.bumpUser()

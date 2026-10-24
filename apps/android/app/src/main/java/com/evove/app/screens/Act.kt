@@ -235,10 +235,13 @@ fun ActScreen(onHome: () -> Unit, sandbox: Boolean = false) {
                     r.marks,
                     diff(prev, now),
                     if (r.journeyReset) listOf(Line("system", "seu hp acabou. a jornada recomeçou do primeiro estágio."))
-                    else r.lines.ifEmpty { listOfNotNull(r.roko?.let { Line(r.speaker, it) }) },
+                    else r.lines.ifEmpty { listOfNotNull(r.roko?.let { Line(r.speaker, it) }) } +
+                        listOfNotNull(r.claimed?.takeIf { it.ranks > 0 }?.let {
+                            Line("system", "${it.ranks} ${if (it.ranks == 1) "rank reclamado" else "ranks reclamados"}: +${it.points} pontos · +${it.tokens} tokens")
+                        }),
                 )
-                // an act can open a module: the home should know before it is back
-                if (r.lines.isNotEmpty()) Evove.refresh()
+                // an act can open a module, and changes the points and tokens on top
+                Evove.refresh()
                 message = emptyList()
                 if (!sandbox) {
                     Bus.bumpLogs()

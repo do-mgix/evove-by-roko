@@ -1052,6 +1052,18 @@ abilities, hunt entities — to get out or grow stronger, and every opponent is 
   the next second. What tricks do shows: everything grey under a baque, the stunned side
   grey, a second border under a shield, gold while strengthened. The bar's end is
   the hp left, and an empty bar restarts the checkpoints.
+- **The journey's level.** Every blow that lands in a fight is experience: ten blows a
+  level, three or four levels a fight, each adding hp (the bar starts at 100), resistance,
+  defense and damage at once, in the middle of the fight — the opponent mirrors the level
+  and grows the same way, and the entities carried go up a level every two things they
+  do (força and agilidade). What the levels gave is told at the end; a fight left halfway
+  plays itself out and keeps none of them. A fight lost sends the act back to its first
+  floor. The bar of a fight is the level's, no longer the checkpoints' energy.
+- **Items** (`src/domain/items.py`): a fight won may drop one, made of one of the
+  opponent's abilities — FERRAMENTA (arma, damage), MARCA (acessório, defense), FAIXA
+  (cabeça, hp) DE CORRIDA… — at about the journey's level. Worn while its own action is one
+  of the two attacks it counts 1.5–2×. Twins pile up; items six levels below the journey's
+  sell themselves for points; `POST /dungeon/items/best` wears the best of each slot.
 - **Three acts.** Act 1 ends at the way out: leaving ends the journey, which shows nothing
   but a save code from then on (`POST /dungeon/choose`). Staying opens act 2, where roko is
   gone; it ends on nó, an entity, killed — becoming an entity, another ending with a code —
@@ -1174,6 +1186,7 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 | GET | `/sandbox/entities` · `/sandbox/entities/{id}/talk` | coleto and every entity met · talking to one |
 | GET | `/dungeon` | the journey's mode: floor, map, walk, who waits, the choice, the ending and its code, hp and recoveries |
 | POST | `/dungeon/fight` · `/dungeon/fight/end` | the fight's setup · its end (`{plays}`), replayed and paid |
+| GET · POST | `/dungeon/items` · `/dungeon/items/{id}/wear` · `/dungeon/items/best` | the inventory with what each item adds now · wear or take off · wear the best |
 | POST | `/dungeon/choose` · `/dungeon/pair` | answer the choice (`{option}`) · the third act's two entities (`{entities}`) |
 | GET · POST | `/projects` | list · create |
 | PATCH · DELETE | `/projects/{id}` | edit · remove |
@@ -1320,7 +1333,11 @@ As on the web, nothing sounds until the first tap. They play on the media stream
 which silent mode mutes. `Synth.finish` brings every file to −1 dB and the glints sit above
 560 Hz, where a phone's speaker reaches. What repeats a lot has plain tones, no room: one
 soft sine for each letter an entity types out, and a hit, a heal and an entity's two notes
-in the fights, which type their messages in silence.
+in the fights, which type their messages in silence; the blows ring in the room, an
+entity's muffled and heavy, and a level gained climbs. `sound/Music.kt` plays the music,
+also rendered by `Synth`: an ambience under the menus, and in a fight five loops started
+together — a ground always heard, the bass as the fight drags on, the arpeggio under
+fúria, the pad as the entities grow impatient, the lead when the hp runs low.
 
 ### The first screen
 
@@ -1336,6 +1353,16 @@ leads back to it.
 `backend/scripts/fight_cases.py` writes sixty fights with the server's results into
 `app/src/test/resources/fight_cases.json`, and `FightParityTest` checks the app reaches the
 same end, to the tick — run the script again whenever the rules change.
+
+### Attributes
+
+`screens/Me.kt` walks the attributes as agir walks actions: cells of one size, three to a
+row, the selector turning the pages — first the most recent, then every attribute of each
+star level. A tap opens one with its figure (`ui/Figure.kt`): the body as a sign's figure
+with the trained part lit, a close on an arm, a leg or the torso for a muscle, the brain
+from the side with its region for the anatomy of the mind, and a web of its parts for what
+the mind does elsewhere. Acting claims the ranks it reaches by itself, and every screen
+but a fight shows points (p) and tokens (a coin) at the top.
 
 ### Accounts
 

@@ -23,6 +23,9 @@ object Evove {
     var view by mutableStateOf<EngineView?>(null)
         private set
 
+    /** Whether a fight takes the screen: the wallet leaves the top meanwhile. */
+    var fighting by mutableStateOf(false)
+
     /** The latest thing said, for the home's display. */
     var said by mutableStateOf<Line?>(null)
         private set
