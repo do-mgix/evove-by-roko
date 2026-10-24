@@ -2304,7 +2304,7 @@ def carried_entity(username: str = Depends(current_username)):
     e = entities.entity(state.get("entity") or "")
     affinity = {k: round(float(v), 2) for k, v in (state.get("affinity") or {}).items()}
     if not e:
-        return {"none": True, "affinity": affinity}
+        return {"id": "", "name": "", "none": True, "affinity": affinity}
     return {**entities.public(e), "none": False, "affinity": affinity}
 
 

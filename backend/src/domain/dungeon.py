@@ -186,6 +186,8 @@ def foe_hp_factor(d: dict) -> float:
 def intro(d: dict) -> list[str]:
     """What is told on arriving at the floor."""
     act, k = int(d["act"]), floor_in_act(d)
+    if final(d):
+        return ["TODAS AS ENTIDADES ESTÃO AQUI. MENOS UMA.", "NO FIM DO CORREDOR, ALGUÉM CONSTRUIU TUDO ISSO."]
     if act == 1 and k == 1:
         return ["VOCÊ ACORDA NUM LUGAR GRANDE DEMAIS.",
                 "HÁ OUTROS PRESOS AQUI. TODOS CARREGAM A MESMA TECNOLOGIA.",
@@ -197,8 +199,6 @@ def intro(d: dict) -> list[str]:
     if act == 3 and k == 1:
         return ["NÓ VOLTOU. E NÃO VEIO SOZINHO.", "AGORA VOCÊ CARREGA DUAS ENTIDADES.",
                 "CADA UMA QUER ALGUMA COISA. DÊ A ELAS, E ELAS TRAZEM AS OUTRAS."]
-    if final(d):
-        return ["TODAS AS ENTIDADES ESTÃO AQUI. MENOS UMA.", "NO FIM DO CORREDOR, ALGUÉM CONSTRUIU TUDO ISSO."]
     return [{1: "O CORREDOR CONTINUA.", 2: "MAIS FUNDO.", 3: "OS FIOS DE NÓ AINDA ESTÃO NAS PAREDES."}[min(3, act)]]
 
 
