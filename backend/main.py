@@ -17,11 +17,11 @@ if str(_BACKEND_DIR) not in sys.path:
 from src.domain.action import Action  # noqa: E402
 from src.domain.act import ENERGY_PENALTY_OUT_OF_AGENDA, ActError  # noqa: E402
 from src.domain.acting import perform_act, tiers_for, window_state  # noqa: E402
-from src.domain.marks import MARKS_PER_WINDOW, MarkError, options as tier_options  # noqa: E402
+from src.domain.marks import DEFAULT_TIERS, MARKS_PER_WINDOW, MarkError, options as tier_options  # noqa: E402
 from src.domain.agenda import collect_labels, DAY_NAMES as _DOMAIN_DAY_NAMES  # noqa: E402
 from src.domain.daily import PERIODS, apply_daily_tick, period_of  # noqa: E402
 from src.domain import journey as journey_mode  # noqa: E402
-from src.domain import battle, discovery, engine, entities, equipment, recover as recovery  # noqa: E402
+from src.domain import battle, discovery, engine, entities, equipment, recover as recovery, sandbox  # noqa: E402
 from src.domain.economy import BASE_MAX_TOKENS, INITIAL_POINTS, todo_reward  # noqa: E402
 from src.domain.user_attributes import PATCH_SEPARATOR, PatchError, engine_name  # noqa: E402
 from src.domain.attributes import (  # noqa: E402
@@ -2481,3 +2481,148 @@ def engine_passcode(payload: dict, username: str = Depends(current_username)):
         state["line"] = {**lines[-1], "at": datetime.now().isoformat(timespec="seconds")}
     engine_repo.save(username, state)
     return {**_engine_view(username, state, code), "kind": kind, "lines": lines}
+
+
+# ---------------------------------------------------------------- the sandbox
+
+def _sandbox(username: str) -> tuple[dict, dict]:
+    """The profile's evove and the sandbox inside it; 403 before the story is
+    told (src.domain.sandbox)."""
+    state, _code = engine_repo.load(username)
+    if not engine.modes(state)["sandbox"]:
+        raise HTTPException(status_code=403, detail="the sandbox opens when the story is told")
+    return state, sandbox.state_of(state)
+
+
+@app.get("/sandbox")
+def sandbox_home(username: str = Depends(current_username)):
+    """The sandbox's home: its tiles, what was done in it, the entities met."""
+    state, sb = _sandbox(username)
+    engine_repo.save(username, state)
+    return sandbox.view(state, sb)
+
+
+@app.post("/sandbox/visit")
+def sandbox_visit(username: str = Depends(current_username)):
+    """The sandbox was entered: a new layout for its home."""
+    state, sb = _sandbox(username)
+    sandbox.renew(sb, random.Random())
+    engine_repo.save(username, state)
+    return sandbox.view(state, sb)
+
+
+@app.post("/sandbox/open")
+def sandbox_open(payload: dict, username: str = Depends(current_username)):
+    """Body: {module}. A module of the sandbox opened, for its layout."""
+    state, sb = _sandbox(username)
+    sandbox.open_module(sb, str((payload or {}).get("module") or ""))
+    engine_repo.save(username, state)
+    return {"ok": True}
+
+
+def _sandbox_actions(sb: dict) -> list[dict]:
+    templates = repos.load_action_templates()
+    tree = repos.load_attr_tree()
+    contributions = repos.load_all_contributions()
+    out = []
+    for name, meta in templates.items():
+        if not meta["code"]:
+            continue
+        done = sb["actions"].get(name) or {}
+        parent = meta.get("parent")
+        out.append({
+            "id": meta["code"],
+            "name": name,
+            "type": meta["type"],
+            "diff": meta["diff"],
+            "value": done.get("value", 0),
+            "score": done.get("score", 0),
+            "token_cost": 0,
+            "token_gain": 0,
+            "log_only": meta["log_only"],
+            "tiers": tier_options(meta.get("tiers") or DEFAULT_TIERS),
+            "path": [{"key": k, "name": tree.nodes_by_key[k].name} for k in tree.primary_chain(parent)]
+                    if parent and parent in tree.nodes_by_key else [],
+            "leaves": [{"key": k, "name": tree.nodes_by_key[k].name, "weight": w}
+                       for k, w in contributions.get(name, []) if k in tree.nodes_by_key],
+        })
+    out.sort(key=lambda a: a["name"])
+    return out
+
+
+@app.get("/sandbox/actions")
+def sandbox_actions(username: str = Depends(current_username)):
+    """Every action of the catalog, owned or not, as `/actions` lists them, with
+    what was done with each in the sandbox."""
+    _state, sb = _sandbox(username)
+    return _sandbox_actions(sb)
+
+
+@app.post("/sandbox/actions/{code}/act")
+def sandbox_act(code: str, payload: dict | None = None, username: str = Depends(current_username)):
+    """Body: {option}. An act in the sandbox: free, unlimited, the tier's marks
+    whole, into the sandbox's own attributes. Nothing real changes."""
+    state, sb = _sandbox(username)
+    templates = repos.load_action_templates()
+    name = next((n for n, m in templates.items() if m["code"] == code), None)
+    if not name:
+        raise HTTPException(status_code=404, detail=f"action {code} not found")
+    tree = repos.load_attr_tree()
+    contributions = repos.load_all_contributions().get(name, [])
+    option = (payload or {}).get("option")
+    try:
+        done = sandbox.act(sb, name, option, contributions, set(tree.leaves_by_key))
+    except MarkError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    engine_repo.save(username, state)
+    gains = []
+    for key, (before, after) in done["gains"].items():
+        b, a = rank_view(before), rank_view(after)
+        gains.append({"key": key, "name": tree.nodes_by_key[key].name, "before": b, "after": a})
+    said = entities.say("coleto", "after_act", random.Random())
+    labels = tier_options(templates[name].get("tiers") or DEFAULT_TIERS)
+    return {
+        "id": code,
+        "name": name,
+        "option": labels[int(option)]["label"],
+        "marks": done["marks"],
+        "acts": sb["acts"],
+        "gains": gains,
+        "roko": said["text"],
+        "speaker": said["entity"],
+    }
+
+
+@app.get("/sandbox/attributes")
+def sandbox_attributes(username: str = Depends(current_username)):
+    """Every leaf with marks in the sandbox, with its rank there, the most
+    marked first — as `/attributes`."""
+    _state, sb = _sandbox(username)
+    tree = repos.load_attr_tree()
+    totals = sandbox.totals(sb)
+    memo: dict[str, float] = {}
+    out = [_node_view(tree, k, totals, memo) for k in tree.leaves_by_key]
+    out.sort(key=lambda a: a["total_marks"], reverse=True)
+    return out
+
+
+@app.get("/sandbox/entities")
+def sandbox_entities(username: str = Depends(current_username)):
+    """Coleto, and every entity the profile has met, to be talked to at will."""
+    state, _sb = _sandbox(username)
+    ids = ["coleto"] + [e for e in state["entities"] if e in entities.ENTITIES and e != "coleto"]
+    return [entities.public(entities.ENTITIES[e]) for e in ids]
+
+
+@app.get("/sandbox/entities/{entity_id}/talk")
+def sandbox_talk(entity_id: str, username: str = Depends(current_username)):
+    """In the sandbox every entity met is there, and always answers."""
+    state, sb = _sandbox(username)
+    e = entities.entity(entity_id)
+    if not e or (entity_id != "coleto" and entity_id not in state["entities"]):
+        raise HTTPException(status_code=404, detail=f"entity '{entity_id}' not met")
+    sb["talks"] += 1
+    engine_repo.save(username, state)
+    data = _load_user(username)
+    return {"entity": entity_id, "present": True, "answered": True,
+            "line": entities.line(e, _entity_state(username, data), random.Random()), "lines": []}
