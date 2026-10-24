@@ -30,6 +30,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -73,21 +74,36 @@ enum class HomeOption(val kind: String, val id: String, val label: String, val c
 fun Tile.ink(): Color = runCatching { hex(color) }.getOrNull() ?: HomeOption.of(kind)?.color ?: Ink.act
 fun Tile.mark(): Glyph = if (glyph.isNotEmpty()) Glyphs.byName(glyph) else HomeOption.of(kind)?.glyph ?: Glyphs.act
 
-/** The color of who speaks. */
+/** The color of who speaks: each entity its own, the system white. */
 fun voiceInk(entity: String?): Color = when (entity) {
     "roko" -> Ink.roko
     "eve" -> Ink.eve
+    "osso" -> hex("#e8e2c8")
+    "zira" -> hex("#ffe14d")
+    "mura" -> hex("#c48bff")
+    "no" -> hex("#ff6b3d")
+    "vela" -> hex("#ffb36b")
+    "coleto" -> hex("#7dff6b")
     else -> Color.White
 }
 
+/** The entities that speak as typed; the others, and the system, shout. */
+private val LOWER = setOf("eve", "zira", "mura", "vela", "coleto")
+
+/** A line as its speaker says it. */
+fun voiced(entity: String?, text: String): String = if (entity in LOWER) text else caps(text)
+
 /** The tile home: the modules of this session, and above them, where a thumb
  *  does not reach, the last thing an entity said, typed out. A tap on it puts
- *  it away; a long press there opens the accounts. */
+ *  it away; a long press there opens the accounts. A tile something waits in
+ *  — the journey, when someone stands at the end of the floor — blinks. */
 @Composable
-fun HomeScreen(tiles: List<Tile>, hint: String?, said: Line?, onOpen: (Tile) -> Unit, onDismiss: () -> Unit, onAccounts: () -> Unit) {
+fun HomeScreen(tiles: List<Tile>, hint: String?, said: Line?, onOpen: (Tile) -> Unit, onDismiss: () -> Unit, onAccounts: () -> Unit, onStart: () -> Unit = onAccounts) {
     // the screen comes on with a sound, when one has been allowed (after a tap)
     LaunchedEffect(Unit) { Sfx.powerOn() }
     val density = LocalDensity.current.density
+    val pulse = rememberInfiniteTransition(label = "alert")
+    val beat by pulse.animateFloat(1f, 0.15f, infiniteRepeatable(tween(700, easing = LinearEasing), RepeatMode.Reverse), label = "a")
     BoxWithConstraints(Modifier.fillMaxSize().padding(10.dp)) {
         val w = constraints.maxWidth.toFloat()
         val h = constraints.maxHeight.toFloat()
@@ -123,13 +139,17 @@ fun HomeScreen(tiles: List<Tile>, hint: String?, said: Line?, onOpen: (Tile) -> 
             val ch = c.shape.maxOf { it.y } - c.shape.minOf { it.y }
             val side = maxOf(20 * density, minOf(cw * 0.45f, ch * 0.45f, 64 * density))
             drawGlyph(tiles[i].mark(), Offset(c.cx - side / 2, c.cy - side / 2), side, c.color.copy(alpha = alpha), stroke = 2.4f * density)
+            if (tiles[i].alert) {
+                val r = 5 * density
+                drawCircle(c.color.copy(alpha = alpha * beat), r, Offset(c.cx + side / 2 + 2 * r, c.cy - side / 2))
+            }
         }
         // over the canvas, which would take its touches, and above the tiles
         Said(said, Modifier.fillMaxWidth().height(with(LocalDensity.current) { (top - 8 * density).coerceAtLeast(0f).toDp() }), onDismiss, onAccounts)
         // the way out of any evove, however little of it is open: faint, in the
-        // corner, to the accounts — switch, create, start over, delete
+        // corner, to the first screen — the modes, the user, the save
         Box(
-            Modifier.align(Alignment.TopEnd).size(44.dp).clickable { Sfx.tap(5); onAccounts() },
+            Modifier.align(Alignment.TopEnd).size(44.dp).clickable { Sfx.tap(5); onStart() }.testTag("start"),
             contentAlignment = Alignment.Center,
         ) { IconView(Icon.LIST, Color.White.copy(alpha = 0.28f), 20.dp) }
     }
@@ -160,7 +180,7 @@ private fun Said(line: Line?, modifier: Modifier, onDismiss: () -> Unit, onAccou
             if (line.entity != "system") BasicText(caps(line.entity), style = TextStyle(fontFamily = Display, fontSize = 0.7.rem, letterSpacing = 0.3.em, color = ink.copy(alpha = 0.7f)))
             BasicText(
                 buildAnnotatedString {
-                    append(if (line.entity == "eve") typed else caps(typed))
+                    append(voiced(line.entity, typed))
                     withStyle(SpanStyle(color = if (caret > 0.5f || typed.length < line.text.length) ink else Color.Transparent)) { append("▍") }
                 },
                 style = TextStyle(fontFamily = Display, fontSize = 1.05.rem, fontWeight = FontWeight.Medium, lineHeight = 1.5.em,

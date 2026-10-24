@@ -90,6 +90,14 @@ class Side(d: FightSide, val tricks: Boolean) {
     val ready get() = tricks && charge >= TRICK_CD
 }
 
+/** What the screen draws of a side, at one tick. */
+data class AllyView(val id: String, val name: String, val skill: Float, val ability: Float)
+data class SideView(
+    val name: String, val hp: Long, val maxHp: Long, val moves: List<Pair<String, Float>>, val heal: Pair<String, Float>,
+    val charge: Float, val ready: Boolean, val trick: String?, val next: String?, val allies: List<AllyView>,
+)
+data class FightView(val tick: Int, val sides: List<SideView>, val events: List<FightEvent>, val over: Boolean, val won: Boolean)
+
 /** Something that happened, for the screen to show: at `t`, by side `s`. */
 data class FightEvent(val t: Int, val kind: String, val side: Int, val value: Long, val name: String)
 
@@ -114,6 +122,17 @@ class Fight(setup: FightSetup) {
     }
 
     private fun draw() = TRICKS[rng.below(TRICKS.size)]
+
+    /** The fight as it stands, copied: a value the screen can hold as state. */
+    fun view(): FightView = FightView(tick, sides.map { s ->
+        SideView(
+            s.name, s.hp, s.maxHp,
+            s.moves.map { it.name to (1f - it.t / it.cd.toFloat()) },
+            s.heal.name to (1f - s.heal.t / s.heal.cd.toFloat()),
+            s.charge / TRICK_CD.toFloat(), s.ready, s.cur, s.nxt,
+            s.allies.map { AllyView(it.id, it.name, 1f - it.skillT / skillCd(it.agilidade).toFloat(), 1f - it.abilityT / ABILITY_CD.toFloat()) },
+        )
+    }, events.filter { it.kind != "end" }.takeLast(5), over, won)
 
     private fun event(kind: String, side: Int, value: Long, name: String = "") {
         events += FightEvent(tick, kind, side, value, name)

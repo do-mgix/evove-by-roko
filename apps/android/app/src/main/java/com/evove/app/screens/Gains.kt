@@ -112,7 +112,7 @@ fun GainsScreen(title: String, tokens: Int, marks: Int, gains: List<Gain>, lines
         if (step >= 3) Arrive(600) {
             Column(verticalArrangement = Arrangement.spacedBy(0.6.remDp)) {
                 for (l in lines.ifEmpty { listOf(Line("roko", "registrado. o que vem a seguir?")) }) {
-                    BasicText(if (l.entity == "eve") l.text else caps(l.text), style = font.copy(fontSize = 0.85.rem, lineHeight = 1.5.em, color = voiceInk(l.entity)))
+                    BasicText(com.evove.app.ui.voiced(l.entity, l.text), style = font.copy(fontSize = 0.85.rem, lineHeight = 1.5.em, color = voiceInk(l.entity)))
                 }
             }
         }

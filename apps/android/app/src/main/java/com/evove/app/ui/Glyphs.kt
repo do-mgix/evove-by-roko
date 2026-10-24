@@ -38,10 +38,23 @@ object Glyphs {
     val build = g("M5 19.5 V9 H13.5 M9.5 4.5 H19 V15", 19 to 19.5)
     val journey = g("M7 4.5 C11 4.5 14 6 17 4.5 L7 19.5 C10 18 14 20.5 17 19.5", 12 to 12, 19.5 to 7.5)
 
+    // the entities, each its own mark; the mute one for a profile with none
+    val eve = g("M8 8.5 C8 4.5 16 4.5 16 8.5 C16 11.5 12 11.5 12 15", 12 to 19)
+    val osso = g("M7.5 7.5 L16.5 16.5 M7.5 7.5 L5 7 M7.5 7.5 L7 5 M16.5 16.5 L19 17 M16.5 16.5 L17 19")
+    val zira = g("M4 16 L9 9.5 L13 14 L20 5.5", 20 to 10)
+    val mura = g("M5 10 H19 V18.5 H5 Z M5 10 L8 5.5 H16 L19 10", 12 to 14)
+    val no = g("M5 8 C10 3.5 14 20.5 19 16 M5 16 C10 20.5 14 3.5 19 8")
+    val vela = g("M10 11 H14 V20 H10 Z M12 4 C10.3 6.2 13.7 7.2 12 9")
+    val coleto = g("M6.5 10 H17.5 V18.5 H6.5 Z M9 5.5 L10 10 M15 5.5 L14 10", 10 to 14, 14 to 14)
+    val mute = g("M4 12 H8 M10 12 H14 M16 12 H20")
+
     /** A glyph by the name the engine gives it; agir's when it is not one. */
     fun byName(name: String?): Glyph = when (name) {
         "shop" -> shop; "roko" -> roko; "logs" -> logs; "attributes" -> attributes
-        "build" -> build; "journey" -> journey; else -> act
+        "build" -> build; "journey" -> journey
+        "eve" -> eve; "osso" -> osso; "zira" -> zira; "mura" -> mura; "no" -> no; "vela" -> vela
+        "coleto" -> coleto; "mute" -> mute
+        else -> act
     }
 }
 

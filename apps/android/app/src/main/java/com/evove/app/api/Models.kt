@@ -102,6 +102,8 @@ data class ActResult(
     val energy: Int = 0,
     val journeyReset: Boolean = false,
     val roko: String? = null,
+    /** who said `roko`: the entity carried, coleto, or the system */
+    val speaker: String = "roko",
     /** what the act moved in the story, said by whoever said it */
     val lines: List<Line> = emptyList(),
 )
@@ -530,7 +532,18 @@ data class Entity(
     val presence: Double = 0.0,
     val willing: Double = 0.0,
     val stats: Map<String, JsonElement> = emptyMap(),
+    val glyph: String = "roko",
+    val trait: String? = null,
+    val animated: Boolean = false,
+    val battle: EntityBattle? = null,
+    // in /entity: whether the profile carries none, and its affinity with each
+    val none: Boolean = false,
+    val affinity: Map<String, Double> = emptyMap(),
 )
+
+/** An entity in the journey's fights (backend/src/domain/fight.py). */
+@Serializable
+data class EntityBattle(val forca: Int = 10, val agilidade: Int = 1, val skill: String = "", val ability: String = "", val abilityName: String = "")
 
 @Serializable
 data class EntityTalk(

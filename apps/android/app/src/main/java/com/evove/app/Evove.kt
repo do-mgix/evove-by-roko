@@ -65,6 +65,10 @@ object Evove {
 
     fun refresh() = scope.launch { runCatching { Api.engine() }.onSuccess(::apply) }
 
+    /** Work that must outlive the screen that started it — a fight left
+     *  halfway, sent to be played out. */
+    fun later(block: suspend () -> Unit) = scope.launch { block() }
+
     /** A module opened from the home. */
     fun open(module: String) {
         pending += JsonObject(mapOf("kind" to JsonPrimitive("open"), "module" to JsonPrimitive(module), "period" to JsonPrimitive(currentPeriod())))

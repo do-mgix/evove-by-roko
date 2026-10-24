@@ -138,10 +138,13 @@ private fun diff(prev: Map<String, AttrNode>?, now: List<AttrNode>): List<Gain> 
     }.sortedByDescending { it.marks - it.from }
 }
 
+/** Agir. In the sandbox (`sandbox`) the same screen holds every action of the
+ *  catalog, and acting is free: no window, no tokens, no logs — the marks go to
+ *  the sandbox's own attributes, and coleto cheers. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ActScreen(onHome: () -> Unit) {
-    val ink = Ink.act
+fun ActScreen(onHome: () -> Unit, sandbox: Boolean = false) {
+    val ink = if (sandbox) Ink.sandbox else Ink.act
     var actions by remember { mutableStateOf<List<Action>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var page by remember { mutableIntStateOf(0) }
@@ -195,8 +198,11 @@ fun ActScreen(onHome: () -> Unit) {
         query = ""
         focusManager.clearFocus()
         before = null
-        scope.launch { runCatching { Api.actionWindow(a.id) }.onSuccess { if (selected?.id == a.id) windowMarks = it.windowMarks } }
-        scope.launch { runCatching { Api.attributes() }.onSuccess { list -> if (selected?.id == a.id) before = list.associateBy { it.key } } }
+        if (!sandbox) scope.launch { runCatching { Api.actionWindow(a.id) }.onSuccess { if (selected?.id == a.id) windowMarks = it.windowMarks } }
+        scope.launch {
+            runCatching { if (sandbox) Api.sandboxAttributes() else Api.attributes() }
+                .onSuccess { list -> if (selected?.id == a.id) before = list.associateBy { it.key } }
+        }
     }
 
     // one match left: it is the one, no need to confirm
@@ -221,21 +227,23 @@ fun ActScreen(onHome: () -> Unit) {
             try {
                 val tier = action.tiers.find { it.index == option }
                 val prev = before
-                val r = Api.act(action.id, option, currentPeriod())
-                val now = if (r.logOnly) emptyList() else runCatching { Api.attributes() }.getOrDefault(emptyList())
+                val r = if (sandbox) Api.sandboxAct(action.id, option) else Api.act(action.id, option, currentPeriod())
+                val now = if (r.logOnly) emptyList() else runCatching { if (sandbox) Api.sandboxAttributes() else Api.attributes() }.getOrDefault(emptyList())
                 gains = GainsShown(
                     if (tier != null) "${r.name} · ${tier.label}" else r.name,
                     r.tokenGain - r.tokensWasted - r.tokenCost,
                     r.marks,
                     diff(prev, now),
-                    if (r.journeyReset) listOf(Line("roko", "seu hp acabou. a jornada recomeçou do primeiro estágio."))
-                    else r.lines.ifEmpty { listOfNotNull(r.roko?.let { Line("roko", it) }) },
+                    if (r.journeyReset) listOf(Line("system", "seu hp acabou. a jornada recomeçou do primeiro estágio."))
+                    else r.lines.ifEmpty { listOfNotNull(r.roko?.let { Line(r.speaker, it) }) },
                 )
                 // an act can open a module: the home should know before it is back
                 if (r.lines.isNotEmpty()) Evove.refresh()
                 message = emptyList()
-                Bus.bumpLogs()
-                Bus.bumpUser()
+                if (!sandbox) {
+                    Bus.bumpLogs()
+                    Bus.bumpUser()
+                }
                 selected = null
             } catch (e: Exception) {
                 message = listOf(e.message ?: "erro ao agir")
@@ -249,7 +257,7 @@ fun ActScreen(onHome: () -> Unit) {
         // the keyboard opens on arrival: typing is the fastest way to an action
         raiseKeyboard()
         try {
-            actions = Api.actions()
+            actions = if (sandbox) Api.sandboxActions() else Api.actions()
             if (actions.isNotEmpty()) Sfx.powerOn()
             else message = listOf("nenhuma ação ainda", "adquira uma no shop")
         } catch (e: Exception) {
@@ -303,7 +311,10 @@ fun ActScreen(onHome: () -> Unit) {
                     when {
                         sel != null -> {
                             Big(sel.name, size = 1.6f)
-                            Small(listOfNotNull(if (sel.doubted) "roko duvida" else null, windowMarks?.let { "$it/5 marcas nas últimas 6h" } ?: "…").joinToString(" · "))
+                            Small(
+                                if (sandbox) "sandbox · sem custo, sem limite"
+                                else listOfNotNull(if (sel.doubted) "não verificada" else null, windowMarks?.let { "$it/5 marcas nas últimas 6h" } ?: "…").joinToString(" · "),
+                            )
                         }
                         typing && code -> {
                             Big(query, size = 1.6f)
@@ -322,7 +333,7 @@ fun ActScreen(onHome: () -> Unit) {
                 if (!full) {
                     val sel = selected
                     if (sel != null) Tiers(sel, acting, row, Modifier.weight(1f).align(Alignment.End), ::act)
-                    else ActionCells(onPage, page, unit, Modifier.weight(1f).fillMaxWidth(), ::choose)
+                    else ActionCells(onPage, page, unit, Modifier.weight(1f).fillMaxWidth(), sandbox, ::choose)
                     Bar(unit, row, Modifier.align(Alignment.End)) {
                         if (pages > 1) Row(Modifier.at(1, 2).fillMaxHeight(), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                             repeat(pages) { i ->
@@ -345,7 +356,7 @@ fun ActScreen(onHome: () -> Unit) {
 
 /** A page of actions as cells, packed into the bottom-right corner. */
 @Composable
-private fun ActionCells(list: List<Action>, page: Int, unit: Dp, modifier: Modifier, onChoose: (Action) -> Unit) {
+private fun ActionCells(list: List<Action>, page: Int, unit: Dp, modifier: Modifier, sandbox: Boolean, onChoose: (Action) -> Unit) {
     val density = LocalDensity.current
     val measurer = rememberTextMeasurer()
     val ink = LocalInk.current
@@ -363,10 +374,10 @@ private fun ActionCells(list: List<Action>, page: Int, unit: Dp, modifier: Modif
             drawBoxes(boxes, rows, w, h, side, GRID_GAP_DP * density.density, forms, slant = side * SCALE * SLANT).mapIndexed { i, c ->
                 val perLine = maxOf(6, floor((c.w / density.density - 16) / 8.4f).toInt())
                 // a handed-out action roko doubts is drawn in white: there, not yet believed
-                DrawnCell(c.shape, c.cx, c.cy, if (list[i].doubted) Color.White else ink, DELAY[i % DELAY.size]) to wrapWords(list[i].name, perLine, 3)
+                DrawnCell(c.shape, c.cx, c.cy, if (!sandbox && list[i].doubted) Color.White else ink, DELAY[i % DELAY.size]) to wrapWords(list[i].name, perLine, 3)
             }
         }
-        val texts = remember(laid) { laid.mapIndexed { i, (_, lines) -> lines.map { measurer.measure(caps(it), if (list[i].doubted) style.copy(color = Color.White) else style) } } }
+        val texts = remember(laid) { laid.mapIndexed { i, (_, lines) -> lines.map { measurer.measure(caps(it), if (!sandbox && list[i].doubted) style.copy(color = Color.White) else style) } } }
         Cells(laid.map { it.first }, key = list, modifier = Modifier.fillMaxSize(), onTap = { onChoose(list[it]) }) { i, c, alpha ->
             val lines = texts[i]
             val step = 16 * density.density

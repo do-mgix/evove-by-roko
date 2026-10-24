@@ -310,6 +310,9 @@ object Api {
 
     suspend fun entities(): List<Entity> = get("/entities")
     suspend fun talkTo(id: String): EntityTalk = get("/entities/$id/talk")
+    /** The entity carried — `none` when there is none. */
+    suspend fun carried(): Entity = get("/entity")
+    suspend fun talkCarried(): EntityTalk = get("/entity/talk")
     suspend fun allies(): Allies = get("/allies")
     suspend fun addAlly(passcode: String): Ally = post("/allies", obj("passcode" to passcode))
     suspend fun removeAlly(nickname: String): Ok = delete("/allies/${enc(nickname)}")
@@ -321,6 +324,30 @@ object Api {
     suspend fun visit(cold: Boolean, turns: Int): EngineView = post("/engine/visit", obj("cold" to cold, "turns" to turns))
     suspend fun engineEvents(events: List<JsonObject>): EngineView = post("/engine/events", obj("events" to JsonArray(events)))
     suspend fun passcode(code: String): EngineView = post("/engine/passcode", obj("code" to code))
+
+    // ------------------------------------------------------------ saves
+
+    suspend fun saveCode(): SaveCode = get("/save")
+    suspend fun mountSave(code: String): EngineView = post("/save/mount", obj("code" to code))
+
+    // ------------------------------------------------------------ the sandbox
+
+    suspend fun sandbox(): SandboxHome = get("/sandbox")
+    suspend fun sandboxVisit(): SandboxHome = post("/sandbox/visit")
+    suspend fun sandboxOpen(module: String): Ok = post("/sandbox/open", obj("module" to module))
+    suspend fun sandboxActions(): List<Action> = get("/sandbox/actions")
+    suspend fun sandboxAct(id: String, option: Int): ActResult = post("/sandbox/actions/$id/act", obj("option" to option))
+    suspend fun sandboxAttributes(): List<AttrNode> = get("/sandbox/attributes")
+    suspend fun sandboxEntities(): List<Entity> = get("/sandbox/entities")
+    suspend fun sandboxTalk(id: String): EntityTalk = get("/sandbox/entities/$id/talk")
+
+    // ------------------------------------------------------------ the journey's mode
+
+    suspend fun dungeon(): DungeonView = get("/dungeon")
+    suspend fun startFight(): FightSetup = post("/dungeon/fight")
+    suspend fun endFight(plays: List<Int>): FightEnd = post("/dungeon/fight/end", obj("plays" to plays))
+    suspend fun choose(option: String): Chosen = post("/dungeon/choose", obj("option" to option))
+    suspend fun pair(entities: List<String>): DungeonView = post("/dungeon/pair", obj("entities" to entities))
 
     /** Ends a session that is not the one in use: an account kept on the device
      *  and taken off it. */

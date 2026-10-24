@@ -21,6 +21,8 @@ data class Tile(
     val delay: Int = 0,
     val fresh: Boolean = false,
     val code: String? = null,
+    // something waits in it: the journey's opponent, or a choice
+    val alert: Boolean = false,
 )
 
 /** Something an entity — or the system — said about an event. */
@@ -32,6 +34,20 @@ data class SelectorState(val level: Int = 1, val turns: Int = 0, val nextAt: Int
 
 @Serializable
 data class StoryState(val step: String = "done", val at: Int = 0, val of: Int = 0, val done: Boolean = true)
+
+/** The one entity the profile carries. */
+@Serializable
+data class Carried(val id: String, val name: String = "", val title: String = "", val color: String = "#3dfff0", val glyph: String = "roko", val voice: String = "caps")
+
+/** The modes of the first screen this profile can enter, and what the journey holds. */
+@Serializable
+data class Modes(
+    val evove: Boolean = true,
+    val sandbox: Boolean = false,
+    val journey: Boolean = false,
+    val journeyAlert: Boolean = false,
+    val journeyEnding: String? = null,
+)
 
 @Serializable
 data class ModuleInfo(val id: String, val label: String = "", val code: String? = null, val on: Boolean = false)
@@ -45,6 +61,9 @@ data class EngineView(
     val hint: String? = null,
     val modules: List<ModuleInfo> = emptyList(),
     val entities: List<String> = emptyList(),
+    // the one carried, null for none
+    val entity: Carried? = null,
+    val modes: Modes = Modes(),
     val story: StoryState = StoryState(),
     // the actions handed out at the start that roko does not believe yet
     val doubted: List<String> = emptyList(),
@@ -74,3 +93,11 @@ data class Reverted(
 
 @Serializable
 data class DeletedLog(val ok: Boolean = true, val id: Int = 0, val reverted: Reverted? = null)
+
+/** The sandbox's home (backend/src/domain/sandbox.py). */
+@Serializable
+data class SandboxHome(val tiles: List<Tile> = emptyList(), val acts: Int = 0, val actions: Int = 0, val talks: Int = 0, val entities: List<String> = emptyList())
+
+/** A save code: the whole evove in one signed code. */
+@Serializable
+data class SaveCode(val code: String = "", val grouped: String = "", val length: Int = 0, val actions: Int = 0, val attributes: Int = 0)

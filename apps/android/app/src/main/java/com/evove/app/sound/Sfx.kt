@@ -61,6 +61,9 @@ object Sfx {
         buzz(10)
     }
 
+    /** A tap's sound alone, no buzz: for what happens by itself, a blow in a fight. */
+    fun tick(variant: Int = 0) = play(taps[Math.floorMod(variant, 10)], 0.35f)
+
     /** A screen of cells coming on. */
     fun powerOn() = play(powerOns.random(), 0.7f)
 

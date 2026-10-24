@@ -33,7 +33,10 @@ import com.evove.app.screens.LogsScreen
 import com.evove.app.screens.MeScreen
 import com.evove.app.screens.ProfilePage
 import com.evove.app.screens.RokoScreen
+import com.evove.app.screens.Mode
+import com.evove.app.screens.SandboxAttributesScreen
 import com.evove.app.screens.ShopScreen
+import com.evove.app.screens.StartScreen
 import com.evove.app.ui.Frame
 import com.evove.app.ui.HomeOption
 import com.evove.app.ui.HomeScreen
@@ -54,12 +57,19 @@ object Bus {
 /** Every page past the home. A page with a parent opens from it, and going
  *  back lands there. */
 enum class Page(val parent: Page? = null, val option: HomeOption? = null, val title: String = "") {
+    // the first screen: the user, and the modes
+    START,
     HOME, ACT, SHOP, BUILD, AGENDA, JOURNEY, ROKO, ME,
     PROFILE(ME, HomeOption.ATTRIBUTES, "perfil"),
     DETAILS(ME, HomeOption.ATTRIBUTES, "atributos e ações"),
     CALENDAR(AGENDA, HomeOption.LOGS, "calendário"),
     LOGS(AGENDA, HomeOption.LOGS, "registros"),
     ACCOUNTS(null, null, "contas"),
+    SANDBOX,
+    SANDBOX_ACT(SANDBOX),
+    SANDBOX_ATTRIBUTES(SANDBOX),
+    SANDBOX_ENTITIES(SANDBOX),
+    COLETO(SANDBOX),
 }
 
 /** The screen a module of the engine opens, by its kind. */
@@ -71,6 +81,10 @@ private fun pageOf(kind: String) = when (kind) {
     "attributes" -> Page.ME
     "journey" -> Page.JOURNEY
     "build" -> Page.BUILD
+    "sandbox_act" -> Page.SANDBOX_ACT
+    "sandbox_attributes" -> Page.SANDBOX_ATTRIBUTES
+    "sandbox_entities" -> Page.SANDBOX_ENTITIES
+    "coleto" -> Page.COLETO
     else -> null
 }
 
@@ -79,7 +93,11 @@ fun App() {
     // A session kept from a previous launch signs straight in; the server
     // renews it while it is in use.
     var username by remember { mutableStateOf(if (Prefs.token != null) Prefs.username else null) }
-    var page by remember { mutableStateOf(Page.HOME) }
+    var page by remember { mutableStateOf(Page.START) }
+    // where the journey was entered from, to go back there
+    var journeyFrom by remember { mutableStateOf(Page.START) }
+    var sandboxTiles by remember { mutableStateOf<List<com.evove.app.api.Tile>>(emptyList()) }
+    val activity = androidx.compose.ui.platform.LocalContext.current as? android.app.Activity
     // the accounts screen over the login: another account is being added
     var adding by remember { mutableStateOf(false) }
     var logsAt by remember { mutableStateOf(LogsAt()) }
@@ -87,7 +105,7 @@ fun App() {
 
     // A rejected session anywhere drops back to the accounts kept, or to login.
     DisposableEffect(Unit) {
-        Api.onUnauthorized = { username = null; page = if (Prefs.accounts.isNotEmpty()) Page.ACCOUNTS else Page.HOME }
+        Api.onUnauthorized = { username = null; page = if (Prefs.accounts.isNotEmpty()) Page.ACCOUNTS else Page.START }
         onDispose { Api.onUnauthorized = null }
     }
 
@@ -102,10 +120,20 @@ fun App() {
     }
 
     fun goHome() { Evove.flush(); page = Page.HOME }
-    fun back() { page = page.parent ?: Page.HOME }
-    fun signedIn(name: String) { username = name; adding = false; page = Page.HOME; Bus.bumpUser() }
+    fun back() {
+        page = page.parent ?: when (page) {
+            Page.HOME, Page.SANDBOX, Page.ACCOUNTS -> Page.START
+            Page.JOURNEY -> journeyFrom
+            else -> Page.HOME
+        }
+    }
+    fun signedIn(name: String) { username = name; adding = false; page = Page.START; Bus.bumpUser() }
+    fun enterSandbox() {
+        page = Page.SANDBOX
+        scope.launch { runCatching { Api.sandboxVisit() }.onSuccess { sandboxTiles = it.tiles } }
+    }
 
-    BackHandler(enabled = (username != null && page != Page.HOME) || adding) {
+    BackHandler(enabled = (username != null && page != Page.START) || adding) {
         if (adding) adding = false else back()
     }
 
@@ -129,8 +157,8 @@ fun App() {
                     onUse = { a -> Prefs.use(a); signedIn(a.username) },
                     onAdd = { adding = true },
                     onTest = ::signedIn,
-                    onBack = if (name != null) ({ page = Page.HOME }) else null,
-                    onEmpty = { username = null; page = Page.HOME },
+                    onBack = if (name != null) ({ page = Page.START }) else null,
+                    onEmpty = { username = null; page = Page.START },
                     // the account in use started over: its evove drawn again from the first step
                     onReset = { n -> if (n == username) { Evove.switchTo(n); Evove.visit(cold = true); Bus.bumpUser() } },
                     onGone = { n -> if (n == username) { username = null; page = Page.ACCOUNTS } },
@@ -139,19 +167,59 @@ fun App() {
             }
             val view = Evove.view
             when (page) {
+                Page.START -> StartScreen(
+                    username = name,
+                    onMode = { m ->
+                        when (m) {
+                            Mode.EVOVE -> page = Page.HOME
+                            Mode.SANDBOX -> enterSandbox()
+                            Mode.JOURNEY -> { journeyFrom = Page.START; page = Page.JOURNEY }
+                        }
+                    },
+                    onAccounts = { page = Page.ACCOUNTS },
+                )
                 Page.HOME -> HomeScreen(
                     tiles = view?.tiles ?: HomeOption.fallback,
                     hint = view?.hint ?: "act",
                     said = Evove.said,
-                    onOpen = { t -> pageOf(t.kind)?.let { Evove.open(t.id); page = it } },
+                    onOpen = { t ->
+                        pageOf(t.kind)?.let {
+                            Evove.open(t.id)
+                            if (it == Page.JOURNEY) journeyFrom = Page.HOME
+                            page = it
+                        }
+                    },
                     onDismiss = Evove::dismiss,
                     onAccounts = { page = Page.ACCOUNTS },
+                    onStart = { Evove.flush(); page = Page.START },
                 )
+                Page.SANDBOX -> HomeScreen(
+                    tiles = sandboxTiles,
+                    hint = "act",
+                    said = remember { com.evove.app.api.Line("coleto", listOf("sandbox! tudo liberado, chefe!", "aqui nada custa. coleto garante!", "agir à vontade! coleto anota!").random()) },
+                    onOpen = { t ->
+                        pageOf(t.kind)?.let {
+                            scope.launch { runCatching { Api.sandboxOpen(t.id) } }
+                            page = it
+                        }
+                    },
+                    onDismiss = {},
+                    onAccounts = { page = Page.ACCOUNTS },
+                    onStart = { page = Page.START },
+                )
+                Page.SANDBOX_ACT -> ActScreen(onHome = { page = Page.SANDBOX }, sandbox = true)
+                Page.SANDBOX_ATTRIBUTES -> SandboxAttributesScreen(onHome = { page = Page.SANDBOX })
+                Page.SANDBOX_ENTITIES -> RokoScreen(onHome = { page = Page.SANDBOX }, sandbox = true)
+                Page.COLETO -> RokoScreen(onHome = { page = Page.SANDBOX }, sandbox = true, focus = "coleto")
                 Page.ACT -> ActScreen(onHome = ::goHome)
                 Page.SHOP -> ShopScreen(onHome = ::goHome)
                 Page.BUILD -> BuildScreen(onHome = ::goHome)
                 Page.AGENDA -> AgendaScreen(onHome = ::goHome, onCalendar = { page = Page.CALENDAR }, onLogs = { at -> logsAt = at; page = Page.LOGS })
-                Page.JOURNEY -> JourneyScreen(onHome = ::goHome)
+                Page.JOURNEY -> JourneyScreen(
+                    onHome = { Evove.flush(); page = journeyFrom },
+                    // the evove undone: the app closes by itself
+                    onClose = { activity?.finishAndRemoveTask() },
+                )
                 Page.ROKO -> RokoScreen(onHome = ::goHome)
                 Page.ME -> MeScreen(onHome = ::goHome, onProfile = { page = Page.PROFILE }, onDetails = { page = Page.DETAILS })
                 Page.PROFILE -> ProfilePage(onBack = ::back, onAccounts = { page = Page.ACCOUNTS }) { everywhere ->
@@ -159,7 +227,7 @@ fun App() {
                     val token = Prefs.token
                     Prefs.clearSession()
                     username = null
-                    page = if (Prefs.accounts.isNotEmpty()) Page.ACCOUNTS else Page.HOME
+                    page = if (Prefs.accounts.isNotEmpty()) Page.ACCOUNTS else Page.START
                     if (token != null) scope.launch { Api.logoutToken(token, everywhere) }
                 }
                 Page.DETAILS -> DetailsPage(onBack = ::back)

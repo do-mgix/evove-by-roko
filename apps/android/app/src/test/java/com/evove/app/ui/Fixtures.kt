@@ -31,14 +31,82 @@ object Fixtures {
         {"id":2,"content":"leitura técnica","period":"ev"},{"id":3,"content":"piano","period":"ni"}],
         "cycle":{"acted":true,"todo":false,"thoughts":1,"logs":3,"day_thought":false,"complete":false}}"""
 
+
+    private val sandboxTiles = """[{"id":"act","kind":"sandbox_act","label":"agir","color":"#7dff6b","glyph":"act","tone":1,"polygon":[[2.9,0.0],[5.0,0.0],[5.0,7.0],[3.3,7.0]],"delay":120},
+        {"id":"attributes","kind":"sandbox_attributes","label":"atributos","color":"#5cffb0","glyph":"attributes","tone":5,"polygon":[[0.0,0.0],[2.9,0.0],[3.0,2.6],[0.0,2.4]],"delay":40},
+        {"id":"entities","kind":"sandbox_entities","label":"entidades","color":"#b0ff5c","glyph":"roko","tone":3,"polygon":[[0.0,2.4],[3.0,2.6],[3.15,4.9],[0.0,4.7]],"delay":260},
+        {"id":"coleto","kind":"coleto","label":"coleto","color":"#7dff6b","glyph":"coleto","tone":7,"polygon":[[0.0,4.7],[3.15,4.9],[3.3,7.0],[0.0,7.0]],"delay":330}]"""
+
+    /** What /entity answers: roko, or none when `mute`. */
+    var mute = false
+
+    /** Which dungeon /dungeon answers: walk, wait, choice, ending, act3. */
+    var dungeon = "walk"
+
+    private val map = """{"w":7,"h":5,"path":[[0,3],[0,2],[1,2],[2,2],[3,2],[3,3],[4,3],[5,3],[6,3]],"rooms":[[1,1,1,2],[3,4,3,3],[5,2,5,3]]}"""
+
+    private val recover = """[{"kind":"small","cost":3,"heal":5,"ready":true},{"kind":"large","cost":8,"heal":15,"ready":false,"blocked":"cooldown","seconds_left":5000}]"""
+
+    private fun dungeonView(): String {
+        val wait = dungeon == "wait" || dungeon == "act3"
+        val act = if (dungeon == "act3") 3 else if (dungeon == "choice") 1 else 1
+        val pending = if (dungeon == "choice") """{"kind":"door","text":"UMA PORTA. DO OUTRO LADO, O MUNDO DE ANTES.","options":[{"id":"leave","label":"ir embora"},{"id":"stay","label":"ficar"}]}""" else "null"
+        val ending = if (dungeon == "ending") "\"left\"" else "null"
+        val act3 = if (dungeon == "act3") ""","act3":{"pair":["no","eve"],"unlocked":["no","eve","osso"],"done":["no"],"fragments":0,"objectives":[
+            {"entity":"no","text":"vença 3 lutas com nó ao seu lado","need":3,"have":3,"done":true,"unlocked":true},
+            {"entity":"eve","text":"vença uma luta sem curar","need":1,"have":0,"unlocked":true},
+            {"entity":"osso","text":"vença com menos de 25% da barra","need":1,"have":0,"unlocked":true},
+            {"entity":"zira","text":"vença em menos de 25 segundos","need":1},{"entity":"mura","text":"junte 3 fragmentos","need":3},
+            {"entity":"vela","text":"vença jogando 8 truques numa luta","need":1}]}""" else ""
+        val partners = if (dungeon == "act3") """[{"id":"no","name":"NÓ","color":"#ff6b3d","glyph":"no","ability":"AMARRA"},{"id":"eve","name":"EVE","color":"#ff9de2","glyph":"eve","ability":"PERGUNTA"}]"""
+            else """[{"id":"roko","name":"ROKO","color":"#3dfff0","glyph":"roko","ability":"DECRETO"}]"""
+        return """{"act":$act,"floor":${if (act == 3) 15 else 3},"floor_in_act":3,"of":${if (act == 3) "null" else "6"},"map":$map,
+            "progress":${if (wait || dungeon == "choice") 1.0 else 0.46},"walk_seconds":4200,"seconds_left":${if (wait) 0 else 2268},"waiting":$wait,
+            "opponent":{"name":"KIROCUME","title":"PRESO COMO VOCÊ","kind":"person"},"pending":$pending,"ending":$ending,
+            "ending_lines":${if (dungeon == "ending") """["VOCÊ SAIU.","AQUI DENTRO, SÓ FICOU UM CÓDIGO."]""" else "[]"},
+            "intro":["O CORREDOR CONTINUA."],"waiting_line":"KIROCUME ESTÁ PARADO NA SUA FRENTE. ELE TAMBÉM QUER SAIR.",
+            "wins":2,"losses":1,"companions":$partners,"energy":18,"max_energy":25,"tokens":12,"recover":$recover,
+            "code":${if (dungeon == "ending") "\"EVS1 SWIZ 455M JGTJ 6UQA PDNG 3E67 N3ND AFGG L4S7 FNML TTYE Q2KD 7XWB A4HD P9ZK ME3R\"" else "null"}$act3}"""
+    }
+
+    val fightSetup = """{"seed":123456789,"max_ticks":1200,"tick_ms":100,
+        "you":{"name":"LUME","hp":180,"max_hp":250,"per_energy":10,"resist":0,"defense":0,"absorb":110,
+            "moves":[{"name":"CORRIDA (α)","dmg":30,"decree":82,"cd":50,"multiplier":2.0},{"name":"LEITURA (α)","dmg":15,"decree":82,"cd":30},
+                {"name":"PIANO (α)","dmg":15,"decree":82,"cd":40}],
+            "heal":{"name":"FILME","amount":40,"cd":75},
+            "entities":[{"id":"roko","name":"ROKO","forca":18,"agilidade":8,"skill":"potencia","ability":"decreto"}]},
+        "foe":{"name":"KIROCUME","hp":550,"max_hp":550,"resist":0,"defense":10,"absorb":100,
+            "moves":[{"name":"PULSO","dmg":6,"cd":25},{"name":"ESCREVER (α)","dmg":12,"cd":52}],
+            "heal":{"name":"RECOMPOR","amount":55,"cd":90},
+            "entities":[{"id":"foe","name":"O QUE NÃO TEM NOME","forca":11,"agilidade":3,"skill":"cura","ability":"interferencia"}],"tricks":true},
+        "opponent":{"name":"KIROCUME","title":"PRESO COMO VOCÊ","kind":"person"}}"""
+
     /** A profile with every module, met eve, the selector at its second level. */
-    val engine = """{"passcode": "M9XWEGPX", "session": 2, "seed": 541472713, "tiles": [{"id": "act", "kind": "act", "label": "agir", "color": "#00f0ff", "glyph": "act", "tone": 1, "polygon": [[2.942, 0.0], [5.0, 0.0], [5.0, 7.0], [3.266, 7.0]], "delay": 220, "fresh": false, "code": "AGIR-7Q"}, {"id": "roko", "kind": "entity", "label": "roko", "color": "#3dfff0", "glyph": "roko", "tone": 3, "polygon": [[1.512, 4.776], [3.172, 4.962], [3.266, 7.0], [1.655, 7.0]], "delay": 304, "fresh": true, "code": "ROKO-9X"}, {"id": "shop", "kind": "shop", "label": "shop", "color": "#7af9ff", "glyph": "shop", "tone": 2, "polygon": [[1.435, 1.23], [2.994, 1.115], [3.102, 3.46], [1.554, 3.35]], "delay": 271, "fresh": true, "code": "LOJA-3K"}, {"id": "agenda", "kind": "agenda", "label": "agenda", "color": "#00a8e8", "glyph": "logs", "tone": 4, "polygon": [[0.0, 0.0], [2.942, 0.0], [2.994, 1.115], [0.0, 1.335]], "delay": 58, "fresh": true, "code": "AGND-4M"}, {"id": "attributes", "kind": "attributes", "label": "atributos", "color": "#00c8ff", "glyph": "attributes", "tone": 5, "polygon": [[0.0, 4.607], [1.512, 4.776], [1.655, 7.0], [0.0, 7.0]], "delay": 345, "fresh": true, "code": "ATRB-6P"}, {"id": "journey", "kind": "journey", "label": "jornada", "color": "#00ffd0", "glyph": "journey", "tone": 6, "polygon": [[0.0, 3.239], [3.102, 3.46], [3.172, 4.962], [0.0, 4.607]], "delay": 334, "fresh": true, "code": "JRND-8T"}, {"id": "build", "kind": "build", "label": "construir", "color": "#00e0ff", "glyph": "build", "tone": 7, "polygon": [[0.0, 1.335], [1.435, 1.23], [1.554, 3.35], [0.0, 3.239]], "delay": 38, "fresh": true, "code": "CNST-2W"}], "hint": "act", "modules": [{"id": "act", "label": "agir", "code": "AGIR-7Q", "on": true}, {"id": "shop", "label": "shop", "code": "LOJA-3K", "on": true}, {"id": "roko", "label": "roko", "code": "ROKO-9X", "on": true}, {"id": "agenda", "label": "agenda", "code": "AGND-4M", "on": true}, {"id": "attributes", "label": "atributos", "code": "ATRB-6P", "on": true}, {"id": "journey", "label": "jornada", "code": "JRND-8T", "on": true}, {"id": "build", "label": "construir", "code": "CNST-2W", "on": true}], "entities": ["roko", "eve"], "story": {"step": "start", "at": 0, "of": 7, "done": false}, "line": {"entity": "eve", "text": "oi. ele fala alto, né? eu só pergunto coisas."}, "selector": {"level": 2, "turns": 0, "next_at": null, "chance": 0.12}, "counters": {"visits": 2, "acts": 0, "opens": 0, "turns": 0, "talks": 0, "buys": 0, "plans": 0}, "lines": [], "doubted": []}"""
+    val engine = """{"passcode": "M9XWEGPX", "session": 2, "seed": 541472713, "tiles": [{"id": "act", "kind": "act", "label": "agir", "color": "#00f0ff", "glyph": "act", "tone": 1, "polygon": [[2.942, 0.0], [5.0, 0.0], [5.0, 7.0], [3.266, 7.0]], "delay": 220, "fresh": false, "code": "AGIR-7Q"}, {"id": "roko", "kind": "entity", "label": "roko", "color": "#3dfff0", "glyph": "roko", "tone": 3, "polygon": [[1.512, 4.776], [3.172, 4.962], [3.266, 7.0], [1.655, 7.0]], "delay": 304, "fresh": true, "code": "ROKO-9X"}, {"id": "shop", "kind": "shop", "label": "shop", "color": "#7af9ff", "glyph": "shop", "tone": 2, "polygon": [[1.435, 1.23], [2.994, 1.115], [3.102, 3.46], [1.554, 3.35]], "delay": 271, "fresh": true, "code": "LOJA-3K"}, {"id": "agenda", "kind": "agenda", "label": "agenda", "color": "#00a8e8", "glyph": "logs", "tone": 4, "polygon": [[0.0, 0.0], [2.942, 0.0], [2.994, 1.115], [0.0, 1.335]], "delay": 58, "fresh": true, "code": "AGND-4M"}, {"id": "attributes", "kind": "attributes", "label": "atributos", "color": "#00c8ff", "glyph": "attributes", "tone": 5, "polygon": [[0.0, 4.607], [1.512, 4.776], [1.655, 7.0], [0.0, 7.0]], "delay": 345, "fresh": true, "code": "ATRB-6P"}, {"id": "journey", "kind": "journey", "label": "jornada", "color": "#00ffd0", "glyph": "journey", "tone": 6, "polygon": [[0.0, 3.239], [3.102, 3.46], [3.172, 4.962], [0.0, 4.607]], "delay": 334, "fresh": true, "code": "JRND-8T", "alert": true}, {"id": "build", "kind": "build", "label": "construir", "color": "#00e0ff", "glyph": "build", "tone": 7, "polygon": [[0.0, 1.335], [1.435, 1.23], [1.554, 3.35], [0.0, 3.239]], "delay": 38, "fresh": true, "code": "CNST-2W"}], "hint": "act", "modules": [{"id": "act", "label": "agir", "code": "AGIR-7Q", "on": true}, {"id": "shop", "label": "shop", "code": "LOJA-3K", "on": true}, {"id": "roko", "label": "roko", "code": "ROKO-9X", "on": true}, {"id": "agenda", "label": "agenda", "code": "AGND-4M", "on": true}, {"id": "attributes", "label": "atributos", "code": "ATRB-6P", "on": true}, {"id": "journey", "label": "jornada", "code": "JRND-8T", "on": true}, {"id": "build", "label": "construir", "code": "CNST-2W", "on": true}], "entities": ["roko", "eve"], "story": {"step": "start", "at": 0, "of": 7, "done": false}, "line": {"entity": "eve", "text": "oi. ele fala alto, né? eu só pergunto coisas."}, "selector": {"level": 2, "turns": 0, "next_at": null, "chance": 0.12}, "counters": {"visits": 2, "acts": 0, "opens": 0, "turns": 0, "talks": 0, "buys": 0, "plans": 0}, "lines": [], "doubted": [],
+        "entity": {"id": "roko", "name": "ROKO", "title": "O ARQUITETO", "color": "#3dfff0", "glyph": "roko"},
+        "modes": {"evove": true, "sandbox": true, "journey": true, "journey_alert": true}}"""
 
     /** A profile on the story's first step: agir alone, and actions it does not own. */
-    val engineFresh = """{"passcode": "M9XWEGPX", "session": 1, "seed": 300083833, "tiles": [{"id": "act", "kind": "act", "label": "agir", "color": "#00f0ff", "glyph": "act", "tone": 1, "polygon": [[2.912, 0.0], [5.0, 0.0], [5.0, 7.0], [3.551, 7.0]], "delay": 185, "fresh": false, "code": "AGIR-7Q"}], "hint": "act", "modules": [{"id": "act", "label": "agir", "code": "AGIR-7Q", "on": true}, {"id": "shop", "label": "shop", "code": null, "on": false}, {"id": "roko", "label": "roko", "code": null, "on": false}, {"id": "agenda", "label": "agenda", "code": null, "on": false}, {"id": "attributes", "label": "atributos", "code": null, "on": false}, {"id": "journey", "label": "jornada", "code": null, "on": false}, {"id": "build", "label": "construir", "code": null, "on": false}], "entities": [], "story": {"step": "start", "at": 0, "of": 7, "done": false}, "line": {"entity": "roko", "text": "AGE."}, "selector": {"level": 1, "turns": 0, "next_at": 1000, "chance": null}, "counters": {"visits": 1, "acts": 0, "opens": 0, "turns": 0, "talks": 0, "buys": 0, "plans": 0}, "lines": [], "doubted": ["CORRIDA", "PIANO"]}"""
+    val engineFresh = """{"passcode": "M9XWEGPX", "session": 1, "seed": 300083833, "tiles": [{"id": "act", "kind": "act", "label": "agir", "color": "#00f0ff", "glyph": "act", "tone": 1, "polygon": [[2.912, 0.0], [5.0, 0.0], [5.0, 7.0], [3.551, 7.0]], "delay": 185, "fresh": false, "code": "AGIR-7Q"}], "hint": "act", "modules": [{"id": "act", "label": "agir", "code": "AGIR-7Q", "on": true}, {"id": "shop", "label": "shop", "code": null, "on": false}, {"id": "roko", "label": "roko", "code": null, "on": false}, {"id": "agenda", "label": "agenda", "code": null, "on": false}, {"id": "attributes", "label": "atributos", "code": null, "on": false}, {"id": "journey", "label": "jornada", "code": null, "on": false}, {"id": "build", "label": "construir", "code": null, "on": false}], "entities": [], "story": {"step": "start", "at": 0, "of": 7, "done": false}, "line": {"entity": "roko", "text": "AGE."}, "selector": {"level": 1, "turns": 0, "next_at": 1000, "chance": null}, "counters": {"visits": 1, "acts": 0, "opens": 0, "turns": 0, "talks": 0, "buys": 0, "plans": 0}, "lines": [], "doubted": ["CORRIDA", "PIANO"],
+        "entity": {"id": "roko", "name": "ROKO", "title": "O ARQUITETO", "color": "#3dfff0", "glyph": "roko"},
+        "modes": {"evove": true, "sandbox": false, "journey": false}}"""
 
     fun answer(method: String, path: String): String = when {
         path.startsWith("/engine") -> engine
+        path.startsWith("/save") -> """{"code":"EVS1SWIZ455MJGTJ6UQAPDNG3E67","grouped":"EVS1 SWIZ 455M JGTJ 6UQA PDNG 3E67 N3ND AFGG L4S7 FNML TTYE Q2KD 7XWB A4HD","length":806,"actions":3,"attributes":13}"""
+        path.startsWith("/dungeon/fight") -> fightSetup
+        path.startsWith("/dungeon") -> dungeonView()
+        path.startsWith("/entity/talk") -> if (mute) """{"entity":null,"present":false,"answered":false,"line":"CANAL ABERTO. NENHUMA VOZ."}"""
+            else """{"entity":"roko","present":true,"answered":true,"line":"VOCÊ VOLTOU. AJA ANTES DE PENSAR DEMAIS."}"""
+        path.startsWith("/entity") -> if (mute) """{"id":"","name":"","none":true,"affinity":{"roko":1.2,"eve":0.4}}"""
+            else """{"id":"roko","name":"ROKO","title":"O ARQUITETO","color":"#3dfff0","personality":"autoritário","presence":0.8,"glyph":"roko","trait":"ato",
+            "battle":{"forca":18,"agilidade":8,"skill":"potencia","ability":"decreto","ability_name":"DECRETO"},"affinity":{"roko":6.1,"eve":2.3,"osso":1.5}}"""
+        path.startsWith("/sandbox/entities") && path.endsWith("/talk") -> """{"entity":"coleto","present":true,"answered":true,"line":"sim, sim! o que manda, chefe?"}"""
+        path.startsWith("/sandbox/entities") -> """[{"id":"coleto","name":"COLETO","title":"O QUE SERVE","color":"#7dff6b","personality":"servil","voice":"lower","glyph":"coleto","animated":true},
+            {"id":"roko","name":"ROKO","title":"O ARQUITETO","color":"#3dfff0","glyph":"roko"}]"""
+        path.startsWith("/sandbox/actions") -> actions
+        path.startsWith("/sandbox/attributes") -> usage
+        path.startsWith("/sandbox") -> """{"tiles":$sandboxTiles,"acts":12,"actions":4,"talks":3,"entities":["roko"]}"""
         path.startsWith("/auth/me") -> """{"user_id":1,"username":"roko","created_at":"2026-09-10T10:00:00","email":"a@b.c",
             "session":{"created_at":"2026-10-20T08:00:00","expires_at":"2026-11-20T08:00:00"},"active_sessions":2}"""
         path.startsWith("/allies") -> """{"passcode":"K3J9","items":[{"nickname":"lobo-azul","marks":300,"stage":3}]}"""

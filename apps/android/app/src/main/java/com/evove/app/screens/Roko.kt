@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -63,16 +64,20 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-// The entity's screen, text above all, as the autobattler is: its name, a box
-// where what it says is typed out, and a tap anywhere on the box asks it for a
-// line — if it is there, and if it wants to answer. Roko is the first entity;
-// the arrow walks to the next when there are more.
+// The entity's screen, text above all: its name, a box where what it says is
+// typed out, and a tap anywhere on the box asks it for a line — if it is there,
+// and if it wants to answer. In the evove it is the one entity the profile
+// carries, or, with none, the system answering alone, mute. In the sandbox the
+// arrow walks every entity met, coleto first, and all of them always answer.
 
 private const val TYPE_MS = 28L
 
 @Composable
-fun RokoScreen(onHome: () -> Unit) {
+fun RokoScreen(onHome: () -> Unit, sandbox: Boolean = false, focus: String? = null) {
     var list by remember { mutableStateOf<List<Entity>>(emptyList()) }
+    // the evove's profile carries no entity: the system speaks, mute
+    var mute by remember { mutableStateOf(false) }
+    var affinity by remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
     var index by remember { mutableIntStateOf(0) }
     var showStats by remember { mutableStateOf(false) }
     var line by remember { mutableStateOf("") }
@@ -86,7 +91,7 @@ fun RokoScreen(onHome: () -> Unit) {
     val scope = rememberCoroutineScope()
 
     val entity = list.getOrNull(index)
-    val ink = entity?.color?.let { runCatching { hex(it) }.getOrNull() } ?: Ink.roko
+    val ink = if (mute) Ink.mute else entity?.color?.let { runCatching { hex(it) }.getOrNull() } ?: Ink.roko
 
     fun type(text: String) {
         typer?.cancel()
@@ -103,8 +108,8 @@ fun RokoScreen(onHome: () -> Unit) {
     }
 
     fun ask() {
-        val e = entity ?: return
-        if (asking) return
+        val e = entity
+        if (asking || (e == null && !mute)) return
         typer?.let {
             // a tap while it types finishes the line
             it.cancel()
@@ -123,14 +128,18 @@ fun RokoScreen(onHome: () -> Unit) {
         asking = true
         scope.launch {
             try {
-                val r = Api.talkTo(e.id)
+                val r = if (sandbox) Api.sandboxTalk(e!!.id) else Api.talkCarried()
                 talks += 1
+                if (mute) {
+                    away = true
+                    type(r.line ?: "…")
+                    return@launch
+                }
                 away = !r.present
-                type(if (r.present) r.line ?: "…" else "${e.name} NÃO ESTÁ AQUI.")
+                type(if (r.present) r.line ?: "…" else "${e!!.name} NÃO ESTÁ AQUI.")
                 if (r.lines.isNotEmpty()) {
-                    // the talk moved the story: someone else may be here now
+                    // the talk moved the story: what the others say comes next
                     queue = r.lines
-                    runCatching { Api.entities() }.onSuccess { list = it }
                     Evove.refresh()
                 }
             } catch (x: Exception) {
@@ -143,7 +152,15 @@ fun RokoScreen(onHome: () -> Unit) {
 
     LaunchedEffect(Unit) {
         try {
-            list = Api.entities()
+            if (sandbox) {
+                list = Api.sandboxEntities()
+                index = list.indexOfFirst { it.id == focus }.coerceAtLeast(0)
+            } else {
+                val c = Api.carried()
+                mute = c.none
+                affinity = c.affinity
+                list = if (c.none) emptyList() else listOf(c)
+            }
             Sfx.powerOn()
             ask()
         } catch (x: Exception) {
@@ -156,14 +173,24 @@ fun RokoScreen(onHome: () -> Unit) {
     DarkScreen(
         ink, display = 0.2f,
         displayContent = {
-            if (entity != null) {
-                GlyphView(Glyphs.roko, ink, 2.6.remDp, modifier = Modifier.alpha(if (away) 0.25f else 1f))
+            if (mute) {
+                GlyphView(Glyphs.mute, ink, 2.6.remDp)
+                BasicText("—", style = TextStyle(fontFamily = Display, fontSize = 1.6.rem, fontWeight = FontWeight.SemiBold, letterSpacing = 0.25.em, color = ink))
+                Small("sem entidade")
+            } else if (entity != null) {
+                val bob = if (entity.animated) rememberInfiniteTransition(label = "bob").animateFloat(
+                    -1f, 1f, infiniteRepeatable(tween(420, easing = LinearEasing), RepeatMode.Reverse), label = "y",
+                ).value else 0f
+                GlyphView(
+                    Glyphs.byName(entity.glyph), ink, 2.6.remDp,
+                    modifier = Modifier.alpha(if (away) 0.25f else 1f).graphicsLayer { translationY = bob * 6.dp.toPx(); rotationZ = bob * 8f },
+                )
                 BasicText(caps(entity.name), style = TextStyle(fontFamily = Display, fontSize = 1.6.rem, fontWeight = FontWeight.SemiBold, letterSpacing = 0.25.em, color = ink))
                 Small(entity.title)
             }
         },
         bar = {
-            Key({ Sfx.tap(5); showStats = !showStats }, Modifier.at(1), on = showStats) { KeyIcon(Icon.BARS) }
+            Key({ Sfx.tap(5); showStats = !showStats }, Modifier.at(1), on = showStats, enabled = entity != null || affinity.isNotEmpty()) { KeyIcon(Icon.BARS) }
             Key({ ask() }, Modifier.at(2, 3), enabled = !showStats) { KeyIcon(Icon.CHAT) }
             Key({
                 Sfx.tap(2)
@@ -171,18 +198,27 @@ fun RokoScreen(onHome: () -> Unit) {
                 showStats = false
                 typed = ""; line = ""
                 Sfx.powerOn()
-            }, Modifier.at(5), enabled = list.size >= 2) { KeyIcon(Icon.RIGHT) }
+            }, Modifier.at(5), enabled = sandbox && list.size >= 2) { KeyIcon(Icon.RIGHT) }
             HomeKey { Sfx.tap(0); onHome() }
         },
     ) {
-        if (showStats && entity != null) {
-            Stats(
-                entity.stats.map { (k, v) -> k to caps(v.text()) } + listOf(
+        if (showStats) {
+            val value = TextStyle(fontFamily = Display, fontSize = 0.85.rem, color = Color.White)
+            if (entity != null) Stats(
+                listOfNotNull(
                     "personalidade" to caps(entity.personality),
+                    entity.trait?.let { "atraída por" to caps(it) },
                     "presença" to "${(entity.presence * 100).roundToInt()}%",
                     "conversas" to "$talks",
-                ),
-                valueStyle = TextStyle(fontFamily = Display, fontSize = 0.85.rem, color = Color.White),
+                ) + (entity.battle?.let { b ->
+                    listOf("força" to "×${b.forca / 10.0}", "agilidade" to "${b.agilidade}", "skill" to caps(b.skill), "habilidade" to caps(b.abilityName))
+                } ?: emptyList()),
+                valueStyle = value,
+            )
+            // the personality test: how close each entity is to being the one carried
+            if (affinity.isNotEmpty()) Stats(
+                affinity.entries.sortedByDescending { it.value }.map { (k, v) -> "afinidade · $k" to "${(v * 10).roundToInt() / 10.0}" },
+                valueStyle = value,
             )
         } else {
             val source = remember { MutableInteractionSource() }
@@ -207,7 +243,7 @@ fun RokoScreen(onHome: () -> Unit) {
                     style = TextStyle(fontFamily = Display, fontSize = 1.15.rem, fontWeight = FontWeight.Medium, lineHeight = 1.55.em, letterSpacing = 0.08.em, color = Color.White),
                 )
                 BasicText(
-                    caps(if (asking) "…" else if (queue.isNotEmpty()) "${queue.first().entity} quer falar" else "toque para ouvir"),
+                    caps(if (asking) "…" else if (queue.isNotEmpty()) "${queue.first().entity} quer falar" else if (mute) "canal aberto" else "toque para ouvir"),
                     Modifier.align(Alignment.End).alpha(0.6f),
                     style = TextStyle(fontFamily = Mono, fontSize = 0.7.rem, color = ink),
                 )

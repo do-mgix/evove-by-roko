@@ -29,7 +29,11 @@ import com.evove.app.screens.GainsScreen
 import com.evove.app.screens.JourneyScreen
 import com.evove.app.screens.MeScreen
 import com.evove.app.screens.RokoScreen
+import com.evove.app.screens.SandboxAttributesScreen
 import com.evove.app.screens.ShopScreen
+import com.evove.app.screens.StartScreen
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Assume.assumeTrue
 import org.junit.Before
@@ -83,8 +87,38 @@ class Shots {
         Prefs.remember("tqzmkp", "y", test = true); Prefs.remember("roko", "x")
         shot("accounts") { AccountsScreen("roko", {}, {}, {}, {}, {}) }
     }
-    @Test fun act() = shot("act") { ActScreen {} }
-    @Test fun actStory() { fresh(); shot("act-story") { ActScreen {} } }
+    @Test fun act() = shot("act") { ActScreen(onHome = {}) }
+    @Test fun actStory() { fresh(); shot("act-story") { ActScreen(onHome = {}) } }
+    @Test fun start() = shot("start") { StartScreen("roko", {}, {}) }
+    @Test fun sandbox() = shot("sandbox") {
+        HomeScreen(Api.json.decodeFromString<com.evove.app.api.SandboxHome>(Fixtures.answer("GET", "/sandbox")).tiles, "act",
+            Line("coleto", "sandbox! tudo liberado, chefe!"), {}, {}, {})
+    }
+    @Test fun sandboxAct() = shot("sandbox-act") { ActScreen(onHome = {}, sandbox = true) }
+    @Test fun sandboxAttributes() = shot("sandbox-attributes") { SandboxAttributesScreen {} }
+    @Test fun coleto() = shot("coleto") { RokoScreen(onHome = {}, sandbox = true, focus = "coleto") }
+    @Test fun entityMute() { Fixtures.mute = true; try { shot("entity-mute") { RokoScreen(onHome = {}) } } finally { Fixtures.mute = false } }
+    @Test fun journeyWaiting() = dungeon("wait") { shot("journey-waiting") { JourneyScreen(onHome = {}) } }
+    @Test fun journeyChoice() = dungeon("choice") { shot("journey-choice") { JourneyScreen(onHome = {}) } }
+    @Test fun journeyEnding() = dungeon("ending") { shot("journey-ending") { JourneyScreen(onHome = {}) } }
+    @Test fun journeyAct3() = dungeon("act3") { shot("journey-act3") { JourneyScreen(onHome = {}) } }
+    @Test fun journeyFight() = dungeon("wait") {
+        rule.mainClock.autoAdvance = false
+        rule.setContent { Box(Modifier.fillMaxSize().background(Color.Black).padding(8.dp)) { Frame { JourneyScreen(onHome = {}) } } }
+        rule.mainClock.advanceTimeBy(1500)
+        rule.onNodeWithTag("fight-now").performClick()
+        // a tick at a time, as a phone would run them
+        repeat(120) {
+            rule.mainClock.advanceTimeBy(100)
+            org.robolectric.shadows.ShadowLooper.idleMainLooper(100, java.util.concurrent.TimeUnit.MILLISECONDS)
+        }
+        rule.onRoot().captureRoboImage("${System.getProperty("evove.shots")}/journey-fight.png")
+    }
+
+    private fun dungeon(kind: String, block: () -> Unit) {
+        Fixtures.dungeon = kind
+        try { block() } finally { Fixtures.dungeon = "walk" }
+    }
     @Test fun gains() = shot("gains") {
         GainsScreen("CORRIDA · 5km", 3, 4, listOf(Gain("a", "Resistência", "α", "β", 2, 3, 3), Gain("b", "Velocidade", "β", "β", 1, 3, 5)),
             listOf(Line("roko", "AGORA EU ACREDITO."), Line("roko", "PODE FALAR COMIGO."))) {}
@@ -96,10 +130,10 @@ class Shots {
             Line("roko", "O QUE ELA FAZ DE VERDADE? PROCURE NO SHOP."))) {}
     }
     @Test fun shop() = shot("shop") { ShopScreen {} }
-    @Test fun journey() = shot("journey") { JourneyScreen {} }
+    @Test fun journey() = shot("journey") { JourneyScreen(onHome = {}) }
     @Test fun me() = shot("me") { MeScreen({}, {}, {}) }
     @Test fun agenda() = shot("agenda") { AgendaScreen({}, {}, {}) }
-    @Test fun roko() = shot("roko") { RokoScreen {} }
+    @Test fun roko() = shot("roko") { RokoScreen(onHome = {}) }
     @Test fun build() = shot("build") { BuildScreen {} }
     @Test fun profile() = shot("profile") { ProfilePage({}, {}) {} }
     @Test fun details() = shot("details") { DetailsPage {} }

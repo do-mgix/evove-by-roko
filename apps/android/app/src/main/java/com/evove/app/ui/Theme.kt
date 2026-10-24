@@ -60,6 +60,8 @@ object Ink {
     val danger = hex("#ff5c7a")
     val enemy = hex("#ff8fa3")
     val eve = hex("#ff9de2")
+    val sandbox = hex("#7dff6b")
+    val mute = hex("#5f7373")
 }
 
 /** The long pages' tones. They were white pages once — grey text and one teal
