@@ -977,7 +977,8 @@ drawn from it.
   journey, **zira**; buying and the shop, **mura**. Old affinity fades by 0.85 a session,
   and another entity takes the place when its affinity is at least 3 and 1.6 times the
   carried one's — a personality test played over sessions. Three sessions in a row with
-  nothing done leave the profile with **no entity**: the entity's tile turns grey and mute,
+  nothing done leave the profile with **no entity**: the entity's tile — one mark for every
+  entity, only its color changing — turns grey and mute,
   and the system answers alone, robotic (`MUTE` in `entities.py`). The one leaving names the
   next; the one arriving names the last. Doubts and beliefs are said in the carried voice.
   `/entity` and `/entity/talk` speak for it; test passcodes set it (`ROKO-1A`, `EVE-5HZ`,
@@ -1020,22 +1021,30 @@ The journey is also a mode of its own (`src/domain/dungeon.py`, `/dungeon*`). Ma
 are trapped in a place far too big; all carry the same technology — they act, gain
 abilities, hunt entities — to get out or grow stronger, and every opponent is one of them.
 
-- **The map walks itself.** A floor's path of rooms is drawn from a seed; the figure takes
-  as long to cross it as the checkpoints say — ten minutes for each day of the stage the
-  floor stands for, up to six hours (`RAPD-4J` makes it sixty times faster, for tests) —
-  and stops before whoever waits at the end until the fight is started. The journey's key
+- **The corridor walks itself.** The app draws the floor from inside, a corridor in
+  perspective coming toward the eye, doors opening on its walls; it takes as long to walk
+  as the checkpoints say — ten minutes for each day of the stage the floor stands for, up
+  to six hours (`RAPD-4J` makes it sixty times faster, for tests) — and stops before a wall
+  where whoever waits stands as a frame of static, until the fight is started. The mode has
+  no dialogue for now. The journey's key
   on the first screen and its tile on the home blink meanwhile.
-- **Fights** (`src/domain/fight.py`) are an autobattler in real time, ten ticks a second.
+- **Fights** (`src/domain/fight.py`) are an autobattler in real time, ten ticks a second,
+  with cooldowns of six to twelve seconds.
   Attacks are the profile's best actions against this opponent, each on a cooldown and paid
   out of the hp bar itself (resistência slows that, defesa cuts damage, absorção raises
-  heals); one heal, the best action of reward owned; **truques** are the only input —
-  atordoar, fúria, baque, rasteira, escudo, eco — one charging, the next shown, the one on
-  offer changing while it waits. Entities on each side grow impatient and step in with
+  heals); one heal, the best action of reward owned; **truques** — atordoar, fúria,
+  baque, rasteira, escudo, eco — play themselves on both sides a little after charging, the
+  one on offer changing while it waits. Entities on each side grow impatient and step in with
   their side's best blow times their força; each has a skill (agilidade sets its cooldown)
   and an ability — roko's decree rewrites the attacks a rank above. The opponent mirrors
   the profile's rank and has a nameless entity. All of it is integer arithmetic on
-  xorshift32: the app plays the fight live and `POST /dungeon/fight/end` replays it with
-  the ticks the tricks were played at; what the server decides counts. The bar's end is
+  xorshift32: the app plays the fight live and `POST /dungeon/fight/end` replays it; what
+  the server decides counts. The app draws it as an old console did: one message at a
+  time in a box ("LUME usou CORRIDA (α)"), the fight waiting while it is read; the opponent
+  as static; one shape per kind of action — a square shrinking toward the opponent for a
+  blow, a diamond for a trick, a triangle in the entity's color, a ring for a heal, rings
+  washing over the screen for the opponent's blows; the hp as a centered counter that rolls
+  down, and the four attacks beside it as rings that close as they recharge. The bar's end is
   the hp left, and an empty bar restarts the checkpoints.
 - **Three acts.** Act 1 ends at the way out: leaving ends the journey, which shows nothing
   but a save code from then on (`POST /dungeon/choose`). Staying opens act 2, where roko is
@@ -1303,7 +1312,9 @@ The DTMF keys of the old dial are in `Synth` too, unexported, since nothing pres
 As on the web, nothing sounds until the first tap. They play on the media stream
 (`USAGE_GAME`), which the volume keys move: as sonification they went to the system stream,
 which silent mode mutes. `Synth.finish` brings every file to −1 dB and the glints sit above
-560 Hz, where a phone's speaker reaches.
+560 Hz, where a phone's speaker reaches. What repeats a lot has plain tones, no room: one
+soft sine for each letter an entity types out, and a hit, a heal and an entity's two notes
+in the fights, which type their messages in silence.
 
 ### The first screen
 
