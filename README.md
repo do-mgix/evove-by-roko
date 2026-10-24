@@ -968,8 +968,23 @@ drawn from it.
   the story is told, 40% of the time after — the marks come all the same, and on the third
   day roko believes it. The evove ends up showing what its person really does.
 - **Rules** watch the counters: 1000 page turns make the selector a wheel; at level 2, each
-  new session has a 12% chance of making it the strip; five talks with roko bring **eve**,
-  the second entity, who asks where roko orders and speaks in lower case.
+  new session has a 12% chance of making it the strip.
+- **One entity at a time.** A profile carries a single entity (`entity` in `/engine`),
+  roko first and through the whole story. After it, every new session weighs what the
+  profile did since the last one into an affinity per entity (`TRAITS` in `engine.py`):
+  acting and opening the agenda draw roko; talks, thoughts and the attributes, **eve**, who
+  asks where roko orders; acting on different days, **osso**; turning pages fast and the
+  journey, **zira**; buying and the shop, **mura**. Old affinity fades by 0.85 a session,
+  and another entity takes the place when its affinity is at least 3 and 1.6 times the
+  carried one's — a personality test played over sessions. Three sessions in a row with
+  nothing done leave the profile with **no entity**: the entity's tile turns grey and mute,
+  and the system answers alone, robotic (`MUTE` in `entities.py`). The one leaving names the
+  next; the one arriving names the last. Doubts and beliefs are said in the carried voice.
+  `/entity` and `/entity/talk` speak for it; test passcodes set it (`ROKO-1A`, `EVE-5HZ`,
+  `OSSO-3T`, `ZIRA-8N`, `MURA-6D`, `MUDO-0X` for none).
+- **Modes.** `modes` in `/engine` says which of the app's first screen can be entered: the
+  evove always, the sandbox once the story is told (or `SAND-9B`), the journey once its
+  module is open — with `journey_alert` when someone waits in it.
 - **The layout is per session.** `POST /engine/visit` (cold start, or back after 20
   minutes) starts a session with a new seed, and `engine.layout` tiles the home's 5×7 grid
   again: agir tall on the right, the rest cut from the left by slanted cuts that join
@@ -978,6 +993,57 @@ drawn from it.
   `POST /auth/me/reset` starts the whole profile over — data and evove — under the same
   name, password and e-mail. Profiles
   that existed before the engine got the legacy state: every module, the story told.
+
+### The sandbox
+
+Once the story is told, a second mode opens (`src/domain/sandbox.py`, `/sandbox*`): every
+catalog action is there, owned or not, and acting is free — no tokens, no hp, no window —
+paying its tier's marks whole into the sandbox's own attribute scores, kept inside the
+evove state. The real attributes, which mirror what the person does, and the logs are never
+touched. Its home tiles agir, its attributes, every entity met (always there, always
+answering) and **coleto**, the sandbox's own entity: servile, thrilled, animated.
+
+### Saves
+
+`GET /save` answers a code holding everything of a profile that is not its own words: the
+catalog actions owned and what was done with them, every attribute's rank, the ranks
+claimed, points, tokens, hp, skills, discoveries, equipment and the evove itself — but no
+patches, patch attributes, thoughts, logs or agenda (`src/domain/save.py`). The code *is*
+the data, zlib-compressed, signed with HMAC and written in base32 behind `EVS1`, so the
+server stores nothing for it: typed or pasted into any profile (`POST /save/mount`, or as
+any passcode) it mounts there, case, spaces and line breaks ignored. The key is
+`EVOVE_SAVE_SECRET`, or `backend/.save_secret`, made on first use and not versioned.
+
+### The journey's mode
+
+The journey is also a mode of its own (`src/domain/dungeon.py`, `/dungeon*`). Many people
+are trapped in a place far too big; all carry the same technology — they act, gain
+abilities, hunt entities — to get out or grow stronger, and every opponent is one of them.
+
+- **The map walks itself.** A floor's path of rooms is drawn from a seed; the figure takes
+  as long to cross it as the checkpoints say — ten minutes for each day of the stage the
+  floor stands for, up to six hours (`RAPD-4J` makes it sixty times faster, for tests) —
+  and stops before whoever waits at the end until the fight is started. The journey's key
+  on the first screen and its tile on the home blink meanwhile.
+- **Fights** (`src/domain/fight.py`) are an autobattler in real time, ten ticks a second.
+  Attacks are the profile's best actions against this opponent, each on a cooldown and paid
+  out of the hp bar itself (resistência slows that, defesa cuts damage, absorção raises
+  heals); one heal, the best action of reward owned; **truques** are the only input —
+  atordoar, fúria, baque, rasteira, escudo, eco — one charging, the next shown, the one on
+  offer changing while it waits. Entities on each side grow impatient and step in with
+  their side's best blow times their força; each has a skill (agilidade sets its cooldown)
+  and an ability — roko's decree rewrites the attacks a rank above. The opponent mirrors
+  the profile's rank and has a nameless entity. All of it is integer arithmetic on
+  xorshift32: the app plays the fight live and `POST /dungeon/fight/end` replays it with
+  the ticks the tricks were played at; what the server decides counts. The bar's end is
+  the hp left, and an empty bar restarts the checkpoints.
+- **Three acts.** Act 1 ends at the way out: leaving ends the journey, which shows nothing
+  but a save code from then on (`POST /dungeon/choose`). Staying opens act 2, where roko is
+  gone; it ends on nó, an entity, killed — becoming an entity, another ending with a code —
+  or let go. Act 3 carries two entities (`POST /dungeon/pair`), each with an objective
+  (win a certain way, gather fragments) that brings the next; with all six done the true
+  roko waits. Beating him undoes the evove and frees everyone: the app closes by itself and
+  the journey comes back free, with no code.
 
 ### Deleting a log
 
@@ -1083,7 +1149,17 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 | GET | `/engine` | the profile's evove: this session's tiles, modules and their passcodes, entities, story, selector, counters, doubted actions |
 | POST | `/engine/visit` | the app came on (`{cold?, turns?}`); a new session after a pause |
 | POST | `/engine/events` | opens, page turns and the line dismissed (`{events: [...]}`) |
-| POST | `/engine/passcode` | a module's, an upgrade's or another evove's passcode (`{code}`) |
+| POST | `/engine/passcode` | a module's, an upgrade's or another evove's passcode, or a save code (`{code}`) |
+| GET | `/entity` · `/entity/talk` | the entity carried, its battle stats and every affinity (`none` without one) · a tap on its screen |
+| GET | `/save` | the profile's save code |
+| POST | `/save/mount` | mount a save code on the profile (`{code}`); 400 if broken |
+| GET · POST | `/sandbox` · `/sandbox/visit` | the sandbox's home · entering it, a new layout |
+| GET | `/sandbox/actions` · `/sandbox/attributes` | every catalog action · the sandbox's leaves with their ranks |
+| POST | `/sandbox/actions/{code}/act` | a free act (`{option}`) into the sandbox's attributes |
+| GET | `/sandbox/entities` · `/sandbox/entities/{id}/talk` | coleto and every entity met · talking to one |
+| GET | `/dungeon` | the journey's mode: floor, map, walk, who waits, the choice, the ending and its code, hp and recoveries |
+| POST | `/dungeon/fight` · `/dungeon/fight/end` | the fight's setup · its end (`{plays}`), replayed and paid |
+| POST | `/dungeon/choose` · `/dungeon/pair` | answer the choice (`{option}`) · the third act's two entities (`{entities}`) |
 | GET · POST | `/projects` | list · create |
 | PATCH · DELETE | `/projects/{id}` | edit · remove |
 
@@ -1229,11 +1305,26 @@ As on the web, nothing sounds until the first tap. They play on the media stream
 which silent mode mutes. `Synth.finish` brings every file to −1 dB and the glints sit above
 560 Hz, where a phone's speaker reaches.
 
+### The first screen
+
+The app opens on the user and the modes (`screens/Start.kt`): the evove, the sandbox once
+the story is told, the journey once its module opens — its key blinking when someone waits
+— and the save, to copy the whole evove as one code or paste one and mount it. The faint
+menu in the home's top right corner, always there however little of the evove is open,
+leads back to it.
+
+### Fights
+
+`fight/Fight.kt` is `src/domain/fight.py` in Kotlin, rule for rule, on the same generator.
+`backend/scripts/fight_cases.py` writes sixty fights with the server's results into
+`app/src/test/resources/fight_cases.json`, and `FightParityTest` checks the app reaches the
+same end, to the tick — run the script again whenever the rules change.
+
 ### Accounts
 
 The device keeps several signed-in accounts (`Prefs.accounts`), switched from the accounts
-screen — the faint menu in the home's top right corner, always there however little of the
-evove is open, a long press above the tiles, the profile, or the login. Each has its own
+screen — the user's key on the first screen, a long press above the home's tiles, the
+profile, or the login. Each has its own
 evove and tutorial. The dice makes a test account with a random name and password, kept
 only on the device. Managing an account (the dots) starts it over from nothing
 (`POST /auth/me/reset`), deletes it for good, or only takes it off the device; a test
