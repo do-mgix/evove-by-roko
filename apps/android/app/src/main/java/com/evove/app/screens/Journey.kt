@@ -10,6 +10,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -67,8 +69,6 @@ import com.evove.app.Bus
 import com.evove.app.Evove
 import com.evove.app.api.Api
 import com.evove.app.api.DungeonView
-import com.evove.app.api.Equipment
-import com.evove.app.api.EquipmentItem
 import com.evove.app.api.FightEnd
 import com.evove.app.api.FightSetup
 import com.evove.app.api.JourneyStats
@@ -76,6 +76,7 @@ import com.evove.app.api.Recovery
 import com.evove.app.fight.Fight
 import com.evove.app.fight.FightEvent
 import com.evove.app.fight.FightView
+import com.evove.app.sound.Music
 import com.evove.app.sound.Sfx
 import com.evove.app.ui.Big
 import com.evove.app.ui.DarkScreen
@@ -146,29 +147,66 @@ fun clock(total: Long): String {
 fun trim(d: Double): String = if (d == Math.floor(d)) d.toLong().toString() else d.toString()
 
 /** A message of the fight, the shape that goes with it, which side it came
- *  from, and — for an entity — who, for the camera to turn to. */
-private data class Beat(val n: Int, val text: String, val shape: String, val side: Int, val color: Color, val entity: String? = null)
+ *  from, and — for an entity — who, for the camera to turn to; `second` says
+ *  what it did, when that is not plain damage. */
+private data class Beat(val n: Int, val text: String, val shape: String, val side: Int, val color: Color, val entity: String? = null,
+                        val second: String? = null)
 
 /** The color of the opponent's nameless entity. */
 private val FOE_THEME = hex("#9b7bff")
 
+private val TRICK_DID = mapOf(
+    "atordoar" to "%o ficou atordoado: suas recargas param",
+    "furia" to "as recargas de %w correm em dobro",
+    "baque" to "tudo parou por um instante",
+    "rasteira" to "um ataque de %o voltou ao começo",
+    "escudo" to "%w segura o próximo golpe",
+    "eco" to "%w repetiu o último ataque",
+)
+private val SKILL_DID = mapOf(
+    "negar" to "o próximo golpe de %o será negado",
+    "potencia" to "%w ficou mais forte",
+    "truques" to "dois truques de uma vez",
+)
+private val ABILITY_DID = mapOf(
+    "decreto" to "os ataques de %w subiram um rank",
+    "pergunta" to "%o vai duvidar dos próximos golpes",
+    "ficar" to "%w não se move: a defesa sobe",
+    "pressa" to "%w recarrega em dobro",
+    "troca" to "a cura de %o foi roubada",
+    "amarra" to "%o foi amarrado: tudo volta ao começo",
+    "chama" to "%o está queimando",
+    "interferencia" to "algo mudou em %o",
+)
+
 private fun beatOf(n: Int, e: FightEvent, setup: FightSetup): Beat? {
     val who = if (e.side == 0) setup.you.name else setup.foe.name
+    val other = if (e.side == 0) setup.foe.name else setup.you.name
+    fun did(t: String?) = t?.replace("%w", who)?.replace("%o", other)
     val ally = e.name.substringBefore("|")
+    val what = e.name.substringAfter("|")
     val color = if (e.side == 0) Ink.journey else Ink.enemy
     val theme = if (e.side == 0) voiceInk(entityOf(setup, ally)) else FOE_THEME
+    val allies = (if (e.side == 0) setup.you.entities else setup.foe.entities).map { it.name }
     return when (e.kind) {
         "attack" -> Beat(n, "$who usou ${e.name}", "attack", e.side, color)
-        "heal" -> Beat(n, "$who usou ${e.name}", "heal", e.side, Ink.act)
-        "trick" -> Beat(n, "$who usou ${TRICK_NAME[e.name] ?: e.name}", "trick", e.side, color)
-        "skill" -> Beat(n, "$ally agiu", "entity", e.side, theme, ally)
-        "ability" -> Beat(n, "$ally usou ${ABILITY_NAME[e.name.substringAfter("|")] ?: e.name.substringAfter("|")}", "entity", e.side, theme, ally)
+        // a heal from an entity is said as the entity's
+        "heal" -> if (e.name in allies) Beat(n, "${e.name} agiu", "entity", e.side, theme, e.name, "${e.name} curou $who · +${e.value}")
+            else Beat(n, "$who usou ${e.name}", "heal", e.side, Ink.act, second = "+${e.value} hp")
+        "trick" -> Beat(n, "$who usou ${TRICK_NAME[e.name] ?: e.name}", "trick", e.side, color, second = did(TRICK_DID[e.name]))
+        "skill" -> if (what == "atacar") Beat(n, "$ally atacou", "entity", e.side, theme, ally)
+            else Beat(n, "$ally agiu", "entity", e.side, theme, ally, did(SKILL_DID[what]))
+        "ability" -> Beat(n, "$ally usou ${ABILITY_NAME[what] ?: what}", "entity", e.side, theme, ally, did(ABILITY_DID[what]))
         "interfere" -> Beat(n, "$ally interferiu", "entity", e.side, theme, ally)
         "deny" -> Beat(n, "${e.name} foi negado", "none", e.side, color)
         "miss" -> Beat(n, "${e.name} falhou", "none", e.side, color)
+        "level" -> Beat(n, "${e.name} subiu para o nível ${e.value}", "level", e.side, Ink.gold)
         else -> null
     }
 }
+
+/** A number that rises from the opponent: damage, or what it healed. */
+private data class Pop(val id: Int, val text: String, val color: Color, val born: Long, val dx: Float)
 
 private fun entityOf(setup: FightSetup, name: String) = setup.you.entities.find { it.name == name }?.id
 
@@ -177,8 +215,7 @@ fun JourneyScreen(onHome: () -> Unit, onClose: () -> Unit = {}) {
     var leg by remember { mutableStateOf(Leg.MAP) }
     var view by remember { mutableStateOf<DungeonView?>(null) }
     var stats by remember { mutableStateOf<JourneyStats?>(null) }
-    var gear by remember { mutableStateOf<Equipment?>(null) }
-    var slotAt by remember { mutableIntStateOf(0) }
+    var inventory by remember { mutableStateOf<com.evove.app.api.Inventory?>(null) }
     var message by remember { mutableStateOf<List<String>>(emptyList()) }
     var busy by remember { mutableStateOf(false) }
     var loadedAt by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -189,6 +226,9 @@ fun JourneyScreen(onHome: () -> Unit, onClose: () -> Unit = {}) {
     var shown by remember { mutableStateOf<FightView?>(null) }
     var beat by remember { mutableStateOf<Beat?>(null) }
     var ended by remember { mutableStateOf<FightEnd?>(null) }
+    var pops by remember { mutableStateOf<List<Pop>>(emptyList()) }
+    // what the box under the corridor tells, one line at a time
+    var notices by remember { mutableStateOf<List<String>>(emptyList()) }
     var pair by remember { mutableStateOf<List<String>>(emptyList()) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -214,7 +254,7 @@ fun JourneyScreen(onHome: () -> Unit, onClose: () -> Unit = {}) {
         leg = l
         message = emptyList()
         if (l == Leg.STATS) scope.launch { runCatching { Api.journeyStats() }.onSuccess { stats = it } }
-        if (l == Leg.EQUIP) scope.launch { runCatching { Api.equipment() }.onSuccess { gear = it } }
+        if (l == Leg.EQUIP) scope.launch { runCatching { Api.inventory() }.onSuccess { inventory = it } }
         Sfx.powerOn()
     }
 
@@ -224,7 +264,7 @@ fun JourneyScreen(onHome: () -> Unit, onClose: () -> Unit = {}) {
         fight ?: return
         fight = null
         if (leaving) {
-            Evove.later { runCatching { Api.endFight(emptyList()) } }
+            Evove.later { runCatching { Api.endFight(emptyList(), left = true) } }
             return
         }
         scope.launch {
@@ -235,6 +275,7 @@ fun JourneyScreen(onHome: () -> Unit, onClose: () -> Unit = {}) {
                 loadedAt = System.currentTimeMillis()
                 now = loadedAt
                 if (r.won) Sfx.gains() else Sfx.buzz(0, 120, 80, 120)
+                notices = r.lines.map { it.lowercase() }
                 Bus.bumpUser()
                 Evove.refresh()
                 if (r.close) {
@@ -306,15 +347,13 @@ fun JourneyScreen(onHome: () -> Unit, onClose: () -> Unit = {}) {
         }
     }
 
-    fun useItem(item: EquipmentItem) {
+    fun wear(item: com.evove.app.api.Item?) {
         if (busy) return
         busy = true
         scope.launch {
             try {
-                gear = if (item.owned) Api.wearEquipment(item.id, !item.worn) else Api.buyEquipment(item.id)
-                Sfx.tap(if (item.owned) 5 else 8)
-                if (!item.owned) Sfx.gains()
-                Bus.bumpUser()
+                inventory = if (item == null) Api.wearBest() else Api.wearItem(item.id)
+                Sfx.tap(5)
             } catch (e: Exception) {
                 message = listOf(e.message ?: "erro")
             } finally {
@@ -349,12 +388,26 @@ fun JourneyScreen(onHome: () -> Unit, onClose: () -> Unit = {}) {
         val s = setup ?: return@LaunchedEffect
         val ms = s.tickMs.toLong()
         var n = 0
+        var p = 0
         while (!f.over) {
             delay(ms)
             val before = f.events.size
             f.step()
-            shown = f.view()
+            val now = f.view()
+            shown = now
+            if (f.tick % 10 == 0) {
+                val you = now.sides[0]
+                Music.mix(f.tick / 10f, you.hp * 100 < you.maxHp * 35, you.hasted, you.allies.maxOfOrNull { it.chance } ?: 0f)
+            }
             for (e in f.events.drop(before)) {
+                // what reaches the opponent rises from it as a number
+                val onFoe = e.side == 0 && e.kind in setOf("attack", "interfere", "skill", "burn") && (e.kind != "skill" || e.name.endsWith("|atacar"))
+                val foeHeal = e.side == 1 && e.kind == "heal"
+                if (onFoe || foeHeal) {
+                    pops = pops.filter { System.currentTimeMillis() - it.born < 1600 } +
+                        Pop(++p, if (foeHeal) "+${e.value}" else "−${e.value}", if (foeHeal) Ink.act else Color.White,
+                            System.currentTimeMillis(), ((p * 37) % 60 - 30) / 100f)
+                }
                 val b = beatOf(++n, e, s) ?: continue
                 beat = b
                 when (b.shape) {
@@ -362,8 +415,13 @@ fun JourneyScreen(onHome: () -> Unit, onClose: () -> Unit = {}) {
                     "heal" -> Sfx.heal()
                     "trick" -> Sfx.entity()
                     "entity" -> Sfx.boom()
+                    "level" -> Sfx.levelUp()
                 }
                 delay(BEAT_MS)
+                b.second?.let {
+                    beat = b.copy(n = ++n, text = it, shape = "none")
+                    delay(BEAT_MS)
+                }
             }
         }
         beat = null
@@ -374,7 +432,7 @@ fun JourneyScreen(onHome: () -> Unit, onClose: () -> Unit = {}) {
     BackHandler(enabled = leg == Leg.FIGHT && fight == null) { ended = null; go(Leg.MAP) }
 
     if (leg == Leg.FIGHT && setup != null) {
-        FightScreen(setup!!, shown, beat, fight == null, ended, onBack = { ended = null; go(Leg.MAP) }) {
+        FightScreen(setup!!, shown, beat, pops, fight == null, ended, onBack = { ended = null; go(Leg.MAP) }) {
             Sfx.tap(0)
             if (fight != null) finish(leaving = true)
             onHome()
@@ -397,6 +455,14 @@ fun JourneyScreen(onHome: () -> Unit, onClose: () -> Unit = {}) {
                         BasicText(caps(if (v.pending != null) "escolha" else if (arrived) "" else clock(left)), style = head)
                     }
                     Corridor(walking = !arrived && v.pending == null, waiting = arrived, Modifier.fillMaxWidth().weight(1f))
+                    Notices(
+                        when {
+                            notices.isNotEmpty() -> notices
+                            v.pending != null -> listOf(v.pending.text.lowercase())
+                            arrived -> listOf("inimigo encontrado: ${v.opponent.name}")
+                            else -> listOf("explorando o andar ${v.floorInAct}")
+                        },
+                    ) { notices = emptyList() }
                 }
             }
         },
@@ -405,13 +471,13 @@ fun JourneyScreen(onHome: () -> Unit, onClose: () -> Unit = {}) {
                 Leg.MAP -> {
                     Key({ startFight() }, Modifier.at(1).testTag("fight"), enabled = arrived && !busy, on = arrived) { KeyIcon(Icon.BOLT) }
                     Key({ go(Leg.STATUS) }, Modifier.at(2), enabled = v?.ending == null) { KeyIcon(Icon.HEART) }
-                    Key({ go(Leg.EQUIP) }, Modifier.at(3), enabled = v?.ending == null) { KeyIcon(Icon.TRIANGLE) }
+                    Key({ go(Leg.EQUIP) }, Modifier.at(3).testTag("items"), enabled = v?.ending == null) { KeyIcon(Icon.TRIANGLE) }
                     Key({ go(Leg.STATS) }, Modifier.at(4)) { KeyIcon(Icon.BARS) }
                     if (v?.act3 != null && v.ending == null) Key({ go(Leg.PAIR) }, Modifier.at(5)) { KeyIcon(Icon.DOTS) }
                 }
                 else -> {
                     Key({ go(Leg.MAP) }, Modifier.at(1, 2)) { KeyIcon(Icon.LEFT) }
-                    if (leg == Leg.EQUIP) Key({ Sfx.tap(2); slotAt++; Sfx.powerOn() }, Modifier.at(3)) { KeyIcon(Icon.DOWN) }
+                    if (leg == Leg.EQUIP) Key({ wear(null) }, Modifier.at(3, 3), enabled = !busy) { KeyIcon(Icon.STAR, 16.dp); KeyText("equipar melhores") }
                 }
             }
             HomeKey { Sfx.tap(0); onHome() }
@@ -426,16 +492,8 @@ fun JourneyScreen(onHome: () -> Unit, onClose: () -> Unit = {}) {
             }
             leg == Leg.MAP -> MapBody(v, arrived, busy, ::startFight, ::choose)
             leg == Leg.STATUS -> StatusBody(v, busy, elapsed, ::heal)
-            leg == Leg.EQUIP -> EquipBody(gear, slotAt, busy, ::useItem)
-            leg == Leg.STATS -> {
-                val s = stats
-                Stats(listOfNotNull(
-                    "ato" to "${v.act}", "andar" to "${v.floor}", "vitórias" to "${v.wins}", "derrotas" to "${v.losses}",
-                    v.act3?.let { "fragmentos" to "${it.fragments}" },
-                    s?.let { "checkpoint" to "estágio ${it.stage}" }, s?.let { "reinícios" to "${it.resets}" },
-                    s?.let { "recuperações" to "${it.recoverUses}" },
-                ))
-            }
+            leg == Leg.EQUIP -> InventoryBody(inventory, busy) { wear(it) }
+            leg == Leg.STATS -> StatsBody(v)
             leg == Leg.PAIR -> PairBody(v, pair, ::toggle)
         }
     }
@@ -610,29 +668,71 @@ private fun ColumnScope.StatusBody(v: DungeonView, busy: Boolean, elapsed: Long,
     }
 }
 
+private val SLOT_NAME = mapOf("arma" to "arma", "acessorio" to "acessório", "cabeca" to "cabeça")
+private val SLOT_WHAT = mapOf("arma" to "% de dano", "acessorio" to " de defesa", "cabeca" to " de hp")
+
+/** The inventory: what the people beaten left, by slot, each with what it
+ *  adds now — more when its action is one of the two attacks. A tap wears it,
+ *  or takes it off; the bar's key wears the best of each slot. */
 @Composable
-private fun ColumnScope.EquipBody(g: Equipment?, slotAt: Int, busy: Boolean, onUse: (EquipmentItem) -> Unit) {
+private fun ColumnScope.InventoryBody(inv: com.evove.app.api.Inventory?, busy: Boolean, onWear: (com.evove.app.api.Item) -> Unit) {
     val ink = LocalInk.current
-    if (g == null || g.slots.isEmpty()) {
-        Empty("…")
-        return
-    }
-    val slot = g.slots[slotAt % g.slots.size]
-    Label("$slot · ${slotAt % g.slots.size + 1}/${g.slots.size} · ${g.points} pontos")
-    // no blades and no amulets: a shape for each slot, a word for each item
-    val icon = when (slot) { "vetor" -> Icon.TRIANGLE; "filtro" -> Icon.SQUARE; else -> Icon.CIRCLE }
-    for (item in g.items.filter { it.slot == slot }) {
-        ListRow({ onUse(item) }, enabled = !busy && (item.owned || g.points >= item.price), background = if (item.worn) ink.copy(alpha = 0.22f) else null) {
-            IconView(icon, Color.White, 16.dp)
+    if (inv == null) { Empty("…"); return }
+    val b = inv.bonuses
+    Label("nível ${inv.level} · +${b.damage}% dano · +${b.defense} defesa · +${b.hp} hp")
+    if (inv.items.isEmpty()) Empty("nada ainda — os vencidos deixam itens")
+    for (item in inv.items.sortedWith(compareByDescending<com.evove.app.api.Item> { it.worn }.thenByDescending { it.effective }).take(7)) {
+        val icon = when (item.slot) { "arma" -> Icon.TRIANGLE; "acessorio" -> Icon.DIAMOND; else -> Icon.CIRCLE }
+        ListRow({ onWear(item) }, enabled = !busy, background = if (item.worn) ink.copy(alpha = 0.22f) else null) {
+            IconView(icon, if (item.synergyOn) Ink.gold else Color.White, 16.dp)
             BasicText(
                 buildAnnotatedString {
                     append(item.name)
-                    withStyle(SpanStyle(color = Color.White.copy(alpha = 0.55f), fontSize = 0.68.rem)) { append(" · ${item.text}") }
+                    withStyle(SpanStyle(color = Color.White.copy(alpha = 0.55f), fontSize = 0.66.rem)) {
+                        append(" · nv ${item.level} · +${item.effective}${SLOT_WHAT[item.slot] ?: ""}")
+                        if (item.synergyOn) append(" ×${item.synergy}")
+                        if (item.count > 1) append(" · ${item.count}×")
+                    }
                 },
-                Modifier.weight(1f), style = Type.row, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                Modifier.weight(1f), style = Type.row.copy(fontSize = 0.74.rem), maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
-            Tag(if (item.worn) "em uso" else if (item.owned) "vestir" else "${item.price} pts")
+            Tag(if (item.worn) "em uso" else SLOT_NAME[item.slot] ?: item.slot)
         }
+    }
+}
+
+/** The journey's level and what it gives, with the items worn and the levels
+ *  of the entities. */
+@Composable
+private fun ColumnScope.StatsBody(v: DungeonView) {
+    val ink = LocalInk.current
+    Label("nível ${v.level} · ${v.xp}/${v.xpNeed} de experiência")
+    Box(Modifier.fillMaxWidth().height(8.dp).border(1.dp, ink)) {
+        Box(Modifier.fillMaxHeight().fillMaxWidth((v.xp / maxOf(1, v.xpNeed).toFloat()).coerceIn(0f, 1f)).background(ink))
+    }
+    val st = v.stats
+    Stats(listOf(
+        "hp máximo" to "${st.hp}", "resistência" to "${st.resist}", "defesa" to "${st.defense}", "absorção" to "${st.absorb}%",
+        "dano" to "+${st.bonus}%", "vitórias" to "${v.wins}", "derrotas" to "${v.losses}",
+    ) + v.allyLevels.map { (e, lv) -> e to "nível $lv" })
+}
+
+/** The box under the corridor: what happened, one line at a time, the next
+ *  at a tap; the last stays. */
+@Composable
+private fun Notices(lines: List<String>, onDone: () -> Unit) {
+    var at by remember(lines) { mutableIntStateOf(0) }
+    val ink = LocalInk.current
+    Box(
+        Modifier.fillMaxWidth().heightIn(min = 3.4.remDp).border(1.5.dp, ink).background(Color.Black)
+            .clickable(remember { MutableInteractionSource() }, null) {
+                if (at < lines.size - 1) at++ else if (lines.size > 1) onDone()
+            }
+            .padding(horizontal = 0.8.remDp, vertical = 0.6.remDp).testTag("notice"),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        BasicText("• ${caps(lines.getOrNull(at) ?: "")}", style = TextStyle(fontFamily = Display, fontSize = 0.8.rem, fontWeight = FontWeight.Medium,
+            lineHeight = 1.35.em, letterSpacing = 0.05.em, color = Color.White), maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -677,8 +777,17 @@ private fun ColumnScope.Ending(v: DungeonView, onCopy: (String) -> Unit) {
  *  or, while an entity acts, the camera on that entity; the hp rolling down,
  *  the two attacks, the heal and the trick, and the entities' chance to step in. */
 @Composable
-private fun FightScreen(setup: FightSetup, v: FightView?, beat: Beat?, done: Boolean, ended: FightEnd?, onBack: () -> Unit, onHome: () -> Unit) {
+private fun FightScreen(setup: FightSetup, v: FightView?, beat: Beat?, pops: List<Pop>, done: Boolean, ended: FightEnd?, onBack: () -> Unit, onHome: () -> Unit) {
     val ink = Ink.journey
+    // the fight's own music while it lasts, the menus' after
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        Music.battle()
+        Evove.fighting = true
+        onDispose {
+            Music.menus()
+            Evove.fighting = false
+        }
+    }
     val you = v?.sides?.get(0)
     val foe = v?.sides?.get(1)
     val frozen = v?.frozen == true
@@ -686,7 +795,7 @@ private fun FightScreen(setup: FightSetup, v: FightView?, beat: Beat?, done: Boo
     val shake = remember { Animatable(0f) }
     LaunchedEffect(beat?.n) {
         val b = beat ?: return@LaunchedEffect
-        if ((b.shape == "attack" && b.side == 1) || b.shape == "entity") {
+        if ((b.shape == "attack" && b.side == 1) || b.shape == "entity" || (b.shape == "attack" && b.side == 0)) {
             shake.snapTo(1f)
             shake.animateTo(0f, tween(if (b.shape == "entity") 650 else 450, easing = LinearEasing))
         }
@@ -697,7 +806,7 @@ private fun FightScreen(setup: FightSetup, v: FightView?, beat: Beat?, done: Boo
             Column(Modifier.fillMaxSize().offset { IntOffset(jitter, -jitter / 2) }, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 MessageBox(
                     when {
-                        done && ended != null -> if (ended.won) "vitória · +${ended.points} pontos" else "derrota"
+                        done && ended != null -> endText(ended)
                         done -> "…"
                         beat != null -> beat.text
                         else -> "${setup.foe.name} está na sua frente"
@@ -708,9 +817,16 @@ private fun FightScreen(setup: FightSetup, v: FightView?, beat: Beat?, done: Boo
                     if (camera != null) EntityCamera(camera, Modifier.fillMaxSize())
                     else Stage(setup, foe, frozen, done && ended?.won == true, Modifier.fillMaxSize())
                     Shapes(beat, Modifier.fillMaxSize())
+                    Pops(pops, Modifier.fillMaxSize())
+                    LevelBadge(beat?.takeIf { it.shape == "level" && it.side == 1 }, Modifier.align(Alignment.TopCenter).padding(top = 44.dp))
+                }
+                if (done && ended != null) EndSummary(ended)
+                Box(Modifier.fillMaxWidth()) {
+                    LevelBadge(beat?.takeIf { it.shape == "level" && it.side == 0 }, Modifier.align(Alignment.TopCenter))
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
-                    HpCard(setup.you.name, you?.hp ?: ended?.result?.hp?.getOrNull(0) ?: setup.you.hp, if (frozen || you?.stunned == true) Ink.mute else ink, you)
+                    HpCard(setup.you.name, you?.hp ?: ended?.result?.hp?.getOrNull(0) ?: setup.you.hp, if (frozen || you?.stunned == true) Ink.mute else ink, you,
+                        you?.level ?: setup.you.level)
                     Skills(you, if (frozen || you?.stunned == true) Ink.mute else ink)
                     Chances(you)
                 }
@@ -772,8 +888,8 @@ private fun Stage(setup: FightSetup, foe: com.evove.app.fight.SideView?, frozen:
                 Box(Modifier.fillMaxHeight().width(side * 1.6f * (maxOf(0L, hp).toFloat() / maxOf(1L, setup.foe.maxHp)).coerceIn(0f, 1f)).background(c))
             }
         }
-        if (!beaten) UnstableFrames(
-            if (grey) Ink.mute else Color.White, if (grey) Ink.mute else Ink.enemy, still = grey,
+        if (!beaten) StaticFigure(
+            if (grey) Ink.mute else Color.White, if (grey) Ink.mute else Ink.enemy,
             Modifier.offset(with(density) { (w / 2).toDp() } - side / 2, top).size(side).testTag("foe"),
             shield = foe?.shielded == true,
         )
@@ -794,7 +910,7 @@ private fun EntityCamera(b: Beat, modifier: Modifier) {
             }
         }
         val side = minOf(maxWidth, maxHeight) * 0.66f
-        UnstableFrames(b.color, b.color, still = false, Modifier.size(side), count = 9)
+        UnstableFrames(b.color, b.color, Modifier.size(side), count = 9)
         BasicText(caps(b.entity ?: ""), Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp),
             style = TextStyle(fontFamily = Display, fontSize = 1.rem, letterSpacing = 0.25.em, color = b.color))
     }
@@ -803,14 +919,13 @@ private fun EntityCamera(b: Beat, modifier: Modifier) {
 /** Frames of static that will not hold still: a few of them, overlapping,
  *  thrown a little each moment, tinted `tint`. */
 @Composable
-private fun UnstableFrames(tint: Color, edge: Color, still: Boolean, modifier: Modifier, count: Int = 6, shield: Boolean = false) {
+private fun UnstableFrames(tint: Color, edge: Color, modifier: Modifier, count: Int = 6, shield: Boolean = false) {
     var tick by remember { mutableIntStateOf(0) }
-    LaunchedEffect(still) {
-        if (still) return@LaunchedEffect
+    LaunchedEffect(Unit) {
         while (true) { delay(90); tick++ }
     }
     Canvas(modifier) {
-        val rnd = java.util.Random(if (still) 7L else tick.toLong() * 31 + 17)
+        val rnd = java.util.Random(tick.toLong() * 31 + 17)
         val cells = 7
         for (f in 0 until count) {
             val fw = size.width * (0.42f + rnd.nextFloat() * 0.36f)
@@ -826,6 +941,100 @@ private fun UnstableFrames(tint: Color, edge: Color, still: Boolean, modifier: M
             drawRect(edge.copy(alpha = 0.75f), Offset(x, y), Size(fw, fh), style = Stroke(1.2.dp.toPx()))
         }
         if (shield) drawCircle(Ink.journey.copy(alpha = 0.7f), size.minDimension * 0.62f, style = Stroke(2.dp.toPx()))
+    }
+}
+
+/** Whoever waits, as a few frames of static that hold their places, stacked
+ *  taller than wide; only the static inside them moves, even when everything
+ *  else has stopped. */
+@Composable
+private fun StaticFigure(tint: Color, edge: Color, modifier: Modifier, shield: Boolean = false) {
+    var tick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) { delay(90); tick++ }
+    }
+    // where each frame stands, in parts of the figure's box: fixed
+    val frames = remember { listOf(floatArrayOf(0.32f, 0.0f, 0.36f, 0.24f), floatArrayOf(0.24f, 0.22f, 0.52f, 0.34f),
+        floatArrayOf(0.3f, 0.54f, 0.18f, 0.44f), floatArrayOf(0.52f, 0.54f, 0.18f, 0.44f)) }
+    Canvas(modifier) {
+        val rnd = java.util.Random(tick.toLong() * 131 + 7)
+        val cells = 6
+        for (f in frames) {
+            val x = size.width * f[0]
+            val y = size.height * f[1]
+            val fw = size.width * f[2]
+            val fh = size.height * f[3]
+            val cw = fw / cells
+            val ch = fh / (cells * 1.5f)
+            var j = 0f
+            while (j * ch < fh - 0.5f) {
+                for (i in 0 until cells) drawRect(tint.copy(alpha = 0.1f + rnd.nextFloat() * 0.45f), Offset(x + i * cw, y + j * ch), Size(cw, minOf(ch, fh - j * ch)))
+                j += 1f
+            }
+            drawRect(edge.copy(alpha = 0.85f), Offset(x, y), Size(fw, fh), style = Stroke(1.5.dp.toPx()))
+        }
+        if (shield) drawOval(Ink.journey.copy(alpha = 0.75f), Offset(size.width * 0.12f, -size.height * 0.05f), Size(size.width * 0.76f, size.height * 1.1f), style = Stroke(2.5.dp.toPx()))
+    }
+}
+
+/** The numbers that rise from the opponent — damage in white, what it healed
+ *  in green — and fade. */
+@Composable
+private fun Pops(pops: List<Pop>, modifier: Modifier) {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(pops) {
+        while (pops.any { System.currentTimeMillis() - it.born < 1400 }) {
+            withFrameMillis { }
+            now = System.currentTimeMillis()
+        }
+        now = System.currentTimeMillis()
+    }
+    BoxWithConstraints(modifier) {
+        val w = maxWidth
+        val h = maxHeight
+        for (p in pops) {
+            val age = (now - p.born) / 1400f
+            if (age < 0f || age >= 1f) continue
+            BasicText(
+                p.text,
+                Modifier.offset(w * (0.5f + p.dx) - 20.dp, h * (0.42f - 0.2f * age)).alpha(1f - age * age),
+                style = TextStyle(fontFamily = Mono, fontSize = 1.25.rem, fontWeight = FontWeight.Bold, color = p.color),
+            )
+        }
+    }
+}
+
+/** LEVEL UP, over whoever went up. */
+@Composable
+private fun LevelBadge(beat: Beat?, modifier: Modifier) {
+    val b = beat ?: return
+    val pulse = remember(b.n) { Animatable(0f) }
+    LaunchedEffect(b.n) { pulse.animateTo(1f, tween(500)) }
+    BasicText(
+        "LEVEL UP",
+        modifier.alpha(0.4f + 0.6f * pulse.value).border(1.5.dp, Ink.gold).background(Color.Black).padding(horizontal = 10.dp, vertical = 3.dp),
+        style = TextStyle(fontFamily = Display, fontSize = (0.7f + 0.15f * pulse.value).rem, letterSpacing = 0.2.em, color = Ink.gold),
+    )
+}
+
+/** The end of the fight, said in the box. */
+private fun endText(r: FightEnd): String = when {
+    r.won -> "vitória · +${r.points} pontos"
+    else -> "derrota · o ato recomeça"
+}
+
+/** What the fight gave, at its end: the levels and what they brought, the item. */
+@Composable
+private fun EndSummary(r: FightEnd) {
+    val l = r.levels
+    val lines = buildList {
+        if (l.left) add("você saiu: os níveis desta luta se perderam")
+        else if (l.gained > 0) add("+${l.gained} ${if (l.gained == 1) "nível" else "níveis"} · nível ${l.to} · hp +${l.hp} · resistência +${l.resist} · defesa +${l.defense} · dano +${l.damage}%")
+        r.item?.let { add("item: ${it.name} · nível ${it.level}") }
+    }
+    if (lines.isEmpty()) return
+    Column(Modifier.fillMaxWidth().border(1.5.dp, Ink.gold).padding(0.7.remDp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        for (t in lines) BasicText(caps(t), style = TextStyle(fontFamily = Mono, fontSize = 0.66.rem, color = Ink.gold, lineHeight = 1.3.em))
     }
 }
 
@@ -849,7 +1058,7 @@ private fun Shapes(beat: Beat?, modifier: Modifier) {
         if (p >= 1f) return@Canvas
         val foe = Offset(size.width / 2, size.height * 0.55f)
         val eye = Offset(size.width / 2, size.height / 2)
-        val stroke = (if (b.shape == "entity") 3 else 2).dp.toPx()
+        val stroke = (if (b.shape == "entity") 5 else 4).dp.toPx()
         val full = size.maxDimension * 1.5f
         val small = 10.dp.toPx()
         // toward the opponent when it is the profile's; out at the screen when it is the opponent's
@@ -857,16 +1066,25 @@ private fun Shapes(beat: Beat?, modifier: Modifier) {
         val s = small + (full - small) * (1f - k).pow(2f)
         val c = Offset(eye.x + (foe.x - eye.x) * k, eye.y + (foe.y - eye.y) * k)
         val color = b.color.copy(alpha = if (b.side == 0) 0.4f + 0.6f * p else 1f - p * 0.7f)
+        val fill = color.copy(alpha = color.alpha * 0.18f)
         when (b.shape) {
-            "attack" -> drawRect(color, Offset(c.x - s / 2, c.y - s / 2), Size(s, s), style = Stroke(stroke))
+            "attack" -> {
+                drawRect(fill, Offset(c.x - s / 2, c.y - s / 2), Size(s, s))
+                drawRect(color, Offset(c.x - s / 2, c.y - s / 2), Size(s, s), style = Stroke(stroke))
+            }
             "trick" -> rotate(p * 90f, c) { diamond(c, s, color, stroke) }
-            "entity" -> triangle(c, s, color, stroke)
+            "entity" -> { triangle(c, s * 1.04f, fill, stroke * 3); triangle(c, s, color, stroke) }
             // a heal stays where it lands: it opens at the profile's feet, or closes on the opponent
             "heal" -> if (b.side == 0) drawCircle(b.color.copy(alpha = 1f - p), small + size.minDimension * 0.6f * p,
                 Offset(size.width / 2, size.height), style = Stroke(stroke))
             else drawCircle(b.color.copy(alpha = 1f - p * 0.5f), small + size.minDimension * 0.4f * (1f - p), foe, style = Stroke(stroke))
         }
-        if (b.side == 1 && b.shape != "heal") drawRect(b.color.copy(alpha = (1f - p) * 0.1f))
+        // the blow lands: a flash
+        if (b.shape != "heal" && b.shape != "level") {
+            val flash = if (b.side == 1) (1f - p) * 0.22f else (if (p > 0.85f) (1f - p) / 0.15f * 0.18f else 0f)
+            if (flash > 0f) drawRect(b.color.copy(alpha = flash))
+        }
+        if (b.shape == "level") drawCircle(Ink.gold.copy(alpha = 1f - p), size.minDimension * (0.1f + 0.5f * p), Offset(size.width / 2, size.height), style = Stroke(stroke))
     }
 }
 
@@ -885,7 +1103,7 @@ private fun DrawScope.triangle(c: Offset, s: Float, color: Color, stroke: Float)
  *  did to the profile shows on the card: grey when it cannot act, a second
  *  border with a shield, gold while strengthened. */
 @Composable
-private fun HpCard(name: String, hp: Long, ink: Color, you: com.evove.app.fight.SideView?) {
+private fun HpCard(name: String, hp: Long, ink: Color, you: com.evove.app.fight.SideView?, level: Int) {
     val target = maxOf(0L, hp).toFloat()
     var shownHp by remember { mutableFloatStateOf(target) }
     val goalNow by rememberUpdatedState(target)
@@ -907,7 +1125,10 @@ private fun HpCard(name: String, hp: Long, ink: Color, you: com.evove.app.fight.
             .border(1.5.dp, edge).background(Color.Black).padding(horizontal = 0.9.remDp, vertical = 0.55.remDp).testTag("hp"),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(0.25.remDp),
     ) {
-        BasicText(caps(name), style = TextStyle(fontFamily = Display, fontSize = 0.74.rem, letterSpacing = 0.12.em, color = if (ink == Ink.mute) Ink.mute else Color.White), maxLines = 1)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.5.remDp)) {
+            BasicText(caps(name), style = TextStyle(fontFamily = Display, fontSize = 0.74.rem, letterSpacing = 0.12.em, color = if (ink == Ink.mute) Ink.mute else Color.White), maxLines = 1)
+            BasicText("NV $level", style = TextStyle(fontFamily = Mono, fontSize = 0.62.rem, color = Ink.gold))
+        }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.4.remDp)) {
             BasicText("HP", style = TextStyle(fontFamily = Mono, fontSize = 0.7.rem, color = ink))
             Odometer(shownHp, digits = maxOf(3, target.toLong().toString().length), color = if (target <= 0f) Ink.danger else if (ink == Ink.mute) Ink.mute else Color.White)
@@ -954,11 +1175,15 @@ private fun Skills(you: com.evove.app.fight.SideView?, ink: Color) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for (row in slots.chunked(2)) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for ((name, p, c) in row) Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Canvas(Modifier.size(2.0.remDp)) {
-                    val s = 2.5.dp.toPx()
-                    drawCircle(c.copy(alpha = 0.25f), size.minDimension / 2 - s, style = Stroke(s))
-                    drawArc(c, -90f, 360f * p.coerceIn(0f, 1f), false, Offset(s, s), Size(size.width - 2 * s, size.height - 2 * s),
-                        style = Stroke(s, cap = StrokeCap.Round))
+                Box(contentAlignment = Alignment.Center) {
+                    Canvas(Modifier.size(2.0.remDp)) {
+                        val s = 2.5.dp.toPx()
+                        drawCircle(c.copy(alpha = 0.25f), size.minDimension / 2 - s, style = Stroke(s))
+                        drawArc(c, -90f, 360f * p.coerceIn(0f, 1f), false, Offset(s, s), Size(size.width - 2 * s, size.height - 2 * s),
+                            style = Stroke(s, cap = StrokeCap.Round))
+                    }
+                    // fúria: everything recharges twice as fast
+                    if (you?.hasted == true && !grey) BasicText("x2", style = TextStyle(fontFamily = Mono, fontSize = 0.62.rem, fontWeight = FontWeight.Bold, color = Ink.gold))
                 }
                 BasicText(caps(name.take(7)), style = TextStyle(fontFamily = Mono, fontSize = 0.5.rem, color = c), maxLines = 1)
             }

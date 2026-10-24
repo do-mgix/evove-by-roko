@@ -345,7 +345,10 @@ object Api {
 
     suspend fun dungeon(): DungeonView = get("/dungeon")
     suspend fun startFight(): FightSetup = post("/dungeon/fight")
-    suspend fun endFight(plays: List<Int>): FightEnd = post("/dungeon/fight/end", obj("plays" to plays))
+    suspend fun endFight(plays: List<Int>, left: Boolean = false): FightEnd = post("/dungeon/fight/end", obj("plays" to plays, "left" to left))
+    suspend fun inventory(): Inventory = get("/dungeon/items")
+    suspend fun wearItem(id: String): Inventory = post("/dungeon/items/$id/wear")
+    suspend fun wearBest(): Inventory = post("/dungeon/items/best")
     suspend fun choose(option: String): Chosen = post("/dungeon/choose", obj("option" to option))
     suspend fun pair(entities: List<String>): DungeonView = post("/dungeon/pair", obj("entities" to entities))
 

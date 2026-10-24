@@ -65,19 +65,22 @@ object Fixtures {
             "opponent":{"name":"KIROCUME","title":"PRESO COMO VOCÊ","kind":"person"},"pending":$pending,"ending":$ending,
             "ending_lines":${if (dungeon == "ending") """["VOCÊ SAIU.","AQUI DENTRO, SÓ FICOU UM CÓDIGO."]""" else "[]"},
             "intro":["O CORREDOR CONTINUA."],"waiting_line":"KIROCUME ESTÁ PARADO NA SUA FRENTE. ELE TAMBÉM QUER SAIR.",
-            "wins":2,"losses":1,"companions":$partners,"energy":18,"max_energy":25,"tokens":12,"recover":$recover,
+            "wins":2,"losses":1,"level":3,"xp":4,"xp_need":10,"stats":{"hp":112,"resist":110,"defense":4,"absorb":80,"bonus":8},
+            "ally_levels":{"roko":2},"companions":$partners,"energy":18,"max_energy":25,"tokens":12,"recover":$recover,
             "code":${if (dungeon == "ending") "\"EVS1 SWIZ 455M JGTJ 6UQA PDNG 3E67 N3ND AFGG L4S7 FNML TTYE Q2KD 7XWB A4HD P9ZK ME3R\"" else "null"}$act3}"""
     }
 
     val fightSetup = """{"seed":123456789,"max_ticks":1200,"tick_ms":100,
-        "you":{"name":"LUME","hp":180,"max_hp":250,"per_energy":10,"resist":0,"defense":0,"absorb":110,
-            "moves":[{"name":"CORRIDA (α)","dmg":30,"decree":82,"cd":50,"multiplier":2.0},{"name":"LEITURA (α)","dmg":15,"decree":82,"cd":60}],
-            "heal":{"name":"FILME","amount":40,"cd":75},
-            "entities":[{"id":"roko","name":"ROKO","forca":18,"agilidade":8,"skill":"potencia","ability":"decreto"}]},
-        "foe":{"name":"KIROCUME","hp":550,"max_hp":550,"resist":0,"defense":10,"absorb":100,
-            "moves":[{"name":"PULSO","dmg":6,"cd":25},{"name":"ESCREVER (α)","dmg":12,"cd":52}],
-            "heal":{"name":"RECOMPOR","amount":55,"cd":90},
-            "entities":[{"id":"foe","name":"O QUE NÃO TEM NOME","forca":11,"agilidade":3,"skill":"cura","ability":"interferencia"}],"tricks":true},
+        "you":{"name":"LUME","hp":112,"max_hp":112,"resist":110,"defense":4,"absorb":80,
+            "moves":[{"name":"CORRIDA (α)","dmg":12,"decree":33,"cd":80,"multiplier":2.0},{"name":"LEITURA (α)","dmg":6,"decree":33,"cd":60}],
+            "heal":{"name":"FILME","amount":16,"cd":150},
+            "entities":[{"id":"roko","name":"ROKO","forca":60,"agilidade":8,"skill":"potencia","ability":"decreto","level":2}],
+            "level":3,"xp":4,"xp_need":10,"per_level":{"hp":6,"resist":5,"defense":1,"bonus":4}},
+        "foe":{"name":"KIROCUME","hp":268,"max_hp":268,"resist":110,"defense":10,"absorb":80,
+            "moves":[{"name":"PULSO","dmg":1,"cd":60},{"name":"ESCREVER (α)","dmg":3,"cd":110}],
+            "heal":{"name":"RECOMPOR","amount":32,"cd":180},
+            "entities":[{"id":"foe","name":"O QUE NÃO TEM NOME","forca":42,"agilidade":3,"skill":"cura","ability":"interferencia"}],"tricks":true,
+            "level":3,"xp_need":10,"per_level":{"hp":6,"resist":5,"defense":1,"bonus":4}},
         "opponent":{"name":"KIROCUME","title":"PRESO COMO VOCÊ","kind":"person"}}"""
 
     /** A profile with every module, met eve, the selector at its second level. */
@@ -94,6 +97,10 @@ object Fixtures {
         path.startsWith("/engine") -> engine
         path.startsWith("/save") -> """{"code":"EVS1SWIZ455MJGTJ6UQAPDNG3E67","grouped":"EVS1 SWIZ 455M JGTJ 6UQA PDNG 3E67 N3ND AFGG L4S7 FNML TTYE Q2KD 7XWB A4HD","length":806,"actions":3,"attributes":13}"""
         path.startsWith("/dungeon/fight") -> fightSetup
+        path.startsWith("/dungeon/items") -> """{"level":3,"attacks":["CORRIDA","LEITURA"],"bonuses":{"damage":14,"defense":3,"hp":17},"items":[
+            {"id":"a1","name":"FERRAMENTA DE CORRIDA","slot":"arma","action":"CORRIDA","level":3,"value":9,"synergy":1.6,"count":2,"worn":true,"effective":14,"synergy_on":true},
+            {"id":"a2","name":"MARCA DE PIANO","slot":"acessorio","action":"PIANO","level":2,"value":3,"synergy":1.8,"worn":true,"effective":3},
+            {"id":"a3","name":"FAIXA DE SALTO","slot":"cabeca","action":"SALTO","level":3,"value":17,"synergy":1.5,"worn":true,"effective":17}]}"""
         path.startsWith("/dungeon") -> dungeonView()
         path.startsWith("/entity/talk") -> if (mute) """{"entity":null,"present":false,"answered":false,"line":"CANAL ABERTO. NENHUMA VOZ."}"""
             else """{"entity":"roko","present":true,"answered":true,"line":"VOCÊ VOLTOU. AJA ANTES DE PENSAR DEMAIS."}"""

@@ -22,7 +22,11 @@ data class FightMove(
 data class FightHeal(val name: String, val amount: Long, val cd: Int)
 
 @Serializable
-data class FightEntity(val id: String, val name: String, val forca: Int, val agilidade: Int, val skill: String, val ability: String)
+data class FightEntity(val id: String, val name: String, val forca: Int, val agilidade: Int, val skill: String, val ability: String, val level: Int = 1)
+
+/** What a level gained in a fight adds. */
+@Serializable
+data class PerLevel(val hp: Int = 0, val resist: Int = 0, val defense: Int = 0, val bonus: Int = 0)
 
 @Serializable
 data class FightSide(
@@ -36,8 +40,12 @@ data class FightSide(
     val heal: FightHeal,
     val entities: List<FightEntity> = emptyList(),
     val tricks: Boolean = true,
-    // the bar's hp per point of the journey's energy
-    val perEnergy: Double = 10.0,
+    // the journey's level, its experience, and what a level gained adds
+    val level: Int = 1,
+    val xp: Int = 0,
+    val xpNeed: Int = 0,
+    val bonus: Int = 0,
+    val perLevel: PerLevel = PerLevel(),
 )
 
 @Serializable
@@ -65,6 +73,7 @@ data class FightOutcome(
     val interfered: List<Int> = emptyList(),
     val check: Long = 0,
     val maxHp: Long = 0,
+    val levels: List<Int> = emptyList(),
 )
 
 @Serializable
@@ -120,15 +129,42 @@ data class DungeonView(
     val checkpoint: JourneyState? = null,
     val fighting: Boolean = false,
     val code: String? = null,
+    val level: Int = 1,
+    val xp: Int = 0,
+    val xpNeed: Int = 10,
+    val stats: LevelStats = LevelStats(),
+    val allyLevels: Map<String, Int> = emptyMap(),
 )
+
+/** What the levels gained in a fight added, told at its end. */
+@Serializable
+data class LevelGains(val from: Int = 1, val to: Int = 1, val gained: Int = 0, val left: Boolean = false,
+                      val hp: Int = 0, val resist: Int = 0, val defense: Int = 0, val damage: Int = 0)
+
+@Serializable
+data class Item(
+    val id: String = "", val name: String = "", val slot: String = "", val action: String = "", val level: Int = 1,
+    val value: Int = 0, val synergy: Double = 1.5, val count: Int = 1,
+    val worn: Boolean = false, val effective: Int = 0, val synergyOn: Boolean = false,
+)
+
+@Serializable
+data class ItemBonuses(val damage: Int = 0, val defense: Int = 0, val hp: Int = 0)
+
+@Serializable
+data class Inventory(val items: List<Item> = emptyList(), val attacks: List<String> = emptyList(), val bonuses: ItemBonuses = ItemBonuses(), val level: Int = 1)
+
+@Serializable
+data class LevelStats(val hp: Int = 100, val resist: Int = 100, val defense: Int = 2, val absorb: Int = 80, val bonus: Int = 0)
 
 @Serializable
 data class FightEnd(
     val result: FightOutcome = FightOutcome(),
     val won: Boolean = false,
     val points: Int = 0,
-    val journeyReset: Boolean = false,
     val lines: List<String> = emptyList(),
+    val item: Item? = null,
+    val levels: LevelGains = LevelGains(),
     val close: Boolean = false,
     val view: DungeonView = DungeonView(),
 )

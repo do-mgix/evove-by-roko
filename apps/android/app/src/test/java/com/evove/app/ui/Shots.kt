@@ -108,11 +108,31 @@ class Shots {
         rule.mainClock.advanceTimeBy(1500)
         rule.onNodeWithTag("fight-now").performClick()
         // a tick at a time, as a phone would run them
-        repeat(120) {
+        repeat(300) {
             rule.mainClock.advanceTimeBy(100)
             org.robolectric.shadows.ShadowLooper.idleMainLooper(100, java.util.concurrent.TimeUnit.MILLISECONDS)
         }
         rule.onRoot().captureRoboImage("${System.getProperty("evove.shots")}/journey-fight.png")
+    }
+
+    @Test fun journeyItems() = dungeon("walk") {
+        rule.mainClock.autoAdvance = false
+        rule.setContent { Box(Modifier.fillMaxSize().background(Color.Black).padding(8.dp)) { Frame { JourneyScreen(onHome = {}) } } }
+        rule.mainClock.advanceTimeBy(1500)
+        rule.onNodeWithTag("items").performClick()
+        rule.mainClock.advanceTimeBy(1500)
+        rule.onRoot().captureRoboImage("${System.getProperty("evove.shots")}/journey-items.png")
+    }
+
+    @Test fun figures() = shot("figures") {
+        androidx.compose.foundation.layout.Column {
+            for (row in listOf(listOf("biceps", "quadriceps", "core"), listOf("broca", "aerobico", "c_escrita"), listOf("memb_inf", "cerebelo", "mobilidade"))) {
+                androidx.compose.foundation.layout.Row(Modifier.weight(1f)) {
+                    for (k in row) AttributeFigure(figureOf(listOf(if (k in setOf("broca", "cerebelo")) "mente" else "corpo", k)), Ink.attributes,
+                        Modifier.weight(1f).fillMaxSize(), listOf("a" to 0.8f, "b" to 0.3f, "c" to 0.6f, "d" to 0.5f, "e" to 0.9f))
+                }
+            }
+        }
     }
 
     private fun dungeon(kind: String, block: () -> Unit) {
