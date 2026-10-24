@@ -35,9 +35,11 @@ def side(rng: random.Random, name: str, ents: int, tricks: bool) -> dict:
         "name": name, "hp": hp - rng.randint(0, hp // 3), "max_hp": hp,
         "resist": rng.randint(0, 60), "defense": rng.randint(0, 60), "absorb": rng.randint(80, 200),
         "moves": moves, "heal": {"name": name + "H", "amount": rng.randint(10, hp // 4), "cd": rng.randint(50, 120)},
-        "entities": [{"id": f"e{k}", "name": f"E{k}", "forca": rng.randint(8, 20), "agilidade": rng.randint(1, 10),
-                      "skill": rng.choice(fight.SKILLS), "ability": rng.choice(ABILITIES)} for k in range(ents)],
+        "entities": [{"id": f"e{k}", "name": f"E{k}", "forca": rng.randint(40, 70), "agilidade": rng.randint(1, 10),
+                      "skill": rng.choice(fight.SKILLS), "ability": rng.choice(ABILITIES), "level": rng.randint(1, 4)} for k in range(ents)],
         "tricks": tricks,
+        "level": rng.randint(1, 9), "xp": rng.randint(0, 5), "xp_need": rng.choice((0, 6, 10)), "bonus": rng.randint(0, 30),
+        "per_level": {"hp": rng.randint(0, 8), "resist": 5, "defense": 1, "bonus": 4},
     }
 
 

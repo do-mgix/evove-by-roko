@@ -26,6 +26,12 @@ started (src.domain.fight). The journey's button carries a hint meanwhile.
   evove and frees everyone; the app closes by itself, and comes back with no
   code at all.
 
+The journey has a level of its own: every blow that lands in a fight is
+experience, three or four levels a fight, each raising the bar (from 100) and
+the stats; the opponents mirror it, and the entities carried grow levels too.
+A fight lost sends the act back to its first floor. A fight won may drop an
+item (src.domain.items).
+
 Kept inside the profile's evove state (`state["dungeon"]`). Pure logic — no I/O.
 """
 from __future__ import annotations
@@ -61,6 +67,35 @@ FRAGMENT_CHANCE = 0.5
 
 FOE_ENTITIES = ("ALGO INCOMPREENSÍVEL", "AJUDA DO ALÉM", "UMA PRESENÇA", "O QUE NÃO TEM NOME")
 
+# The journey's level: blows landed in fights are its experience, about three
+# or four levels a fight, and each level raises the bar and the stats.
+XP_NEED = 10
+BASE = {"hp": 100, "resist": 100, "defense": 2, "absorb": 80, "bonus": 0}
+PER_LEVEL = {"hp": 6, "resist": 5, "defense": 1, "bonus": 4}
+DEFENSE_CAP = 60
+# an entity at level n: força and agilidade over its own (src.domain.fight)
+ALLY_FORCA = 5
+ALLY_AGILIDADE = 1
+
+
+def level_stats(level: int) -> dict:
+    """What a fighter of the journey's `level` has before items."""
+    k = max(1, int(level)) - 1
+    return {
+        "hp": BASE["hp"] + PER_LEVEL["hp"] * k,
+        "resist": BASE["resist"] + PER_LEVEL["resist"] * k,
+        "defense": min(DEFENSE_CAP, BASE["defense"] + PER_LEVEL["defense"] * k),
+        "absorb": BASE["absorb"],
+        "bonus": BASE["bonus"] + PER_LEVEL["bonus"] * k,
+    }
+
+
+def ally_battle(battle: dict, level: int) -> dict:
+    """An entity's battle stats at its journey `level`."""
+    k = max(1, int(level)) - 1
+    return {**battle, "forca": int(battle["forca"]) + ALLY_FORCA * k,
+            "agilidade": min(12, int(battle["agilidade"]) + ALLY_AGILIDADE * k), "level": k + 1}
+
 
 def fresh(now: datetime) -> dict:
     return {
@@ -74,6 +109,11 @@ def fresh(now: datetime) -> dict:
         "losses": 0,
         "act3": None,
         "battle": None,
+        "level": 1,
+        "xp": 0,
+        "allies": {},
+        "items": [],
+        "worn": {},
     }
 
 
@@ -81,6 +121,8 @@ def state_of(evove: dict, now: datetime) -> dict:
     d = evove.get("dungeon")
     if not isinstance(d, dict):
         d = evove["dungeon"] = fresh(now)
+    for k, v in (("level", 1), ("xp", 0), ("allies", {}), ("items", []), ("worn", {})):
+        d.setdefault(k, v)
     return d
 
 
@@ -176,8 +218,8 @@ def companions(d: dict, carried: str | None) -> list[str]:
 
 def foe_hp_factor(d: dict) -> float:
     if final(d):
-        return 3.0
-    base = {1: 1.1, 2: 1.6, 3: 1.8}[min(3, int(d["act"]))]
+        return 4.4
+    base = {1: 2.4, 2: 2.9, 3: 3.2}[min(3, int(d["act"]))]
     return base + 0.15 * min(ACT_FLOORS - 1, floor_in_act(d) - 1)
 
 
@@ -257,8 +299,11 @@ def won(d: dict, result: dict, rng: random.Random, now: datetime) -> list[str]:
     return out
 
 
-def lost(d: dict) -> None:
+def lost(d: dict, now: datetime) -> None:
+    """A fight lost: the act's floors are walked again, from its first one."""
     d["losses"] = int(d.get("losses", 0) or 0) + 1
+    d["floor"] = 1 + ACT_FLOORS * (min(3, int(d["act"])) - 1)
+    d["walk_from"] = now.isoformat(timespec="seconds")
 
 
 def _objectives(d: dict, result: dict, rng: random.Random) -> list[str]:
@@ -332,32 +377,32 @@ def set_pair(d: dict, pair: list[str]) -> None:
 
 # ---------------------------------------------------------------- the foe
 
-def foe_setup(d: dict, rank_index: int, rank_damage, abilities: list[dict], defense: float, entity_battle) -> dict:
-    """The opponent's side of the fight, mirrored on the profile's rank: the
-    people trapped here grew as it did. `abilities` are its attacks (from
-    src.domain.battle's boss of the floor), `entity_battle(id)` an entity's
-    battle stats."""
+def foe_setup(d: dict, abilities: list[dict], defense: float, entity_battle) -> dict:
+    """The opponent's side of the fight, mirrored on the profile's journey
+    level: the people trapped here grew as it did, and grow in the fight as it
+    does. `abilities` are its attacks (from src.domain.battle's boss of the
+    floor), `entity_battle(id)` an entity's battle stats."""
     rng = random.Random(f"{d['seed']}:{d['floor']}:fight")
     o = opponent(d)
-    r = min(23, rank_index + (1 if o["kind"] == "roko" else 0))
-    scale = rank_damage(r) / 15
-    hp = int(250 * scale * foe_hp_factor(d))
-    moves = [{"name": "PULSO", "dmg": max(1, int(6 * scale)), "cd": 50}]
+    level = int(d.get("level", 1)) + (2 if o["kind"] == "roko" else 0)
+    st = level_stats(level)
+    hp = int(st["hp"] * foe_hp_factor(d))
+    moves = [{"name": "PULSO", "dmg": 1, "cd": 60}]
     for a in abilities[:3]:
         # past the first act, a type that gathers more hits harder
         up = a.get("star", 1) - 1 if int(d["act"]) > 1 else 0
-        moves.append({"name": a["name"], "dmg": max(1, int(rank_damage(min(23, r + up)) * 0.8)), "cd": rng.randint(90, 110)})
+        moves.append({"name": a["name"], "dmg": 3 + up, "cd": rng.randint(100, 120)})
     stage = floor_in_act(d)
     if o.get("entity"):
-        b = entity_battle(o["entity"])
-        ents = [{"id": o["entity"], "name": o["name"], **b}]
+        ents = [{"id": o["entity"], "name": o["name"], **entity_battle(o["entity"]), "level": 1}]
     else:
-        ents = [{"id": "foe", "name": o["label"], "forca": 10 + min(6, stage + int(d["act"]) - 1),
-                 "agilidade": 3 + min(5, stage // 2), "skill": rng.choice(fight.SKILLS), "ability": "interferencia"}]
+        ents = [{"id": "foe", "name": o["label"], "forca": 40 + min(10, stage + int(d["act"]) - 1),
+                 "agilidade": 3 + min(5, stage // 2), "skill": rng.choice(fight.SKILLS), "ability": "interferencia", "level": 1}]
     return {
-        "name": o["name"], "hp": hp, "max_hp": hp, "resist": 10 * r, "defense": int(round(defense * 100)),
-        "absorb": 100, "moves": moves, "heal": {"name": "RECOMPOR", "amount": hp // 10, "cd": 180},
-        "entities": ents, "tricks": True,
+        "name": o["name"], "hp": hp, "max_hp": hp, "resist": st["resist"], "defense": int(round(defense * 100)),
+        "absorb": st["absorb"], "bonus": st["bonus"], "moves": moves,
+        "heal": {"name": "RECOMPOR", "amount": hp * 12 // 100, "cd": 180},
+        "entities": ents, "tricks": True, "level": level, "xp": 0, "xp_need": XP_NEED, "per_level": PER_LEVEL,
     }
 
 
@@ -382,6 +427,10 @@ def view(d: dict, now: datetime, fast: bool) -> dict:
         "waiting_line": waiting_line(d),
         "wins": int(d.get("wins", 0) or 0),
         "losses": int(d.get("losses", 0) or 0),
+        "level": int(d.get("level", 1)),
+        "xp": int(d.get("xp", 0)),
+        "xp_need": XP_NEED,
+        "stats": level_stats(int(d.get("level", 1))),
         "fast": fast,
     }
     a3 = d.get("act3")

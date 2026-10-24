@@ -22,7 +22,7 @@ from src.domain.marks import DEFAULT_TIERS, MARKS_PER_WINDOW, MarkError, options
 from src.domain.agenda import collect_labels, DAY_NAMES as _DOMAIN_DAY_NAMES  # noqa: E402
 from src.domain.daily import PERIODS, apply_daily_tick, period_of  # noqa: E402
 from src.domain import journey as journey_mode  # noqa: E402
-from src.domain import battle, discovery, engine, entities, equipment, recover as recovery, sandbox, save, dungeon, fight  # noqa: E402
+from src.domain import battle, discovery, engine, entities, equipment, recover as recovery, sandbox, save, dungeon, fight, items  # noqa: E402
 from src.domain.economy import BASE_MAX_TOKENS, INITIAL_POINTS, todo_reward  # noqa: E402
 from src.domain.user_attributes import PATCH_SEPARATOR, PatchError, engine_name  # noqa: E402
 from src.domain.attributes import (  # noqa: E402
@@ -1688,6 +1688,37 @@ def _node_view(tree, key: str, totals: dict[str, float], memo: dict,
     return out
 
 
+def _auto_claim(username: str, data: dict) -> dict:
+    """Takes the reward of every rank reached and not claimed yet, on every
+    attribute — what an act does by itself now. Returns what it paid."""
+    tree = repos.load_attr_tree()
+    claims = repos.load_rank_claims(username)
+    totals = _user_leaf_totals(username, tree)
+    memo: dict[str, float] = {}
+    metadata = data.setdefault("metadata", {})
+    bonuses = aggregate_bonuses(set(data.get("skills") or []), skill_nodes_by_id())
+    cap = int(metadata.get("max_tokens", BASE_MAX_TOKENS) or BASE_MAX_TOKENS) + int(bonuses.get("max_tokens", 0) or 0)
+    out = {"ranks": 0, "points": 0, "tokens": 0, "skill_points": 0}
+    for key in tree.nodes_by_key:
+        view = _node_view(tree, key, totals, memo, claims)
+        c = view.get("claim")
+        if not c:
+            continue
+        tokens = int(metadata.get("tokens", 0) or 0)
+        gained = max(0, min(c["tokens"], cap - tokens))
+        metadata["tokens"] = tokens + gained
+        metadata["skill_points"] = int(metadata.get("skill_points", 0) or 0) + c["skill_points"]
+        metadata["build_points"] = int(metadata.get("build_points", 0) or 0) + c["points"]
+        repos.set_rank_claim(username, key, view["rank_index"])
+        out["ranks"] += c["ranks"]
+        out["points"] += c["points"]
+        out["tokens"] += gained
+        out["skill_points"] += c["skill_points"]
+    if out["ranks"]:
+        _save_user(username, data)
+    return out
+
+
 @app.post("/attributes/{key}/claim")
 def claim_rank(key: str, username: str = Depends(current_username)):
     """Take the reward of every rank `key` reached and was not claimed yet:
@@ -2146,6 +2177,8 @@ def act_on_action(action_id: str, payload: dict | None = None, username: str = D
         {"nickname": social_repo.identity(username)["nickname"]})
     token_delta = (outcome.token_gain - outcome.tokens_wasted) - outcome.token_cost
     log_entry = _append_log(username, outcome.log_content, outcome.marks, token_delta, period, outcome.undo)
+    # the ranks the act reached pay at once
+    claimed = _auto_claim(username, data)
 
     return {
         "id": action_id,
@@ -2172,6 +2205,8 @@ def act_on_action(action_id: str, payload: dict | None = None, username: str = D
         "roko": said["text"],
         "speaker": said["entity"],
         "lines": lines,
+        "claimed": claimed,
+        "points": int(data.get("metadata", {}).get("build_points", 0) or 0),
     }
 
 
@@ -2415,6 +2450,9 @@ def _give_first(username: str, data: dict, state: dict) -> bool:
 def _engine_view(username: str, state: dict, code: str) -> dict:
     now = datetime.now()
     view = engine.view(state, code, period_of(now))
+    metadata = (repos.load_user_dict(username) or {}).get("metadata") or {}
+    # what the top of every screen shows: points and tokens
+    view["wallet"] = {"points": int(metadata.get("build_points", 0) or 0), "tokens": int(metadata.get("tokens", 0) or 0)}
     d = state.get("dungeon")
     alert = dungeon.alert(d, now, bool(state["flags"].get("fast")))
     view["modes"]["journey_alert"] = alert
@@ -2767,6 +2805,8 @@ def save_mount(payload: dict, username: str = Depends(current_username)):
 
 _FIGHT_CAP = 50_000_000
 _FIGHT_ATTACKS = 2
+# what an attack at the profile's own rank hits for, before its multiplier
+_FIGHT_DAMAGE = 6
 # a fight started and never ended is played out after this long
 _STALE_FIGHT_SECONDS = 600
 
@@ -2781,68 +2821,77 @@ def _entity_battle(entity_id: str) -> dict:
         {"forca": 10, "agilidade": 3, "skill": "atacar", "ability": "interferencia"}
 
 
-def _fight_setup(username: str, data: dict, state: dict, d: dict) -> dict:
-    """Both sides of the floor's fight (src.domain.fight): the profile's best
-    attacks against this opponent, its heal, stats and entities; the opponent
-    mirrored on its rank (src.domain.dungeon.foe_setup)."""
-    from src.domain.attributes import MAX_RANK
+def _fight_lineup(username: str, data: dict, d: dict):
+    """The profile's two best attacks against the floor's opponent, the boss
+    they were weighed against, and the average rank of the two."""
     tree = repos.load_attr_tree()
     templates = repos.load_action_templates()
     boss = battle.make_boss(tree, templates, f"dungeon:{d['seed']}:{d['floor']}", max(1, dungeon.floor_in_act(d)), 0)
-    worn = _worn(username)
     totals = _user_leaf_totals(username, tree)
     memo: dict[str, float] = {}
-    actions = data.get("actions") or {}
-    moves = battle.moves_for(tree, templates, actions, lambda key: rank_view(node_total(key, totals, tree, memo))["rank_index"])
-    scored = sorted((battle.score_move(tree, m, boss, worn["damage"]) for m in moves), key=lambda m: (-m["damage"], m["name"]))
+    moves = battle.moves_for(tree, templates, data.get("actions") or {},
+                             lambda key: rank_view(node_total(key, totals, tree, memo))["rank_index"])
+    scored = sorted((battle.score_move(tree, m, boss) for m in moves), key=lambda m: (-m["damage"], m["name"]))
     # two attacks: with the heal and the trick, the four things a fight shows
     lineup = scored[:_FIGHT_ATTACKS]
     rank = sum(m["rank_index"] for m in lineup) // len(lineup) if lineup else 0
+    return lineup, boss, rank
+
+
+def _attack_names(lineup: list[dict]) -> set[str]:
+    return {re.sub(r"\s*\([^)]*\)\s*$", "", m["name"]).strip().upper() for m in lineup}
+
+
+def _fight_setup(username: str, data: dict, state: dict, d: dict) -> dict:
+    """Both sides of the floor's fight (src.domain.fight). The profile's: its
+    two best attacks against this opponent, their damage relative to its own
+    rank; its journey level's bar and stats, with the items worn; its heal and
+    its entities at their levels. The opponent mirrors the level
+    (src.domain.dungeon.foe_setup)."""
+    lineup, boss, rank = _fight_lineup(username, data, d)
+    templates = repos.load_action_templates()
     best_mult = max((m["multiplier"] for m in lineup), default=1.0)
     out_moves = []
     for m in lineup:
         out_moves.append({
             "name": m["name"], "attribute": m["attribute_name"], "multiplier": m["multiplier"],
-            "dmg": _cap(m["base_damage"] * m["multiplier"] * (1 + worn["damage"])),
-            "decree": _cap(battle.rank_damage(min(MAX_RANK, m["rank_index"] + 1)) * best_mult * (1 + worn["damage"])),
+            "dmg": _cap(_FIGHT_DAMAGE * m["multiplier"] * m["base_damage"] / battle.rank_damage(rank)),
+            # roko's decree: as efficient as the best of them, a rank above
+            "decree": _cap(_FIGHT_DAMAGE * best_mult * battle.RANK_DAMAGE_GROWTH),
         })
     if not out_moves:
-        out_moves = [{"name": "EMPURRÃO (α)", "attribute": "", "multiplier": 1.0, "dmg": 15, "decree": 41}]
+        out_moves = [{"name": "EMPURRÃO (α)", "attribute": "", "multiplier": 1.0, "dmg": _FIGHT_DAMAGE,
+                      "decree": _cap(_FIGHT_DAMAGE * battle.RANK_DAMAGE_GROWTH)}]
     order = sorted(range(len(out_moves)), key=lambda i: (out_moves[i]["dmg"], i))
     for k, i in enumerate(order):
         out_moves[i]["cd"] = 60 + 20 * k
-    metadata = data.get("metadata") or {}
-    max_energy = _max_energy(data, username)
-    per = 10 * battle.rank_damage(rank) / battle.RANK_DAMAGE_BASE
-    max_hp = _cap(max_energy * per)
+    level = int(d.get("level", 1))
+    st = dungeon.level_stats(level)
+    worn = items.bonuses(d, _attack_names(lineup))
+    max_hp = st["hp"] + worn["hp"]
     # the heal: the best of the actions of reward owned, the ones that spend tokens
     heals = []
-    for a in actions.values():
+    for a in (data.get("actions") or {}).values():
         meta = templates.get(str(a.get("name", "")).upper()) or {}
         cost = int(a.get("token_cost") or meta.get("token_cost") or 0)
         if a.get("deleted") or not meta.get("log_only") or cost <= 0:
             continue
-        heals.append({"name": str(a.get("name", "")).upper(), "amount": _cap(max_hp * min(35, 10 + 3 * cost) / 100),
+        heals.append({"name": str(a.get("name", "")).upper(), "amount": _cap(max_hp * min(30, 10 + 3 * cost) / 100),
                       "cd": 120 + 30 * cost})
     heal = max(heals, key=lambda h: (h["amount"] * 1000 // h["cd"], h["amount"]), default=None) or \
         {"name": "RESPIRO", "amount": _cap(max_hp * 8 / 100), "cd": 200}
-    roots_marked = sum(1 for r in tree.roots if node_total(r, totals, tree, memo) > 0)
-    companions = dungeon.companions(d, state.get("entity"))
+    allies = d.get("allies") or {}
     you = {
         "name": social_repo.identity(username)["nickname"],
-        "hp": _cap(int(metadata.get("energy", 0) or 0) * per), "max_hp": max_hp, "per_energy": per,
-        "resist": 10 * rank + 2 * int(worn["hp"]),
-        "defense": min(60, 4 * int(worn["armor"]) + 3 * rank),
-        "absorb": min(200, 100 + 5 * roots_marked),
+        "hp": max_hp, "max_hp": max_hp,
+        "resist": st["resist"], "defense": min(dungeon.DEFENSE_CAP, st["defense"] + worn["defense"]),
+        "absorb": st["absorb"], "bonus": st["bonus"] + worn["damage"],
         "moves": out_moves, "heal": heal,
-        "entities": [{"id": e, "name": entities.name_of(e), **_entity_battle(e)} for e in companions],
+        "entities": [{"id": e, "name": entities.name_of(e), **dungeon.ally_battle(_entity_battle(e), allies.get(e, 1))}
+                     for e in dungeon.companions(d, state.get("entity"))],
+        "level": level, "xp": int(d.get("xp", 0)), "xp_need": dungeon.XP_NEED, "per_level": dungeon.PER_LEVEL,
     }
-    foe = dungeon.foe_setup(d, rank, battle.rank_damage, [{**a, "star": t["star"]} for a, t in zip(boss.abilities, boss.types)],
-                            boss.defense, _entity_battle)
-    for m in foe["moves"]:
-        m["dmg"] = _cap(m["dmg"])
-    foe["hp"] = foe["max_hp"] = _cap(foe["max_hp"])
-    foe["heal"]["amount"] = _cap(foe["heal"]["amount"])
+    foe = dungeon.foe_setup(d, [{**a, "star": t["star"]} for a, t in zip(boss.abilities, boss.types)], boss.defense, _entity_battle)
     seed = random.SystemRandom().randrange(1, 1 << 32)
     return {"seed": seed, "max_ticks": fight.MAX_TICKS, "tick_ms": fight.TICK_MS, "you": you, "foe": foe,
             "opponent": dungeon.opponent(d), "tricks": list(fight.TRICKS)}
@@ -2875,6 +2924,7 @@ def _dungeon_view(username: str, state: dict, d: dict, now: datetime, fast: bool
     view["recover"] = recovery.view(metadata, now, max_energy)
     view["checkpoint"] = journey_mode.view(metadata, now, max_energy)
     view["fighting"] = bool(d.get("battle"))
+    view["ally_levels"] = d.get("allies") or {}
     if d.get("ending") in ("left", "entity"):
         view["code"] = save.group(save.pack(_snapshot(username), _save_secret()))
     return view
@@ -2888,8 +2938,8 @@ def dungeon_home(username: str = Depends(current_username)):
     state, d, now, fast = _dungeon(username)
     b = d.get("battle")
     if b and (now - datetime.fromisoformat(b["at"])).total_seconds() > _STALE_FIGHT_SECONDS:
-        # a fight the app never came back to: it played itself, no tricks
-        _resolve_fight(username, state, d, now, [])
+        # a fight the app never came back to: it played itself, and was left
+        _resolve_fight(username, state, d, now, [], left=True)
     return _dungeon_view(username, state, d, now, fast)
 
 
@@ -2901,58 +2951,111 @@ def dungeon_fight(username: str = Depends(current_username)):
     if not dungeon.waiting(d, now, fast):
         raise HTTPException(status_code=409, detail="no one is waiting")
     data = _load_user(username)
-    if int((data.get("metadata") or {}).get("energy", 0) or 0) <= 0:
-        raise HTTPException(status_code=409, detail="no hp left")
     setup = _fight_setup(username, data, state, d)
     d["battle"] = {"setup": setup, "at": now.isoformat(timespec="seconds")}
     engine_repo.save(username, state)
     return setup
 
 
-def _resolve_fight(username: str, state: dict, d: dict, now: datetime, plays: list[int]) -> dict:
-    """The fight replayed on the server with the tricks played at `plays`:
-    what it decides is what counts. A win pays points and moves the story; the
-    bar's end is the hp left, and an empty one restarts the checkpoints
-    (src.domain.journey.fail)."""
+def _resolve_fight(username: str, state: dict, d: dict, now: datetime, plays: list[int], left: bool = False) -> dict:
+    """The fight replayed on the server: what it decides is what counts. The
+    levels gained in it are kept — unless the fight was `left` halfway, which
+    plays itself to the end and keeps none. A win pays points, may drop an
+    item, and moves the story; a loss sends the act back to its first floor
+    (src.domain.dungeon.lost). Items far below the level sell themselves."""
     setup = d["battle"]["setup"]
     result = fight.replay(setup, plays)
-    result["max_hp"] = setup["you"]["max_hp"]
     data = _load_user(username)
     metadata = data.setdefault("metadata", {})
-    max_energy = _max_energy(data, username)
-    hp = result["hp"][0]
-    metadata["energy"] = min(max_energy, int(math.ceil(hp / max(1e-9, float(setup["you"]["per_energy"]))))) if hp > 0 else 0
-    reset = False
+    rng = random.Random()
+    start = int(setup["you"].get("level", 1))
+    gained = 0 if left else max(0, int(result["levels"][0]) - start)
+    if not left:
+        d["level"], d["xp"] = int(result["levels"][0]), int(result["xp"])
+        allies = d.setdefault("allies", {})
+        for a in result.get("allies") or []:
+            allies[a["id"]] = max(int(allies.get(a["id"], 1)), int(a["level"]))
     points = 0
+    item = None
     if result["won"]:
-        points = battle.win_points(int(d["floor"]), 0, _worn(username)["points"])
-        metadata["build_points"] = int(metadata.get("build_points", 0) or 0) + points
-        lines = dungeon.won(d, result, random.Random(), now)
+        points = battle.win_points(int(d["floor"]), 0)
+        lines = dungeon.won(d, result, rng, now)
+        dropped = items.drop(rng, [m["name"] for m in setup["foe"]["moves"][1:]], int(d.get("level", 1)))
+        if dropped:
+            item = items.add(d, dropped, rng)
+            lines.insert(0, f"{setup['foe']['name']} DEIXOU {item['name']} (NÍVEL {item['level']}).")
     else:
-        dungeon.lost(d)
-        lines = ["O SINAL CAIU."]
-    if metadata["energy"] <= 0:
-        journey_mode.fail(metadata, now, max_energy)
-        reset = True
-        lines.append("SUA BARRA ACABOU. OS CHECKPOINTS VOLTARAM AO ESTÁGIO 1.")
+        dungeon.lost(d, now)
+        lines = ["O SINAL CAIU. O ATO RECOMEÇA DO PRIMEIRO ANDAR."]
+    sold, paid = items.sell_low(d, int(d.get("level", 1)))
+    if sold:
+        lines.append(f"{sold} {'ITEM ANTIGO SE VENDEU' if sold == 1 else 'ITENS ANTIGOS SE VENDERAM'}: +{paid} PONTOS.")
+    metadata["build_points"] = int(metadata.get("build_points", 0) or 0) + points + paid
     d["battle"] = None
     _save_user(username, data)
     engine_repo.save(username, state)
-    return {"result": result, "won": result["won"], "points": points, "journey_reset": reset, "lines": lines,
+    up = dungeon.PER_LEVEL
+    return {"result": result, "won": result["won"], "points": points + paid, "lines": lines, "item": item,
+            "levels": {"from": start, "to": start + gained, "gained": gained, "left": left,
+                       "hp": up["hp"] * gained, "resist": up["resist"] * gained, "defense": up["defense"] * gained,
+                       "damage": up["bonus"] * gained},
             "close": d.get("ending") == "free"}
 
 
 @app.post("/dungeon/fight/end")
 def dungeon_fight_end(payload: dict | None = None, username: str = Depends(current_username)):
-    """Body: {plays: [tick, …]}. The fight's end, as `_resolve_fight` decides
-    it. A fight left halfway — the app closed — is sent with the tricks played
-    so far: the rest plays itself, as an autobattler does."""
+    """Body: {plays?: [tick, …], left?: bool}. The fight's end, as
+    `_resolve_fight` decides it. A fight left halfway is sent with `left`: the
+    rest plays itself, and the levels it gave are lost."""
     state, d, now, fast = _dungeon(username)
     if not d.get("battle"):
         raise HTTPException(status_code=409, detail="no fight going on")
     plays = [int(t) for t in ((payload or {}).get("plays") or [])[:600] if 0 <= int(t) <= fight.MAX_TICKS]
-    out = _resolve_fight(username, state, d, now, plays)
+    out = _resolve_fight(username, state, d, now, plays, bool((payload or {}).get("left")))
     return {**out, "view": _dungeon_view(username, state, d, now, fast)}
+
+
+def _items_view(username: str, d: dict) -> dict:
+    lineup, _boss, _rank = _fight_lineup(username, _load_user(username), d)
+    attacks = _attack_names(lineup)
+    worn = d.get("worn") or {}
+    return {
+        "items": [{**i, "worn": worn.get(i["slot"]) == i["id"], "effective": items.effective(i, attacks),
+                   "synergy_on": i["action"] in attacks} for i in sorted(d.get("items") or [], key=lambda i: (i["slot"], -i["level"]))],
+        "attacks": sorted(attacks),
+        "bonuses": items.bonuses(d, attacks),
+        "level": int(d.get("level", 1)),
+    }
+
+
+@app.get("/dungeon/items")
+def dungeon_items(username: str = Depends(current_username)):
+    """The inventory: every item with what it adds now — its synergy counted
+    when its action is one of the two attacks — which are worn, and the total."""
+    _state, d, _now, _fast = _dungeon(username)
+    return _items_view(username, d)
+
+
+@app.post("/dungeon/items/{item_id}/wear")
+def dungeon_wear(item_id: str, username: str = Depends(current_username)):
+    """Wears an item in its slot, or takes it off when it is worn."""
+    state, d, _now, _fast = _dungeon(username)
+    try:
+        items.wear(d, item_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    engine_repo.save(username, state)
+    return _items_view(username, d)
+
+
+@app.post("/dungeon/items/best")
+def dungeon_wear_best(username: str = Depends(current_username)):
+    """The best item of each slot worn, for the attacks of the floor's fight."""
+    state, d, _now, _fast = _dungeon(username)
+    lineup, _boss, _rank = _fight_lineup(username, _load_user(username), d)
+    items.wear_best(d, _attack_names(lineup))
+    engine_repo.save(username, state)
+    return _items_view(username, d)
 
 
 @app.post("/dungeon/choose")

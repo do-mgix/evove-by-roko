@@ -40,8 +40,9 @@ ENTITIES: dict[str, dict] = {
         "glyph": "roko",
         "trait": "ato",
         "where": ["evove", "journey"],
-        # in the journey's battles (src.domain.fight): one of the strongest
-        "battle": {"forca": 18, "agilidade": 8, "skill": "potencia", "ability": "decreto", "ability_name": "DECRETO"},
+        # in the journey's battles (src.domain.fight): força is tenths of the
+        # side's best blow, four times or more; roko's is one of the strongest
+        "battle": {"forca": 60, "agilidade": 8, "skill": "potencia", "ability": "decreto", "ability_name": "DECRETO"},
         "stats": {
             "rank": "ω", "hp": 9999, "mp": 999, "ataque": 999, "defesa": 999,
             "especial": "DECRETO (ω)", "tipo": "TOTAL",
@@ -144,7 +145,7 @@ ENTITIES: dict[str, dict] = {
         "glyph": "eve",
         "trait": "pergunta",
         "where": ["evove", "journey"],
-        "battle": {"forca": 12, "agilidade": 9, "skill": "negar", "ability": "pergunta", "ability_name": "PERGUNTA"},
+        "battle": {"forca": 40, "agilidade": 9, "skill": "negar", "ability": "pergunta", "ability_name": "PERGUNTA"},
         "stats": {
             "rank": "?", "hp": 404, "mp": 777, "ataque": 12, "defesa": 640,
             "especial": "PERGUNTA (?)", "tipo": "DÚVIDA",
@@ -236,7 +237,7 @@ ENTITIES: dict[str, dict] = {
         "glyph": "osso",
         "trait": "constância",
         "where": ["evove", "journey"],
-        "battle": {"forca": 15, "agilidade": 4, "skill": "cura", "ability": "ficar", "ability_name": "FICAR"},
+        "battle": {"forca": 46, "agilidade": 4, "skill": "cura", "ability": "ficar", "ability_name": "FICAR"},
         "stats": {
             "rank": "λ", "hp": 7777, "mp": 12, "ataque": 340, "defesa": 990,
             "especial": "FICAR (λ)", "tipo": "CONSTÂNCIA",
@@ -274,7 +275,7 @@ ENTITIES: dict[str, dict] = {
         "glyph": "zira",
         "trait": "pressa",
         "where": ["evove", "journey"],
-        "battle": {"forca": 13, "agilidade": 10, "skill": "atacar", "ability": "pressa", "ability_name": "PRESSA"},
+        "battle": {"forca": 42, "agilidade": 10, "skill": "atacar", "ability": "pressa", "ability_name": "PRESSA"},
         "stats": {
             "rank": "κ", "hp": 900, "mp": 4000, "ataque": 777, "defesa": 80,
             "especial": "PRESSA (κ)", "tipo": "VELOCIDADE",
@@ -312,7 +313,7 @@ ENTITIES: dict[str, dict] = {
         "glyph": "mura",
         "trait": "coleção",
         "where": ["evove", "journey"],
-        "battle": {"forca": 14, "agilidade": 6, "skill": "truques", "ability": "troca", "ability_name": "TROCA"},
+        "battle": {"forca": 44, "agilidade": 6, "skill": "truques", "ability": "troca", "ability_name": "TROCA"},
         "stats": {
             "rank": "μ", "hp": 3333, "mp": 2222, "ataque": 444, "defesa": 555,
             "especial": "TROCA (μ)", "tipo": "POSSE",
@@ -351,7 +352,7 @@ ENTITIES: dict[str, dict] = {
         "glyph": "no",
         "trait": None,
         "where": ["journey"],
-        "battle": {"forca": 16, "agilidade": 5, "skill": "negar", "ability": "amarra", "ability_name": "AMARRA"},
+        "battle": {"forca": 50, "agilidade": 5, "skill": "negar", "ability": "amarra", "ability_name": "AMARRA"},
         "stats": {"rank": "ξ", "hp": 6000, "mp": 600, "ataque": 600, "defesa": 600, "especial": "AMARRA (ξ)", "tipo": "PRISÃO"},
         "lines": {
             "greet": ["EU PRENDI TODOS AQUI. ATÉ VOCÊ ME SOLTAR.", "VOCÊ ME DEIXOU IR. POR QUÊ?", "OS FIOS ESTÃO EM TODA PARTE."],
@@ -371,7 +372,7 @@ ENTITIES: dict[str, dict] = {
         "glyph": "vela",
         "trait": None,
         "where": ["journey"],
-        "battle": {"forca": 14, "agilidade": 7, "skill": "cura", "ability": "chama", "ability_name": "CHAMA"},
+        "battle": {"forca": 44, "agilidade": 7, "skill": "cura", "ability": "chama", "ability_name": "CHAMA"},
         "stats": {"rank": "ο", "hp": 2400, "mp": 2400, "ataque": 300, "defesa": 300, "especial": "CHAMA (ο)", "tipo": "ESPERA"},
         "lines": {
             "greet": ["eu espero desde antes de você chegar.", "a chama dura o que tiver que durar."],

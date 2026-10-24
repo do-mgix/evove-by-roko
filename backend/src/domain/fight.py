@@ -5,33 +5,38 @@ in the journey (src.domain.dungeon) — and the fight plays itself, a tick
 every tenth of a second:
 
 - a fighter's attacks are its actions — two of them for the profile — each
-  with its own cooldown, and they
-  are paid out of its own bar: there is no mp, every attack takes a little of
-  the hp it fights with. **Resistência** slows how fast the bar goes down that
-  way, **defesa** cuts the damage taken, **absorção** raises what a heal gives;
+  with its own cooldown, and they are paid out of its own bar: there is no
+  mp, every attack takes a little of the hp it fights with. **Resistência**
+  slows how fast the bar goes down that way, **defesa** cuts the damage
+  taken, **absorção** sets how much of a heal reaches the bar;
 - it carries one heal — the profile's best action of reward, the ones that
   spend tokens — used by itself when the bar drops under 60%;
-- both sides play **truques** by themselves, a little after one is charged:
-  the next is shown, and once charged the one on offer changes every few
-  seconds, so the wait may bring a better one. Atordoar pauses the opponent's cooldowns,
-  fúria moves one's own forward in time, baque stops everyone (and both sides
-  then tend to strike together), rasteira sends one of the opponent's
-  attacks back to the start of its cooldown, escudo takes most of the next
-  blow and eco repeats the last attack, weaker, for free;
+- both sides play **truques** by themselves, a little after one is charged;
+  once charged, the one on offer changes every few seconds, so the wait may
+  bring a better one. Atordoar pauses the opponent's cooldowns, fúria makes
+  one's own recharge twice as fast for a while, baque stops everyone (and
+  both sides then tend to strike together), rasteira sends one of the
+  opponent's attacks back to the start of its cooldown, escudo takes most of
+  the next blow and eco repeats the last attack, weaker, for free;
 - each side may bring entities (src.domain.entities): one, or two in the
   journey's third act. An entity grows impatient as the fight drags on, and
   the longer it lasts the likelier it steps in with a blow of its own — its
-  side's best attack times its força, neutral, no cooldown spent, enough to
-  turn a fight. It also has a skill, on a short cooldown set by its
-  agilidade, and an ability, on a longer one. Roko's, the decree, rewrites
-  the profile's attacks as the best possible against this opponent, a rank
-  above, and raises its stats. The opponent's entity has no name.
+  side's best attack times its força, four times or more, neutral, no
+  cooldown spent, enough to turn a fight. It also has a skill, on a short
+  cooldown set by its agilidade, and an ability, on a longer one. Roko's,
+  the decree, rewrites the profile's attacks as the best possible against
+  this opponent, a rank above, and raises its stats. The opponent's entity
+  has no name;
+- every blow that lands is experience in the journey's level: a fighter can
+  go up a level in the middle of the fight, its bar and stats growing at
+  once (`per_level`), and an entity goes up a level every few things it
+  does, its força and agilidade growing.
 
 Everything is integer arithmetic over a xorshift32 generator, so a fight is
 fully decided by its setup (and, for an older app, the ticks a trick was
-played at by hand): the app runs it live (com.evove.app.fight.Fight, the same rules in Kotlin) and
-the server replays it to decide what it pays. `tests` in the app check both
-against the same cases.
+played at by hand): the app runs it live (com.evove.app.fight.Fight, the same
+rules in Kotlin) and the server replays it to decide what it pays.
+FightParityTest checks both against the same cases.
 
 Pure logic — no I/O.
 """
@@ -47,7 +52,7 @@ TRICK_ROLL = 60
 TRICK_PPM = 15_000
 
 STUN_TICKS = 50
-FURY_TICKS = 40
+FURY_TICKS = 80
 THUD_TICKS = 40
 SHIELD_PCT = 60
 ECHO_PCT = 60
@@ -55,8 +60,8 @@ ECHO_PCT = 60
 HEAL_AT_PCT = 60
 DEFENSE_CAP = 75
 
-PATIENCE_BASE_PPM = 250
-PATIENCE_GROWTH_PPM = 5
+PATIENCE_BASE_PPM = 1000
+PATIENCE_GROWTH_PPM = 1
 ABILITY_CD = 400
 ABILITY_FIRST = 300
 
@@ -69,7 +74,13 @@ BURN_TICKS = 200
 DECREE_TICKS = 120
 
 # the kinds of event, in the order the checksum numbers them
-EVENTS = ("attack", "heal", "trick", "skill", "ability", "interfere", "deny", "miss", "burn", "end")
+EVENTS = ("attack", "heal", "trick", "skill", "ability", "interfere", "deny", "miss", "burn", "end", "level")
+
+# an entity grows a level every this many things it does
+ALLY_XP_NEED = 2
+ALLY_LEVEL_FORCA = 5
+ALLY_LEVEL_AGILIDADE = 1
+AGILIDADE_CAP = 12
 
 MASK = 0xFFFFFFFF
 
@@ -118,6 +129,17 @@ class Side:
         self.stun = self.boost = self.stand = self.haste = self.block = self.burn = 0
         self.deny = self.doubt = self.shield = 0
         self.decree = 0
+        # the journey's level: every blow that lands is experience, and a level
+        # gained in the fight raises the bar and the stats at once
+        self.level = int(d.get("level", 1) or 1)
+        self.xp = int(d.get("xp", 0) or 0)
+        self.xp_need = int(d.get("xp_need", 0) or 0)
+        up = d.get("per_level") or {}
+        self.up_hp, self.up_resist = int(up.get("hp", 0)), int(up.get("resist", 0))
+        self.up_defense, self.up_bonus = int(up.get("defense", 0)), int(up.get("bonus", 0))
+        self.bonus = int(d.get("bonus", 0) or 0)
+        for e in self.entities:
+            e["level"], e["xp"] = int(next(x for x in d["entities"] if x["id"] == e["id"]).get("level", 1) or 1), 0
         self.last: int | None = None
         self.dealt = self.heals = self.used = self.interfered = 0
 
@@ -179,7 +201,7 @@ class Fight:
         if not free:
             s.hp -= max(1, s.max_hp // (100 + s.resist_now()))
         s.last = m
-        dmg = (move["decree"] if s.decree else move["dmg"]) * pct // 100
+        dmg = (move["decree"] if s.decree else move["dmg"]) * pct // 100 * (100 + s.bonus) // 100
         if s.boost:
             dmg = dmg * 125 // 100
         if o.deny:
@@ -199,6 +221,34 @@ class Fight:
         o.hp -= dmg
         s.dealt += dmg
         self._event("attack", i, dmg, move["name"])
+        self._grow(i)
+
+    def _grow(self, i: int) -> None:
+        """A blow landed: experience, and a level when it is enough."""
+        s = self.sides[i]
+        if s.xp_need <= 0:
+            return
+        s.xp += 1
+        if s.xp < s.xp_need:
+            return
+        s.xp = 0
+        s.level += 1
+        s.max_hp += s.up_hp
+        s.hp += s.up_hp
+        s.resist += s.up_resist
+        s.defense += s.up_defense
+        s.bonus += s.up_bonus
+        self._event("level", i, s.level, s.name)
+
+    def _ally_grows(self, i: int, e: dict) -> None:
+        e["xp"] += 1
+        if e["xp"] < ALLY_XP_NEED:
+            return
+        e["xp"] = 0
+        e["level"] += 1
+        e["forca"] += ALLY_LEVEL_FORCA
+        e["agilidade"] = min(AGILIDADE_CAP, e["agilidade"] + ALLY_LEVEL_AGILIDADE)
+        self._event("level", i, e["level"], e["name"])
 
     def _heal(self, i: int, amount: int, name: str) -> None:
         s = self.sides[i]
@@ -211,9 +261,8 @@ class Fight:
         if trick == "atordoar":
             o.stun = max(o.stun, STUN_TICKS)
         elif trick == "furia":
-            for m in s.moves:
-                m["t"] = max(0, m["t"] - FURY_TICKS)
-            s.heal["t"] = max(0, s.heal["t"] - FURY_TICKS)
+            # everything of one's own recharges twice as fast for a while
+            s.haste = max(s.haste, FURY_TICKS)
         elif trick == "baque":
             self.freeze = max(self.freeze, THUD_TICKS)
         elif trick == "rasteira":
@@ -244,7 +293,7 @@ class Fight:
         if k == "negar":
             s.deny += 1
         elif k == "atacar":
-            self._hit(i, max(1, s.best() * e["forca"] // 20), "skill", e["name"])
+            self._hit(i, max(1, s.best() * e["forca"] // 40), "skill", e["name"])
             return
         elif k == "potencia":
             s.boost = BOOST_TICKS
@@ -327,10 +376,12 @@ class Fight:
                     e["skill_t"] -= 1
                     if e["skill_t"] <= 0:
                         self._skill(i, e)
+                        self._ally_grows(i, e)
                         e["skill_t"] = skill_cd(e["agilidade"])
                     e["ability_t"] -= 1
                     if e["ability_t"] <= 0:
                         self._ability(i, e)
+                        self._ally_grows(i, e)
                         e["ability_t"] = ABILITY_CD
             for i, s in enumerate(self.sides):
                 for e in s.entities:
@@ -339,6 +390,7 @@ class Fight:
                         self._hit(i, max(1, s.best() * e["forca"] // 10), "interfere", e["name"])
                         s.interfered += 1
                         e["patience"] //= 2
+                        self._ally_grows(i, e)
         for i, s in enumerate(self.sides):
             for b in ("boost", "stand", "haste", "block", "decree"):
                 if getattr(s, b):
@@ -378,6 +430,10 @@ class Fight:
             "heals": [you.heals, foe.heals],
             "tricks": [you.used, foe.used],
             "interfered": [you.interfered, foe.interfered],
+            "levels": [you.level, foe.level],
+            "xp": you.xp,
+            "max_hp": you.max_hp,
+            "allies": [{"id": e["id"], "level": e["level"]} for e in you.entities],
             "check": self.check,
         }
 
