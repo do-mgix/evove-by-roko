@@ -4,7 +4,10 @@ The app no longer carries a fixed set of screens. It is an engine that draws
 modules — agir, shop, roko, agenda… — and the server says which of them a
 profile has, where each one stands on the home, which entities it has met and
 how far the interface has evolved. All of that is the profile's *evove*, kept
-as one JSON state per profile (`user_engine`).
+as one JSON state per profile (`user_engine`). The evove is one of three
+modes, picked on the app's first screen: once its story is told the sandbox
+opens beside it — every action free and unlimited, kept apart from the real
+data — and the journey (src.domain.dungeon) is a mode of its own.
 
 Every module has a passcode. Typing one unlocks the module, so a friend can be
 handed the shop without going through the story; and every evove has a
@@ -27,7 +30,13 @@ Things are revealed a little at a time, by a story and by rules:
 - the rules watch counters — visits, opens of each module, page turns, acts,
   talks — and change the interface when one crosses its mark: the selector
   becomes a slider after 1000 turns, and then, at each new visit, has a chance
-  of becoming the third one; eve appears after five talks with roko.
+  of becoming the third one;
+- a profile carries one entity at a time, roko first. Once the story is told,
+  every new session weighs how the profile used the evove since the last one
+  — acting, asking, coming back on other days, hurrying, collecting — and the
+  entity whose trait it showed most can take roko's place: a personality test
+  played out over weeks. A profile that only looks, session after session, is
+  left with no entity at all, and the system answers alone, mute.
 
 The home's layout is drawn here too, from a seed renewed at every session, so
 it is not a fixed design: each visit tiles the same area again, the modules
@@ -43,6 +52,7 @@ import random
 import re
 from datetime import datetime
 
+from src.domain import entities as voices
 from src.domain.names import PASSCODE_ALPHABET
 
 
@@ -53,7 +63,20 @@ SESSION_GAP_MINUTES = 20
 
 SELECTOR_2_TURNS = 1000
 SELECTOR_3_CHANCE = 0.12
-EVE_AFTER_TALKS = 5
+
+# the personality test: at each new session after the story, what the profile
+# did since the last one adds to each entity's affinity, the old fading by
+# DECAY. Another entity takes the place of the one carried when its affinity is
+# at least SWITCH_MIN and SWITCH_RATIO times the carried one's; with none, one
+# arrives at ARRIVE. IDLE_SESSIONS sessions in a row with nothing done leave
+# the profile with no entity.
+AFFINITY_DECAY = 0.85
+SWITCH_MIN = 3.0
+SWITCH_RATIO = 1.6
+ARRIVE = 2.0
+IDLE_SESSIONS = 3
+# roko's head start when the story ends
+ROKO_START = 5.0
 
 # a given action is believed once acted on, on this many different days
 BELIEVE_AFTER_DAYS = 3
@@ -73,11 +96,27 @@ MODULES: dict[str, dict] = {
     "build": {"kind": "build", "label": "construir", "color": "#00e0ff", "glyph": "build", "tone": 7, "code": "CNST-2W", "weight": 0.8},
 }
 
-# codes that change the interface rather than add a module
+# codes that change the interface rather than add a module: the selector's
+# levels, the entity carried (or none), the sandbox, a fast journey
 UPGRADES: dict[str, dict] = {
     "selector2": {"code": "SELE-2R", "label": "seletor nível 2"},
     "selector3": {"code": "SELE-3V", "label": "seletor nível 3"},
-    "eve": {"code": "EVE-5HZ", "label": "eve"},
+    "eve": {"code": "EVE-5HZ", "label": "eve", "entity": "eve"},
+    "roko": {"code": "ROKO-1A", "label": "roko", "entity": "roko"},
+    "osso": {"code": "OSSO-3T", "label": "osso", "entity": "osso"},
+    "zira": {"code": "ZIRA-8N", "label": "zira", "entity": "zira"},
+    "mura": {"code": "MURA-6D", "label": "mura", "entity": "mura"},
+    "mute": {"code": "MUDO-0X", "label": "sem entidade", "entity": None},
+    "sandbox": {"code": "SAND-9B", "label": "sandbox"},
+    "fast": {"code": "RAPD-4J", "label": "jornada rápida"},
+}
+
+# the sandbox's own home: agir free, its attributes, every entity met, coleto
+SANDBOX_MODULES: dict[str, dict] = {
+    "act": {"kind": "sandbox_act", "label": "agir", "color": "#7dff6b", "glyph": "act", "tone": 1, "weight": 2.2},
+    "attributes": {"kind": "sandbox_attributes", "label": "atributos", "color": "#5cffb0", "glyph": "attributes", "tone": 5, "weight": 1.0},
+    "entities": {"kind": "sandbox_entities", "label": "entidades", "color": "#b0ff5c", "glyph": "roko", "tone": 3, "weight": 1.0},
+    "coleto": {"kind": "coleto", "label": "coleto", "color": "#7dff6b", "glyph": "coleto", "tone": 7, "weight": 0.9},
 }
 
 ALL_MODULES = list(MODULES)
@@ -119,6 +158,13 @@ def fresh(rng: random.Random) -> dict:
         "session": {"n": 0, "at": None, "seed": rng.randrange(1 << 30)},
         # the actions handed out at the start: name -> the days it was acted on
         "given": {},
+        # the one entity carried, None for none; `entities` are all ever met
+        "entity": "roko",
+        "affinity": {},
+        "idle": 0,
+        # the counters as they were at the last weighing of the personality
+        "since": {},
+        "flags": {},
         # the first thing a new profile reads, above agir alone
         "line": {"entity": "roko", "text": "AGE."},
     }
@@ -145,6 +191,14 @@ def normalized(state: dict | None, rng: random.Random) -> dict:
     out["session"] = {**base["session"], **(state.get("session") or {})}
     out["modules"] = [m for m in out.get("modules") or [] if m in MODULES] or ["act"]
     out["given"] = dict(state.get("given") or {})
+    if "entity" not in state:
+        # before one entity at a time: the first one met, roko for all of them
+        out["entity"] = "roko"
+    if out["entity"] is not None and out["entity"] not in voices.EVOVE:
+        out["entity"] = "roko"
+    out["affinity"] = dict(state.get("affinity") or {})
+    out["since"] = dict(state.get("since") or {})
+    out["flags"] = dict(state.get("flags") or {})
     return out
 
 
@@ -220,7 +274,8 @@ STORY: dict[str, tuple] = {
         "unlock": ["journey"], "next": "build",
     }),
     "build": ("visit", lambda st, ev: counter(st, "visits") >= 3 and counter(st, "opens", "journey") >= 1, {
-        "lines": [_say("roko", "VOCÊ SEMPRE VOLTA. CONSTRUA ENTÃO A SUA INTERFACE.")],
+        "lines": [_say("roko", "VOCÊ SEMPRE VOLTA. CONSTRUA ENTÃO A SUA INTERFACE."),
+                  _say("system", "O TUTORIAL ACABOU. NA TELA INICIAL, O SANDBOX ESTÁ ABERTO.")],
         "unlock": ["build"], "next": "done",
     }),
 }
@@ -244,14 +299,7 @@ def _apply(state: dict, effect: dict, ev: dict, out: list[dict]) -> None:
         state["story"] = effect["next"]
 
 
-# the rules: (name, the events that make it look, whether it holds, what it does)
-def _eve(state: dict, ev: dict, rng: random.Random, out: list[dict]) -> None:
-    if "roko" in state["entities"] and "eve" not in state["entities"] and counter(state, "talks", "roko") >= EVE_AFTER_TALKS:
-        meet(state, "eve")
-        out.append(_say("roko", "HÁ OUTRA VOZ AQUI. NÃO CONFIE NELA."))
-        out.append(_say("eve", "oi. ele fala alto, né? eu só pergunto coisas."))
-
-
+# the rules: each looks at the event and the state, and may change and say
 def _selector(state: dict, ev: dict, rng: random.Random, out: list[dict]) -> None:
     if state["selector"] < 2 and counter(state, "turns") >= SELECTOR_2_TURNS:
         state["selector"] = 2
@@ -263,15 +311,6 @@ def _selector(state: dict, ev: dict, rng: random.Random, out: list[dict]) -> Non
 
 _NUMBERS = {2: "DOIS", 3: "TRÊS", 4: "QUATRO", 5: "CINCO"}
 
-DOUBTS = (
-    "{a}? HOJE?",
-    "EU CONTO AS MARCAS. O RESTO EU SÓ IMAGINO.",
-    "QUEM SEGURA ESTE APARELHO FEZ {a} MESMO?",
-    "AS MARCAS VÊM DO MESMO JEITO. EU SÓ QUERIA TER VISTO.",
-    "SE FOR VERDADE, OUTRO DIA VOCÊ FAZ DE NOVO.",
-    "{a}. ANOTADO. ACREDITAR É OUTRA COISA.",
-)
-
 
 def doubted(state: dict) -> list[str]:
     """The given actions roko does not believe yet."""
@@ -279,9 +318,10 @@ def doubted(state: dict) -> list[str]:
 
 
 def _doubt(state: dict, ev: dict, rng: random.Random, out: list[dict]) -> None:
-    """An act on a given action: its day is kept, and roko believes it on the
-    third one. Until then roko may say something about it — always while the
-    story is told — unless the story just spoke."""
+    """An act on a given action: its day is kept, and it is believed on the
+    third one. Until then the entity carried — roko, while the story is told —
+    may say something about it, always during the story, unless the story just
+    spoke. With no entity, the system notes it, mute."""
     name = ev.get("name")
     days = (state.get("given") or {}).get(name, None) if ev["kind"] == "act" else None
     if days is None:
@@ -289,18 +329,96 @@ def _doubt(state: dict, ev: dict, rng: random.Random, out: list[dict]) -> None:
     spoke, new = bool(out), ev["day"] not in days
     if new:
         days.append(ev["day"])
+    who = state.get("entity")
     if len(days) >= BELIEVE_AFTER_DAYS:
         state["given"][name] = None
-        out.append(_say("roko", f"{name}. {_NUMBERS.get(len(days), len(days))} DIAS. AGORA EU ACREDITO."))
+        out.append(voices.say(who, "believe", rng, a=name, n=_NUMBERS.get(len(days), len(days))))
     elif spoke:
         return
     elif new and len(days) > 1:
-        out.append(_say("roko", f"{name}. OUTRO DIA. TALVEZ."))
+        out.append(voices.say(who, "another_day", rng, a=name))
     elif state.get("story") != "done" or rng.random() < DOUBT_CHANCE:
-        out.append(_say("roko", rng.choice(DOUBTS).format(a=name)))
+        out.append(voices.say(who, "doubt", rng, a=name))
 
 
-RULES = (_doubt, _eve, _selector)
+# what the personality test reads, from the counters: name -> how to read it
+_SINCE = {
+    "acts": lambda st: counter(st, "acts"),
+    "talks": lambda st: counter(st, "talks"),
+    "plans": lambda st: counter(st, "plans"),
+    "buys": lambda st: counter(st, "buys"),
+    "turns": lambda st: counter(st, "turns"),
+    "days": lambda st: counter(st, "days"),
+    "agenda": lambda st: counter(st, "opens", "agenda"),
+    "attributes": lambda st: counter(st, "opens", "attributes"),
+    "journey": lambda st: counter(st, "opens", "journey"),
+    "shop": lambda st: counter(st, "opens", "shop"),
+}
+
+# each entity's trait, as what a session's differences add to its affinity
+TRAITS = {
+    "roko": lambda d: d["acts"] / 3 + d["agenda"] / 3,
+    "eve": lambda d: d["talks"] / 2 + d["plans"] + d["attributes"] / 2,
+    "osso": lambda d: 1.5 if d["days"] and d["acts"] else 0.0,
+    "zira": lambda d: d["turns"] / 150 + d["journey"] / 2,
+    "mura": lambda d: d["buys"] * 1.5 + d["shop"] / 3,
+}
+
+
+def carry(state: dict, entity: str | None, rng: random.Random, out: list[dict]) -> None:
+    """The profile now carries `entity`, or none: the one leaving says goodbye
+    — naming the next — and the one arriving says hello, naming the last."""
+    was = state.get("entity")
+    if was == entity:
+        return
+    if entity is None:
+        out.append(voices.say(was, "abandon", rng))
+        out.append(_say("system", "SEM ENTIDADE."))
+    elif was is None:
+        if entity in state["entities"]:
+            out.append(voices.say(entity, "return", rng))
+        else:
+            out.append(_say("system", f"UMA ENTIDADE CHEGOU: {voices.name_of(entity)}."))
+            out.append(voices.say(entity, "greet", rng))
+    else:
+        out.append(voices.say(was, "leave", rng, other=voices.name_of(entity)))
+        out.append(voices.say(entity, "arrive", rng, other=voices.name_of(was)))
+    state["entity"] = entity
+    if entity is not None:
+        meet(state, entity)
+
+
+def _personality(state: dict, ev: dict, rng: random.Random, out: list[dict]) -> None:
+    """At a new session after the story: what the profile did since the last
+    weighing adds to each entity's affinity, and the entity carried may change,
+    arrive or leave (see the constants)."""
+    if ev["kind"] != "visit" or not ev.get("new_session") or state.get("story") != "done":
+        return
+    now = {k: read(state) for k, read in _SINCE.items()}
+    since = state.get("since") or {}
+    state["since"] = now
+    if not since:
+        # the first weighing: the story just ended, and roko has a head start
+        state["affinity"] = {**{e: 0.0 for e in voices.EVOVE}, "roko": ROKO_START, **(state.get("affinity") or {})}
+        return
+    d = {k: max(0, now[k] - int(since.get(k, 0) or 0)) for k in now}
+    aff = state.setdefault("affinity", {})
+    for e in voices.EVOVE:
+        aff[e] = round(float(aff.get(e, 0) or 0) * AFFINITY_DECAY + TRAITS[e](d), 3)
+    active = d["acts"] + d["talks"] + d["plans"] + d["buys"]
+    state["idle"] = 0 if active else int(state.get("idle", 0) or 0) + 1
+    cur = state.get("entity")
+    best = max(voices.EVOVE, key=lambda e: (aff[e], -voices.EVOVE.index(e)))
+    if cur is not None and state["idle"] >= IDLE_SESSIONS:
+        carry(state, None, rng, out)
+    elif cur is None:
+        if active and aff[best] >= ARRIVE:
+            carry(state, best, rng, out)
+    elif best != cur and aff[best] >= max(SWITCH_MIN, float(aff.get(cur, 0) or 0) * SWITCH_RATIO):
+        carry(state, best, rng, out)
+
+
+RULES = (_doubt, _personality, _selector)
 
 
 def event(state: dict, ev: dict, rng: random.Random, now: datetime) -> list[dict]:
@@ -315,6 +433,9 @@ def event(state: dict, ev: dict, rng: random.Random, now: datetime) -> list[dict
         ev["new_session"] = bool(ev.get("cold")) or gap >= SESSION_GAP_MINUTES
         if ev["new_session"]:
             _count(state, "visits")
+            if state.get("day") != now.date().isoformat():
+                state["day"] = now.date().isoformat()
+                _count(state, "days")
             state["session"] = {"n": int(state["session"].get("n", 0)) + 1, "seed": rng.randrange(1 << 30),
                                 "at": now.isoformat(timespec="seconds")}
         else:
@@ -355,6 +476,17 @@ def event(state: dict, ev: dict, rng: random.Random, now: datetime) -> list[dict
     return out
 
 
+def modes(state: dict) -> dict:
+    """The modes of the app's first screen this profile can enter: the evove
+    always, the sandbox once the story is told, the journey once its module
+    is open."""
+    return {
+        "evove": True,
+        "sandbox": state.get("story") == "done" or bool(state["flags"].get("sandbox")),
+        "journey": "journey" in state["modules"],
+    }
+
+
 def entity_presence(state: dict) -> bool:
     """While the story is told the entities are always there and always answer:
     a tutorial that hides its teacher teaches nothing."""
@@ -375,11 +507,16 @@ def take_upgrade(state: dict, upgrade: str) -> list[dict]:
         state["selector"] = max(state["selector"], 2)
     elif upgrade == "selector3":
         state["selector"] = 3
-    elif upgrade == "eve":
+    elif upgrade == "sandbox":
+        state["flags"]["sandbox"] = True
+    elif upgrade == "fast":
+        state["flags"]["fast"] = not state["flags"].get("fast")
+    out = [_say("system", f"CÓDIGO ACEITO: {UPGRADES[upgrade]['label'].upper()}.")]
+    if "entity" in UPGRADES[upgrade]:
         meet(state, "roko")
-        meet(state, "eve")
         unlock(state, "roko")
-    return [_say("system", f"CÓDIGO ACEITO: {UPGRADES[upgrade]['label'].upper()}.")]
+        carry(state, UPGRADES[upgrade]["entity"], random.Random(), out)
+    return out
 
 
 def take_build(state: dict, other: dict) -> list[dict]:
@@ -389,6 +526,8 @@ def take_build(state: dict, other: dict) -> list[dict]:
         unlock(state, m)
     for e in other.get("entities") or []:
         meet(state, e)
+    if "entity" in other and other["entity"] in (*voices.EVOVE, None):
+        state["entity"] = other["entity"]
     state["selector"] = max(state["selector"], int(other.get("selector", 1) or 1))
     state["story"] = "done"
     return [_say("system", "EVOVE CARREGADO.")]
@@ -432,25 +571,37 @@ def _split(quad, items, weights, rng, out):
         _split([a, tr, br, b], second, weights, rng, out)
 
 
-def layout(modules: list[str], opens: dict[str, int], seed: int) -> dict[str, list[list[float]]]:
+def layout(modules: list[str], opens: dict[str, int], seed: int, table: dict[str, dict] | None = None) -> dict[str, list[list[float]]]:
     """Polygons in the home's grid, five squares across and seven down, for this
     session. Agir stands tall on the right, under the thumb; the rest tile the
     left in an order and with cuts drawn from `seed`, each sized by its weight
-    and by how often it is opened."""
+    — in `table`, the evove's modules by default — and by how often it is
+    opened."""
+    table = MODULES if table is None else table
     rng = random.Random(seed)
     out: dict[str, list[list[float]]] = {}
     xt = 2.75 + rng.uniform(-0.3, 0.2)
     xb = xt + rng.uniform(0.25, 0.65)
-    rest = [m for m in modules if m != "act" and m in MODULES]
+    rest = [m for m in modules if m != "act" and m in table]
     if "act" in modules:
         out["act"] = [[round(xt, 3), 0.0], [COLS, 0.0], [COLS, ROWS], [round(xb, 3), ROWS]]
     else:
         xt = xb = COLS
     if rest:
         rng.shuffle(rest)
-        weights = {m: MODULES[m]["weight"] * (1 + 0.35 * math.log1p(int(opens.get(m, 0) or 0))) for m in rest}
+        weights = {m: table[m]["weight"] * (1 + 0.35 * math.log1p(int(opens.get(m, 0) or 0))) for m in rest}
         _split([(0.0, 0.0), (xt, 0.0), (xb, ROWS), (0.0, ROWS)], rest, weights, rng, out)
     return out
+
+
+MUTE_TILE = {"label": "—", "color": "#5f7373", "glyph": "mute"}
+
+
+def carried(state: dict) -> dict | None:
+    """The entity carried, as the interface shows it, or None."""
+    e = voices.entity(state.get("entity") or "")
+    return {"id": e["id"], "name": e["name"], "title": e["title"], "color": e["color"], "glyph": e["glyph"],
+            "voice": e["voice"]} if e else None
 
 
 def view(state: dict, passcode: str, period: str) -> dict:
@@ -463,8 +614,12 @@ def view(state: dict, passcode: str, period: str) -> dict:
     shown = [m for m in state["modules"] if m in shapes]
     hint = max(shown, key=lambda m: (int(here.get(m, 0) or 0), m == "act")) if shown else None
     tiles = []
+    who = carried(state)
     for m in shown:
         d = MODULES[m]
+        if d["kind"] == "entity":
+            # the module of the entity carried, dressed as it is; mute with none
+            d = {**d, **({"label": who["name"].lower(), "color": who["color"], "glyph": who["glyph"]} if who else MUTE_TILE)}
         tiles.append({
             "id": m, "kind": d["kind"], "label": d["label"], "color": d["color"], "glyph": d["glyph"],
             "tone": d["tone"], "polygon": shapes[m], "delay": rng.randrange(0, 360),
@@ -482,6 +637,8 @@ def view(state: dict, passcode: str, period: str) -> dict:
         "modules": [{"id": m, "label": d["label"], "code": d["code"] if m in state["modules"] else None,
                      "on": m in state["modules"]} for m, d in MODULES.items()],
         "entities": list(state["entities"]),
+        "entity": who,
+        "modes": modes(state),
         "story": {"step": state.get("story", "done"), "at": step, "of": steps, "done": state.get("story") == "done"},
         "doubted": doubted(state),
         "line": state.get("line"),

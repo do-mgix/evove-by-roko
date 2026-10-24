@@ -2138,6 +2138,11 @@ def act_on_action(action_id: str, payload: dict | None = None, username: str = D
 
     _record_activity(username)
     lines = _engine_event(username, {"kind": "act", "action": action_id, "name": str(action.get("name") or "").upper()})
+    # what is said on the screen that follows: the story's line when the act
+    # moved it, one of the entity carried otherwise — or the system's, mute
+    said = lines[-1] if lines else entities.say(
+        engine_repo.load(username)[0].get("entity"), "after_act", random.Random(),
+        {"nickname": social_repo.identity(username)["nickname"]})
     token_delta = (outcome.token_gain - outcome.tokens_wasted) - outcome.token_cost
     log_entry = _append_log(username, outcome.log_content, outcome.marks, token_delta, period, outcome.undo)
 
@@ -2163,11 +2168,8 @@ def act_on_action(action_id: str, payload: dict | None = None, username: str = D
         # the energy ran out on this act: the journey is back at stage 1
         "journey_reset": outcome.journey_reset,
         "log": log_entry,
-        # what roko says on the screen that follows: the story's line when the
-        # act moved it, one of its own otherwise
-        "roko": lines[-1]["text"] if lines else entities.line(
-            entities.ENTITIES["roko"], {"nickname": social_repo.identity(username)["nickname"]},
-            random.Random(), moment="after_act"),
+        "roko": said["text"],
+        "speaker": said["entity"],
         "lines": lines,
     }
 
@@ -2293,10 +2295,33 @@ def list_entities(username: str = Depends(current_username)):
     return [entities.public(entities.ENTITIES[e]) for e in state["entities"] if e in entities.ENTITIES]
 
 
+@app.get("/entity")
+def carried_entity(username: str = Depends(current_username)):
+    """The one entity the profile carries, with its stats and its affinity —
+    or `none`, when it carries none and the system answers alone."""
+    state, _code = engine_repo.load(username)
+    e = entities.entity(state.get("entity") or "")
+    affinity = {k: round(float(v), 2) for k, v in (state.get("affinity") or {}).items()}
+    if not e:
+        return {"none": True, "affinity": affinity}
+    return {**entities.public(e), "none": False, "affinity": affinity}
+
+
+@app.get("/entity/talk")
+def carried_talk(username: str = Depends(current_username)):
+    """A tap on the entity's screen: the entity carried answers, as
+    `/entities/{id}/talk`; with none, the system does, mute."""
+    state, _code = engine_repo.load(username)
+    if not state.get("entity"):
+        return {"entity": None, **entities.mute(random.Random()), "lines": []}
+    return entity_talk(state["entity"], username)
+
+
 @app.get("/entities/{entity_id}/talk")
 def entity_talk(entity_id: str, username: str = Depends(current_username)):
     """A tap on an entity's screen: whether it is there, whether it wants to
-    answer, and what it says, picked from the profile's state."""
+    answer, and what it says, picked from the profile's state. Only the
+    entity carried talks here; the others met, in the sandbox."""
     e = entities.entity(entity_id)
     if not e:
         raise HTTPException(status_code=404, detail=f"entity '{entity_id}' not found")
@@ -2304,8 +2329,8 @@ def entity_talk(entity_id: str, username: str = Depends(current_username)):
     now = datetime.now()
     minute = int(now.timestamp() // 60)
     state, _code = engine_repo.load(username)
-    if entity_id not in state["entities"]:
-        raise HTTPException(status_code=404, detail=f"entity '{entity_id}' not met yet")
+    if entity_id != state.get("entity"):
+        raise HTTPException(status_code=404, detail=f"entity '{entity_id}' is not the one carried")
     rng = random.Random()
     st = _entity_state(username, data)
     if engine.entity_presence(state):
