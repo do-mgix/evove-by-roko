@@ -145,21 +145,25 @@ fun clock(total: Long): String {
 /** 1.5 as "1.5", 2.0 as "2". */
 fun trim(d: Double): String = if (d == Math.floor(d)) d.toLong().toString() else d.toString()
 
-/** A message of the fight and the shape that goes with it. */
-private data class Beat(val n: Int, val text: String, val shape: String, val side: Int, val color: Color)
+/** A message of the fight, the shape that goes with it, which side it came
+ *  from, and — for an entity — who, for the camera to turn to. */
+private data class Beat(val n: Int, val text: String, val shape: String, val side: Int, val color: Color, val entity: String? = null)
+
+/** The color of the opponent's nameless entity. */
+private val FOE_THEME = hex("#9b7bff")
 
 private fun beatOf(n: Int, e: FightEvent, setup: FightSetup): Beat? {
     val who = if (e.side == 0) setup.you.name else setup.foe.name
     val ally = e.name.substringBefore("|")
     val color = if (e.side == 0) Ink.journey else Ink.enemy
+    val theme = if (e.side == 0) voiceInk(entityOf(setup, ally)) else FOE_THEME
     return when (e.kind) {
-        "attack" -> Beat(n, "$who usou ${e.name}", if (e.side == 0) "attack" else "hurt", e.side, color)
+        "attack" -> Beat(n, "$who usou ${e.name}", "attack", e.side, color)
         "heal" -> Beat(n, "$who usou ${e.name}", "heal", e.side, Ink.act)
         "trick" -> Beat(n, "$who usou ${TRICK_NAME[e.name] ?: e.name}", "trick", e.side, color)
-        "skill" -> Beat(n, "$ally agiu", "entity", e.side, if (e.side == 0) voiceInk(entityOf(setup, ally)) else Ink.enemy)
-        "ability" -> Beat(n, "$ally usou ${ABILITY_NAME[e.name.substringAfter("|")] ?: e.name.substringAfter("|")}", "entity", e.side,
-            if (e.side == 0) voiceInk(entityOf(setup, ally)) else Ink.enemy)
-        "interfere" -> Beat(n, "$ally interferiu", "entity", e.side, if (e.side == 0) voiceInk(entityOf(setup, ally)) else Ink.enemy)
+        "skill" -> Beat(n, "$ally agiu", "entity", e.side, theme, ally)
+        "ability" -> Beat(n, "$ally usou ${ABILITY_NAME[e.name.substringAfter("|")] ?: e.name.substringAfter("|")}", "entity", e.side, theme, ally)
+        "interfere" -> Beat(n, "$ally interferiu", "entity", e.side, theme, ally)
         "deny" -> Beat(n, "${e.name} foi negado", "none", e.side, color)
         "miss" -> Beat(n, "${e.name} falhou", "none", e.side, color)
         else -> null
@@ -354,9 +358,10 @@ fun JourneyScreen(onHome: () -> Unit, onClose: () -> Unit = {}) {
                 val b = beatOf(++n, e, s) ?: continue
                 beat = b
                 when (b.shape) {
-                    "attack", "hurt" -> Sfx.hit()
+                    "attack" -> Sfx.hit()
                     "heal" -> Sfx.heal()
-                    "entity", "trick" -> Sfx.entity()
+                    "trick" -> Sfx.entity()
+                    "entity" -> Sfx.boom()
                 }
                 delay(BEAT_MS)
             }
@@ -667,24 +672,29 @@ private fun ColumnScope.Ending(v: DungeonView, onCopy: (String) -> Unit) {
 
 // ---------------------------------------------------------------- the fight
 
-/** The fight: the message box, the opponent as static, the shape of the action
- *  read, the hp rolling down and the four attacks recharging. */
+/** The fight: the message box; the stage — the opponent as unstable frames of
+ *  static over a floor in perspective, its shadow under it, its energy bar —
+ *  or, while an entity acts, the camera on that entity; the hp rolling down,
+ *  the two attacks, the heal and the trick, and the entities' chance to step in. */
 @Composable
 private fun FightScreen(setup: FightSetup, v: FightView?, beat: Beat?, done: Boolean, ended: FightEnd?, onBack: () -> Unit, onHome: () -> Unit) {
     val ink = Ink.journey
     val you = v?.sides?.get(0)
-    // the opponent's blows shake the screen a little
+    val foe = v?.sides?.get(1)
+    val frozen = v?.frozen == true
+    // blows that come at the screen shake it
     val shake = remember { Animatable(0f) }
     LaunchedEffect(beat?.n) {
-        if (beat?.shape == "hurt") {
+        val b = beat ?: return@LaunchedEffect
+        if ((b.shape == "attack" && b.side == 1) || b.shape == "entity") {
             shake.snapTo(1f)
-            shake.animateTo(0f, tween(450, easing = LinearEasing))
+            shake.animateTo(0f, tween(if (b.shape == "entity") 650 else 450, easing = LinearEasing))
         }
     }
     CompositionLocalProvider(LocalInk provides ink) {
-        BoxWithConstraints(Modifier.fillMaxSize().padding(10.dp)) {
-            val jitter = with(LocalDensity.current) { (shake.value * 6.dp.toPx() * if ((beat?.n ?: 0) % 2 == 0) 1 else -1).toInt() }
-            Column(Modifier.fillMaxSize().offset { IntOffset(jitter, 0) }, verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Box(Modifier.fillMaxSize().padding(10.dp)) {
+            val jitter = with(LocalDensity.current) { (shake.value * 7.dp.toPx() * if ((beat?.n ?: 0) % 2 == 0) 1 else -1).toInt() }
+            Column(Modifier.fillMaxSize().offset { IntOffset(jitter, -jitter / 2) }, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 MessageBox(
                     when {
                         done && ended != null -> if (ended.won) "vitória · +${ended.points} pontos" else "derrota"
@@ -693,20 +703,16 @@ private fun FightScreen(setup: FightSetup, v: FightView?, beat: Beat?, done: Boo
                         else -> "${setup.foe.name} está na sua frente"
                     },
                 )
-                // the opponent, and the shapes flying to it or from it
-                Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        val side = minOf(maxWidth, maxHeight) * 0.62f
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Static(Modifier.size(side).border(1.5.dp, Ink.enemy).testTag("foe"), opacity = if (done && ended?.won == true) 0.12f else 0.6f)
-                            BasicText(caps(setup.foe.name), style = TextStyle(fontFamily = Display, fontSize = 0.8.rem, letterSpacing = 0.15.em, color = Ink.enemy))
-                        }
-                    }
+                Box(Modifier.fillMaxWidth().weight(1f).clipToBounds()) {
+                    val camera = beat?.takeIf { it.shape == "entity" }
+                    if (camera != null) EntityCamera(camera, Modifier.fillMaxSize())
+                    else Stage(setup, foe, frozen, done && ended?.won == true, Modifier.fillMaxSize())
                     Shapes(beat, Modifier.fillMaxSize())
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
-                    HpCard(setup.you.name, you?.hp ?: ended?.result?.hp?.getOrNull(0) ?: setup.you.hp, ink)
-                    Skills(you, ink)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+                    HpCard(setup.you.name, you?.hp ?: ended?.result?.hp?.getOrNull(0) ?: setup.you.hp, if (frozen || you?.stunned == true) Ink.mute else ink, you)
+                    Skills(you, if (frozen || you?.stunned == true) Ink.mute else ink)
+                    Chances(you)
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (done) Key({ Sfx.tap(0); onBack() }, Modifier.weight(1f).height(3.remDp)) { KeyIcon(Icon.LEFT) } else Box(Modifier.weight(1f))
@@ -729,57 +735,138 @@ private fun MessageBox(text: String) {
     }
 }
 
-/** The shape of the action being read: one per kind. A blow, a trick or an
- *  entity of the profile's side shrinks from below toward the opponent; the
- *  opponent's blows come at the screen as rings; a heal opens where it lands. */
+/** Where the opponent stands: a floor in perspective to a horizon, the
+ *  opponent's frames over their shadow, and its energy bar above. */
+@Composable
+private fun Stage(setup: FightSetup, foe: com.evove.app.fight.SideView?, frozen: Boolean, beaten: Boolean, modifier: Modifier) {
+    val ink = LocalInk.current
+    val grey = frozen || foe?.stunned == true
+    BoxWithConstraints(modifier) {
+        val w = constraints.maxWidth.toFloat()
+        val h = constraints.maxHeight.toFloat()
+        val horizon = h * 0.42f
+        val feet = h * 0.72f
+        Canvas(Modifier.fillMaxSize()) {
+            val stroke = 1.dp.toPx()
+            drawLine(ink.copy(alpha = 0.35f), Offset(0f, horizon), Offset(w, horizon), stroke)
+            // the floor: lines to a vanishing point, and rows nearing the eye
+            val vx = w / 2
+            for (k in -6..6) drawLine(ink.copy(alpha = 0.16f), Offset(vx + k * w * 0.02f, horizon), Offset(vx + k * w * 0.32f, h), stroke)
+            for (r in 1..7) {
+                val y = horizon + (h - horizon) * (r / 7f).pow(1.8f)
+                drawLine(ink.copy(alpha = 0.06f + 0.03f * r), Offset(0f, y), Offset(w, y), stroke)
+            }
+            // the shadow at the opponent's feet
+            val sw = w * 0.34f
+            drawOval(Color.Black.copy(alpha = 0.85f), Offset(vx - sw / 2, feet - sw * 0.09f), Size(sw, sw * 0.18f))
+            drawOval(ink.copy(alpha = 0.22f), Offset(vx - sw / 2, feet - sw * 0.09f), Size(sw, sw * 0.18f), style = Stroke(stroke))
+        }
+        val density = LocalDensity.current
+        val side = with(density) { (minOf(w * 0.34f, (feet - horizon) * 1.6f)).toDp() }
+        val top = with(density) { feet.toDp() } - side * 1.05f
+        Column(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            BasicText(caps(setup.foe.name), style = TextStyle(fontFamily = Display, fontSize = 0.72.rem, letterSpacing = 0.15.em, color = if (grey) Ink.mute else Ink.enemy))
+            val hp = foe?.hp ?: 0L
+            val c = if (grey) Ink.mute else if (foe?.burning == true) Ink.late else Ink.enemy
+            Box(Modifier.width(side * 1.6f).height(7.dp).border(1.dp, c)) {
+                Box(Modifier.fillMaxHeight().width(side * 1.6f * (maxOf(0L, hp).toFloat() / maxOf(1L, setup.foe.maxHp)).coerceIn(0f, 1f)).background(c))
+            }
+        }
+        if (!beaten) UnstableFrames(
+            if (grey) Ink.mute else Color.White, if (grey) Ink.mute else Ink.enemy, still = grey,
+            Modifier.offset(with(density) { (w / 2).toDp() } - side / 2, top).size(side).testTag("foe"),
+            shield = foe?.shielded == true,
+        )
+    }
+}
+
+/** The camera turned to an entity: its own frames, in its color, close. */
+@Composable
+private fun EntityCamera(b: Beat, modifier: Modifier) {
+    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            // a burst of lines behind it, in its color
+            val c = Offset(size.width / 2, size.height / 2)
+            for (k in 0 until 24) {
+                val a = Math.toRadians(k * 15.0)
+                val r = size.maxDimension
+                drawLine(b.color.copy(alpha = 0.18f), c, Offset(c.x + (Math.cos(a) * r).toFloat(), c.y + (Math.sin(a) * r).toFloat()), 1.dp.toPx())
+            }
+        }
+        val side = minOf(maxWidth, maxHeight) * 0.66f
+        UnstableFrames(b.color, b.color, still = false, Modifier.size(side), count = 9)
+        BasicText(caps(b.entity ?: ""), Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp),
+            style = TextStyle(fontFamily = Display, fontSize = 1.rem, letterSpacing = 0.25.em, color = b.color))
+    }
+}
+
+/** Frames of static that will not hold still: a few of them, overlapping,
+ *  thrown a little each moment, tinted `tint`. */
+@Composable
+private fun UnstableFrames(tint: Color, edge: Color, still: Boolean, modifier: Modifier, count: Int = 6, shield: Boolean = false) {
+    var tick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(still) {
+        if (still) return@LaunchedEffect
+        while (true) { delay(90); tick++ }
+    }
+    Canvas(modifier) {
+        val rnd = java.util.Random(if (still) 7L else tick.toLong() * 31 + 17)
+        val cells = 7
+        for (f in 0 until count) {
+            val fw = size.width * (0.42f + rnd.nextFloat() * 0.36f)
+            val fh = size.height * (0.42f + rnd.nextFloat() * 0.36f)
+            val x = (size.width - fw) * rnd.nextFloat()
+            val y = (size.height - fh) * rnd.nextFloat()
+            val cw = fw / cells
+            val ch = fh / cells
+            for (i in 0 until cells) for (j in 0 until cells) {
+                val v = rnd.nextFloat()
+                drawRect(tint.copy(alpha = 0.08f + v * 0.32f), Offset(x + i * cw, y + j * ch), Size(cw, ch))
+            }
+            drawRect(edge.copy(alpha = 0.75f), Offset(x, y), Size(fw, fh), style = Stroke(1.2.dp.toPx()))
+        }
+        if (shield) drawCircle(Ink.journey.copy(alpha = 0.7f), size.minDimension * 0.62f, style = Stroke(2.dp.toPx()))
+    }
+}
+
+/** The shape of the action read, one per kind — square for a blow, diamond for
+ *  a trick, triangle for an entity, circle for a heal. The profile's come from
+ *  behind the screen, as big as it, and shrink into the opponent; the
+ *  opponent's are the exact opposite, born at its center and growing until
+ *  they fill the screen. */
 @Composable
 private fun Shapes(beat: Beat?, modifier: Modifier) {
     val t = remember { Animatable(1f) }
     LaunchedEffect(beat?.n) {
         if (beat == null) return@LaunchedEffect
         t.snapTo(0f)
-        t.animateTo(1f, tween(700, easing = LinearEasing))
+        t.animateTo(1f, tween(750, easing = LinearEasing))
     }
     val b = beat ?: return
     if (b.shape == "none") return
     Canvas(modifier) {
         val p = t.value
         if (p >= 1f) return@Canvas
-        val foe = Offset(size.width / 2, size.height * 0.45f)
-        val self = Offset(size.width / 2, size.height * 1.05f)
-        val stroke = 2.dp.toPx()
-        val from = if (b.side == 0) self else foe
-        val to = if (b.side == 0) foe else self
-        fun at(k: Float) = Offset(from.x + (to.x - from.x) * k, from.y + (to.y - from.y) * k)
-        val big = size.minDimension * 0.5f
+        val foe = Offset(size.width / 2, size.height * 0.55f)
+        val eye = Offset(size.width / 2, size.height / 2)
+        val stroke = (if (b.shape == "entity") 3 else 2).dp.toPx()
+        val full = size.maxDimension * 1.5f
+        val small = 10.dp.toPx()
+        // toward the opponent when it is the profile's; out at the screen when it is the opponent's
+        val k = if (b.side == 0) p else 1f - p
+        val s = small + (full - small) * (1f - k).pow(2f)
+        val c = Offset(eye.x + (foe.x - eye.x) * k, eye.y + (foe.y - eye.y) * k)
+        val color = b.color.copy(alpha = if (b.side == 0) 0.4f + 0.6f * p else 1f - p * 0.7f)
         when (b.shape) {
-            "attack" -> {
-                val s = big * (1f - p).pow(1.4f) + 6.dp.toPx()
-                val c = at(p)
-                drawRect(b.color.copy(alpha = 1f - p * 0.4f), Offset(c.x - s / 2, c.y - s / 2), Size(s, s), style = Stroke(stroke))
-            }
-            "trick" -> {
-                val s = big * 0.8f * (1f - p) + 6.dp.toPx()
-                rotate(p * 180f, at(p)) { diamond(at(p), s, b.color.copy(alpha = 1f - p * 0.4f), stroke) }
-            }
-            "entity" -> {
-                val s = big * 0.9f * (1f - p).pow(1.2f) + 6.dp.toPx()
-                triangle(at(p), s, b.color.copy(alpha = 1f - p * 0.3f), stroke)
-            }
-            "heal" -> {
-                val c = if (b.side == 0) Offset(size.width / 2, size.height * 0.95f) else foe
-                drawCircle(b.color.copy(alpha = 1f - p), big * 0.15f + big * 0.6f * p, c, style = Stroke(stroke))
-            }
-            "hurt" -> {
-                // rings from the opponent washing over the screen
-                for (k in 0..2) {
-                    val q = (p - k * 0.15f).coerceIn(0f, 1f)
-                    if (q <= 0f) continue
-                    drawCircle(b.color.copy(alpha = (1f - q) * 0.8f), size.maxDimension * q, foe, style = Stroke(stroke * (1 + k)))
-                }
-                drawRect(b.color.copy(alpha = (1f - p) * 0.12f))
-            }
+            "attack" -> drawRect(color, Offset(c.x - s / 2, c.y - s / 2), Size(s, s), style = Stroke(stroke))
+            "trick" -> rotate(p * 90f, c) { diamond(c, s, color, stroke) }
+            "entity" -> triangle(c, s, color, stroke)
+            // a heal stays where it lands: it opens at the profile's feet, or closes on the opponent
+            "heal" -> if (b.side == 0) drawCircle(b.color.copy(alpha = 1f - p), small + size.minDimension * 0.6f * p,
+                Offset(size.width / 2, size.height), style = Stroke(stroke))
+            else drawCircle(b.color.copy(alpha = 1f - p * 0.5f), small + size.minDimension * 0.4f * (1f - p), foe, style = Stroke(stroke))
         }
+        if (b.side == 1 && b.shape != "heal") drawRect(b.color.copy(alpha = (1f - p) * 0.1f))
     }
 }
 
@@ -794,9 +881,11 @@ private fun DrawScope.triangle(c: Offset, s: Float, color: Color, stroke: Float)
 }
 
 /** The hp as the old consoles kept it: the name, and a counter whose digits
- *  roll down toward the hp left, never jumping. */
+ *  roll down toward the hp left, never jumping. What a trick or an entity
+ *  did to the profile shows on the card: grey when it cannot act, a second
+ *  border with a shield, gold while strengthened. */
 @Composable
-private fun HpCard(name: String, hp: Long, ink: Color) {
+private fun HpCard(name: String, hp: Long, ink: Color, you: com.evove.app.fight.SideView?) {
     val target = maxOf(0L, hp).toFloat()
     var shownHp by remember { mutableFloatStateOf(target) }
     val goalNow by rememberUpdatedState(target)
@@ -812,15 +901,22 @@ private fun HpCard(name: String, hp: Long, ink: Color) {
             shownHp = if (shownHp > goal) maxOf(goal, shownHp - speed * dt) else minOf(goal, shownHp + speed * dt)
         }
     }
+    val edge = if (you?.boosted == true) Ink.gold else ink
     Column(
-        Modifier.border(1.5.dp, ink).background(Color.Black).padding(horizontal = 1.remDp, vertical = 0.6.remDp).testTag("hp"),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(0.3.remDp),
+        Modifier.then(if (you?.shielded == true) Modifier.border(1.5.dp, ink).padding(3.dp) else Modifier)
+            .border(1.5.dp, edge).background(Color.Black).padding(horizontal = 0.9.remDp, vertical = 0.55.remDp).testTag("hp"),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(0.25.remDp),
     ) {
-        BasicText(caps(name), style = TextStyle(fontFamily = Display, fontSize = 0.78.rem, letterSpacing = 0.12.em, color = Color.White), maxLines = 1)
+        BasicText(caps(name), style = TextStyle(fontFamily = Display, fontSize = 0.74.rem, letterSpacing = 0.12.em, color = if (ink == Ink.mute) Ink.mute else Color.White), maxLines = 1)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.4.remDp)) {
             BasicText("HP", style = TextStyle(fontFamily = Mono, fontSize = 0.7.rem, color = ink))
-            Odometer(shownHp, digits = maxOf(3, target.toLong().toString().length), color = if (target <= 0f) Ink.danger else Color.White)
+            Odometer(shownHp, digits = maxOf(3, target.toLong().toString().length), color = if (target <= 0f) Ink.danger else if (ink == Ink.mute) Ink.mute else Color.White)
         }
+        val marks = listOfNotNull(
+            if (you?.stunned == true) "atordoado" else null, if (you?.shielded == true) "escudo" else null,
+            if (you?.boosted == true) "forte" else null, if (you?.hasted == true) "veloz" else null, if (you?.denying == true) "nega" else null,
+        )
+        if (marks.isNotEmpty()) BasicText(caps(marks.joinToString(" · ")), style = TextStyle(fontFamily = Mono, fontSize = 0.5.rem, color = edge), maxLines = 1)
     }
 }
 
@@ -828,8 +924,8 @@ private fun HpCard(name: String, hp: Long, ink: Color) {
  *  right passes from 9 to 0. */
 @Composable
 private fun Odometer(value: Float, digits: Int, color: Color) {
-    val style = TextStyle(fontFamily = Mono, fontSize = 1.6.rem, fontWeight = FontWeight.SemiBold, color = color)
-    val h = 1.9.remDp
+    val style = TextStyle(fontFamily = Mono, fontSize = 1.5.rem, lineHeight = 1.8.rem, fontWeight = FontWeight.SemiBold, color = color)
+    val h = 1.8.remDp
     Row(Modifier.clipToBounds()) {
         for (place in digits - 1 downTo 0) {
             val unit = 10f.pow(place)
@@ -838,7 +934,7 @@ private fun Odometer(value: Float, digits: Int, color: Color) {
             val lower = value % unit
             val turn = if (place == 0) d - floor(d) else ((lower - (unit - 1f)).coerceIn(0f, 1f))
             val digit = floor(d).toInt() % 10
-            Box(Modifier.width(1.05.remDp).height(h).clipToBounds()) {
+            Box(Modifier.width(1.0.remDp).height(h).clipToBounds()) {
                 val off = with(LocalDensity.current) { (h.toPx() * turn).toInt() }
                 BasicText("$digit", Modifier.offset { IntOffset(0, -off) }, style = style)
                 BasicText("${(digit + 1) % 10}", Modifier.offset { IntOffset(0, h.roundToPx() - off) }, style = style)
@@ -847,24 +943,40 @@ private fun Odometer(value: Float, digits: Int, color: Color) {
     }
 }
 
-/** The four attacks, two by two, each a ring that closes as it recharges. */
+/** Two by two: the two attacks, the heal and the trick, each a ring that
+ *  closes as it recharges; the trick's carries the name of the one on offer. */
 @Composable
 private fun Skills(you: com.evove.app.fight.SideView?, ink: Color) {
-    // the attacks, and the heal in the slot one of them leaves free
-    val slots = (you?.moves.orEmpty().map { Triple(it.first, it.second, false) } +
-        listOfNotNull(you?.heal?.let { Triple(it.first, it.second, true) })).take(4)
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        for (row in slots.chunked(2)) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            for ((name, p, heal) in row) Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                val c = if (heal) Ink.act else ink
-                Canvas(Modifier.size(2.2.remDp)) {
+    val grey = ink == Ink.mute
+    val slots = you?.moves.orEmpty().take(2).map { Triple(it.first.substringBefore(" ("), it.second, ink) } +
+        listOfNotNull(you?.heal?.let { Triple(it.first.substringBefore(" ("), it.second, if (grey) ink else Ink.act) }) +
+        listOfNotNull(you?.let { Triple(TRICK_NAME[it.trick ?: ""] ?: (it.trick ?: "truque"), it.charge, if (grey) ink else if (it.ready) Color.White else Ink.gold) })
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        for (row in slots.chunked(2)) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for ((name, p, c) in row) Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Canvas(Modifier.size(2.0.remDp)) {
                     val s = 2.5.dp.toPx()
                     drawCircle(c.copy(alpha = 0.25f), size.minDimension / 2 - s, style = Stroke(s))
                     drawArc(c, -90f, 360f * p.coerceIn(0f, 1f), false, Offset(s, s), Size(size.width - 2 * s, size.height - 2 * s),
                         style = Stroke(s, cap = StrokeCap.Round))
                 }
-                BasicText(caps(name.substringBefore(" (").take(7)), style = TextStyle(fontFamily = Mono, fontSize = 0.52.rem, color = c), maxLines = 1)
+                BasicText(caps(name.take(7)), style = TextStyle(fontFamily = Mono, fontSize = 0.5.rem, color = c), maxLines = 1)
             }
+        }
+    }
+}
+
+/** How likely each entity at the profile's side is to step in within the next
+ *  second: it grows the longer the fight lasts. */
+@Composable
+private fun Chances(you: com.evove.app.fight.SideView?) {
+    val allies = you?.allies.orEmpty()
+    if (allies.isEmpty()) return
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        for (a in allies) Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            val c = voiceInk(a.id)
+            BasicText(caps(a.name), style = TextStyle(fontFamily = Mono, fontSize = 0.5.rem, color = c), maxLines = 1)
+            BasicText("${(a.chance * 100).toInt()}%", style = TextStyle(fontFamily = Mono, fontSize = 0.9.rem, fontWeight = FontWeight.SemiBold, color = c))
         }
     }
 }

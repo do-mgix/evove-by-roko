@@ -30,6 +30,7 @@ object Sfx {
     private var hitId = 0
     private var healId = 0
     private var entityId = 0
+    private var boomId = 0
     private var primed = false
     var muted = false
 
@@ -48,6 +49,7 @@ object Sfx {
         hitId = p.load(context, R.raw.hit, 1)
         healId = p.load(context, R.raw.heal, 1)
         entityId = p.load(context, R.raw.entity, 1)
+        boomId = p.load(context, R.raw.boom, 1)
         pool = p
         vibrator = if (Build.VERSION.SDK_INT >= 31) {
             (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
@@ -76,6 +78,12 @@ object Sfx {
     fun hit() = play(hitId, 0.6f)
     fun heal() = play(healId, 0.55f)
     fun entity() = play(entityId, 0.6f)
+
+    /** An entity's blow: muffled, heavy. */
+    fun boom() {
+        play(boomId, 1f)
+        buzz(60)
+    }
 
     /** A screen of cells coming on. */
     fun powerOn() = play(powerOns.random(), 0.7f)

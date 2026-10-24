@@ -87,6 +87,19 @@ object Synth {
         return mono(x)
     }
 
+    /** An entity's blow: muffled and heavy, a low sine falling under a
+     *  lowpassed rumble. */
+    fun boom(random: Random = Random(11)): Stereo {
+        val x = DoubleArray(seconds(0.6))
+        oscillator(x, Wave.SINE, Param(78.0).set(78.0, 0.0).exp(36.0, 0.5), Param(0.0).set(0.0001, 0.0).exp(0.9, 0.006).exp(0.001, 0.58), 0.0, 0.6)
+        oscillator(x, Wave.TRIANGLE, Param(156.0).set(156.0, 0.0).exp(60.0, 0.3), Param(0.0).set(0.0001, 0.0).exp(0.35, 0.004).exp(0.001, 0.3), 0.0, 0.32)
+        val rumble = DoubleArray(seconds(0.35)) { random.nextDouble() * 2 - 1 }
+        lowpass(rumble, 320.0)
+        lowpass(rumble, 320.0)
+        for (i in rumble.indices) x[i] += rumble[i] * 1.4 * (1 - i.toDouble() / rumble.size).pow(2)
+        return mono(x)
+    }
+
     // ---------------------------------------------------------------- the sound
 
     /** A scatter of low, bell-like glints over a soft impact, in a small room

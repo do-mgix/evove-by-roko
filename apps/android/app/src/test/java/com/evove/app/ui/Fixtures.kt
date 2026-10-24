@@ -71,8 +71,7 @@ object Fixtures {
 
     val fightSetup = """{"seed":123456789,"max_ticks":1200,"tick_ms":100,
         "you":{"name":"LUME","hp":180,"max_hp":250,"per_energy":10,"resist":0,"defense":0,"absorb":110,
-            "moves":[{"name":"CORRIDA (α)","dmg":30,"decree":82,"cd":50,"multiplier":2.0},{"name":"LEITURA (α)","dmg":15,"decree":82,"cd":30},
-                {"name":"PIANO (α)","dmg":15,"decree":82,"cd":40}],
+            "moves":[{"name":"CORRIDA (α)","dmg":30,"decree":82,"cd":50,"multiplier":2.0},{"name":"LEITURA (α)","dmg":15,"decree":82,"cd":60}],
             "heal":{"name":"FILME","amount":40,"cd":75},
             "entities":[{"id":"roko","name":"ROKO","forca":18,"agilidade":8,"skill":"potencia","ability":"decreto"}]},
         "foe":{"name":"KIROCUME","hp":550,"max_hp":550,"resist":0,"defense":10,"absorb":100,

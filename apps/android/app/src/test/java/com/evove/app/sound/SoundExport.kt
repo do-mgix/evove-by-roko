@@ -27,5 +27,6 @@ class SoundExport {
         Wav.write(File(raw, "hit.wav"), Synth.hit())
         Wav.write(File(raw, "heal.wav"), Synth.heal())
         Wav.write(File(raw, "entity.wav"), Synth.entity())
+        Wav.write(File(raw, "boom.wav"), Synth.boom())
     }
 }
