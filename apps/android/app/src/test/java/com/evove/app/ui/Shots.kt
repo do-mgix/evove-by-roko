@@ -115,6 +115,15 @@ class Shots {
         rule.onRoot().captureRoboImage("${System.getProperty("evove.shots")}/journey-fight.png")
     }
 
+    @Test fun journeyStep() = dungeon("walk") {
+        rule.mainClock.autoAdvance = false
+        rule.setContent { Box(Modifier.fillMaxSize().background(Color.Black).padding(8.dp)) { Frame { JourneyScreen(onHome = {}) } } }
+        rule.mainClock.advanceTimeBy(1500)
+        rule.onNodeWithTag("move-F").performClick()
+        rule.mainClock.advanceTimeBy(80)
+        rule.onRoot().captureRoboImage("${System.getProperty("evove.shots")}/journey-step.png")
+    }
+
     @Test fun journeyItems() = dungeon("walk") {
         rule.mainClock.autoAdvance = false
         rule.setContent { Box(Modifier.fillMaxSize().background(Color.Black).padding(8.dp)) { Frame { JourneyScreen(onHome = {}) } } }
@@ -126,7 +135,8 @@ class Shots {
 
     @Test fun figures() = shot("figures") {
         androidx.compose.foundation.layout.Column {
-            for (row in listOf(listOf("biceps", "quadriceps", "core"), listOf("broca", "aerobico", "c_escrita"), listOf("memb_inf", "cerebelo", "mobilidade"))) {
+            for (row in listOf(listOf("biceps", "triceps", "deltoide", "antebraco"), listOf("quadriceps", "posterior_coxa", "gluteo", "panturrilha"),
+                    listOf("peitoral", "core", "dorsal", "lombar"), listOf("memb_inf", "aerobico", "mobilidade", "fisico"), listOf("broca", "cerebelo", "c_escrita", "memb_sup"))) {
                 androidx.compose.foundation.layout.Row(Modifier.weight(1f)) {
                     for (k in row) AttributeFigure(figureOf(listOf(if (k in setOf("broca", "cerebelo")) "mente" else "corpo", k)), Ink.attributes,
                         Modifier.weight(1f).fillMaxSize(), listOf("a" to 0.8f, "b" to 0.3f, "c" to 0.6f, "d" to 0.5f, "e" to 0.9f))

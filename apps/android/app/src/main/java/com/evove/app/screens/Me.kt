@@ -5,24 +5,21 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -59,7 +56,6 @@ import com.evove.app.ui.Icon
 import com.evove.app.ui.Ink
 import com.evove.app.ui.Key
 import com.evove.app.ui.KeyIcon
-import com.evove.app.ui.KeyText
 import com.evove.app.ui.LocalInk
 import com.evove.app.ui.MarkBar
 import com.evove.app.ui.Message
@@ -76,19 +72,17 @@ import com.evove.app.ui.remDp
 import com.evove.app.ui.unitFor
 import com.evove.app.ui.wrapWords
 import kotlinx.coroutines.async
-import kotlinx.coroutines.launch
 import java.text.Collator
 import java.util.Locale
 import kotlin.math.floor
 
 // The profile's attributes, walked as agir's actions are: cells of one size,
-// in rows, the selector turning the pages — first the ones gaining marks most
-// recently, then every attribute of each star level, ★1 the leaves, Físico
-// far above. A tap opens one: its figure — the body with the part trained
-// lit, a close on an arm, a leg or the torso, the brain with its region, or a
-// web of its parts for what the mind does — its rank and its marks.
-
-private const val SCALE = 2
+// one to a row, the selector turning the pages — first the ones gaining marks
+// most recently, then every attribute of each star level, ★1 the leaves,
+// Físico far above. A tap opens one: its figure — the body with the part
+// trained lit, a close on an arm, a leg or the torso, the brain with its
+// region, or a web of its parts for what the mind does — its rank and its
+// marks. The ranks reached are claimed by acting, not here.
 private val DELAY = intArrayOf(0, 110, 60, 170, 30, 220, 140, 90, 200)
 
 val pt: Collator = Collator.getInstance(Locale.forLanguageTag("pt-BR"))
@@ -147,25 +141,6 @@ fun MeScreen(onHome: () -> Unit, onProfile: () -> Unit, onDetails: () -> Unit) {
     val (all, chains) = remember(roots) { flatten(roots) }
     val maxStar = maxOf(1, all.values.maxOfOrNull { it.star } ?: 1)
 
-    fun claim(n: AttrNode) {
-        if (busy || n.claim == null) return
-        busy = true
-        scope.launch {
-            try {
-                val r = Api.claimRank(n.key)
-                Sfx.gains()
-                message = listOf("${r.ranks} ${if (r.ranks == 1) "rank" else "ranks"}", "+${r.pointsGained} pts · +${r.tokensGained}t")
-                Bus.bumpUser()
-                Evove.refresh()
-                detail = n.copy(claim = null)
-            } catch (e: Exception) {
-                message = listOf(e.message ?: "erro")
-            } finally {
-                busy = false
-            }
-        }
-    }
-
     BackHandler(enabled = detail != null) { detail = null }
 
     val ink = Ink.attributes
@@ -174,10 +149,8 @@ fun MeScreen(onHome: () -> Unit, onProfile: () -> Unit, onDetails: () -> Unit) {
             val unit = unitFor(maxWidth)
             val row = min(unit * GRID_COLS, maxWidth)
             val tall = maxHeight
-            val side = unit * SCALE
-            // how many cells a page holds, three to a row
-            val fit = maxOf(1, floor(((tall * 0.82f - unit) / side).toDouble()).toInt() - 1)
-            val perPage = fit * (GRID_COLS / SCALE)
+            // how many cells a page holds, one to a row
+            val perPage = maxOf(1, floor(((tall * 0.82f - unit) / unit).toDouble()).toInt() - 2)
             val pages = remember(all, recent, perPage) {
                 val out = mutableListOf<Leaf>()
                 val r = recent.mapNotNull { all[it.key] ?: it }.distinctBy { it.key }
@@ -217,7 +190,7 @@ fun MeScreen(onHome: () -> Unit, onProfile: () -> Unit, onDetails: () -> Unit) {
                 }
                 val d = detail
                 if (d != null) {
-                    Detail(d, chains[d.key].orEmpty(), all, busy, row, Modifier.weight(1f).align(Alignment.End), ::claim)
+                    Detail(d, chains[d.key].orEmpty(), all, row, Modifier.weight(1f).align(Alignment.End))
                 } else if (here == null || here.items.isEmpty()) {
                     Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.BottomEnd) { Empty("nada aqui ainda — aja") }
                 } else {
@@ -239,8 +212,8 @@ fun MeScreen(onHome: () -> Unit, onProfile: () -> Unit, onDetails: () -> Unit) {
     }
 }
 
-/** A page of attributes as cells of one size, three to a row, packed into the
- *  bottom-right corner: the name, and the rank under it. */
+/** A page of attributes as cells of one size, one to a row, packed into the
+ *  bottom-right corner: the name, and the rank at its right end. */
 @Composable
 private fun AttributeCells(list: List<AttrNode>, page: Int, unit: Dp, modifier: Modifier, onChoose: (AttrNode) -> Unit) {
     val density = LocalDensity.current
@@ -253,32 +226,29 @@ private fun AttributeCells(list: List<AttrNode>, page: Int, unit: Dp, modifier: 
         val h = constraints.maxHeight.toFloat()
         val side = with(density) { unit.toPx() }
         val laid = remember(list, page, w, h, side) {
-            if (list.isEmpty()) return@remember emptyList<Pair<DrawnCell, List<String>>>()
-            val (boxes, rows) = packFree(List(list.size) { SCALE to SCALE }, GRID_COLS)
+            if (list.isEmpty()) return@remember emptyList<Pair<DrawnCell, Pair<Float, List<String>>>>()
+            val (boxes, rows) = packFree(List(list.size) { GRID_COLS to 1 }, GRID_COLS)
             drawBoxes(boxes, rows, w, h, side, GRID_GAP_DP * density.density).mapIndexed { i, c ->
-                val perLine = maxOf(6, floor((c.w / density.density - 14) / 7.8f).toInt())
-                DrawnCell(c.shape, c.cx, c.cy, if (list[i].claim != null) Ink.gold else ink, DELAY[i % DELAY.size]) to wrapWords(list[i].name, perLine, 2)
+                val perLine = maxOf(6, floor((c.w / density.density - 70) / 7.8f).toInt())
+                DrawnCell(c.shape, c.cx, c.cy, ink, DELAY[i % DELAY.size]) to (c.w to wrapWords(list[i].name, perLine, 1))
             }
         }
         val texts = remember(laid) {
-            laid.mapIndexed { i, (_, lines) -> lines.map { measurer.measure(caps(it), style) } + measurer.measure(list[i].rank, rankStyle) }
+            laid.mapIndexed { i, (_, line) -> measurer.measure(caps(line.second.firstOrNull() ?: ""), style) to measurer.measure(list[i].rank, rankStyle) }
         }
         Cells(laid.map { it.first }, key = list, modifier = Modifier.fillMaxSize(), onTap = { onChoose(list[it]) }) { i, c, alpha ->
-            val t = texts[i]
-            val step = 15 * density.density
-            var y = c.cy - t.size * step / 2 + step / 2
-            for (x in t) {
-                drawText(x, topLeft = Offset(c.cx - x.size.width / 2, y - x.size.height / 2), alpha = alpha)
-                y += step
-            }
+            val (name, rank) = texts[i]
+            val half = laid[i].second.first / 2
+            val pad = 16 * density.density
+            drawText(name, topLeft = Offset(c.cx - half + pad, c.cy - name.size.height / 2), alpha = alpha)
+            drawText(rank, topLeft = Offset(c.cx + half - pad - rank.size.width, c.cy - rank.size.height / 2), alpha = alpha)
         }
     }
 }
 
-/** One attribute: its figure, its rank and marks, and its reward when ranks
- *  wait to be claimed. */
+/** One attribute: its figure, its rank and its marks. */
 @Composable
-private fun Detail(d: AttrNode, chain: List<String>, all: Map<String, AttrNode>, busy: Boolean, row: Dp, modifier: Modifier, onClaim: (AttrNode) -> Unit) {
+private fun Detail(d: AttrNode, chain: List<String>, all: Map<String, AttrNode>, row: Dp, modifier: Modifier) {
     val ink = LocalInk.current
     val kind = figureOf(chain)
     // the web's parts: its children, or, for a leaf, it and its siblings
@@ -290,10 +260,5 @@ private fun Detail(d: AttrNode, chain: List<String>, all: Map<String, AttrNode>,
         Stats(listOf("rank" to "${d.rank} · ${d.rankName ?: ""}", "marcas" to "${d.marks}/${d.need}", "total" to "${d.totalMarks}",
             "estrela" to "★${d.star}", "grau" to "${d.degree}"))
         MarkBar(d.marks, d.need, gold = true)
-        d.claim?.let { c ->
-            Key({ onClaim(d) }, Modifier.fillMaxWidth().heightIn(min = 2.8.remDp), enabled = !busy) {
-                KeyIcon(Icon.STAR, 16.dp); KeyText("reclamar ${c.ranks} · +${c.points} pts")
-            }
-        }
     }
 }

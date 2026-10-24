@@ -240,7 +240,7 @@ fun App() {
         }
         // points and tokens, on top of every screen but a fight
         if (username != null && !adding && page != Page.ACCOUNTS && !Evove.fighting) Evove.view?.wallet?.let { w ->
-            com.evove.app.ui.WalletBar(w.points, w.tokens, Modifier.align(androidx.compose.ui.Alignment.TopCenter))
+            com.evove.app.ui.WalletBar(w.points, w.tokens, Modifier.align(androidx.compose.ui.Alignment.TopStart))
         }
     }
 }
