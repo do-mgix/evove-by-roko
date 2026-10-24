@@ -2766,6 +2766,7 @@ def save_mount(payload: dict, username: str = Depends(current_username)):
 # ---------------------------------------------------------------- the journey's mode
 
 _FIGHT_CAP = 50_000_000
+_FIGHT_ATTACKS = 2
 # a fight started and never ended is played out after this long
 _STALE_FIGHT_SECONDS = 600
 
@@ -2794,7 +2795,8 @@ def _fight_setup(username: str, data: dict, state: dict, d: dict) -> dict:
     actions = data.get("actions") or {}
     moves = battle.moves_for(tree, templates, actions, lambda key: rank_view(node_total(key, totals, tree, memo))["rank_index"])
     scored = sorted((battle.score_move(tree, m, boss, worn["damage"]) for m in moves), key=lambda m: (-m["damage"], m["name"]))
-    lineup = scored[:battle.LINEUP_SIZE]
+    # two attacks: with the heal and the trick, the four things a fight shows
+    lineup = scored[:_FIGHT_ATTACKS]
     rank = sum(m["rank_index"] for m in lineup) // len(lineup) if lineup else 0
     best_mult = max((m["multiplier"] for m in lineup), default=1.0)
     out_moves = []

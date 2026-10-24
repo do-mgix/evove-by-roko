@@ -4,7 +4,8 @@ Two fighters face each other — the profile and another of the people trapped
 in the journey (src.domain.dungeon) — and the fight plays itself, a tick
 every tenth of a second:
 
-- a fighter's attacks are its actions, each with its own cooldown, and they
+- a fighter's attacks are its actions — two of them for the profile — each
+  with its own cooldown, and they
   are paid out of its own bar: there is no mp, every attack takes a little of
   the hp it fights with. **Resistência** slows how fast the bar goes down that
   way, **defesa** cuts the damage taken, **absorção** raises what a heal gives;

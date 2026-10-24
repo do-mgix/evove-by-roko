@@ -176,9 +176,9 @@ def companions(d: dict, carried: str | None) -> list[str]:
 
 def foe_hp_factor(d: dict) -> float:
     if final(d):
-        return 5.0
-    base = {1: 1.8, 2: 2.6, 3: 3.0}[min(3, int(d["act"]))]
-    return base + 0.25 * min(ACT_FLOORS - 1, floor_in_act(d) - 1)
+        return 3.0
+    base = {1: 1.1, 2: 1.6, 3: 1.8}[min(3, int(d["act"]))]
+    return base + 0.15 * min(ACT_FLOORS - 1, floor_in_act(d) - 1)
 
 
 # ---------------------------------------------------------------- the story
