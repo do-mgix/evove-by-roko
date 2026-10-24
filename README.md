@@ -421,8 +421,8 @@ floating in the middle (`MarkBar.svelte`) — yellow for an attribute's progress
 claimed: `CLAIM_TOKENS_PER_RANK` (10) tokens, capped like an act's, and
 `CLAIM_SKILL_POINTS_PER_RANK` (1) skill point. `/attributes/tree` marks a node with
 something waiting with `claim` (`{ranks, tokens, skill_points}`); the attributes tab of the
-`me` page draws it with a yellow border and the gain above it, and a tap calls
-`POST /attributes/{key}/claim`. `rank_claims` keeps the highest rank claimed per attribute,
+`me` page drew it with a yellow border and a tap called `POST /attributes/{key}/claim`;
+now acting claims every rank it reaches by itself. `rank_claims` keeps the highest rank claimed per attribute,
 so ranks reached before claims existed are claimable too. Leaves and custom attributes are
 left out: the tab does not list leaves, and they would rank up far too often.
 
@@ -1021,44 +1021,56 @@ The journey is also a mode of its own (`src/domain/dungeon.py`, `/dungeon*`). Ma
 are trapped in a place far too big; all carry the same technology — they act, gain
 abilities, hunt entities — to get out or grow stronger, and every opponent is one of them.
 
-- **The corridor walks itself.** The app draws the floor from inside, a corridor in
-  perspective coming toward the eye, doors opening on its walls; it takes as long to walk
-  as the checkpoints say — ten minutes for each day of the stage the floor stands for, up
-  to six hours (`RAPD-4J` makes it sixty times faster, for tests) — and stops before a wall
-  where whoever waits stands as a frame of static, until the fight is started. The mode has
-  no dialogue for now. The journey's key
-  on the first screen and its tile on the home blink meanwhile.
-- **Fights** (`src/domain/fight.py`) are an autobattler in real time, ten ticks a second,
-  with cooldowns of six to twelve seconds.
+- **A maze walked step by step.** Each floor is a 13×13 maze (`floor_map`): corridors that
+  turn, two or three rooms behind doors as wide as a wall, a loop or two. The app draws it
+  from inside, as the old dungeon crawlers did — filled walls and floor in the floor's own
+  tone of green or grey, fading into the dark, a window's frame on some walls — with a small
+  map of what was seen in the corner. The profile moves a step at a time (`POST
+  /dungeon/walk {moves}`: F a step, L and R a quarter turn, B a half one; swipes or keys).
+  Steps come with time: three to start, then the shortest way to whoever waits spread over
+  as long as the checkpoints say — ten minutes for each day of the stage the floor stands
+  for, up to six hours (`RAPD-4J` makes it sixty times faster, for tests). Whoever waits
+  stands in the room farthest from the start, a frame of static; the other rooms keep a
+  chest each, an item of the floor's opponent's actions. Standing next to them, the fight
+  can start. The box under the maze says what happened ("inimigo encontrado: …", a chest);
+  the journey's key on the first screen and its tile on the home blink when steps or
+  someone wait. The mode has no dialogue for now.
+- **Fights** (`src/domain/fight.py`) run on ticks, ten to a second of the fight's time, with
+  cooldowns of six to twelve seconds.
   Attacks are the profile's two best actions against this opponent, each on a cooldown and paid
   out of the hp bar itself (resistência slows that, defesa cuts damage, absorção raises
-  heals); one heal, the best action of reward owned; **truques** — atordoar, fúria,
+  heals); an effective one — of a kin of the opponent's type, ×1.25 to ×4 — lands
+  **criticals**, ×2 or ×4, more often the closer the kin (10–30%). One heal, the best action
+  of reward owned; **truques** — atordoar, fúria,
   baque, rasteira, escudo, eco — play themselves on both sides a little after charging, the
   one on offer changing while it waits. Entities on each side grow impatient and step in with
   their side's best blow times their força; each has a skill (agilidade sets its cooldown)
   and an ability — roko's decree rewrites the attacks a rank above. The opponent mirrors
   the profile's rank and has a nameless entity. All of it is integer arithmetic on
-  xorshift32: the app plays the fight live and `POST /dungeon/fight/end` replays it; what
-  the server decides counts. The app draws it as an old console did: one message at a
-  time in a box ("LUME usou CORRIDA (α)"), the fight waiting while it is read; the opponent
-  as a cluster of unstable frames of static, small, over its shadow on a floor in
-  perspective, its energy bar above; one shape per kind of action — square for a blow,
+  xorshift32: the app plays the fight and `POST /dungeon/fight/end` replays it; what
+  the server decides counts. The app does not show it in real time: it jumps — the
+  recharges run fast up to the next thing that happens, the floor in perspective taking a
+  step toward the eye — and stops there, one message in a box ("LUME usou CORRIDA (α)",
+  "crítico ×2 · 48 de dano"), read at leisure; the hp is the only thing that does not
+  jump, counting at its own pace, and the next jump waits for it. The opponent is one
+  frame of static over its shadow, with no bar; one shape per kind of action — square for a blow,
   diamond for a trick, triangle for an entity, circle for a heal — the profile's coming
   from behind the screen, as big as it, shrinking into the opponent, the opponent's born at
   its center and growing to fill the screen, which shakes. When an entity acts the camera
   cuts to it: its own unstable frames, in its color, with a muffled, heavy blow. At the
-  bottom, the hp as a centered counter rolling down; beside it the two attacks, the heal
+  bottom, the hp as a centered counter; beside it the two attacks, the heal
   and the trick charging, as rings; beside those, each entity's chance to step in within
   the next second. What tricks do shows: everything grey under a baque, the stunned side
-  grey, a second border under a shield, gold while strengthened. The bar's end is
-  the hp left, and an empty bar restarts the checkpoints.
-- **The journey's level.** Every blow that lands in a fight is experience: ten blows a
-  level, three or four levels a fight, each adding hp (the bar starts at 100), resistance,
+  grey, a second border under a shield, gold while strengthened. A fight lasts some 20 to
+  90 messages, two to four minutes on the screen.
+- **The journey's level.** Every blow that lands in a fight is experience: five blows a
+  level, each adding hp (the bar starts at 100), resistance,
   defense and damage at once, in the middle of the fight — the opponent mirrors the level
-  and grows the same way, and the entities carried go up a level every two things they
+  and grows the same way, and the entities carried go up a level every three things they
   do (força and agilidade). What the levels gave is told at the end; a fight left halfway
-  plays itself out and keeps none of them. A fight lost sends the act back to its first
-  floor. The bar of a fight is the level's, no longer the checkpoints' energy.
+  plays itself out and keeps none of them. **A fight lost sends the journey back to its
+  very beginning**: act 1, floor 1, level 1, no items, the entities at their first level;
+  only the count of wins and losses stays.
 - **Items** (`src/domain/items.py`): a fight won may drop one, made of one of the
   opponent's abilities — FERRAMENTA (arma, damage), MARCA (acessório, defense), FAIXA
   (cabeça, hp) DE CORRIDA… — at about the journey's level. Worn while its own action is one
@@ -1184,7 +1196,8 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 | GET | `/sandbox/actions` · `/sandbox/attributes` | every catalog action · the sandbox's leaves with their ranks |
 | POST | `/sandbox/actions/{code}/act` | a free act (`{option}`) into the sandbox's attributes |
 | GET | `/sandbox/entities` · `/sandbox/entities/{id}/talk` | coleto and every entity met · talking to one |
-| GET | `/dungeon` | the journey's mode: floor, map, walk, who waits, the choice, the ending and its code, hp and recoveries |
+| GET | `/dungeon` | the journey's mode: floor, maze, where the profile stands and what it saw, its steps, who waits, the choice, the ending and its code, hp and recoveries |
+| POST | `/dungeon/walk` | moves through the maze (`{moves}`: F, L, R, B) up to the first that cannot be made; a chest stepped on gives its item |
 | POST | `/dungeon/fight` · `/dungeon/fight/end` | the fight's setup · its end (`{plays}`), replayed and paid |
 | GET · POST | `/dungeon/items` · `/dungeon/items/{id}/wear` · `/dungeon/items/best` | the inventory with what each item adds now · wear or take off · wear the best |
 | POST | `/dungeon/choose` · `/dungeon/pair` | answer the choice (`{option}`) · the third act's two entities (`{entities}`) |
@@ -1356,13 +1369,17 @@ same end, to the tick — run the script again whenever the rules change.
 
 ### Attributes
 
-`screens/Me.kt` walks the attributes as agir walks actions: cells of one size, three to a
-row, the selector turning the pages — first the most recent, then every attribute of each
-star level. A tap opens one with its figure (`ui/Figure.kt`): the body as a sign's figure
-with the trained part lit, a close on an arm, a leg or the torso for a muscle, the brain
-from the side with its region for the anatomy of the mind, and a web of its parts for what
-the mind does elsewhere. Acting claims the ranks it reaches by itself, and every screen
-but a fight shows points (p) and tokens (a coin) at the top.
+`screens/Me.kt` walks the attributes as agir walks actions: cells of one size, one to a
+row — the name, and the rank at its end — the selector turning the pages: first the most
+recent, then every attribute of each star level. A tap opens one with its figure
+(`ui/Figure.kt`), drawn as a sign's figures are, out of straight parts closed by half
+circles: the body from the front, limbs as stadiums apart from the torso by a gap, the
+trained part lit; a close on an arm, a leg or the torso, its muscles as tapers — two
+circles and the lines touching both — or two tapers sharing a belly, the one trained
+filled; the brain from the side with its region for the anatomy of the mind; and a web of
+its parts for what the mind does elsewhere. The ranks reached are claimed by acting, not
+here; every screen but a fight shows points (p) and tokens (a coin), colorless, at the top
+left.
 
 ### Accounts
 
