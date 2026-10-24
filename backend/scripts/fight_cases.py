@@ -30,7 +30,8 @@ def side(rng: random.Random, name: str, ents: int, tricks: bool) -> dict:
     moves = []
     for i in range(rng.randint(1, 4)):
         dmg = rng.randint(5, 120)
-        moves.append({"name": f"{name}{i}", "dmg": dmg, "decree": dmg * rng.randint(2, 5), "cd": rng.randint(20, 70)})
+        moves.append({"name": f"{name}{i}", "dmg": dmg, "decree": dmg * rng.randint(2, 5), "cd": rng.randint(20, 70),
+                      "crit": rng.choice((0, 0, 10, 20, 30))})
     return {
         "name": name, "hp": hp - rng.randint(0, hp // 3), "max_hp": hp,
         "resist": rng.randint(0, 60), "defense": rng.randint(0, 60), "absorb": rng.randint(80, 200),

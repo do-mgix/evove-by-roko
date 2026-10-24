@@ -34,8 +34,8 @@ private const val MASK = 0xFFFFFFFFL
 
 val TRICKS = listOf("atordoar", "furia", "baque", "rasteira", "escudo", "eco")
 val SKILLS = listOf("negar", "atacar", "potencia", "cura", "truques")
-private val EVENTS = listOf("attack", "heal", "trick", "skill", "ability", "interfere", "deny", "miss", "burn", "end", "level")
-private const val ALLY_XP_NEED = 2
+private val EVENTS = listOf("attack", "heal", "trick", "skill", "ability", "interfere", "deny", "miss", "burn", "end", "level", "crit")
+private const val ALLY_XP_NEED = 3
 private const val ALLY_LEVEL_FORCA = 5
 private const val ALLY_LEVEL_AGILIDADE = 1
 private const val AGILIDADE_CAP = 12
@@ -58,7 +58,7 @@ class Rng(seed: Long) {
     fun below(n: Int): Int = (next() % n).toInt()
 }
 
-class Move(val name: String, val dmg: Long, val decree: Long, val cd: Int, var t: Int)
+class Move(val name: String, val dmg: Long, val decree: Long, val cd: Int, val crit: Int, var t: Int)
 class Heal(val name: String, val amount: Long, val cd: Int, var t: Int)
 
 class Ally(val id: String, val name: String, var forca: Int, var agilidade: Int, val skill: String, val ability: String, var level: Int) {
@@ -75,7 +75,7 @@ class Side(d: FightSide, val tricks: Boolean) {
     var resist = d.resist
     var defense = d.defense
     var absorb = d.absorb
-    val moves = d.moves.mapIndexed { i, m -> Move(m.name, m.dmg, m.decree ?: m.dmg, m.cd, m.cd / 2 + 3 * i) }
+    val moves = d.moves.mapIndexed { i, m -> Move(m.name, m.dmg, m.decree ?: m.dmg, m.cd, m.crit, m.cd / 2 + 3 * i) }
     val heal = Heal(d.heal.name, d.heal.amount, d.heal.cd, d.heal.cd / 2)
     val allies = d.entities.map { e: FightEntity -> Ally(e.id, e.name, e.forca, e.agilidade, e.skill, e.ability, e.level) }
     // the journey's level, which every blow that lands feeds
@@ -187,6 +187,16 @@ class Fight(setup: FightSetup) {
             if (rng.below(2) == 0) {
                 event("miss", i, 0, move.name)
                 return
+            }
+        }
+        if (move.crit > 0) {
+            // an effective attack may land a critical: twice, or — a quarter
+            // of those times — four times the damage
+            val r = rng.below(100)
+            if (r < move.crit) {
+                val times = if (r < move.crit / 4) 4 else 2
+                dmg *= times
+                event("crit", i, times.toLong(), move.name)
             }
         }
         dmg = dmg * (100 - o.defenseNow()) / 100

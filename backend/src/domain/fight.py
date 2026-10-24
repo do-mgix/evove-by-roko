@@ -1,14 +1,16 @@
-"""The journey's fights: an autobattler in real time.
+"""The journey's fights: an autobattler, on ticks.
 
 Two fighters face each other — the profile and another of the people trapped
 in the journey (src.domain.dungeon) — and the fight plays itself, a tick
 every tenth of a second:
 
 - a fighter's attacks are its actions — two of them for the profile — each
-  with its own cooldown, and they are paid out of its own bar: there is no
-  mp, every attack takes a little of the hp it fights with. **Resistência**
-  slows how fast the bar goes down that way, **defesa** cuts the damage
-  taken, **absorção** sets how much of a heal reaches the bar;
+  with its own cooldown; an effective one — of a kin of the opponent's type —
+  may land a critical, twice or four times the damage. They are paid out of
+  its own bar: there is no mp, every attack takes a little of the hp it
+  fights with. **Resistência** slows how fast the bar goes down that way,
+  **defesa** cuts the damage taken, **absorção** sets how much of a heal
+  reaches the bar;
 - it carries one heal — the profile's best action of reward, the ones that
   spend tokens — used by itself when the bar drops under 60%;
 - both sides play **truques** by themselves, a little after one is charged;
@@ -74,10 +76,10 @@ BURN_TICKS = 200
 DECREE_TICKS = 120
 
 # the kinds of event, in the order the checksum numbers them
-EVENTS = ("attack", "heal", "trick", "skill", "ability", "interfere", "deny", "miss", "burn", "end", "level")
+EVENTS = ("attack", "heal", "trick", "skill", "ability", "interfere", "deny", "miss", "burn", "end", "level", "crit")
 
 # an entity grows a level every this many things it does
-ALLY_XP_NEED = 2
+ALLY_XP_NEED = 3
 ALLY_LEVEL_FORCA = 5
 ALLY_LEVEL_AGILIDADE = 1
 AGILIDADE_CAP = 12
@@ -116,7 +118,8 @@ class Side:
         self.defense = int(d["defense"])
         self.absorb = int(d["absorb"])
         self.moves = [{"name": m["name"], "dmg": int(m["dmg"]), "decree": int(m.get("decree", m["dmg"])),
-                       "cd": int(m["cd"]), "t": int(m["cd"]) // 2 + 3 * i} for i, m in enumerate(d["moves"])]
+                       "cd": int(m["cd"]), "crit": int(m.get("crit", 0) or 0), "t": int(m["cd"]) // 2 + 3 * i}
+                      for i, m in enumerate(d["moves"])]
         h = d["heal"]
         self.heal = {"name": h["name"], "amount": int(h["amount"]), "cd": int(h["cd"]), "t": int(h["cd"]) // 2}
         self.entities = [{"id": e["id"], "name": e["name"], "forca": int(e["forca"]), "agilidade": int(e["agilidade"]),
@@ -213,6 +216,14 @@ class Fight:
             if self.rng.below(2) == 0:
                 self._event("miss", i, 0, move["name"])
                 return
+        if move["crit"]:
+            # an effective attack may land a critical: twice, or — a quarter
+            # of those times — four times the damage
+            r = self.rng.below(100)
+            if r < move["crit"]:
+                times = 4 if r < move["crit"] // 4 else 2
+                dmg *= times
+                self._event("crit", i, times, move["name"])
         dmg = dmg * (100 - o.defense_now()) // 100
         if o.shield:
             o.shield = 0
