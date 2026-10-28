@@ -258,7 +258,8 @@ Enough vocabulary to read the code:
 | **degree** | depth along primary parents, the root being 1 |
 | **patch** | a user's specialization of an owned action (*estudo → física*): acts like the base and also trains the user's own attributes |
 | **user attribute** | an attribute a user created, outside the default graph, trained only by patches |
-| **log action** | an action logged for monitoring only (leisure): `log_only`, spends tokens, feeds no attribute — its marks stay on the action |
+| **log action** | an action logged for monitoring only: `log_only`, feeds no attribute — its marks stay on the action. Leisure spends tokens, work and chores release a few |
+| **title** | a series, film, game, book, album or channel the profile consumes (`media`); a tag on the thought of a leisure log |
 | **tokens** | earned by executing productivity actions, spent on leisure ones, capped in stock |
 | **energy** | drained by acting outside today's agenda, refilled at every journey point and checkpoint; at zero the journey restarts |
 | **build points / skill points** | currencies for buying actions in the shop and nodes in the skill tree; build points are paid per day survived, skill points at checkpoints |
@@ -531,11 +532,12 @@ already exist) and reach no leaf.
 
 They are marked with a boolean on the template, `action_templates.log_only`, because they
 share one shape: they charge `token_cost` instead of releasing `token_gain`, they carry six
-tiers like any action, and they have no contributions at all. The catalog has five —
-REDES SOCIAIS, VÍDEO, JOGOS, MÚSICA, GULOSEIMA — where it used to carry a brand per feed.
-The rest of the day is logged the same way but neutral, neither costing nor releasing
-tokens: ÔNIBUS and TRABALHO, then SONO, LIMPEZA, COZINHAR, LAVAR ROUPA, COMPRAS and DIRIGIR
-(see "Daily actions").
+tiers like any action, and they have no contributions at all. The leisure ones are REDES
+SOCIAIS, VÍDEO, JOGOS, MÚSICA, GULOSEIMA, NOTÍCIAS, SÉRIE, FILME and LEITURA — where the
+catalog used to carry a brand per feed. Work and chores are logged the same way and release
+a little instead: TRABALHO, VAGAS, COZINHAR, LIMPEZA, LAVAR ROUPA. The rest is neutral:
+ÔNIBUS, SONO, COMPRAS, DIRIGIR, BANHO, REFEIÇÃO, COCHILO (see "Daily actions" and "The token
+economy").
 
 What an act on one does, and does not do:
 
@@ -1095,43 +1097,77 @@ claim already paid stays paid.
 ### The token economy
 
 Tokens are not handed out over time — there is no daily refill. An action either releases
-them or consumes them, flat per execution whatever the tier — even an act worth 0 marks —
-and the note never multiplies either side:
+them or consumes them, and the note never multiplies either side. The scale is the one the
+plain-text ledger in `~/journal/token-history` settled on from September 2026, divided by
+five: the ledger moved tokens in steps of 5 on a stock of 100, the app moves them in steps
+of 1 on a stock of 25 (`economy.BASE_MAX_TOKENS`, plus the skill tree's Tokens nodes).
 
-| `token_gain` | who |
-| --- | --- |
-| 30 | escalada, architecture |
-| 25 | endurance, esporte, feature, refactor |
-| 20 | heavy lifts, the dev routine, the writing actions |
-| 15 | standard training, read, estudo |
-| 10 | caminhada, meditação, core work, board game |
-| 5 | alongamento, mobilidade, respiração, diário, podcast |
+**Releasing is flat**, per execution, whatever the tier — even an act worth 0 marks:
 
-| `token_cost` | who |
-| --- | --- |
-| 20 | jogos |
-| 12 | redes sociais, vídeo |
-| 10 | guloseima |
-| 0 | música, ônibus, trabalho |
+| `token_gain` | who | ledger |
+| --- | --- | --- |
+| 4 | the heaviest training and dev actions (diff 3) | correr +30 |
+| 3 | COZINHAR, the writing actions, diff-3 skills | cozinhar +20, escrita +10 to +20 |
+| 2 | TRABALHO, VAGAS, standard training, ESTUDO, READ, FEATURE (AI) | trabalho, projeto, ads, vagas +10 |
+| 1 | LIMPEZA, LAVAR ROUPA, the light practices | limpar, lavar roupa +5 to +10 |
 
-Every action that spends is a log action, which is the shape the pattern had all along:
-what costs tokens is consumption, and consumption is logged, not trained. Música sits at
-zero — background consumption that costs nothing and pays nothing — and so do ÔNIBUS and
-TRABALHO (`5 00 00 06`, `07`), which are there so a whole day can be logged: the ride and
-the job, taken generically, with the line or the task in the note. A profile starts with an
-empty stock, so the first leisure act runs a debt: spending is never blocked, the balance
-simply goes negative until productivity covers it.
+**Spending is priced by the tier.** A leisure template may carry `tiers.cost`, six token
+amounts, one per tier (`marks.token_cost`), so an episode costs less than an evening of
+them; without it the flat `token_cost` is charged. `/actions` gives each tier its price as
+`tokens` (negative), and the act screen shows it on the key.
 
-The stock caps at `max_tokens` (100, plus 5 per Tokens node in the skill tree) and
-anything past the cap is dropped. A productive day releases around 70, so a good day lands
-whole and roughly a day and a half can be banked, but a run of them still overflows.
-`ActOutcome.tokens_wasted` reports how much a given act threw away, and both clients show
-it.
+| action | tiers | price per tier | ledger |
+| --- | --- | --- | --- |
+| MÚSICA | <15m … >3h | 1 1 1 1 2 2 | música -5 |
+| LEITURA | <10m … >2h | 1 1 1 1 2 2 | ler -5 |
+| SÉRIE | <1 ep, 1 ep … 6+ ep | 1 3 6 9 12 18 | série -15 an episode |
+| FILME | <30m … >2h30 | 1 2 3 3 4 4 | filme -10 to -20 |
+| VÍDEO | <20m … >4h | 1 2 3 4 6 6 | youtube -10 to -30 |
+| REDES SOCIAIS | <10m … >3h | 1 1 2 3 4 4 | — |
+| JOGOS | <15m … >3h | 2 3 4 6 6 8 | jogo -30 |
+| GULOSEIMA, NOTÍCIAS | any | 1 flat | — |
+
+Replayed against the ledger's 53 days from September 5, these values keep the same course
+the ledger had — a stock that fills on a run of work days and empties on a weekend — and the
+stock of 25 holds a little more than the ledger's 100, which hit its cap on one day in five
+and threw the rest away. Surplus has a use here the ledger lacked: the journey's recoveries.
+
+Every action that spends is a log action: what costs tokens is consumption, and consumption
+is logged, not trained. A profile starts with an empty stock, so the first leisure act runs
+a debt: spending is never blocked, the balance simply goes negative until productivity
+covers it. Anything past the cap is dropped; `ActOutcome.tokens_wasted` reports how much a
+given act threw away, and both clients show it.
 
 Every log carries the signed delta the act produced in `logs.tokens` — positive for what
 was released after the cap took its cut, negative for what was spent — so the day's ledger
-reads back from the logs panel without recomputing anything. Entries written before that
-column existed sit at 0.
+reads back from the logs panel without recomputing anything.
+
+### Titles
+
+What was watched, read or played used to live in the thought's free text and, by hand, in
+two lists of the journal: everything ever consumed, with an X on what was finished
+(`~/journal/midea`), and the few titles allowed right now (`~/journal/consumo`). A **title**
+is a row of `media`: a kind — `serie`, `filme`, `jogo`, `leitura`, `musica`, `video` — a
+status in the journal's words — `ativo` (allowed now), `fila` (waiting), `finalizado`,
+`retirado` (set aside), `morto` (given up) — and an optional note, such as the console.
+
+A thought can carry one, as a tag: `thoughts.media_id`. The kind belongs to the actions
+that consume it (`src/domain/media.py`): a SÉRIE log is tagged with a series, a JOGOS log
+with a game, LEITURA and READ with something to read; a patch counts as its base.
+`/agenda/day` gives each log its `kind`, so the app offers that kind's titles on its thought
+— the active and the recent ones first, then a search that creates the title when nothing
+matches. A tag alone is a thought, and the journal writes it before the words:
+`ni jogos [1–2h] - Cuphead · a última ilha`.
+
+**A title that keeps coming back becomes a patch.** Tagged on three different days
+(`media.PATCH_AFTER_DAYS`), it can turn into a patch of its action — JOGOS · CUPHEAD —
+free like any patch of a log action, priced by its base's tiers. The title records it
+(`media.patch_action_id`) and is made active; a log of that patch then suggests the title
+(`media_hint`) when its thought is opened.
+
+`scripts/import_media.py <user> ~/journal/midea ~/journal/consumo` loads the journal's lists
+into a profile — finished titles as `finalizado`, the rest as `fila`, `consumo` making them
+`ativo`, `retirado` or `morto` — and can be run again: it only changes statuses.
 
 ### API
 
@@ -1185,6 +1221,13 @@ Every user route requires `Authorization: Bearer <token>` and answers 401 withou
 | POST | `/agenda` | create an item |
 | PATCH · DELETE | `/agenda/{id}` | edit · remove |
 | GET | `/calendar` | month view with log counts and events (`?year=&month=`) |
+| GET | `/agenda/day` | a day's logs (`?offset=`), each with its thought, the `kind` of title it takes and the `media_hint` of its patch; the day's thought and cycle |
+| PUT | `/thoughts` | the thought of a log or of the day (`{date, log_id?, content, media_id?}`); no words and no title take it away; `media` is the tagged title as it stands |
+| GET | `/journal` | a day as the plain-text journal writes it (`?date=`) |
+| GET | `/media` | the profile's titles (`?kind=`), the active first, each with its `uses`, `days`, `last` and `can_patch`; the kinds and statuses |
+| POST | `/media` | a title (`{kind, title, status?, note?}`), `ativo` by default; the same one again is answered as is |
+| PATCH · DELETE | `/media/{id}` | edit `{title?, status?, note?}` · remove, leaving its thoughts untagged |
+| POST | `/media/{id}/patch` | a title tagged on three days becomes a patch of its action; 409 otherwise |
 | GET | `/engine` | the profile's evove: this session's tiles, modules and their passcodes, entities, story, selector, counters, doubted actions |
 | POST | `/engine/visit` | the app came on (`{cold?, turns?}`); a new session after a pause |
 | POST | `/engine/events` | opens, page turns and the line dismissed (`{events: [...]}`) |
