@@ -413,45 +413,57 @@ def delete_project(username: str, project_id: str) -> None:
 
 # ---------- thoughts ----------
 
-def _thought_dict(t: orm.Thought) -> dict:
-    return {"id": t.id, "day": _iso(t.day), "log_id": t.log_id, "content": t.content, "updated_at": _iso(t.updated_at)}
+def _thought_dict(t: orm.Thought, media: orm.Media | None = None) -> dict:
+    from src.infrastructure.media_repo import tag
+    return {"id": t.id, "day": _iso(t.day), "log_id": t.log_id, "content": t.content,
+            "media": tag(media), "updated_at": _iso(t.updated_at)}
 
 
 def thoughts_on(username: str, day: date) -> list[dict]:
     s = SessionLocal()
     try:
         u = _user(s, username)
-        rows = s.execute(select(orm.Thought).where(orm.Thought.user_id == u.id, orm.Thought.day == day)
-                         .order_by(orm.Thought.id)).scalars().all()
-        return [_thought_dict(t) for t in rows]
+        rows = s.execute(select(orm.Thought, orm.Media).outerjoin(orm.Media, orm.Thought.media_id == orm.Media.id)
+                         .where(orm.Thought.user_id == u.id, orm.Thought.day == day)
+                         .order_by(orm.Thought.id)).all()
+        return [_thought_dict(t, m) for t, m in rows]
     finally:
         s.close()
 
 
-def set_thought(username: str, day: date, log_id: int | None, content: str) -> dict | None:
+def set_thought(username: str, day: date, log_id: int | None, content: str, media_id: int | None = None) -> dict | None:
     """The one thought of a log, or of the day when `log_id` is None, written or
-    replaced. Empty content takes it away and returns None."""
+    replaced, with the title it is about (`media_id`, the profile's own). A tag
+    alone is a thought; no words and no tag take it away and return None."""
     s = SessionLocal()
     try:
         u = _user(s, username)
+        media = None
+        if media_id is not None:
+            media = s.execute(select(orm.Media).where(orm.Media.user_id == u.id,
+                                                      orm.Media.id == int(media_id))).scalar_one_or_none()
+            if media is None:
+                raise AgendaError(f"title {media_id} not found", 404)
         q = select(orm.Thought).where(orm.Thought.user_id == u.id, orm.Thought.day == day)
         q = q.where(orm.Thought.log_id.is_(None)) if log_id is None else q.where(orm.Thought.log_id == int(log_id))
         t = s.execute(q).scalars().first()
         text = str(content or "").strip()
         now = _now()
-        if not text:
+        if not text and media is None:
             if t:
                 s.delete(t)
                 s.commit()
             return None
         if t:
             t.content = text
+            t.media_id = media.id if media else None
             t.updated_at = now
         else:
-            t = orm.Thought(user_id=u.id, day=day, log_id=log_id, content=text, created_at=now, updated_at=now)
+            t = orm.Thought(user_id=u.id, day=day, log_id=log_id, content=text,
+                            media_id=media.id if media else None, created_at=now, updated_at=now)
             s.add(t)
         s.commit()
-        return _thought_dict(t)
+        return _thought_dict(t, media)
     except Exception:
         s.rollback()
         raise

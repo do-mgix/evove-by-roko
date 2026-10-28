@@ -23,6 +23,7 @@ from src.domain.agenda import collect_labels, DAY_NAMES as _DOMAIN_DAY_NAMES  # 
 from src.domain.daily import PERIODS, apply_daily_tick, period_of  # noqa: E402
 from src.domain import journey as journey_mode  # noqa: E402
 from src.domain import battle, discovery, engine, entities, equipment, recover as recovery, sandbox, save, dungeon, fight, items  # noqa: E402
+from src.domain import media  # noqa: E402
 from src.domain.economy import BASE_MAX_TOKENS, INITIAL_POINTS, todo_reward  # noqa: E402
 from src.domain.user_attributes import PATCH_SEPARATOR, PatchError, engine_name  # noqa: E402
 from src.domain.attributes import (  # noqa: E402
@@ -40,7 +41,7 @@ from src.infrastructure.static_data import (  # noqa: E402
     skill_nodes_by_id,
 )
 from src.infrastructure import repos  # noqa: E402
-from src.infrastructure import agenda_repo, engine_repo, journey_repo, social_repo  # noqa: E402
+from src.infrastructure import agenda_repo, engine_repo, journey_repo, media_repo, social_repo  # noqa: E402
 from src.infrastructure import auth  # noqa: E402
 from src.infrastructure import mailer  # noqa: E402
 
@@ -1011,15 +1012,24 @@ def _iso_day(raw) -> "datetime.date":
 def agenda_day(offset: int = 0, username: str = Depends(current_username)):
     """A day's records: its logs, each with its thought, the thought of the day,
     and how far the day's cycle went — act, to-do, a thought on every act, the
-    thought of the day. The to-do is the one step the cycle can skip."""
-    _load_user(username)
+    thought of the day. The to-do is the one step the cycle can skip.
+
+    A log of a leisure action names the `kind` of title its thought is tagged
+    with (src.domain.media), and a log of a title's patch suggests that title."""
+    data = _load_user(username)
     target = (datetime.now() + timedelta(days=offset)).date()
     day, logs = _logs_on(username, target)
     thoughts = _agenda_call(agenda_repo.thoughts_on, username, target)
     by_log = {t["log_id"]: t for t in thoughts if t["log_id"] is not None}
     day_thought = next((t for t in thoughts if t["log_id"] is None), None)
+    actions = data.get("actions") or {}
+    patched = {str(actions[pid].get("name") or ""): title
+               for pid, title in media_repo.by_patch(username).items() if pid in actions}
     for log in logs:
         log["thought"] = by_log.get(log["id"])
+        log["kind"] = media.kind_of(log["content"])
+        head = str(log["content"] or "").split(" [", 1)[0]
+        log["media_hint"] = patched.get(head)
     thought_count = sum(1 for log in logs if log["thought"])
     todos = _agenda_call(agenda_repo.todos_done_on, username, target)
     return {
@@ -1042,8 +1052,10 @@ def agenda_day(offset: int = 0, username: str = Depends(current_username)):
 
 @app.put("/thoughts")
 def put_thought(payload: dict, username: str = Depends(current_username)):
-    """Body: {date, log_id?, content}. The thought of a log, or of the day
-    without `log_id`; empty content takes it away."""
+    """Body: {date, log_id?, content, media_id?}. The thought of a log, or of the
+    day without `log_id`, tagged with the title it is about; no content and no
+    title take it away. The answer's `media` is the title as it stands now —
+    its days, and whether it can become a patch."""
     p = payload or {}
     day = _iso_day(p.get("date"))
     log_id = p.get("log_id")
@@ -1051,15 +1063,82 @@ def put_thought(payload: dict, username: str = Depends(current_username)):
         day_num, logs = _logs_on(username, day)
         if not any(int(l["id"]) == int(log_id) for l in logs):
             raise HTTPException(status_code=404, detail=f"log {log_id} not on {day.isoformat()}")
+    media_id = p.get("media_id")
     thought = _agenda_call(agenda_repo.set_thought, username, day, int(log_id) if log_id is not None else None,
-                           str(p.get("content") or ""))
-    lines = _engine_event(username, {"kind": "plan"}) if str(p.get("content") or "").strip() else []
-    return {"thought": thought, "lines": lines}
+                           str(p.get("content") or ""), int(media_id) if media_id is not None else None)
+    lines = _engine_event(username, {"kind": "plan"}) if thought else []
+    tagged = _media_call(media_repo.get_media, username, int(media_id)) if thought and media_id is not None else None
+    return {"thought": thought, "lines": lines, "media": tagged}
+
+
+def _media_call(fn, *args):
+    """Runs a media_repo call, its refusals turned into HTTP errors."""
+    try:
+        return fn(*args)
+    except media.MediaError as e:
+        raise HTTPException(status_code=e.status, detail=str(e))
+
+
+@app.get("/media")
+def media_list(kind: str | None = None, username: str = Depends(current_username)):
+    """The profile's titles, of one `kind` or all, the active first, each with
+    how often it was tagged and whether it can become a patch. `kinds` and
+    `statuses` are the vocabulary."""
+    return {
+        "items": _media_call(media_repo.list_media, username, kind),
+        "kinds": [{"key": k, "label": label, "actions": list(actions)} for k, (label, actions) in media.KINDS.items()],
+        "statuses": list(media.STATUSES),
+        "patch_after_days": media.PATCH_AFTER_DAYS,
+    }
+
+
+@app.post("/media")
+def media_create(payload: dict, username: str = Depends(current_username)):
+    """Body: {kind, title, status?, note?}. A title — `ativo` unless told
+    otherwise; one of the same kind and name already there is answered as is."""
+    p = payload or {}
+    return _media_call(media_repo.create_media, username, p.get("kind"), p.get("title"),
+                       p.get("status") or "ativo", p.get("note"))
+
+
+@app.patch("/media/{media_id}")
+def media_update(media_id: int, payload: dict, username: str = Depends(current_username)):
+    """Body: {title?, status?, note?}."""
+    p = {k: v for k, v in (payload or {}).items() if k in ("title", "status", "note")}
+    if not p:
+        raise HTTPException(status_code=400, detail="give title, status or note")
+    return _media_call(media_repo.update_media, username, media_id, p)
+
+
+@app.delete("/media/{media_id}")
+def media_delete(media_id: int, username: str = Depends(current_username)):
+    """The title goes; its thoughts stay, untagged."""
+    _media_call(media_repo.delete_media, username, media_id)
+    return {"ok": True}
+
+
+@app.post("/media/{media_id}/patch")
+def media_patch(media_id: int, username: str = Depends(current_username)):
+    """A title tagged on enough days becomes a patch of its action — JOGOS ·
+    CUPHEAD — free, like any patch of a log action, and active."""
+    _load_user(username)
+    title, base_id = _media_call(media_repo.base_for, username, media_id)
+    try:
+        patch = repos.create_patch(username, base_id, media.patch_label(title.title), [], [])
+    except PatchError as e:
+        raise HTTPException(status_code=e.status, detail=str(e))
+    return {"media": _media_call(media_repo.set_patch, username, media_id, patch["id"]), "patch": patch}
 
 
 _WEEKDAYS = ("Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo")
 _MONTHS = ("Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho",
            "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro")
+
+
+def _journal_thought(t: dict) -> str:
+    """A thought as the journal writes it: the title it is about, then the words."""
+    title = (t.get("media") or {}).get("title")
+    return " · ".join(x for x in (title, t.get("content")) if x)
 
 
 @app.get("/journal")
@@ -1070,8 +1149,8 @@ def journal(date: str, username: str = Depends(current_username)):
     target = _iso_day(date)
     _day, logs = _logs_on(username, target)
     thoughts = _agenda_call(agenda_repo.thoughts_on, username, target)
-    by_log = {t["log_id"]: t["content"] for t in thoughts if t["log_id"] is not None}
-    day_thought = next((t["content"] for t in thoughts if t["log_id"] is None), "")
+    by_log = {t["log_id"]: _journal_thought(t) for t in thoughts if t["log_id"] is not None}
+    day_thought = next((_journal_thought(t) for t in thoughts if t["log_id"] is None), "")
 
     def clock(log) -> str:
         try:
@@ -1084,7 +1163,7 @@ def journal(date: str, username: str = Depends(current_username)):
         lines.append(f"{target.strftime('%d%m')} {clock(logs[0])} {clock(logs[-1])}")
         for log in logs:
             text = str(log["content"] or "").lower()
-            if log["id"] in by_log:
+            if by_log.get(log["id"]):
                 text += f" - {by_log[log['id']]}"
             lines.append(f" {log.get('period') or 'mo'} {text}")
     summary = "\n".join(lines)

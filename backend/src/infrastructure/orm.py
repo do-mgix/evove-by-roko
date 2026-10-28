@@ -500,8 +500,28 @@ class Thought(Base):
     day: Mapped[date] = mapped_column(Date, nullable=False)
     log_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    # the title the thought is about, a tag (src.domain.media)
+    media_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("media.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+# a title a profile watches, reads or plays: the tag on a thought
+class Media(Base):
+    __tablename__ = "media"
+    __table_args__ = (UniqueConstraint("user_id", "kind", "title", name="uq_media_user_kind_title"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="fila")
+    # where it is played or read, as the journal groups its games: "3DS", "PC"
+    note: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # the patch it became, once it kept coming back
+    patch_action_id: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 # a catalog action the user discovered: only these show in the shop
