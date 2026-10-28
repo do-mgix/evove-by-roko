@@ -33,6 +33,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -42,6 +43,8 @@ import com.evove.app.api.Action
 import com.evove.app.api.AgendaDay
 import com.evove.app.api.Api
 import com.evove.app.api.DayLog
+import com.evove.app.api.MediaItem
+import com.evove.app.api.MediaTag
 import com.evove.app.api.Project
 import com.evove.app.api.Todo
 import com.evove.app.sound.Sfx
@@ -82,13 +85,24 @@ import kotlin.math.floor
 // day: the cycle — act, to-do, a thought on every act, the thought of the day —
 // is complete only when every record carries its thought. The second part holds
 // the to-dos, and below them the projects. Nothing scrolls: lists turn pages.
+// The thought of a leisure record can carry a title — the series, the game —
+// picked from the profile's titles, which the second part also lists.
 
 private const val ROW_DP = 50
 private const val PICK = 6
+// titles offered on a thought before searching
+private const val CHIPS = 4
+
+// the media kinds, as the server names them
+private val KIND_LABEL = linkedMapOf("serie" to "série", "filme" to "filme", "jogo" to "jogo", "leitura" to "leitura", "musica" to "música", "video" to "vídeo")
+private val STATUSES = listOf("ativo", "fila", "finalizado", "retirado", "morto")
 
 private sealed interface Pane {
     data object List : Pane
     data class Thought(val log: DayLog?) : Pane
+    data class PickTitle(val log: DayLog, val kind: String) : Pane
+    data object Titles : Pane
+    data class TitleOpen(val item: MediaItem) : Pane
     data class Journal(val text: String) : Pane
     data class TodoOpen(val todo: Todo) : Pane
     data object NewTodo : Pane
@@ -140,6 +154,14 @@ fun AgendaScreen(onHome: () -> Unit, onCalendar: () -> Unit, onLogs: (LogsAt) ->
 
     // what is being written
     var draft by remember { mutableStateOf("") }
+    // the title the thought is about, and the titles of each kind as loaded
+    var tag by remember { mutableStateOf<MediaTag?>(null) }
+    var titles by remember { mutableStateOf<Map<String, List<MediaItem>>>(emptyMap()) }
+    var query by remember { mutableStateOf("") }
+    // the titles' list: the kind shown (null for all), its page
+    var titleKind by remember { mutableStateOf<String?>(null) }
+    var allTitles by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
+    var titlePage by remember { mutableIntStateOf(0) }
     var title by remember { mutableStateOf("") }
     var chosen by remember { mutableStateOf<List<String>>(emptyList()) }
     var deadline by remember { mutableStateOf("") }
@@ -160,6 +182,13 @@ fun AgendaScreen(onHome: () -> Unit, onCalendar: () -> Unit, onLogs: (LogsAt) ->
         } catch (e: Exception) { message = listOf(e.message ?: "erro") }
     }
 
+    suspend fun loadTitles(kind: String) {
+        try { titles = titles + (kind to Api.media(kind).items) } catch (e: Exception) { message = listOf(e.message ?: "erro") }
+    }
+    suspend fun loadAllTitles() {
+        try { allTitles = Api.media(titleKind).items } catch (e: Exception) { message = listOf(e.message ?: "erro") }
+    }
+
     LaunchedEffect(Unit) {
         val a = scope.async { loadDay() }
         val b = scope.async { loadPlan() }
@@ -172,6 +201,9 @@ fun AgendaScreen(onHome: () -> Unit, onCalendar: () -> Unit, onLogs: (LogsAt) ->
     fun press(n: Int = 0) = Sfx.tap(n)
     fun back() {
         message = emptyList()
+        val now = mode
+        if (now is Pane.PickTitle) { mode = Pane.Thought(now.log); return }
+        if (now is Pane.TitleOpen) { mode = Pane.Titles; scope.launch { loadAllTitles() }; return }
         val p = from
         mode = if (p != null && mode !is Pane.ProjectOpen) Pane.ProjectOpen(projects.find { it.id == p.id } ?: p) else Pane.List
         if (mode == Pane.List) from = null
@@ -201,6 +233,9 @@ fun AgendaScreen(onHome: () -> Unit, onCalendar: () -> Unit, onLogs: (LogsAt) ->
         press(6)
         mode = Pane.Thought(log)
         draft = (if (log != null) log.thought?.content else day?.dayThought?.content) ?: ""
+        tag = if (log != null) log.thought?.media ?: if (log.thought == null) log.mediaHint else null else null
+        val kind = log?.kind
+        if (kind != null && kind !in titles) scope.launch { loadTitles(kind) }
     }
 
     fun openItem(it: Entry) {
@@ -239,7 +274,20 @@ fun AgendaScreen(onHome: () -> Unit, onCalendar: () -> Unit, onLogs: (LogsAt) ->
         displayContent = {
             when {
                 message.isNotEmpty() -> Message(message)
-                m is Pane.Thought -> { Big(m.log?.content ?: "thought do dia"); Small(if (m.log != null) "o que você pensa disso?" else "feche o ciclo do dia") }
+                m is Pane.Thought -> {
+                    Big(m.log?.content ?: "thought do dia")
+                    Small(tag?.let { "sobre ${it.title}" } ?: if (m.log != null) "o que você pensa disso?" else "feche o ciclo do dia")
+                }
+                m is Pane.PickTitle -> { Big(KIND_LABEL[m.kind] ?: m.kind); Small("escolha o título, ou crie um") }
+                m is Pane.Titles -> {
+                    Big("títulos")
+                    Small("${titleKind?.let { KIND_LABEL[it] } ?: "todos"} · ${allTitles.count { it.status == "ativo" }} ativos · ${allTitles.size} no total")
+                }
+                m is Pane.TitleOpen -> {
+                    val t = m.item
+                    Big(t.title)
+                    Small("${KIND_LABEL[t.kind] ?: t.kind} · ${t.status}" + (t.note?.let { " · $it" } ?: ""))
+                }
                 m is Pane.Journal -> { Big("journal"); Small(dateLabel(day?.date)) }
                 m is Pane.TodoOpen -> {
                     val t = m.todo
@@ -295,12 +343,16 @@ fun AgendaScreen(onHome: () -> Unit, onCalendar: () -> Unit, onLogs: (LogsAt) ->
                         try { mode = Pane.Journal(Api.journal(d.date).text.ifEmpty { "nada escrito neste dia" }) } catch (e: Exception) { fail(e) }
                     }
                 }, Modifier.at(4)) { KeyIcon(Icon.BOOK) }
-                Key({ setPart(true) }, Modifier.at(5)) { KeyIcon(Icon.CHECK) }
+                Key({ setPart(true) }, Modifier.at(5).testTag("plan")) { KeyIcon(Icon.CHECK) }
             } else {
                 Key({ press(1); onCalendar() }, Modifier.at(1)) { KeyIcon(Icon.CALENDAR) }
                 if (pages > 1) Ticks(pages, page, Modifier.at(2)) else Box(Modifier.at(2))
                 Key(::nextPage, Modifier.at(3), enabled = pages > 1) { KeyIcon(Icon.DOWN) }
                 Key({ setPart(false) }, Modifier.at(4)) { KeyIcon(Icon.LIST) }
+                Key({
+                    press(5); mode = Pane.Titles; titlePage = 0
+                    scope.launch { loadAllTitles() }
+                }, Modifier.at(5).testTag("titles")) { KeyIcon(Icon.EYE) }
             }
             HomeKey { press(0); onHome() }
         },
@@ -310,6 +362,28 @@ fun AgendaScreen(onHome: () -> Unit, onCalendar: () -> Unit, onLogs: (LogsAt) ->
             is Pane.Thought -> {
                 LaunchedEffect(m) { runCatching { field.requestFocus() } }
                 Field(draft, { draft = it }, "escreva…", Modifier.weight(1f).heightIn(min = 6.remDp).focusRequester(field), singleLine = false)
+                val kind = m.log?.kind
+                if (m.log != null && kind != null) {
+                    // the title is a tag: one tap puts it on, another takes it off
+                    val offered = (listOfNotNull(tag?.let { t -> titles[kind]?.find { it.id == t.id } })
+                        + (titles[kind] ?: emptyList()).filter { it.status == "ativo" || it.last != null })
+                        .distinctBy { it.id }.take(CHIPS)
+                    Label("título · ${KIND_LABEL[kind] ?: kind}")
+                    for (pair in offered.chunked(2)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            for (t in pair) {
+                                Key({ press(7); tag = if (tag?.id == t.id) null else MediaTag(t.id, t.kind, t.title, t.status) },
+                                    Modifier.weight(1f).heightIn(min = 2.4.remDp), on = tag?.id == t.id) {
+                                    KeyText(t.title, Type.key.copy(fontSize = 0.68.rem))
+                                }
+                            }
+                            if (pair.size == 1) Box(Modifier.weight(1f))
+                        }
+                    }
+                    Key({ press(6); query = ""; mode = Pane.PickTitle(m.log, kind) }, Modifier.fillMaxWidth().heightIn(min = 2.4.remDp), ghost = true) {
+                        KeyIcon(Icon.PLUS, 16.dp); KeyText(if (offered.isEmpty()) "título" else "outro título", Type.key.copy(fontSize = 0.68.rem))
+                    }
+                }
                 Row(Modifier.fillMaxWidth().heightIn(min = 2.8.remDp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Key({ draft = "" }, Modifier.weight(1f).heightIn(min = 2.8.remDp)) { KeyIcon(Icon.CROSS) }
                     val log = m.log
@@ -326,16 +400,122 @@ fun AgendaScreen(onHome: () -> Unit, onCalendar: () -> Unit, onLogs: (LogsAt) ->
                     Key({
                         val d = day ?: return@Key
                         busyRun {
-                            val said = Api.setThought(d.date, draft, m.log?.id)
+                            val said = Api.setThought(d.date, draft, m.log?.id, if (m.log != null) tag?.id else null)
                             press(8)
                             loadDay()
+                            m.log?.kind?.let { loadTitles(it) }
                             mode = Pane.List
                             val done = day?.cycle?.complete == true
-                            message = if (done) listOf("ciclo completo") else emptyList()
+                            val media = said.media
+                            message = when {
+                                done -> listOf("ciclo completo")
+                                media != null && media.canPatch -> listOf(media.title, "${media.days} dias · pode virar patch em títulos")
+                                else -> emptyList()
+                            }
                             if (done) Sfx.gains()
                             heard(said.lines)
                         }
                     }, Modifier.weight(3f).heightIn(min = 2.8.remDp), enabled = !busy) { KeyIcon(Icon.CHECK) }
+                }
+            }
+            is Pane.PickTitle -> {
+                LaunchedEffect(m) { runCatching { field.requestFocus() } }
+                val all = titles[m.kind] ?: emptyList()
+                val q = query.trim()
+                val found = (if (q.isEmpty()) all else all.filter { it.title.contains(q, ignoreCase = true) }).take(PICK)
+                Field(query, { query = it }, "buscar ou criar", Modifier.focusRequester(field), maxLength = 160)
+                if (found.isEmpty()) Empty(if (q.isEmpty()) "nenhum título ainda" else "nenhum com \"$q\"")
+                for (pair in found.chunked(2)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        for (t in pair) {
+                            Key({ press(7); tag = MediaTag(t.id, t.kind, t.title, t.status); mode = Pane.Thought(m.log) },
+                                Modifier.weight(1f).heightIn(min = 2.6.remDp), on = tag?.id == t.id) {
+                                KeyText(t.title, Type.key.copy(fontSize = 0.68.rem))
+                            }
+                        }
+                        if (pair.size == 1) Box(Modifier.weight(1f))
+                    }
+                }
+                val exact = all.any { it.title.equals(q, ignoreCase = true) }
+                Key({
+                    busyRun {
+                        val made = Api.createMedia(m.kind, q)
+                        press(8)
+                        loadTitles(m.kind)
+                        tag = MediaTag(made.id, made.kind, made.title, made.status)
+                        mode = Pane.Thought(m.log)
+                    }
+                }, Modifier.fillMaxWidth().heightIn(min = 2.8.remDp), enabled = !busy && q.isNotEmpty() && !exact) {
+                    KeyIcon(Icon.PLUS, 16.dp); KeyText(if (q.isEmpty()) "criar título" else "criar \"$q\"", Type.key.copy(fontSize = 0.7.rem))
+                }
+            }
+            Pane.Titles -> {
+                val perPage = maxOf(1, floor((info.height.value - 64) / (ROW_DP + 8)).toInt())
+                val count = maxOf(1, ceil(allTitles.size / perPage.toFloat()).toInt())
+                if (titlePage >= count) titlePage = count - 1
+                if (allTitles.isEmpty()) Empty("nenhum título · eles nascem nos thoughts")
+                for (t in allTitles.drop(titlePage * perPage).take(perPage)) {
+                    ListRow({ press(6); mode = Pane.TitleOpen(t) }, Modifier.alpha(if (t.status == "ativo") 1f else 0.6f)) {
+                        if (titleKind == null) Tag(KIND_LABEL[t.kind] ?: t.kind)
+                        Grow(t.title)
+                        if (t.patchActionId != null) IconView(Icon.TREE, ink, 14.dp)
+                        else if (t.canPatch) IconView(Icon.STAR, ink, 14.dp)
+                        if (t.days > 0) Tag("${t.days}d")
+                        Tag(t.status)
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val h = Modifier.heightIn(min = 2.8.remDp)
+                    Key({
+                        press(4)
+                        val keys = listOf<String?>(null) + KIND_LABEL.keys
+                        titleKind = keys[(keys.indexOf(titleKind) + 1) % keys.size]
+                        titlePage = 0
+                        scope.launch { loadAllTitles() }
+                    }, Modifier.weight(3f).then(h)) { KeyText(titleKind?.let { KIND_LABEL[it] } ?: "todos") }
+                    if (count > 1) Ticks(count, titlePage, Modifier.weight(1f)) else Box(Modifier.weight(1f))
+                    Key({ press(2); titlePage = (titlePage + 1) % count }, Modifier.weight(1f).then(h), enabled = count > 1) { KeyIcon(Icon.DOWN) }
+                }
+            }
+            is Pane.TitleOpen -> {
+                val t = m.item
+                Stats(buildList {
+                    add("thoughts · dias" to "${t.uses} · ${t.days}")
+                    t.last?.let { add("último" to dateLabel(it)) }
+                    t.finishedAt?.let { add("finalizado" to short(it)) }
+                    add("patch" to when {
+                        t.patchActionId != null -> "é um patch"
+                        t.canPatch -> "pode virar"
+                        else -> "após 3 dias"
+                    })
+                })
+                Label("status")
+                for (row in STATUSES.chunked(3)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        for (st in row) {
+                            Key({ busyRun { mode = Pane.TitleOpen(Api.setMediaStatus(t.id, st)); press(5); titles = titles - t.kind } },
+                                Modifier.weight(1f).heightIn(min = 2.6.remDp), on = t.status == st, enabled = !busy) {
+                                KeyText(st, Type.key.copy(fontSize = 0.68.rem))
+                            }
+                        }
+                        repeat(3 - row.size) { Box(Modifier.weight(1f)) }
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val h = Modifier.heightIn(min = 2.8.remDp)
+                    CompositionLocalProvider(LocalInk provides Ink.danger) {
+                        Key({ busyRun { Api.deleteMedia(t.id); press(0); titles = titles - t.kind; back() } }, Modifier.weight(1f).then(h), enabled = !busy) { KeyIcon(Icon.TRASH) }
+                    }
+                    Box(Modifier.weight(1f))
+                    Key({
+                        busyRun {
+                            val r = Api.patchMedia(t.id)
+                            Sfx.gains()
+                            Bus.bumpUser()
+                            mode = Pane.TitleOpen(r.media)
+                            message = listOf("patch", "${KIND_LABEL[t.kind] ?: t.kind} · ${t.title} tem ação própria")
+                        }
+                    }, Modifier.weight(3f).then(h), enabled = !busy && t.canPatch) { KeyIcon(Icon.TREE); KeyText("virar patch") }
                 }
             }
             is Pane.Journal -> BasicText(
@@ -489,7 +669,9 @@ private fun AgendaRow(it: Entry, day: AgendaDay?, open: (Entry) -> Unit) {
             Tag(it.log.period ?: "··")
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(0.15.remDp)) {
                 BasicText(caps(it.log.content), style = Type.row, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                BasicText(it.log.thought?.content ?: "sem thought", style = if (it.log.thought != null) sub.copy(color = ink) else sub, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                val thought = it.log.thought
+                val said = thought?.let { t -> listOfNotNull(t.media?.title, t.content.ifEmpty { null }).joinToString(" · ") }
+                BasicText(said ?: "sem thought", style = if (thought != null) sub.copy(color = ink) else sub, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         Entry.Day -> ListRow({ open(it) }, minHeight = 3.1.remDp, dashed = day?.dayThought == null) {

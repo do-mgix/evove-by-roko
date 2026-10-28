@@ -271,9 +271,18 @@ object Api {
     // ------------------------------------------------------------ agenda
 
     suspend fun agendaDay(offset: Int = 0): AgendaDay = get("/agenda/day?offset=$offset")
-    suspend fun setThought(date: String, content: String, logId: Int?): Said =
-        put("/thoughts", obj("date" to date, "content" to content, "log_id" to logId))
+    suspend fun setThought(date: String, content: String, logId: Int?, mediaId: Int? = null): ThoughtSaid =
+        put("/thoughts", obj("date" to date, "content" to content, "log_id" to logId, "media_id" to mediaId))
     suspend fun journal(date: String): Journal = get("/journal?date=$date")
+
+    // ------------------------------------------------------------ media
+
+    suspend fun media(kind: String? = null): MediaList = get(if (kind != null) "/media?kind=$kind" else "/media")
+    suspend fun createMedia(kind: String, title: String, status: String = "ativo"): MediaItem =
+        post("/media", obj("kind" to kind, "title" to title, "status" to status))
+    suspend fun setMediaStatus(id: Int, status: String): MediaItem = patch("/media/$id", obj("status" to status))
+    suspend fun deleteMedia(id: Int): Ok = delete("/media/$id")
+    suspend fun patchMedia(id: Int): MediaPatched = post("/media/$id/patch")
 
     suspend fun todos(): List<Todo> = get<Items<Todo>>("/todos").items
     suspend fun createTodo(title: String, actionIds: List<String>, deadline: String?, projectId: String?): Said =

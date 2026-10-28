@@ -12,6 +12,7 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 
 // What the API answers, as the web client typed it (apps/web/src/lib/api.ts).
 // Field names are the server's snake_case, mapped by the Json in Api.kt; every
@@ -52,7 +53,7 @@ data class SessionInfo(
 )
 
 @Serializable
-data class TierOption(val index: Int, val label: String, val marks: Int = 0)
+data class TierOption(val index: Int, val label: String, val marks: Int = 0, /** what a leisure tier spends, negative */ val tokens: Int? = null)
 
 @Serializable
 data class PathStep(val key: String, val name: String)
@@ -400,7 +401,45 @@ data class EquipmentItem(
 data class Equipment(val points: Int = 0, val slots: List<String> = emptyList(), val items: List<EquipmentItem> = emptyList())
 
 @Serializable
-data class Thought(val id: Int, val day: String = "", val logId: Int? = null, val content: String = "", val updatedAt: String = "")
+data class Thought(val id: Int, val day: String = "", val logId: Int? = null, val content: String = "", val media: MediaTag? = null, val updatedAt: String = "")
+
+/** A title as a thought carries it: the tag. */
+@Serializable
+data class MediaTag(val id: Int, val kind: String = "", val title: String = "", val status: String = "")
+
+/** A title of the profile: what it is, where it stands, how often it came back. */
+@Serializable
+data class MediaItem(
+    val id: Int,
+    val kind: String = "",
+    val title: String = "",
+    val status: String = "",
+    val note: String? = null,
+    val finishedAt: String? = null,
+    val patchActionId: String? = null,
+    val uses: Int = 0,
+    val days: Int = 0,
+    val last: String? = null,
+    val canPatch: Boolean = false,
+)
+
+@Serializable
+data class MediaKind(val key: String, val label: String = "", val actions: List<String> = emptyList())
+
+@Serializable
+data class MediaList(
+    val items: List<MediaItem> = emptyList(),
+    val kinds: List<MediaKind> = emptyList(),
+    val statuses: List<String> = emptyList(),
+    val patchAfterDays: Int = 3,
+)
+
+/** A thought written: the story's lines, and the title it was tagged with as it stands now. */
+@Serializable
+data class ThoughtSaid(val lines: List<Line> = emptyList(), val media: MediaItem? = null)
+
+@Serializable
+data class MediaPatched(val media: MediaItem, val patch: JsonObject = JsonObject(emptyMap()))
 
 @Serializable
 data class DayLog(
@@ -412,6 +451,10 @@ data class DayLog(
     val order: Int = 0,
     val period: String? = null,
     val thought: Thought? = null,
+    /** the kind of title its thought is tagged with, for a leisure action */
+    val kind: String? = null,
+    /** the title of the patch it was logged on */
+    val mediaHint: MediaTag? = null,
 )
 
 @Serializable

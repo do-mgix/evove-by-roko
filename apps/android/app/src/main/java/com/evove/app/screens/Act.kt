@@ -412,6 +412,11 @@ private fun Tiers(action: Action, acting: Boolean, row: Dp, modifier: Modifier, 
                                 BasicText(t.label, style = TextStyle(fontFamily = Mono, fontSize = 0.85.rem, color = ink))
                                 BasicText("${t.marks}", style = TextStyle(fontFamily = Mono, fontSize = 1.3.rem, color = ink))
                             }
+                            // a leisure tier's price, where the number of the key is
+                            t.tokens?.let {
+                                BasicText("${it}t", Modifier.align(Alignment.TopEnd).padding(top = 0.3.remDp, end = 0.45.remDp).alpha(0.55f),
+                                    style = TextStyle(fontFamily = Mono, fontSize = 0.7.rem, color = ink))
+                            }
                         }
                     }
                 }
