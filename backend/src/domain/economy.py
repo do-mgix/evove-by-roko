@@ -4,6 +4,12 @@ Tokens are scarce: an act releases 1 to 4 and a profile holds at most
 BASE_MAX_TOKENS (skills raise it a little). They pay for what keeps the journey
 going — the recoveries — and leisure actions spend them.
 
+Their scale is the plain-text ledger's (~/journal/token-history) divided by
+five: work, a project or a course +2, writing +2 to +3, cooking +3, a chore
++1; music or light reading 1, an episode 3, a film 2 to 4, a game 2 to 8.
+Leisure prices its tiers (src.domain.marks.token_cost), so the longer evening
+costs more, as the ledger charged it.
+
 Points are abundant: gains run from 50 to 2000. They buy actions in the shop,
 equipment for the journey and anything that is only for show. They are what the
 database still calls `build_points`.

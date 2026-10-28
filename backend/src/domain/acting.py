@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 
 from src.domain.act import ActError, ActOutcome, apply_act
 from src.domain.contributions import apply_action_contributions, apply_patch_attributes
-from src.domain.marks import DEFAULT_TIERS, MARK_WINDOW_HOURS, MARKS_PER_WINDOW, marks_for, options
+from src.domain.marks import DEFAULT_TIERS, MARK_WINDOW_HOURS, MARKS_PER_WINDOW, marks_for, options, tier_costs, token_cost
 from src.domain.user_attributes import engine_name
 from src.infrastructure import repos
 from src.infrastructure.static_data import skill_nodes_by_id
@@ -82,6 +82,8 @@ def perform_act(username: str, data: dict, action_id: str, option, note: str = "
         token_cost_lookup=repos.lookup_token_cost,
         token_gain_lookup=repos.lookup_token_gain,
         skill_nodes_by_id=skill_nodes_by_id(),
+        # a leisure action that prices its tiers charges the chosen one
+        token_cost=token_cost(tiers, option, 0) if tier_costs(tiers) else None,
     )
     outcome.window_marks = decided["window_marks"]
     save(data)

@@ -54,6 +54,7 @@ def apply_act(
     skill_nodes_by_id: dict | None = None,
     energy_penalty: int = ENERGY_PENALTY_OUT_OF_AGENDA,
     log_only: bool = False,
+    token_cost: int | None = None,
 ) -> ActOutcome:
     """Apply the act in place on `data`.
 
@@ -67,10 +68,11 @@ def apply_act(
     action row and never reach the profile's total or any attribute, which is
     what keeps watching a film out of progression while the ledger still has it.
 
-    Tokens are flat per execution: productivity actions release `token_gain`, leisure
-    actions charge `token_cost`, whatever the tier and even at 0 marks. Earning is
-    capped at `metadata['max_tokens']`; whatever would go past the cap is reported
-    as `tokens_wasted` and dropped.
+    Productivity actions release a flat `token_gain` per execution, whatever the
+    tier and even at 0 marks. Leisure actions charge `token_cost`: the price of
+    the chosen tier when the host passes one (src.domain.marks.token_cost), the
+    action's flat cost otherwise. Earning is capped at `metadata['max_tokens']`;
+    whatever would go past the cap is reported as `tokens_wasted` and dropped.
     """
     action = (data.get("actions") or {}).get(action_id)
     if not action or action.get("deleted"):
@@ -94,7 +96,8 @@ def apply_act(
                 action[field_name] = stored
         return int(stored or 0)
 
-    token_cost = _hydrate("token_cost", token_cost_lookup)
+    if token_cost is None:
+        token_cost = _hydrate("token_cost", token_cost_lookup)
     token_gain = _hydrate("token_gain", token_gain_lookup)
 
     tokens = int(metadata.get("tokens", 0) or 0)

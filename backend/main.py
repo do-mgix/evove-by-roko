@@ -2590,7 +2590,7 @@ def _sandbox_actions(sb: dict) -> list[dict]:
             "token_cost": 0,
             "token_gain": 0,
             "log_only": meta["log_only"],
-            "tiers": tier_options(meta.get("tiers") or DEFAULT_TIERS),
+            "tiers": tier_options(meta.get("tiers") or DEFAULT_TIERS, priced=False),
             "path": [{"key": k, "name": tree.nodes_by_key[k].name} for k in tree.primary_chain(parent)]
                     if parent and parent in tree.nodes_by_key else [],
             "leaves": [{"key": k, "name": tree.nodes_by_key[k].name, "weight": w}

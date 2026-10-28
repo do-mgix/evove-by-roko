@@ -12,6 +12,10 @@ total: five "20–50" push-up records add up to 100, the 100–150 tier — 3 ma
 not 5. `max` mode is for events that do not add up, like meals: the window pays
 the best tier chosen.
 
+A leisure action may also price its tiers: `cost`, six token amounts, one per
+tier, so an episode costs less than an evening of them (src.domain.economy).
+Without it the action's flat `token_cost` is charged whatever the tier.
+
 Pure functions; the host loads the window and records the event.
 """
 from __future__ import annotations
@@ -77,9 +81,31 @@ def labels(tiers: dict) -> list[str]:
             + [f">{b[-1]}{suffix}"])
 
 
-def options(tiers: dict) -> list[dict]:
-    """The six choices shown when acting, each with the marks it is worth alone."""
-    return [{"index": i, "label": label, "marks": i} for i, label in enumerate(labels(tiers))]
+def tier_costs(tiers: dict) -> list[int] | None:
+    """The six token prices of a leisure action's tiers, or None when it has a
+    flat price."""
+    cost = tiers.get("cost")
+    if not isinstance(cost, list) or len(cost) != TIER_COUNT:
+        return None
+    return [max(0, int(c)) for c in cost]
+
+
+def token_cost(tiers: dict, option: int, flat: int) -> int:
+    """Tokens one act spends: its tier's price when the tiers have one, the
+    action's flat cost otherwise."""
+    costs = tier_costs(tiers)
+    return costs[int(option)] if costs else max(0, int(flat or 0))
+
+
+def options(tiers: dict, priced: bool = True) -> list[dict]:
+    """The six choices shown when acting, each with the marks it is worth alone
+    and, for a leisure action that prices its tiers, the tokens it spends."""
+    out = [{"index": i, "label": label, "marks": i} for i, label in enumerate(labels(tiers))]
+    costs = tier_costs(tiers) if priced else None
+    if costs:
+        for o, c in zip(out, costs):
+            o["tokens"] = -c
+    return out
 
 
 def amount(tiers: dict, option: int) -> float:
